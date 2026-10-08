@@ -1,5 +1,18 @@
 {
     "mcpServers": {
+        "burythehammer": {
+            "type": "stdio",
+            "command": "${FORGEJO_MCP_EXEC:-forgejo-mcp}",
+            "args": [
+                "-transport",
+                "stdio",
+                "-token",
+                "${BURYTHEHAMMER_FORGEJO_TOKEN}",
+                "-url",
+                "https://forgejo.burythehammer.com"
+            ],
+            "env": {}
+        },
         "codeberg-devel": {
             "type": "stdio",
             "command": "./forgejo-mcp",
