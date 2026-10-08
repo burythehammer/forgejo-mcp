@@ -170,7 +170,7 @@ survive the Codeberg → git.b4mad.industries migration. Pass the names, which
 `update_issue` (`set_labels`) all resolve:
 
 ```
-mcp__b4mad__add_issue_labels(owner: "agentic-forges", repo: "forgejo-mcp",
+mcp__burythehammer__add_issue_labels(owner: "burythehammer", repo: "forgejo-mcp",
                              index: <number>, labels: "Kind/Feature,Kind/OpenSpec")
 ```
 
