@@ -368,7 +368,7 @@ were true at once — the label had been added at creation, `OWNERS` had no
 
 ### Issue tracker
 
-Issues are tracked in Forgejo (`forgejo.burythehammer.com/burythehammer/forgejo-mcp`) via this repo's own forgejo-mcp server (`forgejo` in `.mcp.json`, tools `mcp__forgejo__*`; needs `FORGEJO_TOKEN` and a built binary on `FORGEJO_MCP_EXEC`). `fj` stays as a fallback. See `docs/agents/issue-tracker.md`.
+Issues are tracked in Forgejo (`forgejo.burythehammer.com/burythehammer/forgejo-mcp`) via this repo's own forgejo-mcp server (`forgejo` in `.mcp.json`, tools `mcp__forgejo__*`; needs `FORGEJO_URL`, `FORGEJO_TOKEN` and a built `forgejo-mcp` on `PATH`). `fj` stays as a fallback. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

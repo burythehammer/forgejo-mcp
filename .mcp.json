@@ -9,7 +9,7 @@
         "-token",
         "${FORGEJO_TOKEN}",
         "-url",
-        "https://forgejo.burythehammer.com"
+        "${FORGEJO_URL}"
       ],
       "env": {}
     }
