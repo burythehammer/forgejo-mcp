@@ -12,14 +12,20 @@ Issues and specs live in Forgejo issues at `forgejo.burythehammer.com/burytheham
 - **Comment**: `fj issue comment <number> "..."`
 - **Apply / remove labels**: `fj issue edit <number> labels --add <label>` / `--remove <label>`
 - **Close**: `fj issue close <number> --with-msg "..."`
-- **Create a label**: `fj repo labels create <name> <hex-color>` (note: it does not de-duplicate; check `fj repo labels view` first)
+- **List labels**: `fj repo labels view` (no repo argument; run inside the clone)
+- **Create a label**: `fj repo labels create <name> <hex-color>`. It does not de-duplicate, so read the list first. In zsh, call it from a function (`c(){ fj repo labels create "$1" "$2"; }`), since an unquoted loop variable is not word-split.
+- **Label a PR**: `fj pr edit <n> labels --add <label>`
 
 ## Fallback: `executor` / `forgejo_api`
 
-`fj` has no subcommand for these, so use the `executor` MCP `forgejo_api`:
+`fj` cannot assign a PR, set an issue's `ref`, link dependencies, retarget a PR or change repo settings. Use the `executor` MCP, path `forgejo_api.user.burythehammer.<tag>.<operation>`, taking `{owner, repo, index, body}`. Each write pauses for the user's approval. Find operations with `tools.search({namespace: "forgejo_api", query})` and `tools.describe.tool({path})`; copy names from there, not from memory.
 
-- **Native dependency link** (blocked-by): `issue.issueCreateIssueDependencies` on the blocked issue, naming the blocker.
-- **Branch link**: `issue.issueEditIssue` with `body: {ref: "<branch>"}` sets the issue's `ref` field.
+Confirmed to work here:
+
+- **Branch link**: `issue.issueEditIssue` with `body: {ref: "<branch>"}`.
+- **Retarget a PR**: `repository.repoEditPullRequest` with `body: {base: "<branch>"}`.
+- **Repo settings**: `repository.repoEdit` with `body: {default_branch: "<branch>"}`.
+- **Native dependency link**: `issue.issueCreateIssueDependencies` on the blocked issue. The body is `IssueMeta` naming the blocker; the call is not yet exercised here.
 
 ## Specs and subtasks
 

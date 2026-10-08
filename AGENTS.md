@@ -4,6 +4,8 @@ This file provides guidance to AI coding assistants (Claude Code, Cursor, etc.) 
 
 For detailed developer documentation, see [DEVELOPER.md](DEVELOPER.md).
 
+Default branch is `main`. `upstream` (b4mad) is a separate project; how its work merges in is not yet decided.
+
 ## Quick Reference
 
 ```bash
