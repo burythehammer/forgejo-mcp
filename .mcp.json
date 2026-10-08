@@ -1,13 +1,13 @@
 {
   "mcpServers": {
-    "burythehammer": {
+    "forgejo": {
       "type": "stdio",
       "command": "${FORGEJO_MCP_EXEC:-forgejo-mcp}",
       "args": [
         "-transport",
         "stdio",
         "-token",
-        "${BURYTHEHAMMER_FORGEJO_TOKEN}",
+        "${FORGEJO_TOKEN}",
         "-url",
         "https://forgejo.burythehammer.com"
       ],
