@@ -18,7 +18,7 @@ Issues and specs live in Forgejo issues at `forgejo.burythehammer.com/burytheham
 
 `fj` has no subcommand for these, so use the `executor` MCP `forgejo_api`:
 
-- **Native dependency link** (blocked-by): `issue.issueAddIssueDependency`-style call on the blocked issue, naming the blocker.
+- **Native dependency link** (blocked-by): `issue.issueCreateIssueDependencies` on the blocked issue, naming the blocker.
 - **Branch link**: `issue.issueEditIssue` with `body: {ref: "<branch>"}` sets the issue's `ref` field.
 
 ## Specs and subtasks
