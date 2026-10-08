@@ -361,3 +361,17 @@ the issue and nothing happened, remove it and re-add it to produce a genuine
 Diagnosed against `agentic-forges/forgejo-mcp#523` (2026-08-21): all three
 were true at once — the label had been added at creation, `OWNERS` had no
 `release-manager:` key, and no webhook was registered on the repo at all.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in Forgejo (`forgejo.burythehammer.com/burythehammer/forgejo-mcp`) via the `fj` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default triage labels (plus `needs-spec`, priority labels, and `spec`/`subtask`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root, created lazily. See `docs/agents/domain.md`.
