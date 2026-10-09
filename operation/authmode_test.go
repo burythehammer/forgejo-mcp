@@ -138,28 +138,6 @@ func TestValidateAuthConfig(t *testing.T) {
 	}
 }
 
-// freePort returns a port nothing listens on right now.
-func freePort(t *testing.T) int {
-	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	port := ln.Addr().(*net.TCPAddr).Port
-	_ = ln.Close()
-	return port
-}
-
-func assertPortFree(t *testing.T, port int) {
-	t.Helper()
-	addr := (&net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port}).String()
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		t.Fatalf("port %d is bound after a refused start: %v", port, err)
-	}
-	_ = ln.Close()
-}
-
 // Spec scenario "Incompatible transport": refused before binding any listener.
 func TestRefusedConfigurationIsRefusedBeforeBinding(t *testing.T) {
 	app := resourceServerConfig()
