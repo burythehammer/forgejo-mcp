@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
 func TestAPIPath_EscapesSegments(t *testing.T) {
@@ -65,9 +63,7 @@ func TestAPIPath_HostileOwnerStaysOnEndpoint(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	}))
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "test-token"
-	flag.UserAgent = "forgejo-mcp-test/0.0.1"
+	ConfigureForTesting(srv.URL, "test-token", "forgejo-mcp-test/0.0.1")
 
 	const owner = "o/x/../../admin"
 	const repo = "r?state=all&"

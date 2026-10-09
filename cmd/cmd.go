@@ -11,6 +11,7 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	flagPkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 )
 
@@ -172,6 +173,7 @@ func initConfig() {
 		)
 	}
 	applyToFlagPkg(cfg)
+	forgejo.Configure(cfg.Forgejo, version)
 	transport = cfg.Transport
 }
 

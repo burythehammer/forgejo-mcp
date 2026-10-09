@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -46,9 +45,7 @@ func newPatchBackend(t *testing.T, respBody string) (*httptest.Server, *[]record
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 
 	c, err := forgejo_sdk.NewClient(srv.URL,
 		forgejo_sdk.SetToken("tkn"),
@@ -334,9 +331,7 @@ func newLabelsBackend(
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 
 	c, err := forgejo_sdk.NewClient(srv.URL,
 		forgejo_sdk.SetToken("tkn"),
@@ -548,9 +543,7 @@ func newQueryBackendWithSettings(
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 
 	c, err := forgejo_sdk.NewClient(srv.URL,
 		forgejo_sdk.SetToken("tkn"),
@@ -1168,8 +1161,7 @@ func TestSearchIssues_ClientErrorPropagates(t *testing.T) {
 	// first so this holds whatever order -shuffle picks.
 	forgejo.ResetClientForTesting()
 	t.Cleanup(forgejo.ResetClientForTesting)
-	flag.URL = "http://127.0.0.1:0"
-	flag.Token = "tkn"
+	forgejo.ConfigureForTesting("http://127.0.0.1:0", "tkn", "")
 	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
 	if res != nil {
 		t.Fatalf("expected nil result on error, got %+v", res)
@@ -1934,9 +1926,7 @@ func newNotFoundBackend(t *testing.T) *httptest.Server {
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 
 	c, err := forgejo_sdk.NewClient(srv.URL,
 		forgejo_sdk.SetToken("tkn"),
@@ -1994,9 +1984,7 @@ func TestListRepoIssues_SortPathEscapesSegments(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	}))
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 
 	c, err := forgejo_sdk.NewClient(srv.URL,
 		forgejo_sdk.SetToken("tkn"),

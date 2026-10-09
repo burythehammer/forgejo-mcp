@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package forgejo
 
 import (
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
@@ -22,4 +26,10 @@ func SetClientForTesting(c *forgejo_sdk.Client) {
 // -shuffle=on.
 func ResetClientForTesting() {
 	SetClientForTesting(nil)
+}
+
+// ConfigureForTesting points the package at a test server. An empty
+// userAgent gets the default.
+func ConfigureForTesting(url, token, userAgent string) {
+	Configure(config.Forgejo{URL: url, Token: config.NewSecret(token), UserAgent: userAgent}, "test")
 }

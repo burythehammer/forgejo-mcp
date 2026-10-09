@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 )
 
@@ -34,9 +33,7 @@ func TestChangeFilesFnSendsAtomicBatch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	flag.URL = srv.URL
-	flag.Token = "test"
-	flag.UserAgent = "forgejo-mcp-test/0.0.1"
+	forgejo.ConfigureForTesting(srv.URL, "test", "forgejo-mcp-test/0.0.1")
 
 	client, err := forgejo_sdk.NewClient(
 		srv.URL,

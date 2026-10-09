@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/upload"
 
@@ -39,7 +38,7 @@ type route struct {
 
 // newBackend mirrors operation/attachment's helper: an httptest server that
 // records requests and matches the first prefix that fits. It also wires the
-// SDK singleton at flag.URL so handlers using forgejo.Client(ctx) hit it.
+// SDK singleton at forgejo.GetBaseURL() so handlers using forgejo.Client(ctx) hit it.
 func newBackend(t *testing.T, routes ...route) *[]recordedReq {
 	t.Helper()
 	records := make([]recordedReq, 0, 4)
@@ -70,9 +69,7 @@ func newBackend(t *testing.T, routes ...route) *[]recordedReq {
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 
 	c, err := forgejo_sdk.NewClient(srv.URL,
 		forgejo_sdk.SetToken("tkn"),
@@ -548,7 +545,7 @@ func TestDownloadReleaseAttachmentFn_UnderCap_ReturnsBlob(t *testing.T) {
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				resp := map[string]any{
 					"id": 42, "name": "f.bin", "size": len(payload), "uuid": "u",
-					"browser_download_url": flag.URL + "/attachments/u",
+					"browser_download_url": forgejo.GetBaseURL() + "/attachments/u",
 				}
 				_ = json.NewEncoder(w).Encode(resp)
 			},
@@ -593,7 +590,7 @@ func TestDownloadReleaseAttachmentFn_AtCap_NoBlob(t *testing.T) {
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				resp := map[string]any{
 					"id": 99, "name": "big.bin", "size": bigSize, "uuid": "u-big",
-					"browser_download_url": flag.URL + "/attachments/u-big",
+					"browser_download_url": forgejo.GetBaseURL() + "/attachments/u-big",
 				}
 				_ = json.NewEncoder(w).Encode(resp)
 			},
