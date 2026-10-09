@@ -49,6 +49,16 @@ repos:
         pass_filenames: false
         files: ^(operation/.*\.go|README\.md|scripts/ci/check-readme-tool-coverage\.sh)$
 
+      - id: check-skills-lock
+        name: check skills-lock.json matches .agents/skills
+        description: >-
+          Reject a vendored skill directory with no skills-lock.json entry,
+          or a lock entry with no directory.
+        entry: scripts/ci/check-skills-lock.sh
+        language: script
+        pass_filenames: false
+        files: ^(\.agents/skills/.*|skills-lock\.json|scripts/ci/check-skills-lock\.sh)$
+
       - id: check-demos
         name: check anchored spec demos
         description: Validate anchored Showboat demos against their specs.
