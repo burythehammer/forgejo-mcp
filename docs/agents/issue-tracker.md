@@ -2,7 +2,7 @@
 
 Issues and specs live in Forgejo issues at `forgejo.burythehammer.com/burythehammer/forgejo-mcp` (account `burythehammer`). Use the `fj` CLI; not `gh`. Run `fj <command> --help` to check flag shapes. Infer the repo from `git remote -v` (`origin`); `fj` does this inside a clone.
 
-`upstream` (`git.b4mad.industries/agentic-forges/forgejo-mcp`) is the upstream project, not this repo's tracker. Beads (`bd`, see `AGENTS.md`) is local scratch tracking, not the tracker of record.
+`upstream` (`git.b4mad.industries/agentic-forges/forgejo-mcp`) is the upstream project, not this repo's tracker.
 
 ## Conventions
 

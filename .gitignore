@@ -30,11 +30,6 @@ Thumbs.db
 
 .social-media/
 
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-
 # Python bytecode cache
 __pycache__/
 worktrees/
@@ -46,6 +41,3 @@ secrets/
 
 .mcp.json
 references/labels-cache.md
-
-# Beads / Dolt files (added by bd init)
-.beads/proxieddb/

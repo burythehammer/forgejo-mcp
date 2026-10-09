@@ -43,8 +43,8 @@ automatically.
 ## Cutting a release
 
 Releases are cut by tagging `main` with a semver `v*` tag. The project
-uses `b4mad/semantic-release` for this — see the `release-cut-command`
-memory in `bd memories release` for the exact container invocation.
+uses `b4mad/semantic-release` for this — see
+`AGENTS.md` ("Releasing") for how a release is cut.
 
 Once the tag is pushed, **both** pipelines run in parallel:
 

@@ -1,6 +1,5 @@
 # Issue & PR Time Tracking — Implementation Plan
 
-**Beads**: `forgejo-mcp-ya6`
 **Branch**: `feature/issue-time-tracking` *(suggested)*
 
 ## Summary
