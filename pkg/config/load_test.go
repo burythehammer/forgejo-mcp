@@ -89,11 +89,11 @@ func TestLoadPrecedencePerSetting(t *testing.T) {
 		{"debug env", nil, append([]string{"FORGEJO_DEBUG", "true"}, base...), func(c Config) any { return c.Debug }, true},
 		{"debug env other value", nil, append([]string{"FORGEJO_DEBUG", "1"}, base...), func(c Config) any { return c.Debug }, false},
 		{"debug deprecated", nil, append([]string{"GITEA_DEBUG", "true"}, base...), func(c Config) any { return c.Debug }, true},
-		{"auth mode env", nil, append([]string{"FORGEJO_MCP_AUTH_MODE", "resource-server"}, base...), func(c Config) any { return c.Auth.Mode }, "resource-server"},
+		{"auth mode env", rsTransport, append(append([]string{}, rsEnv...), base...), func(c Config) any { return c.Auth.Mode }, "resource-server"},
 		{"auth mode flag beats env", []string{"-auth-mode", "passthrough"}, append([]string{"FORGEJO_MCP_AUTH_MODE", "resource-server"}, base...), func(c Config) any { return c.Auth.Mode }, "passthrough"},
-		{"scopes split on whitespace", []string{"-scopes-supported", "a  b"}, base, func(c Config) any { return c.Auth.ScopesSupported }, []string{"a", "b"}},
-		{"published keys env", nil, append([]string{"FORGEJO_MCP_FORGEJO_JWT_PUBLISHED_KEY_FILES", "k1, k2"}, base...), func(c Config) any { return c.Auth.ForgejoJWTPublishedKeyFiles }, []string{"k1", "k2"}},
-		{"audience claim flag", []string{"-forgejo-audience-claim", "c"}, base, func(c Config) any { return c.Auth.ForgejoAudienceClaim }, "c"},
+		{"scopes split on whitespace", append([]string{"-scopes-supported", "a  b"}, rsTransport...), append(append([]string{}, rsEnv...), base...), func(c Config) any { return c.Auth.ScopesSupported }, []string{"a", "b"}},
+		{"published keys env", rsTransport, append(append([]string{"FORGEJO_MCP_FORGEJO_JWT_PUBLISHED_KEY_FILES", "k1, k2"}, rsEnv...), base...), func(c Config) any { return c.Auth.ForgejoJWTPublishedKeyFiles }, []string{"k1", "k2"}},
+		{"audience claim flag", append([]string{"-forgejo-audience-claim", "c"}, rsTransport...), append(append([]string{}, rsEnv...), base...), func(c Config) any { return c.Auth.ForgejoAudienceClaim }, "c"},
 		{"mode serve", nil, base, func(c Config) any { return c.Mode }, ModeServe},
 		{"mode cli", []string{"--cli", "list"}, base, func(c Config) any { return c.Mode }, ModeCLI},
 	}
@@ -175,9 +175,12 @@ func TestLoadHelpIsReportedWithUsage(t *testing.T) {
 
 func TestLoadRecordsWhichResourceServerSettingsWereSupplied(t *testing.T) {
 	t.Parallel()
-	cfg, _ := mustLoad(t, []string{"-resource", "https://r.example.org/mcp"},
-		env("FORGEJO_URL", "https://f.example.org", "FORGEJO_MCP_AUTHORIZATION_SERVER", "https://sso.example.org"))
-	want := []string{"FORGEJO_MCP_AUTHORIZATION_SERVER", "-resource"}
+	cfg, _ := mustLoad(t, []string{"-t", "http", "-allowed-hosts", "mcp.example.org", "-resource", "https://mcp.example.org/mcp"},
+		env("FORGEJO_URL", "https://f.example.org", "FORGEJO_MCP_AUTH_MODE", "resource-server",
+			"FORGEJO_MCP_AUTHORIZATION_SERVER", "https://sso.example.org",
+			"FORGEJO_MCP_FORGEJO_JWT_ISSUER", "https://mcp.example.org/issuer",
+			"FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE", "/k.pem"))
+	want := []string{"FORGEJO_MCP_AUTHORIZATION_SERVER", "-resource", "FORGEJO_MCP_FORGEJO_JWT_ISSUER", "FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE"}
 	if got := cfg.SuppliedResourceServerSettings(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("supplied = %v, want %v", got, want)
 	}

@@ -23,6 +23,19 @@ type UsageError struct {
 func (e *UsageError) Error() string { return e.Err.Error() }
 func (e *UsageError) Unwrap() error { return e.Err }
 
+// ValidationError is Validate's refusal as Load returns it.
+//
+// Rejected is the Config that failed. TEMPORARY: the cmd shim still feeds the
+// pkg/flag globals the characterization tests read after a refusal; it goes
+// when #40 and #43 retire the shim. Nothing else may use it.
+type ValidationError struct {
+	Err      error
+	Rejected Config
+}
+
+func (e *ValidationError) Error() string { return e.Err.Error() }
+func (e *ValidationError) Unwrap() error { return e.Err }
+
 // IsVersionRequest reports whether args ask for the version, which must be
 // answered before Load so that no URL is required.
 func IsVersionRequest(args []string) bool {
@@ -224,6 +237,9 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	cfg.Auth.ForgejoJWTSigningKeyFile = values["forgejo-jwt-signing-key-file"]
 	cfg.Auth.ForgejoJWTPublishedKeyFiles = splitList(values["forgejo-jwt-published-key-files"])
 
+	if err := cfg.Validate(); err != nil {
+		return Config{}, warns, &ValidationError{Err: err, Rejected: cfg}
+	}
 	return cfg, warns, nil
 }
 

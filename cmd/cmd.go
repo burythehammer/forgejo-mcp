@@ -137,10 +137,20 @@ func initFlags() {
 // version is the build version handed to Execute, kept for initConfig.
 var version string
 
+// loadErr is the refusal config.Load returned, reported by Execute.
+// TEMPORARY with the shim: see config.ValidationError.
+var loadErr error
+
 // initConfig resolves every shared setting through config.Load and copies the
 // result into the legacy globals.
 func initConfig() {
 	cfg, warns, err := config.Load(os.Args[1:], os.Getenv, config.Build{Version: version})
+	var invalid *config.ValidationError
+	if errors.As(err, &invalid) {
+		// Refused, but still copied below so the globals reflect what was
+		// asked for; Execute stops on loadErr before anything runs.
+		loadErr, cfg, err = err, invalid.Rejected, nil
+	}
 	if err != nil {
 		var usage *config.UsageError
 		if errors.As(err, &usage) {
@@ -211,8 +221,8 @@ func Execute(buildVersion string) {
 
 	// Checked before either entry point, so that --cli, which never reaches
 	// operation.Run, cannot run with an auth configuration the server refuses.
-	if err := operation.ValidateAuthConfig(transport, cliMode); err != nil {
-		log.Fatal("Invalid authentication configuration", log.ErrorField(err))
+	if loadErr != nil {
+		log.Fatal("Invalid configuration", log.ErrorField(loadErr))
 	}
 
 	// Sync flushes buffered logs at exit; its error (e.g. syncing stderr) is
