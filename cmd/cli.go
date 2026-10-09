@@ -11,31 +11,17 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	flagPkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
-
-// cliMode is set to true when --cli is detected in os.Args.
-var cliMode bool
-
-// hasCLIFlag checks os.Args for --cli before flag.Parse() runs.
-func hasCLIFlag() bool {
-	for _, arg := range os.Args[1:] {
-		if arg == "--cli" {
-			return true
-		}
-	}
-	return false
-}
 
 // toolDomains maps tool names to their domain for grouped listing.
 // Built by registering tools per domain and tracking which names appear.
 var toolDomains = map[string]string{}
 
 // registerToolsWithDomains registers all tools and builds the domain mapping.
-func registerToolsWithDomains(s *server.MCPServer) {
+func registerToolsWithDomains(s *server.MCPServer, version string) {
 	beforeNames := toolNames(s)
 
 	type domainReg struct {
@@ -49,7 +35,7 @@ func registerToolsWithDomains(s *server.MCPServer) {
 		{"pull", operation.RegisterPullTool},
 		{"pull", operation.RegisterPullReviewTool},
 		{"search", operation.RegisterSearchTool},
-		{"version", operation.RegisterVersionTool},
+		{"version", func(s *server.MCPServer) { operation.RegisterVersionTool(s, version) }},
 		{"actions", operation.RegisterActionsTool},
 		{"org", operation.RegisterOrgTool},
 		{"packages", operation.RegisterPackagesTool},
@@ -102,9 +88,8 @@ func RunCLI(cfg config.Config, version string) {
 	}
 
 	// Build the MCPServer and register tools with domain tracking.
-	flagPkg.Version = version
 	mcpSrv := server.NewMCPServer("Forgejo MCP Server", version, server.WithLogging())
-	registerToolsWithDomains(mcpSrv)
+	registerToolsWithDomains(mcpSrv, version)
 
 	switch c.Tool {
 	case "list":

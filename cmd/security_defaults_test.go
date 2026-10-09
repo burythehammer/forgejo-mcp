@@ -3,19 +3,16 @@
 package cmd
 
 import (
-	stdflag "flag"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	flagPkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
 // These tests pin how arguments and environment resolve into settings, and
 // what the auth checks then refuse, by driving the same entry point the binary
-// does (initFlags). They characterize behaviour that must survive the move to
+// does (config.Load). They characterize behaviour that must survive the move to
 // a typed Config, so they assert only outcomes: the resolved setting, or the
 // refusal.
 
@@ -24,119 +21,33 @@ const (
 	testURL    = "https://forgejo.example.org"
 )
 
-// allConfigEnv is every environment variable initFlags consults.
-func allConfigEnv() []string {
-	env := []string{
-		"FORGEJO_URL", "GITEA_HOST",
-		"FORGEJO_ACCESS_TOKEN", "GITEA_ACCESS_TOKEN",
-		"FORGEJO_USER_AGENT",
-		"FORGEJO_DEBUG", "GITEA_DEBUG",
-		"FORGEJO_MCP_HOST", "FORGEJO_MCP_ALLOWED_HOSTS", "FORGEJO_MCP_ALLOWED_ORIGINS",
-		"FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK",
-		"FORGEJO_MCP_AUTH_MODE",
-	}
-	for _, s := range resourceServerSettings() {
-		env = append(env, s.envVar)
-	}
-	return env
+// resourceServerEnvVars are the environment variables of the resource-server
+// only settings.
+var resourceServerEnvVars = []string{
+	"FORGEJO_MCP_AUTHORIZATION_SERVER", "FORGEJO_MCP_RESOURCE", "FORGEJO_MCP_RESOURCE_AUDIENCE",
+	"FORGEJO_MCP_SCOPES_SUPPORTED", "FORGEJO_MCP_FORGEJO_AUDIENCE_CLAIM", "FORGEJO_MCP_FORGEJO_JWT_ISSUER",
+	"FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE", "FORGEJO_MCP_FORGEJO_JWT_PUBLISHED_KEY_FILES",
 }
 
-// loadSettings runs initFlags against args and env (on top of a cleared
-// environment with only FORGEJO_URL set, unless env overrides it), and restores
-// every piece of package state it touched.
-func loadSettings(t *testing.T, args []string, env map[string]string) {
-	t.Helper()
-
-	strVars := []*string{
-		&transport, &urlFlag, &token, &userAgent, &host, &allowedHosts, &allowedOrigins,
-		&authMode, &authorizationServer, &resource, &resourceAudience, &scopesSupported,
-		&forgejoAudienceClaim, &forgejoJWTIssuer, &forgejoJWTSigningKeyFile, &forgejoJWTPublishedKeyFiles,
-	}
-	savedStr := make([]string, len(strVars))
-	for i, v := range strVars {
-		savedStr[i] = *v
-	}
-	savedInts := [2]int{ssePort, httpPort}
-	savedBools := [2]bool{allowFallback, debug}
-	savedSet, savedArgs, savedCLI := flagSet, os.Args, cliMode
-	savedPkg := struct {
-		url, token, version, userAgent, host, mode, authServer, res, resAud, claim, issuer, keyFile string
-		ssePort, httpPort                                                                           int
-		hosts, origins, scopes, published, settings                                                 []string
-		fallback, debug                                                                             bool
-	}{
-		flagPkg.URL, flagPkg.Token, flagPkg.Version, flagPkg.UserAgent, flagPkg.Host, flagPkg.AuthMode,
-		flagPkg.AuthorizationServer, flagPkg.Resource, flagPkg.ResourceAudience, flagPkg.ForgejoAudienceClaim,
-		flagPkg.ForgejoJWTIssuer, flagPkg.ForgejoJWTSigningKeyFile,
-		flagPkg.SSEPort, flagPkg.HTTPPort,
-		flagPkg.AllowedHosts, flagPkg.AllowedOrigins, flagPkg.ScopesSupported, flagPkg.ForgejoJWTPublishedKeyFiles,
-		flagPkg.ResourceServerSettings,
-		flagPkg.AllowOperatorTokenFallback, flagPkg.Debug,
-	}
-	t.Cleanup(func() {
-		for i, v := range strVars {
-			*v = savedStr[i]
-		}
-		ssePort, httpPort = savedInts[0], savedInts[1]
-		allowFallback, debug = savedBools[0], savedBools[1]
-		flagSet, os.Args, cliMode = savedSet, savedArgs, savedCLI
-		flagPkg.URL, flagPkg.Token, flagPkg.Version, flagPkg.UserAgent, flagPkg.Host = savedPkg.url, savedPkg.token, savedPkg.version, savedPkg.userAgent, savedPkg.host
-		flagPkg.AuthMode, flagPkg.AuthorizationServer, flagPkg.Resource = savedPkg.mode, savedPkg.authServer, savedPkg.res
-		flagPkg.ResourceAudience, flagPkg.ForgejoAudienceClaim = savedPkg.resAud, savedPkg.claim
-		flagPkg.ForgejoJWTIssuer, flagPkg.ForgejoJWTSigningKeyFile = savedPkg.issuer, savedPkg.keyFile
-		flagPkg.SSEPort, flagPkg.HTTPPort = savedPkg.ssePort, savedPkg.httpPort
-		flagPkg.AllowedHosts, flagPkg.AllowedOrigins = savedPkg.hosts, savedPkg.origins
-		flagPkg.ScopesSupported, flagPkg.ForgejoJWTPublishedKeyFiles = savedPkg.scopes, savedPkg.published
-		flagPkg.ResourceServerSettings = savedPkg.settings
-		flagPkg.AllowOperatorTokenFallback, flagPkg.Debug = savedPkg.fallback, savedPkg.debug
-	})
-
-	for _, k := range allConfigEnv() {
-		t.Setenv(k, "")
-	}
-	t.Setenv("FORGEJO_URL", testURL)
+// load runs config.Load against args and a hermetic environment holding only
+// FORGEJO_URL, unless env overrides it (an empty value counts as unset).
+func load(args []string, env map[string]string) (config.Config, error) {
+	e := map[string]string{"FORGEJO_URL": testURL}
 	for k, v := range env {
-		t.Setenv(k, v)
+		e[k] = v
 	}
-	cliMode = false
-	os.Args = append([]string{"forgejo-mcp"}, args...)
-	initFlags()
+	cfg, _, err := config.Load(args, func(k string) string { return e[k] }, config.Build{})
+	return cfg, err
 }
 
-// validate runs the checks Execute runs after loading, on the loaded settings.
-func validate(cli bool) error {
-	return validateTransport(transport, cli)
-}
-
-// validateTransport validates what the pkg/flag globals hold as config.Validate
-// does for a loaded Config.
-//
-// TEMPORARY: it rebuilds the Config from the globals until these tests load one
-// through config.Load directly.
-func validateTransport(transportName string, cli bool) error {
-	mode := config.ModeServe
-	if cli {
-		mode = config.ModeCLI
+// loadSettings loads a configuration that must be accepted.
+func loadSettings(t *testing.T, args []string, env map[string]string) config.Config {
+	t.Helper()
+	cfg, err := load(args, env)
+	if err != nil {
+		t.Fatalf("load %v: %v", args, err)
 	}
-	cfg := config.Config{
-		Mode:      mode,
-		Transport: transportName,
-		Forgejo:   config.Forgejo{URL: flagPkg.URL, Token: config.NewSecret(flagPkg.Token), UserAgent: flagPkg.UserAgent},
-		Listen: config.Listen{
-			SSEPort: flagPkg.SSEPort, HTTPPort: flagPkg.HTTPPort, Host: flagPkg.Host,
-			AllowedHosts: flagPkg.AllowedHosts, AllowedOrigins: flagPkg.AllowedOrigins,
-			AllowOperatorTokenFallback: flagPkg.AllowOperatorTokenFallback,
-		},
-		Auth: config.Auth{
-			Mode: flagPkg.AuthMode, AuthorizationServer: flagPkg.AuthorizationServer, Resource: flagPkg.Resource,
-			ResourceAudience: flagPkg.ResourceAudience, ScopesSupported: flagPkg.ScopesSupported,
-			ForgejoAudienceClaim: flagPkg.ForgejoAudienceClaim, ForgejoJWTIssuer: flagPkg.ForgejoJWTIssuer,
-			ForgejoJWTSigningKeyFile:    flagPkg.ForgejoJWTSigningKeyFile,
-			ForgejoJWTPublishedKeyFiles: flagPkg.ForgejoJWTPublishedKeyFiles,
-		},
-		Debug: flagPkg.Debug,
-	}
-	return cfg.WithSuppliedResourceServerSettings(flagPkg.ResourceServerSettings).Validate()
+	return cfg
 }
 
 // resourceServerArgs is a complete, valid resource-server configuration.
@@ -152,37 +63,34 @@ func resourceServerArgs() []string {
 }
 
 func TestDefaultsAreLoopbackPassthroughWithNoFallback(t *testing.T) {
-	loadSettings(t, nil, nil)
+	cfg := loadSettings(t, nil, nil)
 
-	if transport != "stdio" {
-		t.Errorf("transport = %q, want stdio", transport)
+	if cfg.Transport != "stdio" {
+		t.Errorf("transport = %q, want stdio", cfg.Transport)
 	}
-	if flagPkg.Host != "localhost" {
-		t.Errorf("host = %q, want the loopback name localhost", flagPkg.Host)
+	if cfg.Listen.Host != "localhost" {
+		t.Errorf("host = %q, want the loopback name localhost", cfg.Listen.Host)
 	}
-	if len(flagPkg.AllowedHosts) != 0 {
-		t.Errorf("allowed hosts = %q, want none", flagPkg.AllowedHosts)
+	if len(cfg.Listen.AllowedHosts) != 0 {
+		t.Errorf("allowed hosts = %q, want none", cfg.Listen.AllowedHosts)
 	}
-	if len(flagPkg.AllowedOrigins) != 0 {
-		t.Errorf("allowed origins = %q, want none, which accepts no browser origin", flagPkg.AllowedOrigins)
+	if len(cfg.Listen.AllowedOrigins) != 0 {
+		t.Errorf("allowed origins = %q, want none, which accepts no browser origin", cfg.Listen.AllowedOrigins)
 	}
-	if flagPkg.AllowOperatorTokenFallback {
+	if cfg.Listen.AllowOperatorTokenFallback {
 		t.Error("the operator-token fallback is on by default")
 	}
-	if flagPkg.AuthMode != "passthrough" {
-		t.Errorf("auth mode = %q, want passthrough", flagPkg.AuthMode)
+	if cfg.Auth.Mode != "passthrough" {
+		t.Errorf("auth mode = %q, want passthrough", cfg.Auth.Mode)
 	}
-	if len(flagPkg.ResourceServerSettings) != 0 {
-		t.Errorf("resource-server settings recorded as given: %q", flagPkg.ResourceServerSettings)
+	if len(cfg.SuppliedResourceServerSettings()) != 0 {
+		t.Errorf("resource-server settings recorded as given: %q", cfg.SuppliedResourceServerSettings())
 	}
-	if flagPkg.SSEPort != 8080 || flagPkg.HTTPPort != 8080 {
-		t.Errorf("ports = sse %d, http %d, want 8080 each", flagPkg.SSEPort, flagPkg.HTTPPort)
+	if cfg.Listen.SSEPort != 8080 || cfg.Listen.HTTPPort != 8080 {
+		t.Errorf("ports = sse %d, http %d, want 8080 each", cfg.Listen.SSEPort, cfg.Listen.HTTPPort)
 	}
-	if flagPkg.Debug {
+	if cfg.Debug {
 		t.Error("debug is on by default")
-	}
-	if err := validate(false); err != nil {
-		t.Errorf("the default configuration is refused: %v", err)
 	}
 }
 
@@ -192,11 +100,15 @@ func TestDefaultsAreLoopbackPassthroughWithNoFallback(t *testing.T) {
 // valid "neither" state.
 func TestFlagBeatsEnvironmentBeatsDefaultForEachSetting(t *testing.T) {
 	rows := []struct {
-		name        string
-		flagArgs    []string
-		envVar      string
-		envVal      string
-		get         func() any
+		name     string
+		flagArgs []string
+		envVar   string
+		envVal   string
+		// envArgs and envAlso complete the configuration when the environment
+		// value alone would leave it refused.
+		envArgs     []string
+		envAlso     map[string]string
+		get         func(config.Config) any
 		flagWant    any
 		envWant     any
 		defWant     any
@@ -205,44 +117,44 @@ func TestFlagBeatsEnvironmentBeatsDefaultForEachSetting(t *testing.T) {
 		{
 			name: "url", flagArgs: []string{"-url", "https://flag.example.org"},
 			envVar: "FORGEJO_URL", envVal: "https://env.example.org",
-			get:      func() any { return flagPkg.URL },
+			get:      func(cfg config.Config) any { return cfg.Forgejo.URL },
 			flagWant: "https://flag.example.org", envWant: "https://env.example.org", skipDefault: true,
 		},
 		{
 			name: "token", flagArgs: []string{"-token", "flag-" + decoyToken},
 			envVar: "FORGEJO_ACCESS_TOKEN", envVal: "env-" + decoyToken,
-			get:      func() any { return flagPkg.Token },
+			get:      func(cfg config.Config) any { return cfg.Forgejo.Token.Reveal() },
 			flagWant: "flag-" + decoyToken, envWant: "env-" + decoyToken, defWant: "",
 		},
 		{
 			name: "user agent", flagArgs: []string{"-user-agent", "flag-agent"},
 			envVar: "FORGEJO_USER_AGENT", envVal: "env-agent",
-			get:      func() any { return flagPkg.UserAgent },
+			get:      func(cfg config.Config) any { return cfg.Forgejo.UserAgent },
 			flagWant: "flag-agent", envWant: "env-agent", defWant: "",
 		},
 		{
 			name: "host", flagArgs: []string{"-host", "127.0.0.1"},
 			envVar: "FORGEJO_MCP_HOST", envVal: "0.0.0.0",
-			get:      func() any { return flagPkg.Host },
+			get:      func(cfg config.Config) any { return cfg.Listen.Host },
 			flagWant: "127.0.0.1", envWant: "0.0.0.0", defWant: "localhost",
 		},
 		{
 			name: "allowed hosts", flagArgs: []string{"-allowed-hosts", "flag.example.org"},
 			envVar: "FORGEJO_MCP_ALLOWED_HOSTS", envVal: "env.example.org",
-			get:      func() any { return flagPkg.AllowedHosts },
+			get:      func(cfg config.Config) any { return cfg.Listen.AllowedHosts },
 			flagWant: []string{"flag.example.org"}, envWant: []string{"env.example.org"}, defWant: []string(nil),
 		},
 		{
 			name: "allowed origins", flagArgs: []string{"-allowed-origins", "https://flag.example.org"},
 			envVar: "FORGEJO_MCP_ALLOWED_ORIGINS", envVal: "https://env.example.org",
-			get:      func() any { return flagPkg.AllowedOrigins },
+			get:      func(cfg config.Config) any { return cfg.Listen.AllowedOrigins },
 			flagWant: []string{"https://flag.example.org"}, envWant: []string{"https://env.example.org"}, defWant: []string(nil),
 		},
 		{
 			// An explicit false must beat an environment variable asking for true.
 			name: "operator token fallback", flagArgs: []string{"-allow-operator-token-fallback=false"},
 			envVar: "FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK", envVal: "true",
-			get:      func() any { return flagPkg.AllowOperatorTokenFallback },
+			get:      func(cfg config.Config) any { return cfg.Listen.AllowOperatorTokenFallback },
 			flagWant: false, envWant: true, defWant: false,
 		},
 		{
@@ -250,20 +162,31 @@ func TestFlagBeatsEnvironmentBeatsDefaultForEachSetting(t *testing.T) {
 			// resource-server.
 			name: "auth mode", flagArgs: []string{"-auth-mode", "passthrough"},
 			envVar: "FORGEJO_MCP_AUTH_MODE", envVal: "resource-server",
-			get:      func() any { return flagPkg.AuthMode },
+			envArgs: []string{"-t", "http", "-host", "127.0.0.1"},
+			envAlso: map[string]string{
+				"FORGEJO_MCP_AUTHORIZATION_SERVER":         "https://sso.example.org",
+				"FORGEJO_MCP_RESOURCE":                     "https://localhost:8443/mcp",
+				"FORGEJO_MCP_FORGEJO_JWT_ISSUER":           "https://localhost:8443/issuer",
+				"FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE": "signing.pem",
+			},
+			get:      func(cfg config.Config) any { return cfg.Auth.Mode },
 			flagWant: "passthrough", envWant: "resource-server", defWant: "passthrough",
 		},
 	}
 	for _, r := range rows {
 		t.Run(r.name+"/flag beats environment", func(t *testing.T) {
-			loadSettings(t, r.flagArgs, map[string]string{r.envVar: r.envVal})
-			if got := r.get(); !reflect.DeepEqual(got, r.flagWant) {
+			cfg := loadSettings(t, r.flagArgs, map[string]string{r.envVar: r.envVal})
+			if got := r.get(cfg); !reflect.DeepEqual(got, r.flagWant) {
 				t.Fatalf("got %#v, want the flag value %#v", got, r.flagWant)
 			}
 		})
 		t.Run(r.name+"/environment beats default", func(t *testing.T) {
-			loadSettings(t, nil, map[string]string{r.envVar: r.envVal})
-			if got := r.get(); !reflect.DeepEqual(got, r.envWant) {
+			env := map[string]string{r.envVar: r.envVal}
+			for k, v := range r.envAlso {
+				env[k] = v
+			}
+			cfg := loadSettings(t, r.envArgs, env)
+			if got := r.get(cfg); !reflect.DeepEqual(got, r.envWant) {
 				t.Fatalf("got %#v, want the environment value %#v", got, r.envWant)
 			}
 		})
@@ -271,8 +194,8 @@ func TestFlagBeatsEnvironmentBeatsDefaultForEachSetting(t *testing.T) {
 			continue
 		}
 		t.Run(r.name+"/default", func(t *testing.T) {
-			loadSettings(t, nil, nil)
-			if got := r.get(); !reflect.DeepEqual(got, r.defWant) {
+			cfg := loadSettings(t, nil, nil)
+			if got := r.get(cfg); !reflect.DeepEqual(got, r.defWant) {
 				t.Fatalf("got %#v, want the default %#v", got, r.defWant)
 			}
 		})
@@ -284,48 +207,45 @@ func TestPortsAndTransportComeFromFlagsAlone(t *testing.T) {
 	// plausible name must not move them.
 	t.Setenv("FORGEJO_MCP_HTTP_PORT", "9999")
 	t.Setenv("FORGEJO_MCP_TRANSPORT", "http")
-	loadSettings(t, []string{"-t", "sse", "-sse-port", "9090", "-http-port", "9091"}, nil)
+	cfg := loadSettings(t, []string{"-t", "sse", "-sse-port", "9090", "-http-port", "9091"}, nil)
 
-	if transport != "sse" || flagPkg.SSEPort != 9090 || flagPkg.HTTPPort != 9091 {
-		t.Fatalf("transport %q, sse port %d, http port %d", transport, flagPkg.SSEPort, flagPkg.HTTPPort)
+	if cfg.Transport != "sse" || cfg.Listen.SSEPort != 9090 || cfg.Listen.HTTPPort != 9091 {
+		t.Fatalf("transport %q, sse port %d, http port %d", cfg.Transport, cfg.Listen.SSEPort, cfg.Listen.HTTPPort)
 	}
-	loadSettings(t, nil, nil)
-	if transport != "stdio" || flagPkg.SSEPort != 8080 || flagPkg.HTTPPort != 8080 {
-		t.Fatalf("defaults moved: transport %q, sse port %d, http port %d", transport, flagPkg.SSEPort, flagPkg.HTTPPort)
+	cfg = loadSettings(t, nil, nil)
+	if cfg.Transport != "stdio" || cfg.Listen.SSEPort != 8080 || cfg.Listen.HTTPPort != 8080 {
+		t.Fatalf("defaults moved: transport %q, sse port %d, http port %d", cfg.Transport, cfg.Listen.SSEPort, cfg.Listen.HTTPPort)
 	}
 }
 
 func TestDebugComesFromTheFlagOrTheEnvironment(t *testing.T) {
-	loadSettings(t, []string{"-debug"}, nil)
-	if !flagPkg.Debug {
+	if cfg := loadSettings(t, []string{"-debug"}, nil); !cfg.Debug {
 		t.Error("-debug did not enable debug")
 	}
-	loadSettings(t, nil, map[string]string{"FORGEJO_DEBUG": "true"})
-	if !flagPkg.Debug {
+	if cfg := loadSettings(t, nil, map[string]string{"FORGEJO_DEBUG": "true"}); !cfg.Debug {
 		t.Error("FORGEJO_DEBUG=true did not enable debug")
 	}
-	loadSettings(t, nil, map[string]string{"FORGEJO_DEBUG": "false"})
-	if flagPkg.Debug {
+	if cfg := loadSettings(t, nil, map[string]string{"FORGEJO_DEBUG": "false"}); cfg.Debug {
 		t.Error("FORGEJO_DEBUG=false enabled debug")
 	}
 }
 
 func TestDeprecatedGiteaVariablesStillWorkAndLoseToForgejoOnes(t *testing.T) {
-	loadSettings(t, nil, map[string]string{
+	cfg := loadSettings(t, nil, map[string]string{
 		"FORGEJO_URL": "", "GITEA_HOST": "https://gitea.example.org",
 		"GITEA_ACCESS_TOKEN": "gitea-" + decoyToken, "GITEA_DEBUG": "true",
 	})
-	if flagPkg.URL != "https://gitea.example.org" || flagPkg.Token != "gitea-"+decoyToken || !flagPkg.Debug {
+	if cfg.Forgejo.URL != "https://gitea.example.org" || cfg.Forgejo.Token.Reveal() != "gitea-"+decoyToken || !cfg.Debug {
 		t.Fatalf("deprecated fallbacks lost: url %q, token set %t, debug %t",
-			flagPkg.URL, flagPkg.Token != "", flagPkg.Debug)
+			cfg.Forgejo.URL, cfg.Forgejo.Token.Reveal() != "", cfg.Debug)
 	}
 
-	loadSettings(t, nil, map[string]string{
+	cfg = loadSettings(t, nil, map[string]string{
 		"FORGEJO_URL": "https://forgejo.example.org", "GITEA_HOST": "https://gitea.example.org",
 		"FORGEJO_ACCESS_TOKEN": "forgejo-" + decoyToken, "GITEA_ACCESS_TOKEN": "gitea-" + decoyToken,
 	})
-	if flagPkg.URL != "https://forgejo.example.org" || flagPkg.Token != "forgejo-"+decoyToken {
-		t.Fatalf("a deprecated variable beat its replacement: url %q", flagPkg.URL)
+	if cfg.Forgejo.URL != "https://forgejo.example.org" || cfg.Forgejo.Token.Reveal() != "forgejo-"+decoyToken {
+		t.Fatalf("a deprecated variable beat its replacement: url %q", cfg.Forgejo.URL)
 	}
 }
 
@@ -335,15 +255,13 @@ func TestDeprecatedGiteaVariablesStillWorkAndLoseToForgejoOnes(t *testing.T) {
 func TestPassthroughRefusesAResourceServerSettingOnEveryTransport(t *testing.T) {
 	for _, tr := range []string{"stdio", "sse", "http"} {
 		t.Run(tr+"/flag", func(t *testing.T) {
-			loadSettings(t, []string{"-t", tr, "-forgejo-jwt-issuer", "https://mcp.example.org/issuer"}, nil)
-			err := validate(false)
+			_, err := load([]string{"-t", tr, "-forgejo-jwt-issuer", "https://mcp.example.org/issuer"}, nil)
 			if err == nil || !strings.Contains(err.Error(), "-forgejo-jwt-issuer") {
 				t.Fatalf("error = %v, want a refusal naming the flag", err)
 			}
 		})
 		t.Run(tr+"/environment", func(t *testing.T) {
-			loadSettings(t, []string{"-t", tr}, map[string]string{"FORGEJO_MCP_RESOURCE": "https://mcp.example.org/mcp"})
-			err := validate(false)
+			_, err := load([]string{"-t", tr}, map[string]string{"FORGEJO_MCP_RESOURCE": "https://mcp.example.org/mcp"})
 			if err == nil || !strings.Contains(err.Error(), "FORGEJO_MCP_RESOURCE") {
 				t.Fatalf("error = %v, want a refusal naming the variable", err)
 			}
@@ -354,8 +272,7 @@ func TestPassthroughRefusesAResourceServerSettingOnEveryTransport(t *testing.T) 
 func TestResourceServerAcceptsACompleteConfiguration(t *testing.T) {
 	// The control for the refusals below: each of them changes one thing in
 	// this configuration.
-	loadSettings(t, resourceServerArgs(), nil)
-	if err := validate(false); err != nil {
+	if _, err := load(resourceServerArgs(), nil); err != nil {
 		t.Fatalf("a complete resource-server configuration was refused: %v", err)
 	}
 }
@@ -365,7 +282,6 @@ func TestResourceServerRefusals(t *testing.T) {
 		name  string
 		args  []string
 		env   map[string]string
-		cli   bool
 		wants []string
 	}{
 		{
@@ -395,14 +311,21 @@ func TestResourceServerRefusals(t *testing.T) {
 			wants: []string{"requires the http transport"},
 		},
 		{
-			name: "cli mode", args: resourceServerArgs(), cli: true,
+			// --cli never reads flags, so the environment alone configures it.
+			name: "cli mode", args: []string{"--cli", "list"},
+			env: map[string]string{
+				"FORGEJO_MCP_AUTH_MODE":                    "resource-server",
+				"FORGEJO_MCP_AUTHORIZATION_SERVER":         "https://sso.example.org",
+				"FORGEJO_MCP_RESOURCE":                     "https://localhost:8443/mcp",
+				"FORGEJO_MCP_FORGEJO_JWT_ISSUER":           "https://localhost:8443/issuer",
+				"FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE": "/run/credentials/forgejo-mcp/signing.pem",
+			},
 			wants: []string{"--cli"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			loadSettings(t, tc.args, tc.env)
-			err := validate(tc.cli)
+			_, err := load(tc.args, tc.env)
 			if err == nil {
 				t.Fatal("an invalid resource-server configuration was accepted")
 			}
@@ -416,8 +339,7 @@ func TestResourceServerRefusals(t *testing.T) {
 }
 
 func TestResourceServerNamesEveryMissingRequiredSettingInOneError(t *testing.T) {
-	loadSettings(t, []string{"-t", "http", "-auth-mode", "resource-server"}, nil)
-	err := validate(false)
+	_, err := load([]string{"-t", "http", "-auth-mode", "resource-server"}, nil)
 	if err == nil {
 		t.Fatal("a resource-server configuration with nothing else was accepted")
 	}
@@ -430,16 +352,11 @@ func TestResourceServerNamesEveryMissingRequiredSettingInOneError(t *testing.T) 
 	}
 }
 
-func TestExplicitFlagSetStaysDistinguishableAfterALoad(t *testing.T) {
+func TestExplicitFlagEqualToTheDefaultStillBeatsTheEnvironment(t *testing.T) {
 	// The precedence rows above depend on this: an explicit flag set to its
 	// default must still count as passed.
-	loadSettings(t, []string{"-host", "localhost"}, map[string]string{"FORGEJO_MCP_HOST": "0.0.0.0"})
-	if flagPkg.Host != "localhost" {
-		t.Fatalf("host = %q, an explicit -host localhost lost to the environment", flagPkg.Host)
-	}
-	var passed []string
-	flagSet.Visit(func(f *stdflag.Flag) { passed = append(passed, f.Name) })
-	if !reflect.DeepEqual(passed, []string{"host"}) {
-		t.Fatalf("flags reported as passed = %q, want only host", passed)
+	cfg := loadSettings(t, []string{"-host", "localhost"}, map[string]string{"FORGEJO_MCP_HOST": "0.0.0.0"})
+	if cfg.Listen.Host != "localhost" {
+		t.Fatalf("host = %q, an explicit -host localhost lost to the environment", cfg.Listen.Host)
 	}
 }
