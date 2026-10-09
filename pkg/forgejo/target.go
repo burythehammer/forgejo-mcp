@@ -36,24 +36,17 @@ func Configure(cfg config.Forgejo, version string) {
 	current.Store(&target{url: cfg.URL, token: cfg.Token.Reveal(), userAgent: ua})
 }
 
-func baseURL() string {
+// currentTarget is the configured target, or the zero target before Configure.
+func currentTarget() target {
 	if t := current.Load(); t != nil {
-		return t.url
+		return *t
 	}
-	return ""
+	return target{userAgent: "forgejo-mcp/"}
 }
 
-func operatorToken() string {
-	if t := current.Load(); t != nil {
-		return t.token
-	}
-	return ""
-}
+func baseURL() string { return currentTarget().url }
+
+func operatorToken() string { return currentTarget().token }
 
 // userAgent returns the configured UA, falling back to forgejo-mcp/<version>.
-func userAgent() string {
-	if t := current.Load(); t != nil {
-		return t.userAgent
-	}
-	return "forgejo-mcp/"
-}
+func userAgent() string { return currentTarget().userAgent }

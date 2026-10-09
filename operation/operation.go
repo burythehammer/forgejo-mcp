@@ -228,13 +228,8 @@ func Run(cfg config.Config, version string) error {
 	RegisterTool(mcpServer, version)
 	RegisterCoreResources(mcpServer)
 
-	// Checked again here, not only in cmd, so that no caller of Run can reach a
-	// listener with a configuration the checks would refuse.
-	if err := cfg.Validate(); err != nil {
-		return err
-	}
 	if cfg.ResourceServerMode() {
-		// Validate has already refused every transport but http.
+		// config.Load has already refused every transport but http.
 		rs, err := prepareResourceServer(context.Background(), cfg)
 		if err != nil {
 			return err

@@ -12,7 +12,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -138,41 +137,18 @@ func TestValidateAuthConfig(t *testing.T) {
 	}
 }
 
-// freePort returns a port nothing listens on right now.
-func freePort(t *testing.T) int {
-	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	port := ln.Addr().(*net.TCPAddr).Port
-	_ = ln.Close()
-	return port
-}
-
-func assertPortFree(t *testing.T, port int) {
-	t.Helper()
-	addr := (&net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port}).String()
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		t.Fatalf("port %d is bound after a refused start: %v", port, err)
-	}
-	_ = ln.Close()
-}
-
 // Spec scenario "Incompatible transport": refused before binding any listener.
-func TestRefusedConfigurationNeverBinds(t *testing.T) {
+func TestRefusedConfigurationIsRefusedBeforeBinding(t *testing.T) {
 	app := resourceServerConfig()
 	app.Transport = "sse"
 	app.Listen.Host, app.Listen.AllowedHosts = "127.0.0.1", []string{"mcp.example.org"}
-	port := freePort(t)
-	app.Listen.SSEPort = port
 
-	err := Run(app, "test")
+	// Run no longer validates: config.Load does, and cmd only runs a loaded
+	// configuration, so the refusal that keeps the port unbound is Validate's.
+	err := app.Validate()
 	if err == nil || !strings.Contains(err.Error(), "requires the http transport") {
-		t.Fatalf("Run(sse) error = %v, want a transport refusal", err)
+		t.Fatalf("Validate(sse) error = %v, want a transport refusal", err)
 	}
-	assertPortFree(t, port)
 }
 
 // fixture serves a Forgejo instance and an identity provider, and writes a

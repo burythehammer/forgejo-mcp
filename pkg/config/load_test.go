@@ -181,11 +181,11 @@ func TestLoadRecordsWhichResourceServerSettingsWereSupplied(t *testing.T) {
 			"FORGEJO_MCP_FORGEJO_JWT_ISSUER", "https://mcp.example.org/issuer",
 			"FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE", "/k.pem"))
 	want := []string{"FORGEJO_MCP_AUTHORIZATION_SERVER", "-resource", "FORGEJO_MCP_FORGEJO_JWT_ISSUER", "FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE"}
-	if got := cfg.SuppliedResourceServerSettings(); !reflect.DeepEqual(got, want) {
+	if got := cfg.suppliedResourceServer; !reflect.DeepEqual(got, want) {
 		t.Fatalf("supplied = %v, want %v", got, want)
 	}
 	cfg, _ = mustLoad(t, nil, env("FORGEJO_URL", "https://f.example.org"))
-	if got := cfg.SuppliedResourceServerSettings(); len(got) != 0 {
+	if got := cfg.suppliedResourceServer; len(got) != 0 {
 		t.Fatalf("supplied = %v", got)
 	}
 }
@@ -208,5 +208,15 @@ func TestLoadLeavesTheDefaultUserAgentUnsetWithoutAVersion(t *testing.T) {
 	cfg, _, err := Load(nil, env("FORGEJO_URL", "https://f.example.org"), Build{})
 	if err != nil || cfg.Forgejo.UserAgent != "" {
 		t.Fatalf("user agent = %q, err = %v", cfg.Forgejo.UserAgent, err)
+	}
+}
+
+func TestLoadDoesNotRecordAShadowedEnvironmentVariableAsSupplied(t *testing.T) {
+	t.Parallel()
+	cfg, _ := mustLoad(t, []string{"-t", "http", "-host", "127.0.0.1", "-allowed-hosts", "mcp.example.org", "-forgejo-audience-claim", "forgejo_aud"}, env("FORGEJO_URL", "https://f.example.org", "FORGEJO_MCP_AUTH_MODE", "resource-server", "FORGEJO_MCP_FORGEJO_AUDIENCE_CLAIM", "other_claim", "FORGEJO_MCP_AUTHORIZATION_SERVER", "https://sso.example.org", "FORGEJO_MCP_FORGEJO_JWT_ISSUER", "https://mcp.example.org/issuer", "FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE", "/k.pem", "FORGEJO_MCP_RESOURCE", "https://mcp.example.org/mcp"))
+	for _, got := range cfg.suppliedResourceServer {
+		if got == "FORGEJO_MCP_FORGEJO_AUDIENCE_CLAIM" {
+			t.Fatalf("shadowed variable recorded: %q", cfg.suppliedResourceServer)
+		}
 	}
 }
