@@ -7,8 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"testing"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
 // The decoy below is never a real credential and never reaches a network: these
@@ -17,13 +15,10 @@ const decoyOperatorCredential = "decoy-operator-value-not-a-credential"
 
 func withPolicy(t *testing.T, require bool, operatorValue string) {
 	t.Helper()
-	prevRequire, prevToken := RequireRequestToken(), flag.Token
+	prevRequire := RequireRequestToken()
 	SetRequireRequestToken(require)
-	flag.Token = operatorValue
-	t.Cleanup(func() {
-		SetRequireRequestToken(prevRequire)
-		flag.Token = prevToken
-	})
+	withTarget(t, func(tg *target) { tg.token = operatorValue })
+	t.Cleanup(func() { SetRequireRequestToken(prevRequire) })
 }
 
 func TestRequestCredentialAlwaysWins(t *testing.T) {
@@ -109,12 +104,24 @@ func TestOperatorFallbackIsAvailableUntilANetworkTransportSwitchesItOff(t *testi
 	if RequireRequestToken() {
 		t.Fatal("the policy requires a per-request token before any transport selected it")
 	}
-	prevToken := flag.Token
-	flag.Token = decoyOperatorCredential
-	t.Cleanup(func() { flag.Token = prevToken })
+	withTarget(t, func(tg *target) { tg.token = decoyOperatorCredential })
 
 	got, err := tokenForRequest(context.Background())
 	if err != nil || got != decoyOperatorCredential {
 		t.Fatalf("got (%q, %v), want the operator credential on the initial policy", got, err)
 	}
+}
+
+// withTarget replaces the configured target for the test and restores the
+// previous one afterwards.
+func withTarget(t *testing.T, edit func(*target)) {
+	t.Helper()
+	prev := current.Load()
+	next := target{}
+	if prev != nil {
+		next = *prev
+	}
+	edit(&next)
+	current.Store(&next)
+	t.Cleanup(func() { current.Store(prev) })
 }

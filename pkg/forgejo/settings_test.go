@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
-
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
@@ -33,8 +31,7 @@ func TestMaxResponseItems_CachesAcrossCalls(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	flag.URL = srv.URL
-	flag.Token = "global-token"
+	ConfigureForTesting(srv.URL, "global-token", "")
 	client = nil
 	resetSettingsCacheForTesting()
 
@@ -77,8 +74,7 @@ func TestMaxResponseItems_FailureIsUnknownNotZero(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	flag.URL = srv.URL
-	flag.Token = "global-token"
+	ConfigureForTesting(srv.URL, "global-token", "")
 	client = nil
 	resetSettingsCacheForTesting()
 
@@ -116,8 +112,7 @@ func TestSetClientForTesting_ResetsSettingsCache(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	flag.URL = srv.URL
-	flag.Token = "global-token"
+	ConfigureForTesting(srv.URL, "global-token", "")
 	client = nil
 	resetSettingsCacheForTesting()
 
