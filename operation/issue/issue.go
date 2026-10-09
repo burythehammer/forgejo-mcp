@@ -39,6 +39,11 @@ func isValidIssueSort(s string) bool {
 	return false
 }
 
+// refArgDescription is the shared description of the 'ref' argument on
+// create_issue and update_issue. The value goes to Forgejo as given: this
+// server neither normalises it nor checks that the branch exists.
+const refArgDescription = "The branch this issue is linked to (Forgejo's issue 'ref' field, distinct from a pull request link). Passed to Forgejo as given; Forgejo decides which forms it accepts."
+
 // ScopedLabel wraps forgejo_sdk.Label with a scope marker so callers of
 // list_repo_labels and list_org_labels can tell repo- and org-scoped
 // labels apart in a merged response.
@@ -127,6 +132,7 @@ var (
 		mcp.WithString("labels", mcp.Description(labelsArgDescription("Labels for the new issue"))),
 		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated)")),
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
+		mcp.WithString("ref", mcp.Description(refArgDescription)),
 	)
 
 	CreateIssueCommentTool = mcp.NewTool(
@@ -152,6 +158,7 @@ var (
 		mcp.WithString("due_date", mcp.Description("Set the issue's due date (RFC3339, e.g. 2026-08-20T00:00:00Z). Mutually exclusive with 'clear_due_date'; setting both is an error.")),
 		mcp.WithBoolean("clear_due_date", mcp.Description("Clear the issue's due date. Mutually exclusive with 'due_date'.")),
 		mcp.WithString("set_labels", mcp.Description(labelsArgDescription("Replace the issue's entire label set")+" Pass an empty string to remove every label. To add or drop individual labels without restating the set, use add_issue_labels or remove_issue_labels.")),
+		mcp.WithString("ref", mcp.Description(refArgDescription+" Omit to leave it unchanged; pass an empty string to clear it.")),
 	)
 
 	AddIssueLabelsTools = mcp.NewTool(
@@ -543,9 +550,12 @@ func CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	assigneesRaw, assigneesProvided := req.GetArguments()["assignees"].(string)
 	milestone, _ := req.GetArguments()["milestone"].(string)
 
+	branchRef, _ := req.GetArguments()["ref"].(string)
+
 	opt := forgejo_sdk.CreateIssueOption{
 		Title: title,
 		Body:  body,
+		Ref:   branchRef,
 	}
 	// Labels resolve before the POST, not after it: a typo must not leave a
 	// real unlabelled issue behind for someone to clean up.
@@ -612,6 +622,7 @@ func UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	dueDate, _ := req.GetArguments()["due_date"].(string)
 	clearDueDate, _ := req.GetArguments()["clear_due_date"].(bool)
 	setLabelsRaw, setLabelsProvided := req.GetArguments()["set_labels"].(string)
+	branchRef, branchRefProvided := req.GetArguments()["ref"].(string)
 
 	// The Forgejo edit-issue endpoint has no labels field and ignores one if
 	// sent, so set_labels is a separate request (PUT to replace, DELETE to
@@ -619,9 +630,15 @@ func UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	// update from sending an empty PATCH, which would move updated_at for
 	// nothing; with no set_labels at all the handler behaves exactly as before.
 	patchRequested := title != "" || body != "" || assigneesProvided || assignee != "" ||
-		milestone != "" || dueDate != "" || clearDueDate
+		milestone != "" || dueDate != "" || clearDueDate || branchRefProvided
 
 	opt := forgejo_sdk.EditIssueOption{}
+
+	// An explicitly provided empty 'ref' clears the branch link (sent as "");
+	// an omitted one stays nil and leaves it unchanged.
+	if branchRefProvided {
+		opt.Ref = &branchRef
+	}
 
 	// Only set fields that were provided
 	if title != "" {

@@ -18,6 +18,7 @@ If the server is not connected, `fj` (`fj <command> --help` for flag shapes; it 
 - **Comment**: `create_issue_comment`
 - **Apply / remove labels**: `add_issue_labels` / `remove_issue_labels`, by name; both also take a PR's index.
 - **Assign**: `update_issue` (`assignees`) for issues, `update_pull_request` (`assignee`) for PRs.
+- **Set the issue ref** (the branch link): `update_issue` or `create_issue` with `ref`. An empty `ref` on `update_issue` clears it.
 - **Close**: a closing comment, then `issue_state_change` with `state: "closed"`.
 - **List labels**: `list_repo_labels`
 - **Create a label**: `create_repo_label`. Read the list first so it does not duplicate.
@@ -26,7 +27,7 @@ If the server is not connected, `fj` (`fj <command> --help` for flag shapes; it 
 
 ## Gaps: `executor` / `forgejo_api`
 
-The MCP has no tool for an issue's `ref` (the branch link; see #23). Use the `executor` MCP, path `forgejo_api.user.burythehammer.issue.issueEditIssue`, with `body: {ref: "<branch>"}`. Each write pauses for the user's approval. For any other operation the MCP lacks, find it with `tools.search({namespace: "forgejo_api", query})` and `tools.describe.tool({path})`; copy names from there, not from memory.
+For an operation the MCP lacks, use the `executor` MCP; each write pauses for the user's approval. Find the operation with `tools.search({namespace: "forgejo_api", query})` and `tools.describe.tool({path})`; copy names from there, not from memory.
 
 ## Specs and subtasks
 

@@ -141,6 +141,7 @@ type issueResourcePayload struct {
 	UpdatedAt      string       `json:"updated_at"`
 	ClosedAt       string       `json:"closed_at,omitempty"`
 	DueDate        string       `json:"due_date,omitempty"`
+	Ref            string       `json:"ref,omitempty"`
 	Labels         []string     `json:"labels"`
 	Assignees      []string     `json:"assignees"`
 	Milestone      string       `json:"milestone,omitempty"`
@@ -239,6 +240,7 @@ func issueResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]m
 		UpdatedAt:      iss.Updated.Format("2006-01-02T15:04:05Z07:00"),
 		ClosedAt:       closedAt,
 		DueDate:        dueDate,
+		Ref:            iss.Ref,
 		Labels:         labels,
 		Assignees:      assignees,
 		Milestone:      milestone,
