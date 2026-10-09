@@ -210,6 +210,63 @@ func TestIssueResourceHandler_NoDueDateOmitted(t *testing.T) {
 	}
 }
 
+// TestIssueResourceHandler_RefPassesThrough: like due_date, the issue resource
+// builds its own payload rather than marshalling the SDK struct, so the issue
+// ref (the linked branch) needs a dedicated field to be visible at all.
+func TestIssueResourceHandler_RefPassesThrough(t *testing.T) {
+	issue := fakeIssue()
+	issue["ref"] = "feat/my-branch"
+	h := &issueRoutingHandler{
+		issueStatus:    http.StatusOK,
+		issueBody:      issue,
+		commentsStatus: http.StatusOK,
+		commentsBody:   fakeComments(0),
+	}
+	srv := setupIssueMockServer(t, h)
+	defer srv.Close()
+
+	req := makeIssueResourceRequest("goern", "forgejo-mcp", 42)
+	contents, err := issueResourceHandler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	jsonBlock := contents[0].(mcp.TextResourceContents)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(jsonBlock.Text), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if payload["ref"] != "feat/my-branch" {
+		t.Errorf("expected ref=feat/my-branch, got %v", payload["ref"])
+	}
+}
+
+func TestIssueResourceHandler_NoRefOmitted(t *testing.T) {
+	h := &issueRoutingHandler{
+		issueStatus:    http.StatusOK,
+		issueBody:      fakeIssue(), // no ref key
+		commentsStatus: http.StatusOK,
+		commentsBody:   fakeComments(0),
+	}
+	srv := setupIssueMockServer(t, h)
+	defer srv.Close()
+
+	req := makeIssueResourceRequest("goern", "forgejo-mcp", 42)
+	contents, err := issueResourceHandler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	jsonBlock := contents[0].(mcp.TextResourceContents)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(jsonBlock.Text), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if _, present := payload["ref"]; present {
+		t.Errorf("expected ref omitted when unset (omitempty), got %q", jsonBlock.Text)
+	}
+}
+
 func TestIssueResourceHandler_OverCap_Truncated(t *testing.T) {
 	// Use exactly EmbeddedListCap+1 items. In production, ListIssueComments is
 	// now called with PageSize=EmbeddedListCap+1, so the server can return up

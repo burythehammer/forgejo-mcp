@@ -152,6 +152,150 @@ func TestUpdateIssue_AssigneesEmptyClears(t *testing.T) {
 	}
 }
 
+func TestUpdateIssue_RefSet(t *testing.T) {
+	_, records := newPatchBackend(t, `{"id":1,"number":42,"ref":"feat/my-branch"}`)
+
+	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
+		"owner": "goern",
+		"repo":  "forgejo-mcp",
+		"index": float64(42),
+		"ref":   "feat/my-branch",
+	}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
+	}
+
+	if len(*records) == 0 {
+		t.Fatal("expected a ref-only update to send a PATCH")
+	}
+	last := (*records)[len(*records)-1]
+	if last.method != http.MethodPatch {
+		t.Fatalf("expected PATCH, got %s", last.method)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
+		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
+	}
+	if payload["ref"] != "feat/my-branch" {
+		t.Fatalf("expected ref=feat/my-branch, got %v", payload["ref"])
+	}
+	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
+		t.Fatalf("expected the updated ref in the result, got %q", textOf(res))
+	}
+}
+
+func TestUpdateIssue_RefEmptyClears(t *testing.T) {
+	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
+
+	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
+		"owner": "goern",
+		"repo":  "forgejo-mcp",
+		"index": float64(42),
+		"ref":   "",
+	}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
+	}
+
+	if len(*records) == 0 {
+		t.Fatal("expected an empty ref to send a PATCH that clears it")
+	}
+	last := (*records)[len(*records)-1]
+	if !strings.Contains(string(last.rawBody), `"ref":""`) {
+		t.Fatalf("expected ref to be sent as an empty string, got: %s", last.rawBody)
+	}
+}
+
+func TestUpdateIssue_OmittedRefLeavesItUnchanged(t *testing.T) {
+	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
+
+	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
+		"owner": "goern",
+		"repo":  "forgejo-mcp",
+		"index": float64(42),
+		"title": "new title",
+	}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
+	}
+
+	last := (*records)[len(*records)-1]
+	var payload map[string]any
+	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
+		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
+	}
+	if v, present := payload["ref"]; present && v != nil {
+		t.Fatalf("expected ref to be null/absent when not provided, got %v", v)
+	}
+}
+
+func TestCreateIssue_RefSet(t *testing.T) {
+	_, records := newPatchBackend(t, `{"id":1,"number":7,"ref":"feat/my-branch"}`)
+
+	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
+		"owner": "goern",
+		"repo":  "forgejo-mcp",
+		"title": "t",
+		"ref":   "feat/my-branch",
+	}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("CreateIssueFn returned error: err=%v res=%+v", err, res)
+	}
+
+	last := (*records)[len(*records)-1]
+	if last.method != http.MethodPost {
+		t.Fatalf("expected POST, got %s", last.method)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
+		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
+	}
+	if payload["ref"] != "feat/my-branch" {
+		t.Fatalf("expected ref=feat/my-branch, got %v", payload["ref"])
+	}
+	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
+		t.Fatalf("expected the created issue's ref in the result, got %q", textOf(res))
+	}
+}
+
+func TestGetIssueByIndex_ReturnsRef(t *testing.T) {
+	_, _ = newPatchBackend(t, `{"id":1,"number":42,"ref":"feat/my-branch"}`)
+
+	res, err := GetIssueByIndexFn(context.Background(), makeReq(map[string]any{
+		"owner": "goern",
+		"repo":  "forgejo-mcp",
+		"index": float64(42),
+	}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("GetIssueByIndexFn returned error: err=%v res=%+v", err, res)
+	}
+	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
+		t.Fatalf("expected ref in the result, got %q", textOf(res))
+	}
+}
+
+func TestCreateIssue_OmittedRefSendsEmpty(t *testing.T) {
+	_, records := newPatchBackend(t, `{"id":1,"number":7}`)
+
+	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
+		"owner": "goern",
+		"repo":  "forgejo-mcp",
+		"title": "t",
+	}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("CreateIssueFn returned error: err=%v res=%+v", err, res)
+	}
+
+	last := (*records)[len(*records)-1]
+	var payload map[string]any
+	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
+		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
+	}
+	if payload["ref"] != "" {
+		t.Fatalf("expected ref to be an empty string when not provided, got %v", payload["ref"])
+	}
+}
+
 // newLabelsBackend serves /api/v1/repos/{owner}/{repo}/labels and
 // /api/v1/orgs/{owner}/labels with caller-supplied status codes and bodies.
 // Caller passes maps keyed by exact path. Status defaults to 200 if 0.
