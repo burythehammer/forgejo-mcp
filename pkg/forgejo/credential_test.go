@@ -101,3 +101,20 @@ func TestClientFactoryRefusesRatherThanReturningTheOperatorClient(t *testing.T) 
 		t.Fatal("a refused request must yield no client")
 	}
 }
+
+// A process that never selects a policy is a stdio process: the network
+// transports are the only callers of SetRequireRequestToken. So the initial
+// state must be "fall back to the operator's credential".
+func TestOperatorFallbackIsAvailableUntilANetworkTransportSwitchesItOff(t *testing.T) {
+	if RequireRequestToken() {
+		t.Fatal("the policy requires a per-request token before any transport selected it")
+	}
+	prevToken := flag.Token
+	flag.Token = decoyOperatorCredential
+	t.Cleanup(func() { flag.Token = prevToken })
+
+	got, err := tokenForRequest(context.Background())
+	if err != nil || got != decoyOperatorCredential {
+		t.Fatalf("got (%q, %v), want the operator credential on the initial policy", got, err)
+	}
+}
