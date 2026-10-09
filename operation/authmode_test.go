@@ -12,7 +12,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
