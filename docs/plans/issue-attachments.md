@@ -280,6 +280,6 @@ Both use `./forgejo-mcp --cli <tool>` invocations, match the formatting of `demo
 
 ## Follow-ups (not in this spec)
 
-- Migrate raw-HTTP attachment calls to SDK methods once upstream adds them (track as separate beads issue; this spec is the migration target).
+- Migrate raw-HTTP attachment calls to SDK methods once upstream adds them (track as a separate issue; this spec is the migration target).
 - Configurable inline-download cap.
 - Support uploading from a URL instead of base64 bytes (saves client-side encoding for large files).
