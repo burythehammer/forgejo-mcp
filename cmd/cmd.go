@@ -142,6 +142,9 @@ var version string
 // TEMPORARY with the shim: see config.ValidationError.
 var loadErr error
 
+// loadedCfg is the Config initConfig resolved.
+var loadedCfg config.Config
+
 // initConfig resolves every shared setting through config.Load and copies the
 // result into the legacy globals.
 func initConfig() {
@@ -164,6 +167,7 @@ func initConfig() {
 		}
 		log.Fatal("Invalid configuration", log.ErrorField(err))
 	}
+	loadedCfg = cfg
 	log.Configure(cfg.Debug)
 	for _, w := range warns {
 		log.Warn("Deprecated environment variable used",
@@ -232,7 +236,7 @@ func Execute(buildVersion string) {
 	defer func() { _ = log.Default().Sync() }()
 
 	if cliMode {
-		RunCLI(version)
+		RunCLI(loadedCfg, version)
 		return
 	}
 
