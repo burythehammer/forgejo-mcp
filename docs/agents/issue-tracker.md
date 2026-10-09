@@ -48,7 +48,15 @@ One spec = one worktree = one PR.
 
 ## When a skill says "publish to the issue tracker"
 
-Create a Forgejo issue with `create_issue`.
+Create a Forgejo issue with `create_issue`, **unless the work already has an issue**.
+
+`/to-spec N` (or any spec of work an issue already describes, typically one labelled `needs-spec`) updates that issue; it never creates a second one:
+
+- `update_issue` with the spec as the new `body`. Keep the old body's useful evidence under a `## Background` heading.
+- Set labels with `set_labels`: `spec` plus the issue's priority label. This drops `needs-spec`.
+- Keep the issue number. Other tickets and the ticket map refer to it.
+
+If it is unclear whether an issue already covers the work, search first (`search_issues`) and ask before publishing. A duplicate was created once (#31, closed as wontfix) because this rule was missing.
 
 ## When a skill says "fetch the relevant ticket"
 
