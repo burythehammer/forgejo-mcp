@@ -59,6 +59,17 @@ repos:
         pass_filenames: false
         files: ^(\.agents/skills/.*|skills-lock\.json|scripts/ci/check-skills-lock\.sh)$
 
+      - id: check-doc-tool-names
+        name: check agent docs cite only registered tools
+        description: >-
+          Reject an mcp__forgejo__ name, or a tool-like name in docs/agents/,
+          that is not a registered tool. Not mirrored in
+          .tekton/tasks/go-ci.yaml.
+        entry: scripts/ci/check-doc-tool-names.sh
+        language: script
+        pass_filenames: false
+        files: ^(operation/.*\.go|AGENTS\.md|README\.md|docs/.*\.md|scripts/ci/check-doc-tool-names\.sh)$
+
       - id: check-demos
         name: check anchored spec demos
         description: Validate anchored Showboat demos against their specs.
