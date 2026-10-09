@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -26,38 +25,42 @@ const (
 	OperationKey contextKey = "operation"
 )
 
+// Default returns the process logger, building an info-level one if Configure
+// has not been called.
 func Default() *zap.Logger {
 	defaultLoggerOnce.Do(func() {
 		if defaultLogger == nil {
-			ec := zap.NewProductionEncoderConfig()
-			ec.EncodeTime = zapcore.TimeEncoderOfLayout(time.DateTime)
-			ec.EncodeLevel = zapcore.CapitalColorLevelEncoder
-
-			var ws zapcore.WriteSyncer
-			var wss []zapcore.WriteSyncer
-
-			// wss = append(wss, zapcore.AddSync(os.Stdout))
-			wss = append(wss, zapcore.AddSync(os.Stderr))
-			ws = zapcore.NewMultiWriteSyncer(wss...)
-
-			enc := zapcore.NewConsoleEncoder(ec)
-			var level zapcore.Level
-			if flag.Debug {
-				level = zapcore.DebugLevel
-			} else {
-				level = zapcore.InfoLevel
-			}
-			core := zapcore.NewCore(enc, ws, level)
-			options := []zap.Option{
-				zap.AddStacktrace(zapcore.ErrorLevel),
-				zap.AddCaller(),
-				zap.AddCallerSkip(1),
-			}
-			defaultLogger = zap.New(core, options...)
+			defaultLogger = build(false)
 		}
 	})
 
 	return defaultLogger
+}
+
+// Configure sets the process logger's level once from the composition root:
+// debug enables debug-level output, otherwise info.
+func Configure(debug bool) {
+	defaultLoggerOnce.Do(func() {})
+	defaultLogger = build(debug)
+}
+
+func build(debug bool) *zap.Logger {
+	ec := zap.NewProductionEncoderConfig()
+	ec.EncodeTime = zapcore.TimeEncoderOfLayout(time.DateTime)
+	ec.EncodeLevel = zapcore.CapitalColorLevelEncoder
+
+	ws := zapcore.AddSync(os.Stderr)
+	enc := zapcore.NewConsoleEncoder(ec)
+	level := zapcore.InfoLevel
+	if debug {
+		level = zapcore.DebugLevel
+	}
+	core := zapcore.NewCore(enc, ws, level)
+	return zap.New(core,
+		zap.AddStacktrace(zapcore.ErrorLevel),
+		zap.AddCaller(),
+		zap.AddCallerSkip(1),
+	)
 }
 
 func SetDefault(logger *zap.Logger) {
