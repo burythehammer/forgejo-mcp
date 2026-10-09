@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -48,9 +47,7 @@ func setupPackageAPIServer(t *testing.T, handler http.HandlerFunc) (*httptest.Se
 		handler(w, r)
 	}))
 	t.Cleanup(server.Close)
-	flag.URL = server.URL
-	flag.Token = "test-token"
-	flag.UserAgent = "forgejo-mcp-test/0.0.1"
+	forgejo.ConfigureForTesting(server.URL, "test-token", "forgejo-mcp-test/0.0.1")
 	return server, capture
 }
 

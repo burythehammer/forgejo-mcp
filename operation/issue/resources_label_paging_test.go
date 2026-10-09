@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -38,7 +38,7 @@ func labelRow(i int) map[string]interface{} {
 }
 
 // setupLabelPagingServer wires a paginating backend for both the SDK path
-// (repo labels) and the raw-HTTP path (org labels, which needs flag.URL).
+// (repo labels) and the raw-HTTP path (org labels, which needs forgejo.GetBaseURL()).
 func setupLabelPagingServer(t *testing.T, total int) *httptest.Server {
 	t.Helper()
 	srv := setupPaginatingServer(t, &paginatingHandler{
@@ -46,9 +46,7 @@ func setupLabelPagingServer(t *testing.T, total int) *httptest.Server {
 		pathHas: "/labels",
 		row:     labelRow,
 	})
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 	return srv
 }
 

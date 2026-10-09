@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
@@ -215,10 +214,8 @@ func newFixture(t *testing.T, app *config.Config, forgejoVersion string, signing
 		}
 	}))
 	t.Cleanup(forgejoSrv.Close)
-	// pkg/forgejo still reads the instance URL from pkg/flag.
-	flag.URL = forgejoSrv.URL
-	t.Cleanup(func() { flag.URL = "" })
-	forgejo.SetServerVersion("")
+	forgejo.ConfigureForTesting(forgejoSrv.URL, "", "")
+	t.Cleanup(func() { forgejo.ConfigureForTesting("", "", "") })
 	t.Cleanup(func() { forgejo.SetServerVersion("") })
 
 	providerKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

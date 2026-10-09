@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -28,8 +28,7 @@ func TestCoreResourceDispatchRoutesWikiTemplate(t *testing.T) {
 		}
 	}))
 	t.Cleanup(api.Close)
-	flag.URL = api.URL
-	flag.Token = "test"
+	forgejo.ConfigureForTesting(api.URL, "test", "")
 
 	s := server.NewMCPServer("forgejo-mcp", "test")
 	RegisterCoreResources(s)

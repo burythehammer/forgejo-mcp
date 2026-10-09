@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
 // versionServer serves /api/v1/version and counts requests to it and requests
@@ -39,19 +37,15 @@ func newVersionServer(t *testing.T, version string, status int) *versionServer {
 	}))
 	t.Cleanup(srv.Close)
 
-	prevURL, prevToken := flag.URL, flag.Token
-	flag.URL = srv.URL
-	t.Cleanup(func() {
-		flag.URL, flag.Token = prevURL, prevToken
-		SetServerVersion("")
-	})
+	withTarget(t, func(tg *target) { tg.url = srv.URL })
+	t.Cleanup(func() { SetServerVersion("") })
 	return vs
 }
 
 func TestProbeServerVersionSendsNoCredential(t *testing.T) {
 	vs := newVersionServer(t, "16.0.3", http.StatusOK)
 	// A configured operator value must not leak into the probe either.
-	flag.Token = decoyOperatorCredential
+	withTarget(t, func(tg *target) { tg.token = decoyOperatorCredential })
 
 	got, err := ProbeServerVersion(context.Background())
 	if err != nil {

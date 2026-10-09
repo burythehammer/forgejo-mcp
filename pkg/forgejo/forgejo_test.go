@@ -7,8 +7,6 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
 func TestClient_WithContextToken(t *testing.T) {
@@ -19,9 +17,8 @@ func TestClient_WithContextToken(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Setup flag defaults
-	flag.URL = srv.URL
-	flag.Token = "global-token"
+	// Point the package at the test server
+	ConfigureForTesting(srv.URL, "global-token", "")
 	// Reset the singleton
 	client = nil
 
@@ -57,8 +54,7 @@ func TestClient_WithContextToken(t *testing.T) {
 // construction MUST NOT fall through to the singleton."
 func TestClient_EphemeralConstructionError(t *testing.T) {
 	// Port 1 refuses connections, so the SDK's server-version probe fails.
-	flag.URL = "http://127.0.0.1:1"
-	flag.Token = "global-token"
+	ConfigureForTesting("http://127.0.0.1:1", "global-token", "")
 	client = nil
 
 	ctx := WithToken(context.Background(), "request-token")
@@ -92,8 +88,7 @@ func TestClient_AuthorizationHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	flag.URL = srv.URL
-	flag.Token = "global-token"
+	ConfigureForTesting(srv.URL, "global-token", "")
 	client = nil
 
 	// Test concurrent requests with different tokens

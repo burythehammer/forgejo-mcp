@@ -110,7 +110,7 @@ func TestLoadPrecedencePerSetting(t *testing.T) {
 
 func TestLoadCLIModeReadsEnvironmentAndIgnoresTheCommandLine(t *testing.T) {
 	t.Parallel()
-	cfg, _ := mustLoad(t, []string{"--cli", "get_issue", "--args", "{}", "-host", "0.0.0.0"},
+	cfg, _ := mustLoad(t, []string{"-host", "0.0.0.0", "--cli", "get_issue", "--args", "{}"},
 		env("FORGEJO_URL", "https://f.example.org", "FORGEJO_MCP_HOST", "10.0.0.1"))
 	if cfg.Mode != ModeCLI || cfg.Listen.Host != "10.0.0.1" {
 		t.Fatalf("mode=%v host=%q", cfg.Mode, cfg.Listen.Host)

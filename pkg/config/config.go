@@ -34,10 +34,19 @@ type Config struct {
 	Listen    Listen
 	Auth      Auth
 	Debug     bool
+	CLI       CLI // set in ModeCLI only
 
 	// suppliedResourceServer names the resource-server-only settings given at
 	// all, as a flag or an environment variable. Only validation reads it.
 	suppliedResourceServer []string
+}
+
+// CLI is the one tool invocation --cli mode performs.
+type CLI struct {
+	Tool   string // tool name, or "list"; empty when none was given
+	Args   string // JSON arguments; empty means read them from stdin
+	Output string // json or text
+	Help   bool   // show the tool's parameters instead of running it
 }
 
 // Forgejo is the instance this server talks to.
