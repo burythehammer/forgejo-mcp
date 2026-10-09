@@ -194,22 +194,6 @@ func usableAudience(v any) (string, bool) {
 	return s, true
 }
 
-// validScopeToken reports whether s is an OAuth 2.0 scope token (RFC 6749
-// section 3.3): one or more of %x21 / %x23-5B / %x5D-7E. Scopes are placed
-// into a quoted header value, so a quote or backslash must never reach it.
-func validScopeToken(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c < 0x21 || c > 0x7E || c == '"' || c == '\\' {
-			return false
-		}
-	}
-	return true
-}
-
 // logRefusalAtDebug logs a refusal at debug level through the same rate bound
 // as the door's refusal lines: the values come from strangers.
 func logRefusalAtDebug(msg string, fields ...zap.Field) {

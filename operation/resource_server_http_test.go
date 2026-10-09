@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
@@ -47,25 +46,26 @@ type rsEnv struct {
 // raw-HTTP helper, exactly as tool handlers do.
 func startResourceServer(t *testing.T) *rsEnv {
 	t.Helper()
-	withResourceServerConfig(t)
+	restoreRequestTokenPolicy(t)
+	app := resourceServerConfig()
 	env := &rsEnv{reached: make(chan error, 8)}
-	env.fixture = newFixture(t, "16.0.3", mustP256(t), "")
-	flag.Host = "127.0.0.1"
-	flag.AllowedHosts = []string{rsHost}
-	flag.ScopesSupported = []string{"openid", "profile"}
-	flag.ResourceAudience = rsClientID
+	env.fixture = newFixture(t, &app, "16.0.3", mustP256(t), "")
+	app.Listen.Host = "127.0.0.1"
+	app.Listen.AllowedHosts = []string{rsHost}
+	app.Auth.ScopesSupported = []string{"openid", "profile"}
+	app.Auth.ResourceAudience = rsClientID
 
-	if err := ValidateAuthConfig("http", false); err != nil {
-		t.Fatalf("ValidateAuthConfig: %v", err)
+	if err := app.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
 	}
-	rs, err := prepareResourceServer(context.Background())
+	rs, err := prepareResourceServer(context.Background(), app)
 	if err != nil {
 		t.Fatalf("prepareResourceServer: %v", err)
 	}
 	env.rs = rs
 
 	probe := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := requestTokenContextFunc(r.Context(), r)
+		ctx := requestTokenContextFunc(app)(r.Context(), r)
 		client, err := forgejo.Client(ctx)
 		if err == nil {
 			_, _, err = client.GetMyUserInfo()
@@ -82,10 +82,7 @@ func startResourceServer(t *testing.T) *rsEnv {
 		t.Fatalf("handler: %v", err)
 	}
 
-	cfg, err := resolveTransportConfig("http")
-	if err != nil {
-		t.Fatalf("resolveTransportConfig: %v", err)
-	}
+	cfg := resolveTransportConfig(app)
 	forgejo.SetRequireRequestToken(cfg.requireAuth)
 	ln := mustListenLoopback(t)
 	srv := newMCPHTTPServer(handler, cfg)
@@ -186,9 +183,9 @@ func TestProtectedResourceMetadataIsPublishedWithoutAuthentication(t *testing.T)
 }
 
 func TestScopesSupportedIsOmittedWhenNotConfigured(t *testing.T) {
-	withResourceServerConfig(t)
-	newFixture(t, "16.0.3", mustP256(t), "")
-	rs, err := prepareResourceServer(context.Background())
+	app := resourceServerConfig()
+	newFixture(t, &app, "16.0.3", mustP256(t), "")
+	rs, err := prepareResourceServer(context.Background(), app)
 	if err != nil {
 		t.Fatal(err)
 	}

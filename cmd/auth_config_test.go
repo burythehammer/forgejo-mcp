@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
 	flagPkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
@@ -127,7 +126,7 @@ func TestPassthroughRefusesEveryResourceServerSetting(t *testing.T) {
 			withAuthFlags(t, nil)
 			t.Setenv(s.envVar, "value")
 			resolveAuthSettings()
-			err := operation.ValidateAuthConfig("stdio", false)
+			err := validateTransport("stdio", false)
 			if err == nil || !strings.Contains(err.Error(), s.envVar) || !strings.Contains(err.Error(), "requires -auth-mode resource-server") {
 				t.Fatalf("passthrough with %s: error = %v, want a refusal naming it", s.envVar, err)
 			}
@@ -135,7 +134,7 @@ func TestPassthroughRefusesEveryResourceServerSetting(t *testing.T) {
 		t.Run("-"+s.flagName, func(t *testing.T) {
 			withAuthFlags(t, []string{"-" + s.flagName, "value"})
 			resolveAuthSettings()
-			err := operation.ValidateAuthConfig("stdio", false)
+			err := validateTransport("stdio", false)
 			if err == nil || !strings.Contains(err.Error(), "-"+s.flagName) {
 				t.Fatalf("passthrough with -%s: error = %v, want a refusal naming it", s.flagName, err)
 			}
