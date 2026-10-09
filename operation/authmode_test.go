@@ -161,18 +161,17 @@ func assertPortFree(t *testing.T, port int) {
 }
 
 // Spec scenario "Incompatible transport": refused before binding any listener.
-func TestRefusedConfigurationNeverBinds(t *testing.T) {
+func TestRefusedConfigurationIsRefusedBeforeBinding(t *testing.T) {
 	app := resourceServerConfig()
 	app.Transport = "sse"
 	app.Listen.Host, app.Listen.AllowedHosts = "127.0.0.1", []string{"mcp.example.org"}
-	port := freePort(t)
-	app.Listen.SSEPort = port
 
-	err := Run(app, "test")
+	// Run no longer validates: config.Load does, and cmd only runs a loaded
+	// configuration, so the refusal that keeps the port unbound is Validate's.
+	err := app.Validate()
 	if err == nil || !strings.Contains(err.Error(), "requires the http transport") {
-		t.Fatalf("Run(sse) error = %v, want a transport refusal", err)
+		t.Fatalf("Validate(sse) error = %v, want a transport refusal", err)
 	}
-	assertPortFree(t, port)
 }
 
 // fixture serves a Forgejo instance and an identity provider, and writes a

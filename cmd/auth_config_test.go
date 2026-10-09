@@ -47,9 +47,6 @@ func TestAuthModeDefaultsToPassthroughWithNothingGiven(t *testing.T) {
 	if cfg.Auth.Mode != "passthrough" {
 		t.Fatalf("auth mode = %q, want passthrough", cfg.Auth.Mode)
 	}
-	if len(cfg.SuppliedResourceServerSettings()) != 0 {
-		t.Fatalf("settings recorded as given: %v", cfg.SuppliedResourceServerSettings())
-	}
 	if cfg.Auth.ForgejoAudienceClaim != "forgejo_aud" {
 		t.Fatalf("audience claim default = %q, want forgejo_aud", cfg.Auth.ForgejoAudienceClaim)
 	}
@@ -83,13 +80,6 @@ func TestResourceServerSettingsResolveFromFlagsAndEnvironment(t *testing.T) {
 	if want := []string{"next.pem", "old.pem"}; !reflect.DeepEqual(cfg.Auth.ForgejoJWTPublishedKeyFiles, want) {
 		t.Fatalf("published key files = %q, want %q", cfg.Auth.ForgejoJWTPublishedKeyFiles, want)
 	}
-	want := []string{
-		"-authorization-server", "FORGEJO_MCP_RESOURCE", "-scopes-supported",
-		"-forgejo-jwt-issuer", "-forgejo-jwt-signing-key-file", "-forgejo-jwt-published-key-files",
-	}
-	if got := cfg.SuppliedResourceServerSettings(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("settings recorded as given = %q, want %q", got, want)
-	}
 }
 
 // A flag explicitly set to its default still wins over the environment, and
@@ -106,11 +96,6 @@ func TestExplicitAuthFlagEqualToTheDefaultBeatsTheEnvironment(t *testing.T) {
 	}, completeResourceServer...), map[string]string{"FORGEJO_MCP_FORGEJO_AUDIENCE_CLAIM": "other_claim"})
 	if cfg.Auth.ForgejoAudienceClaim != "forgejo_aud" {
 		t.Fatalf("audience claim = %q, want the explicit flag value", cfg.Auth.ForgejoAudienceClaim)
-	}
-	for _, got := range cfg.SuppliedResourceServerSettings() {
-		if got == "FORGEJO_MCP_FORGEJO_AUDIENCE_CLAIM" {
-			t.Fatalf("the shadowed environment variable was recorded as given: %q", cfg.SuppliedResourceServerSettings())
-		}
 	}
 }
 

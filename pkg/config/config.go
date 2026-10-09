@@ -80,12 +80,5 @@ type Auth struct {
 	ForgejoJWTPublishedKeyFiles []string
 }
 
-// SuppliedResourceServerSettings lists the resource-server-only settings that
-// were given at all, as "-flag" or ENV_VAR names.
-func (c Config) SuppliedResourceServerSettings() []string {
-	return append([]string(nil), c.suppliedResourceServer...)
-}
-
 // ResourceServerMode reports whether Auth selects the resource-server mode.
 func (c Config) ResourceServerMode() bool { return c.Auth.Mode == AuthModeResourceServer }
-

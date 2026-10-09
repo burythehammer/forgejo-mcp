@@ -83,9 +83,6 @@ func TestDefaultsAreLoopbackPassthroughWithNoFallback(t *testing.T) {
 	if cfg.Auth.Mode != "passthrough" {
 		t.Errorf("auth mode = %q, want passthrough", cfg.Auth.Mode)
 	}
-	if len(cfg.SuppliedResourceServerSettings()) != 0 {
-		t.Errorf("resource-server settings recorded as given: %q", cfg.SuppliedResourceServerSettings())
-	}
 	if cfg.Listen.SSEPort != 8080 || cfg.Listen.HTTPPort != 8080 {
 		t.Errorf("ports = sse %d, http %d, want 8080 each", cfg.Listen.SSEPort, cfg.Listen.HTTPPort)
 	}
