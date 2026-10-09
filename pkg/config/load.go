@@ -24,13 +24,8 @@ func (e *UsageError) Error() string { return e.Err.Error() }
 func (e *UsageError) Unwrap() error { return e.Err }
 
 // ValidationError is Validate's refusal as Load returns it.
-//
-// Rejected is the Config that failed. TEMPORARY: the cmd shim still feeds the
-// pkg/flag globals the characterization tests read after a refusal; it goes
-// when #40 and #43 retire the shim. Nothing else may use it.
 type ValidationError struct {
-	Err      error
-	Rejected Config
+	Err error
 }
 
 func (e *ValidationError) Error() string { return e.Err.Error() }
@@ -246,7 +241,7 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	cfg.Auth.ForgejoJWTPublishedKeyFiles = splitList(values["forgejo-jwt-published-key-files"])
 
 	if err := cfg.Validate(); err != nil {
-		return Config{}, warns, &ValidationError{Err: err, Rejected: cfg}
+		return Config{}, warns, &ValidationError{Err: err}
 	}
 	return cfg, warns, nil
 }

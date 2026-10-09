@@ -110,11 +110,9 @@ func TestValidateAuthConfig(t *testing.T) {
 		}},
 		{name: "passthrough with nothing given", mutate: func(c *config.Config) { c.Auth.Mode, c.Transport = config.AuthModePassthrough, "stdio" }},
 		{name: "empty mode means passthrough", mutate: func(c *config.Config) { c.Auth.Mode, c.Transport = "", "stdio" }},
-		// Spec scenario "Issuer configured without the mode".
-		{name: "passthrough with a resource-server setting", mutate: func(c *config.Config) {
-			c.Auth.Mode = config.AuthModePassthrough
-			*c = c.WithSuppliedResourceServerSettings([]string{"FORGEJO_MCP_AUTHORIZATION_SERVER"})
-		}, want: []string{"FORGEJO_MCP_AUTHORIZATION_SERVER", "requires -auth-mode resource-server"}},
+		// Spec scenario "Issuer configured without the mode" needs a Config
+		// that records what was supplied, which only config.Load builds; it is
+		// covered in cmd (TestPassthroughRefusesEveryResourceServerSetting).
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -170,7 +168,7 @@ func TestRefusedConfigurationNeverBinds(t *testing.T) {
 	port := freePort(t)
 	app.Listen.SSEPort = port
 
-	err := RunConfig(app, "test")
+	err := Run(app, "test")
 	if err == nil || !strings.Contains(err.Error(), "requires the http transport") {
 		t.Fatalf("Run(sse) error = %v, want a transport refusal", err)
 	}

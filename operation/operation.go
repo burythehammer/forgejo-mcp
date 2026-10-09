@@ -28,10 +28,6 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var (
-	mcpServer *server.MCPServer
-)
-
 // streamableHTTPEndpointPath is the library's own default. It is named here
 // because the transport is mounted on a mux at this path rather than served as
 // the root handler.
@@ -101,7 +97,8 @@ func newStreamableHTTPHandler(s *server.MCPServer, cfg config.Config) http.Handl
 	return mux
 }
 
-func RegisterTool(s *server.MCPServer) {
+// RegisterTool registers every tool; version is what the version tool reports.
+func RegisterTool(s *server.MCPServer, version string) {
 	log.Info("Registering MCP tools")
 
 	RegisterUserTool(s)
@@ -110,7 +107,7 @@ func RegisterTool(s *server.MCPServer) {
 	RegisterPullTool(s)
 	RegisterPullReviewTool(s)
 	RegisterSearchTool(s)
-	RegisterVersionTool(s)
+	RegisterVersionTool(s, version)
 	RegisterActionsTool(s)
 	RegisterOrgTool(s)
 	RegisterPackagesTool(s)
@@ -156,8 +153,8 @@ func RegisterSearchTool(s *server.MCPServer) {
 	log.Debug("Registered search tools")
 }
 
-func RegisterVersionTool(s *server.MCPServer) {
-	version.RegisterTool(s)
+func RegisterVersionTool(s *server.MCPServer, ver string) {
+	version.RegisterTool(s, ver)
 	log.Debug("Registered version tools")
 }
 
@@ -223,12 +220,12 @@ func extractToken(auth string) string {
 	return ""
 }
 
-// RunConfig serves cfg on cfg.Transport.
-func RunConfig(cfg config.Config, version string) error {
+// Run serves cfg on cfg.Transport. version is the build version, which is
+// build information and so not part of cfg.
+func Run(cfg config.Config, version string) error {
 	transport := cfg.Transport
-	setLegacyVersion(version)
-	mcpServer = newMCPServer(version)
-	RegisterTool(mcpServer)
+	mcpServer := newMCPServer(version)
+	RegisterTool(mcpServer, version)
 	RegisterCoreResources(mcpServer)
 
 	// Checked again here, not only in cmd, so that no caller of Run can reach a

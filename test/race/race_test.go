@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
-	flagPkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -72,15 +71,13 @@ func setup(t *testing.T) {
 			}
 		}))
 
-		flagPkg.URL = fakeAPI.URL
-		flagPkg.Token = "fake-token-for-testing"
-		flagPkg.Debug = false
+		forgejo.ConfigureForTesting(fakeAPI.URL, "fake-token-for-testing", "")
 
 		// Force the forgejo client singleton to initialize against our fake server.
 		_, _ = forgejo.Client(context.Background())
 
 		mcpSrv = server.NewMCPServer("forgejo-mcp", "test", server.WithLogging())
-		operation.RegisterTool(mcpSrv)
+		operation.RegisterTool(mcpSrv, "test")
 
 		tools := mcpSrv.ListTools()
 		allTools = make([]string, 0, len(tools))
@@ -239,7 +236,7 @@ func TestConcurrentListAndRegister(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		operation.RegisterTool(srv)
+		operation.RegisterTool(srv, "test")
 	}()
 
 	for i := 0; i < 10; i++ {
