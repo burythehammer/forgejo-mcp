@@ -1,0 +1,262 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package config
+
+import (
+	"bytes"
+	"errors"
+	"flag"
+	"fmt"
+	"net/url"
+	"strings"
+)
+
+const defaultAudienceClaim = "forgejo_aud"
+
+// UsageError is a flag parsing failure with the usage text to show for it.
+// Unwrapping it yields flag.ErrHelp for -h.
+type UsageError struct {
+	Err   error
+	Usage string
+}
+
+func (e *UsageError) Error() string { return e.Err.Error() }
+func (e *UsageError) Unwrap() error { return e.Err }
+
+// IsVersionRequest reports whether args ask for the version, which must be
+// answered before Load so that no URL is required.
+func IsVersionRequest(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "version", "--version", "-version":
+		return true
+	}
+	return false
+}
+
+type resourceSetting struct {
+	flagName string
+	envVar   string
+	help     string
+}
+
+var resourceSettings = []resourceSetting{
+	{"authorization-server", "FORGEJO_MCP_AUTHORIZATION_SERVER", "resource-server mode: issuer URL of the identity provider callers obtain tokens from"},
+	{"resource", "FORGEJO_MCP_RESOURCE", "resource-server mode: canonical URI of this server's MCP endpoint, e.g. https://mcp.example.org/mcp"},
+	{"resource-audience", "FORGEJO_MCP_RESOURCE_AUDIENCE", "resource-server mode: value an inbound token's aud must contain (default: the value of -resource)"},
+	{"scopes-supported", "FORGEJO_MCP_SCOPES_SUPPORTED", "resource-server mode: space-separated scopes advertised to clients"},
+	{"forgejo-audience-claim", "FORGEJO_MCP_FORGEJO_AUDIENCE_CLAIM", "resource-server mode: inbound claim holding the caller's Forgejo integration audience (default: " + defaultAudienceClaim + ")"},
+	{"forgejo-jwt-issuer", "FORGEJO_MCP_FORGEJO_JWT_ISSUER", "resource-server mode: https issuer URL this server presents to Forgejo, e.g. https://mcp.example.org/issuer"},
+	{"forgejo-jwt-signing-key-file", "FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE", "resource-server mode: PEM private key (EC P-256/P-384, Ed25519 or RSA >= 2048 bits) that signs Forgejo tokens"},
+	{"forgejo-jwt-published-key-files", "FORGEJO_MCP_FORGEJO_JWT_PUBLISHED_KEY_FILES", "resource-server mode: comma-separated PEM keys published without signing with them, for key rotation"},
+}
+
+// Load resolves args and the environment into a Config, flag over environment
+// over default. It reads no process state: getenv stands in for os.Getenv and
+// args excludes the program name. With --cli among args the command line is
+// not parsed (it belongs to the CLI) and only the environment is consulted.
+func Load(args []string, getenv func(string) string, build Build) (Config, []Warning, error) {
+	var (
+		cfg   Config
+		warns []Warning
+
+		transport, urlFlag, token, userAgent string
+		host, allowedHosts, allowedOrigins   string
+		ssePort, httpPort                    int
+		allowFallback, debug                 bool
+		authMode                             string
+	)
+	resource := make(map[string]*string, len(resourceSettings))
+
+	fs := flag.NewFlagSet("forgejo-mcp", flag.ContinueOnError)
+	var out bytes.Buffer
+	fs.SetOutput(&out)
+
+	fs.StringVar(&transport, "t", "stdio", "Transport type (stdio, sse, or http)")
+	fs.StringVar(&transport, "transport", "stdio", "Transport type (stdio, sse, or http)")
+	fs.StringVar(&urlFlag, "url", "", "Forgejo instance URL (required, must start with http:// or https://)")
+	fs.IntVar(&ssePort, "sse-port", 8080, "Port for SSE transport mode")
+	fs.IntVar(&httpPort, "http-port", 8080, "Port for streamable HTTP transport mode")
+	fs.StringVar(&token, "token", "", "Your personal access token")
+	fs.StringVar(&userAgent, "user-agent", "", "User agent for HTTP requests (default: forgejo-mcp/<version>)")
+	fs.StringVar(&host, "host", "localhost",
+		"Address the sse and http transports bind to. The default reaches this machine only, "+
+			"binding both 127.0.0.1 and ::1; pass one of those addresses to bind that family alone; "+
+			"set 0.0.0.0 to accept connections from the network, which also requires -allowed-hosts")
+	fs.StringVar(&allowedHosts, "allowed-hosts", "",
+		"Comma-separated Host names this server answers to, required when -host is not loopback "+
+			"(for example: mcp.example.org,mcp.example.org:8080)")
+	fs.StringVar(&allowedOrigins, "allowed-origins", "",
+		"Comma-separated web origins allowed to send an Origin header, as full origins "+
+			"(for example: https://console.example.org). Empty means no browser origin is accepted; "+
+			"requests with no Origin header are unaffected")
+	fs.BoolVar(&allowFallback, "allow-operator-token-fallback", false,
+		"On the sse and http transports, serve a request that carries no Authorization header using "+
+			"this server's own token. Off by default: it hands this server's forge credential to any "+
+			"caller that can reach the port")
+	fs.BoolVar(&debug, "d", false, "debug mode")
+	fs.BoolVar(&debug, "debug", false, "debug mode")
+	fs.StringVar(&authMode, "auth-mode", "passthrough",
+		"How the http transport authenticates callers: passthrough forwards the caller's Authorization header to "+
+			"Forgejo; resource-server validates an identity provider's JWT access token and signs a Forgejo "+
+			"Authorized Integration token (Forgejo 16 or newer)")
+	for _, s := range resourceSettings {
+		p := new(string)
+		resource[s.flagName] = p
+		fs.StringVar(p, s.flagName, "", s.help)
+	}
+
+	cfg.Mode = ModeServe
+	for _, a := range args {
+		if a == "--cli" {
+			cfg.Mode = ModeCLI
+			break
+		}
+	}
+	if cfg.Mode == ModeServe {
+		if err := fs.Parse(args); err != nil {
+			var usage bytes.Buffer
+			fs.SetOutput(&usage)
+			fs.PrintDefaults()
+			return Config{}, nil, &UsageError{Err: err, Usage: usage.String()}
+		}
+	}
+
+	passed := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { passed[f.Name] = true })
+	resolve := func(value, envVar, name string) string {
+		if passed[name] {
+			return value
+		}
+		if v := getenv(envVar); v != "" {
+			return v
+		}
+		return value
+	}
+
+	cfg.Transport = transport
+	cfg.Listen.SSEPort, cfg.Listen.HTTPPort = ssePort, httpPort
+
+	cfg.Forgejo.URL = urlFlag
+	if cfg.Forgejo.URL == "" {
+		cfg.Forgejo.URL = getenv("FORGEJO_URL")
+	}
+	if cfg.Forgejo.URL == "" {
+		if v := getenv("GITEA_HOST"); v != "" {
+			warns = append(warns, Warning{Deprecated: "GITEA_HOST", Preferred: "FORGEJO_URL"})
+			cfg.Forgejo.URL = v
+		}
+	}
+	if cfg.Forgejo.URL == "" {
+		return Config{}, warns, errors.New("missing required configuration: url (provide -url or FORGEJO_URL)")
+	}
+	if err := validateURL(cfg.Forgejo.URL); err != nil {
+		return Config{}, warns, err
+	}
+
+	tok := token
+	if tok == "" {
+		tok = getenv("FORGEJO_ACCESS_TOKEN")
+	}
+	if tok == "" {
+		if v := getenv("GITEA_ACCESS_TOKEN"); v != "" {
+			warns = append(warns, Warning{Deprecated: "GITEA_ACCESS_TOKEN", Preferred: "FORGEJO_ACCESS_TOKEN"})
+			tok = v
+		}
+	}
+	cfg.Forgejo.Token = NewSecret(tok)
+
+	cfg.Forgejo.UserAgent = userAgent
+	if cfg.Forgejo.UserAgent == "" {
+		cfg.Forgejo.UserAgent = getenv("FORGEJO_USER_AGENT")
+	}
+	if cfg.Forgejo.UserAgent == "" && build.Version != "" {
+		// An unknown version leaves the default unset rather than naming a
+		// release that does not exist.
+		cfg.Forgejo.UserAgent = "forgejo-mcp/" + build.Version
+	}
+
+	cfg.Listen.Host = resolve(host, "FORGEJO_MCP_HOST", "host")
+	cfg.Listen.AllowedHosts = splitList(resolve(allowedHosts, "FORGEJO_MCP_ALLOWED_HOSTS", "allowed-hosts"))
+	cfg.Listen.AllowedOrigins = splitList(resolve(allowedOrigins, "FORGEJO_MCP_ALLOWED_ORIGINS", "allowed-origins"))
+	cfg.Listen.AllowOperatorTokenFallback = allowFallback
+	if !passed["allow-operator-token-fallback"] {
+		if v := getenv("FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK"); v != "" {
+			cfg.Listen.AllowOperatorTokenFallback = isTruthy(v)
+		}
+	}
+
+	switch {
+	case debug:
+		cfg.Debug = true
+	case getenv("FORGEJO_DEBUG") == "true":
+		cfg.Debug = true
+	case getenv("GITEA_DEBUG") == "true":
+		warns = append(warns, Warning{Deprecated: "GITEA_DEBUG", Preferred: "FORGEJO_DEBUG"})
+		cfg.Debug = true
+	}
+
+	cfg.Auth.Mode = resolve(authMode, "FORGEJO_MCP_AUTH_MODE", "auth-mode")
+	if cfg.Auth.Mode == "" {
+		cfg.Auth.Mode = "passthrough"
+	}
+	values := make(map[string]string, len(resourceSettings))
+	for _, s := range resourceSettings {
+		values[s.flagName] = resolve(*resource[s.flagName], s.envVar, s.flagName)
+		switch {
+		case passed[s.flagName]:
+			cfg.suppliedResourceServer = append(cfg.suppliedResourceServer, "-"+s.flagName)
+		case getenv(s.envVar) != "":
+			cfg.suppliedResourceServer = append(cfg.suppliedResourceServer, s.envVar)
+		}
+	}
+	cfg.Auth.AuthorizationServer = values["authorization-server"]
+	cfg.Auth.Resource = values["resource"]
+	cfg.Auth.ResourceAudience = values["resource-audience"]
+	cfg.Auth.ScopesSupported = strings.Fields(values["scopes-supported"])
+	cfg.Auth.ForgejoAudienceClaim = values["forgejo-audience-claim"]
+	if cfg.Auth.ForgejoAudienceClaim == "" {
+		cfg.Auth.ForgejoAudienceClaim = defaultAudienceClaim
+	}
+	cfg.Auth.ForgejoJWTIssuer = values["forgejo-jwt-issuer"]
+	cfg.Auth.ForgejoJWTSigningKeyFile = values["forgejo-jwt-signing-key-file"]
+	cfg.Auth.ForgejoJWTPublishedKeyFiles = splitList(values["forgejo-jwt-published-key-files"])
+
+	return cfg, warns, nil
+}
+
+func validateURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid URL format: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("URL must start with http:// or https://, got: %s", u.Scheme)
+	}
+	if u.Host == "" {
+		return errors.New("URL must include a host")
+	}
+	return nil
+}
+
+// splitList turns a comma-separated value into a trimmed, non-empty list.
+func splitList(raw string) []string {
+	var out []string
+	for _, v := range strings.Split(raw, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// isTruthy matches the spelling accepted by this project's boolean variables.
+func isTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
