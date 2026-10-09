@@ -154,6 +154,7 @@ func initConfig() {
 		}
 		log.Fatal("Invalid configuration", log.ErrorField(err))
 	}
+	log.Configure(cfg.Debug)
 	for _, w := range warns {
 		log.Warn("Deprecated environment variable used",
 			log.StringField("deprecated_var", w.Deprecated),
