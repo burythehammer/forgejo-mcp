@@ -12,8 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
 type capturedReq struct {
@@ -42,9 +40,7 @@ func newCaptureServer(t *testing.T, handler func(w http.ResponseWriter, r *http.
 		handler(w, r, c)
 	}))
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "test-token"
-	flag.UserAgent = "forgejo-mcp-test/0.0.1"
+	ConfigureForTesting(srv.URL, "test-token", "forgejo-mcp-test/0.0.1")
 	return srv, c
 }
 
@@ -345,7 +341,7 @@ func TestDoMultipartStreamsAfterRequestStarts(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	}))
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
+	withTarget(t, func(tg *target) { tg.url = srv.URL })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -436,9 +432,8 @@ func TestDoRaw_AbsoluteURLPassThrough(t *testing.T) {
 }
 
 func TestResolveURL_BaseRequired(t *testing.T) {
-	flag.URL = ""
-	defer func() { flag.URL = "http://x" }()
+	withTarget(t, func(tg *target) { tg.url = "" })
 	if _, err := resolveURL("/x"); err == nil {
-		t.Fatalf("expected error when flag.URL empty")
+		t.Fatalf("expected error when Forgejo URL empty")
 	}
 }

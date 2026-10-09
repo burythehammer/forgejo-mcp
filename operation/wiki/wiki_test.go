@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -25,8 +24,7 @@ func wikiServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "test"
+	forgejo.ConfigureForTesting(srv.URL, "test", "")
 	return srv
 }
 

@@ -235,7 +235,8 @@ func newFixture(t *testing.T, forgejoVersion string, signingKey crypto.PrivateKe
 		}
 	}))
 	t.Cleanup(forgejoSrv.Close)
-	flag.URL = forgejoSrv.URL
+	forgejo.ConfigureForTesting(forgejoSrv.URL, "", "")
+	t.Cleanup(func() { forgejo.ConfigureForTesting("", "", "") })
 
 	providerKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/upload"
 
@@ -69,9 +68,7 @@ func newBackend(t *testing.T, routes ...route) *fakeBackend {
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 	return &fakeBackend{srv: srv, records: &records}
 }
 
@@ -114,7 +111,7 @@ func TestListIssueAttachmentsFn_HappyPath(t *testing.T) {
 		pathPrefix: "/api/v1/repos/o/r/issues/3/assets",
 		handler: func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`[{"id":1,"name":"a.txt","size":3,"uuid":"u1","browser_download_url":"` + flag.URL + `/attachments/u1"}]`))
+			_, _ = w.Write([]byte(`[{"id":1,"name":"a.txt","size":3,"uuid":"u1","browser_download_url":"` + forgejo.GetBaseURL() + `/attachments/u1"}]`))
 		},
 	})
 	res, err := ListIssueAttachmentsFn(context.Background(), req(map[string]any{
@@ -182,7 +179,7 @@ func TestDownloadIssueAttachmentFn_UnderCap_ReturnsBlob(t *testing.T) {
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				resp := map[string]any{
 					"id": 42, "name": "f.pdf", "size": len(payload), "uuid": "u",
-					"browser_download_url": flag.URL + "/attachments/u",
+					"browser_download_url": forgejo.GetBaseURL() + "/attachments/u",
 				}
 				_ = json.NewEncoder(w).Encode(resp)
 			},
@@ -234,7 +231,7 @@ func TestDownloadIssueAttachmentFn_OverCap_NoBlob(t *testing.T) {
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				resp := map[string]any{
 					"id": 99, "name": "big.bin", "size": bigSize, "uuid": "u-big",
-					"browser_download_url": flag.URL + "/attachments/u-big",
+					"browser_download_url": forgejo.GetBaseURL() + "/attachments/u-big",
 				}
 				_ = json.NewEncoder(w).Encode(resp)
 			},
@@ -277,7 +274,7 @@ func TestDownloadIssueAttachmentFn_BodyExceedsCap_GracefulFallback(t *testing.T)
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				resp := map[string]any{
 					"id": 77, "name": "lying.bin", "size": 10, "uuid": "u-lie",
-					"browser_download_url": flag.URL + "/attachments/u-lie",
+					"browser_download_url": forgejo.GetBaseURL() + "/attachments/u-lie",
 				}
 				_ = json.NewEncoder(w).Encode(resp)
 			},
@@ -687,7 +684,7 @@ func TestCommentAttachmentLifecycle_Smoke(t *testing.T) {
 			pathPrefix: "/api/v1/repos/o/r/issues/comments/55/assets/9",
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				getCalled = true
-				_, _ = fmt.Fprintf(w, `{"id":9,"name":"x","size":15,"uuid":"u","browser_download_url":"%s/attachments/u"}`, flag.URL)
+				_, _ = fmt.Fprintf(w, `{"id":9,"name":"x","size":15,"uuid":"u","browser_download_url":"%s/attachments/u"}`, forgejo.GetBaseURL())
 			},
 		},
 		route{
