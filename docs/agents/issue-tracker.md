@@ -1,8 +1,18 @@
 # Issue tracker: Forgejo
 
-Issues and specs live in Forgejo issues at `forgejo.burythehammer.com/burythehammer/forgejo-mcp` (account `burythehammer`). Use the `fj` CLI; not `gh`. Run `fj <command> --help` to check flag shapes. Infer the repo from `git remote -v` (`origin`); `fj` does this inside a clone.
+Issues and specs live in Forgejo issues at `forgejo.burythehammer.com/burythehammer/forgejo-mcp` (account `burythehammer`). Prefer the `forgejo` MCP server (`.mcp.json`; tools are `mcp__forgejo__*`, with `owner: "burythehammer"`, `repo: "forgejo-mcp"`). It needs `FORGEJO_URL` and `FORGEJO_TOKEN` in the environment (see "MCP environment" below) and a built binary (`make build`, then install it as `forgejo-mcp` on `PATH`, or point `FORGEJO_MCP_EXEC` at it). Fall back to the `fj` CLI (not `gh`) when the server is not connected; run `fj <command> --help` to check flag shapes. Infer the repo from `git remote -v` (`origin`); `fj` does this inside a clone.
+
+MCP tool equivalents: `create_issue`, `list_repo_issues`, `create_issue_comment`, `add_issue_labels` / `remove_issue_labels`, `update_issue` (state, assignees), `issue_state_change`, `add_issue_dependency`, `create_pull_request`, `update_pull_request` (`base`, `assignee`), `merge_pull_request` (`style`: use `rebase` here; `delete_branch_after_merge`). Confirm names with `list_repo_labels` and the README tool table rather than from memory. The commands below show the `fj` form.
+
+Two habits that save calls and context:
+- **Label at creation.** Pass `labels` to `create_issue` instead of labelling in a second call; a separate call is where a wrong issue number slips in. `add_issue_labels` also takes a PR's index.
+- **Read through resources.** An issue or PR read is one `forgejo://repo/burythehammer/forgejo-mcp/issue/{index}` or `pr/{index}` read (`ReadMcpResourceTool`, server `forgejo`), which returns the bounded entity with its comments. Prefer it to `get_issue_by_index` and `get_pull_request_by_index`; see the resource table in `AGENTS.md`.
 
 `upstream` (`git.b4mad.industries/agentic-forges/forgejo-mcp`) is the upstream project, not this repo's tracker. Beads (`bd`, see `AGENTS.md`) is local scratch tracking, not the tracker of record.
+
+## MCP environment
+
+The server name (`forgejo`) and variable names are identity-neutral; the values come from the environment, so the same `.mcp.json` shape works for either Forgejo account. Set them per directory with direnv: an `.envrc` in the parent folder of each identity's repos (for example `~/workspace/burythehammer/.envrc`) exports `FORGEJO_URL` and `FORGEJO_TOKEN`, and everything beneath it inherits them. Keep the token in a `chmod 600` file outside the repo and load it with `dotenv <file>` rather than writing it into the `.envrc`. Start `claude` from a shell inside that tree, run `direnv allow` once per `.envrc`, and check `/mcp` shows `forgejo` connected. Unset variables expand to empty and the server fails to authenticate, rather than falling back to another account.
 
 ## Conventions
 
