@@ -153,7 +153,7 @@ func TestUpdateIssue_AssigneesEmptyClears(t *testing.T) {
 }
 
 func TestUpdateIssue_RefSet(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
+	_, records := newPatchBackend(t, `{"id":1,"number":42,"ref":"feat/my-branch"}`)
 
 	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
 		"owner": "goern",
@@ -178,6 +178,9 @@ func TestUpdateIssue_RefSet(t *testing.T) {
 	}
 	if payload["ref"] != "feat/my-branch" {
 		t.Fatalf("expected ref=feat/my-branch, got %v", payload["ref"])
+	}
+	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
+		t.Fatalf("expected the updated ref in the result, got %q", textOf(res))
 	}
 }
 
@@ -227,7 +230,7 @@ func TestUpdateIssue_OmittedRefLeavesItUnchanged(t *testing.T) {
 }
 
 func TestCreateIssue_RefSet(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":7}`)
+	_, records := newPatchBackend(t, `{"id":1,"number":7,"ref":"feat/my-branch"}`)
 
 	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
 		"owner": "goern",
@@ -249,6 +252,25 @@ func TestCreateIssue_RefSet(t *testing.T) {
 	}
 	if payload["ref"] != "feat/my-branch" {
 		t.Fatalf("expected ref=feat/my-branch, got %v", payload["ref"])
+	}
+	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
+		t.Fatalf("expected the created issue's ref in the result, got %q", textOf(res))
+	}
+}
+
+func TestGetIssueByIndex_ReturnsRef(t *testing.T) {
+	_, _ = newPatchBackend(t, `{"id":1,"number":42,"ref":"feat/my-branch"}`)
+
+	res, err := GetIssueByIndexFn(context.Background(), makeReq(map[string]any{
+		"owner": "goern",
+		"repo":  "forgejo-mcp",
+		"index": float64(42),
+	}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("GetIssueByIndexFn returned error: err=%v res=%+v", err, res)
+	}
+	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
+		t.Fatalf("expected ref in the result, got %q", textOf(res))
 	}
 }
 

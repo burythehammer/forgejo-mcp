@@ -18,7 +18,7 @@ If the server is not connected, `fj` (`fj <command> --help` for flag shapes; it 
 - **Comment**: `create_issue_comment`
 - **Apply / remove labels**: `add_issue_labels` / `remove_issue_labels`, by name; both also take a PR's index.
 - **Assign**: `update_issue` (`assignees`) for issues, `update_pull_request` (`assignee`) for PRs.
-- **Set the issue ref** (the branch link): `update_issue` or `create_issue` with `ref`. An empty `ref` on `update_issue` clears it.
+- **Set the issue ref**: `update_issue` or `create_issue` with `ref`. An empty `ref` on `update_issue` clears it.
 - **Close**: a closing comment, then `issue_state_change` with `state: "closed"`.
 - **List labels**: `list_repo_labels`
 - **Create a label**: `create_repo_label`. Read the list first so it does not duplicate.
