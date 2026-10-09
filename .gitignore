@@ -39,5 +39,4 @@ worktrees/
 secrets/
 .~decrypted*.enc.yaml
 
-.mcp.json
 references/labels-cache.md
