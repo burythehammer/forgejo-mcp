@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	flagPkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -91,77 +91,47 @@ func contains(ss []string, s string) bool {
 	return false
 }
 
-// RunCLI is the entry point for --cli mode.
-func RunCLI(version string) {
-	// Parse CLI-specific flags using a separate FlagSet.
-	fs := flag.NewFlagSet("cli", flag.ExitOnError)
-	argsFlag := fs.String("args", "", "JSON arguments for tool invocation")
-	outputFlag := fs.String("output", "", "Output format: json or text")
-	helpFlag := fs.Bool("help", false, "Show tool parameter help")
-
-	// Find the positional command (first non-flag arg after --cli).
-	// os.Args has been filtered by init() to remove --cli and preceding flags.
-	cliArgs := cliArgsToParse()
-	if len(cliArgs) == 0 {
+// RunCLI is the entry point for --cli mode. cfg.CLI holds the parsed command.
+func RunCLI(cfg config.Config, version string) {
+	c := cfg.CLI
+	if c.Tool == "" {
 		fmt.Fprintln(os.Stderr, "Usage: forgejo-mcp --cli <command> [options]")
 		fmt.Fprintln(os.Stderr, "Commands: list, <tool-name>")
 		fmt.Fprintln(os.Stderr, "Options: --args '{json}', --output=json|text, --help")
 		os.Exit(1)
 	}
 
-	command := cliArgs[0]
-	_ = fs.Parse(cliArgs[1:])
-
 	// Build the MCPServer and register tools with domain tracking.
 	flagPkg.Version = version
 	mcpSrv := server.NewMCPServer("Forgejo MCP Server", version, server.WithLogging())
 	registerToolsWithDomains(mcpSrv)
 
-	switch command {
+	switch c.Tool {
 	case "list":
-		outputMode := *outputFlag
-		if outputMode == "" {
-			outputMode = "text"
-		}
-		if err := cliList(mcpSrv, outputMode); err != nil {
+		if err := cliList(mcpSrv, c.Output); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	default:
-		if *helpFlag {
-			if err := cliHelp(mcpSrv, command); err != nil {
+		if c.Help {
+			if err := cliHelp(mcpSrv, c.Tool); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		}
 
-		outputMode := *outputFlag
-		if outputMode == "" {
-			outputMode = "json"
-		}
-
-		argsJSON, err := resolveArgs(*argsFlag)
+		argsJSON, err := resolveArgs(c.Args)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading arguments: %v\n", err)
 			os.Exit(1)
 		}
 
-		if err := cliExec(mcpSrv, command, argsJSON, outputMode); err != nil {
+		if err := cliExec(mcpSrv, c.Tool, argsJSON, c.Output); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	}
-}
-
-// cliArgsToParse extracts the args after --cli from os.Args.
-func cliArgsToParse() []string {
-	for i, arg := range os.Args {
-		if arg == "--cli" {
-			return os.Args[i+1:]
-		}
-	}
-	return nil
 }
 
 // resolveArgs returns JSON args from --args flag or stdin pipe.

@@ -122,13 +122,21 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	}
 
 	cfg.Mode = ModeServe
-	for _, a := range args {
+	var cliArgs []string
+	for i, a := range args {
 		if a == "--cli" {
 			cfg.Mode = ModeCLI
+			cliArgs = args[i+1:]
 			break
 		}
 	}
-	if cfg.Mode == ModeServe {
+	if cfg.Mode == ModeCLI {
+		c, err := parseCLI(cliArgs)
+		if err != nil {
+			return Config{}, nil, err
+		}
+		cfg.CLI = c
+	} else {
 		if err := fs.Parse(args); err != nil {
 			var usage bytes.Buffer
 			fs.SetOutput(&usage)
@@ -241,6 +249,33 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		return Config{}, warns, &ValidationError{Err: err, Rejected: cfg}
 	}
 	return cfg, warns, nil
+}
+
+// parseCLI reads the arguments after --cli: a command, then its options.
+func parseCLI(args []string) (CLI, error) {
+	if len(args) == 0 {
+		return CLI{}, nil
+	}
+	fs := flag.NewFlagSet("cli", flag.ContinueOnError)
+	var out bytes.Buffer
+	fs.SetOutput(&out)
+	c := CLI{Tool: args[0]}
+	fs.StringVar(&c.Args, "args", "", "JSON arguments for tool invocation")
+	fs.StringVar(&c.Output, "output", "", "Output format: json or text")
+	fs.BoolVar(&c.Help, "help", false, "Show tool parameter help")
+	if err := fs.Parse(args[1:]); err != nil {
+		var usage bytes.Buffer
+		fs.SetOutput(&usage)
+		fs.PrintDefaults()
+		return CLI{}, &UsageError{Err: err, Usage: usage.String()}
+	}
+	if c.Output == "" {
+		c.Output = "json"
+		if c.Tool == "list" {
+			c.Output = "text"
+		}
+	}
+	return c, nil
 }
 
 func validateURL(raw string) error {
