@@ -21,7 +21,7 @@ import (
 	"sync"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
@@ -31,47 +31,25 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// withResourceServerConfig installs a valid resource-server configuration and
-// restores every auth-related setting afterwards.
-func withResourceServerConfig(t *testing.T) {
-	t.Helper()
-	saved := struct {
-		mode, authServer, res, resAud, claim, issuer, keyFile, token, host, url string
-		scopes, published, settings, allowedHosts, allowedOrigins               []string
-		fallback, require                                                       bool
-		httpPort, ssePort                                                       int
-	}{
-		flag.AuthMode, flag.AuthorizationServer, flag.Resource, flag.ResourceAudience, flag.ForgejoAudienceClaim,
-		flag.ForgejoJWTIssuer, flag.ForgejoJWTSigningKeyFile, flag.Token, flag.Host, flag.URL,
-		flag.ScopesSupported, flag.ForgejoJWTPublishedKeyFiles, flag.ResourceServerSettings, flag.AllowedHosts, flag.AllowedOrigins,
-		flag.AllowOperatorTokenFallback, forgejo.RequireRequestToken(), flag.HTTPPort, flag.SSEPort,
+// resourceServerConfig is a valid resource-server configuration. The fixture
+// replaces the authorization server and the signing key with real ones.
+func resourceServerConfig() config.Config {
+	return config.Config{
+		Mode:      config.ModeServe,
+		Transport: "http",
+		Listen: config.Listen{
+			Host:         "0.0.0.0",
+			AllowedHosts: []string{"mcp.example.org"},
+		},
+		Auth: config.Auth{
+			Mode:                     config.AuthModeResourceServer,
+			AuthorizationServer:      "https://sso.example.org",
+			Resource:                 "https://mcp.example.org/mcp",
+			ForgejoAudienceClaim:     "forgejo_aud",
+			ForgejoJWTIssuer:         "https://mcp.example.org/issuer",
+			ForgejoJWTSigningKeyFile: "/run/credentials/forgejo-mcp/signing.pem",
+		},
 	}
-	t.Cleanup(func() {
-		flag.AuthMode, flag.AuthorizationServer, flag.Resource = saved.mode, saved.authServer, saved.res
-		flag.ResourceAudience, flag.ForgejoAudienceClaim, flag.ForgejoJWTIssuer = saved.resAud, saved.claim, saved.issuer
-		flag.ForgejoJWTSigningKeyFile, flag.Token, flag.Host, flag.URL = saved.keyFile, saved.token, saved.host, saved.url
-		flag.ScopesSupported, flag.ForgejoJWTPublishedKeyFiles = saved.scopes, saved.published
-		flag.ResourceServerSettings, flag.AllowedHosts, flag.AllowedOrigins = saved.settings, saved.allowedHosts, saved.allowedOrigins
-		flag.AllowOperatorTokenFallback, flag.HTTPPort, flag.SSEPort = saved.fallback, saved.httpPort, saved.ssePort
-		forgejo.SetRequireRequestToken(saved.require)
-		forgejo.SetServerVersion("")
-	})
-
-	flag.AuthMode = AuthModeResourceServer
-	flag.AuthorizationServer = "https://sso.example.org"
-	flag.Resource = "https://mcp.example.org/mcp"
-	flag.ResourceAudience = ""
-	flag.ForgejoAudienceClaim = "forgejo_aud"
-	flag.ForgejoJWTIssuer = "https://mcp.example.org/issuer"
-	flag.ForgejoJWTSigningKeyFile = "/run/credentials/forgejo-mcp/signing.pem"
-	flag.ForgejoJWTPublishedKeyFiles = nil
-	flag.ScopesSupported = nil
-	flag.ResourceServerSettings = nil
-	flag.Token = ""
-	flag.AllowOperatorTokenFallback = false
-	flag.Host = "0.0.0.0"
-	flag.AllowedHosts = []string{"mcp.example.org"}
-	flag.AllowedOrigins = nil
 }
 
 // Spec oauth-resource-server: "resource-server mode refuses to start on an
@@ -79,71 +57,71 @@ func withResourceServerConfig(t *testing.T) {
 // passthrough" and "passthrough mode refuses resource-server settings". Every
 // row names the setting that fixes it.
 func TestValidateAuthConfig(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
-		name      string
-		transport string
-		cli       bool
-		mutate    func()
-		want      []string // substrings of the error; nil means valid
+		name   string
+		mutate func(c *config.Config)
+		want   []string // substrings of the error; nil means valid
 	}{
-		{name: "valid resource-server configuration", transport: "http", mutate: func() {}},
-		{name: "unknown mode value", transport: "http", mutate: func() { flag.AuthMode = "oauth" },
+		{name: "valid resource-server configuration", mutate: func(*config.Config) {}},
+		{name: "unknown mode value", mutate: func(c *config.Config) { c.Auth.Mode = "oauth" },
 			want: []string{"-auth-mode", "passthrough", "resource-server"}},
-		{name: "sse transport", transport: "sse", mutate: func() {},
+		{name: "sse transport", mutate: func(c *config.Config) { c.Transport = "sse" },
 			want: []string{"requires the http transport"}},
-		{name: "stdio transport", transport: "stdio", mutate: func() {},
+		{name: "stdio transport", mutate: func(c *config.Config) { c.Transport = "stdio" },
 			want: []string{"requires the http transport"}},
-		{name: "cli mode", transport: "", cli: true, mutate: func() {},
+		{name: "cli mode", mutate: func(c *config.Config) { c.Mode, c.Transport = config.ModeCLI, "" },
 			want: []string{"--cli"}},
-		{name: "operator token present", transport: "http", mutate: func() { flag.Token = "decoy-operator-value" },
+		{name: "operator token present", mutate: func(c *config.Config) { c.Forgejo.Token = config.NewSecret("decoy-operator-value") },
 			want: []string{"takes no operator token", "FORGEJO_ACCESS_TOKEN"}},
-		{name: "operator token fallback", transport: "http", mutate: func() { flag.AllowOperatorTokenFallback = true },
+		{name: "operator token fallback", mutate: func(c *config.Config) { c.Listen.AllowOperatorTokenFallback = true },
 			want: []string{"-allow-operator-token-fallback"}},
-		{name: "missing authorization server", transport: "http", mutate: func() { flag.AuthorizationServer = "" },
+		{name: "missing authorization server", mutate: func(c *config.Config) { c.Auth.AuthorizationServer = "" },
 			want: []string{"-authorization-server"}},
-		{name: "missing resource and signing key", transport: "http", mutate: func() { flag.Resource, flag.ForgejoJWTSigningKeyFile = "", "" },
+		{name: "missing resource and signing key", mutate: func(c *config.Config) { c.Auth.Resource, c.Auth.ForgejoJWTSigningKeyFile = "", "" },
 			want: []string{"-resource", "-forgejo-jwt-signing-key-file"}},
-		{name: "missing forgejo jwt issuer", transport: "http", mutate: func() { flag.ForgejoJWTIssuer = "" },
+		{name: "missing forgejo jwt issuer", mutate: func(c *config.Config) { c.Auth.ForgejoJWTIssuer = "" },
 			want: []string{"-forgejo-jwt-issuer"}},
-		{name: "scope with a quote", transport: "http", mutate: func() { flag.ScopesSupported = []string{"openid", `pro"file`} },
+		{name: "scope with a quote", mutate: func(c *config.Config) { c.Auth.ScopesSupported = []string{"openid", `pro"file`} },
 			want: []string{"-scopes-supported", "not a valid OAuth scope"}},
-		{name: "forgejo issuer over http", transport: "http", mutate: func() { flag.ForgejoJWTIssuer = "http://mcp.example.org/issuer" },
+		{name: "forgejo issuer over http", mutate: func(c *config.Config) { c.Auth.ForgejoJWTIssuer = "http://mcp.example.org/issuer" },
 			want: []string{"-forgejo-jwt-issuer", "https"}},
 		// Spec scenario "Issuer URL with a trailing slash".
-		{name: "forgejo issuer with a trailing slash", transport: "http", mutate: func() { flag.ForgejoJWTIssuer = "https://mcp.example.org/issuer/" },
+		{name: "forgejo issuer with a trailing slash", mutate: func(c *config.Config) { c.Auth.ForgejoJWTIssuer = "https://mcp.example.org/issuer/" },
 			want: []string{"must not end with a slash"}},
-		{name: "forgejo issuer with a query", transport: "http", mutate: func() { flag.ForgejoJWTIssuer = "https://mcp.example.org/issuer?v=1" },
+		{name: "forgejo issuer with a query", mutate: func(c *config.Config) { c.Auth.ForgejoJWTIssuer = "https://mcp.example.org/issuer?v=1" },
 			want: []string{"query"}},
-		{name: "authorization server over plain http", transport: "http", mutate: func() { flag.AuthorizationServer = "http://sso.example.org" },
+		{name: "authorization server over plain http", mutate: func(c *config.Config) { c.Auth.AuthorizationServer = "http://sso.example.org" },
 			want: []string{"-authorization-server", "https"}},
-		{name: "authorization server over http on loopback", transport: "http", mutate: func() { flag.AuthorizationServer = "http://127.0.0.1:8081" }},
-		{name: "resource host not answered", transport: "http", mutate: func() { flag.Resource = "https://other.example.org/mcp" },
+		{name: "authorization server over http on loopback", mutate: func(c *config.Config) { c.Auth.AuthorizationServer = "http://127.0.0.1:8081" }},
+		{name: "resource host not answered", mutate: func(c *config.Config) { c.Auth.Resource = "https://other.example.org/mcp" },
 			want: []string{"-resource", "-allowed-hosts"}},
 		// Spec scenario "Resource names another path".
-		{name: "resource path is not the MCP endpoint", transport: "http", mutate: func() { flag.Resource = "https://mcp.example.org/api/mcp" },
+		{name: "resource path is not the MCP endpoint", mutate: func(c *config.Config) { c.Auth.Resource = "https://mcp.example.org/api/mcp" },
 			want: []string{"-resource", `"/mcp"`}},
-		{name: "resource path with a trailing slash", transport: "http", mutate: func() { flag.Resource = "https://mcp.example.org/mcp/" },
+		{name: "resource path with a trailing slash", mutate: func(c *config.Config) { c.Auth.Resource = "https://mcp.example.org/mcp/" },
 			want: []string{"-resource", `"/mcp"`}},
 		// Spec scenario "Issuer host not answered".
-		{name: "issuer host not answered", transport: "http", mutate: func() { flag.ForgejoJWTIssuer = "https://issuer.example.org/issuer" },
+		{name: "issuer host not answered", mutate: func(c *config.Config) { c.Auth.ForgejoJWTIssuer = "https://issuer.example.org/issuer" },
 			want: []string{"-forgejo-jwt-issuer", "-allowed-hosts"}},
-		{name: "loopback names on a loopback listener", transport: "http", mutate: func() {
-			flag.Host, flag.AllowedHosts = "127.0.0.1", nil
-			flag.Resource, flag.ForgejoJWTIssuer = "https://localhost:8443/mcp", "https://localhost:8443/issuer"
+		{name: "loopback names on a loopback listener", mutate: func(c *config.Config) {
+			c.Listen.Host, c.Listen.AllowedHosts = "127.0.0.1", nil
+			c.Auth.Resource, c.Auth.ForgejoJWTIssuer = "https://localhost:8443/mcp", "https://localhost:8443/issuer"
 		}},
-		{name: "passthrough with nothing given", transport: "stdio", mutate: func() { flag.AuthMode = AuthModePassthrough }},
-		{name: "empty mode means passthrough", transport: "stdio", mutate: func() { flag.AuthMode = "" }},
+		{name: "passthrough with nothing given", mutate: func(c *config.Config) { c.Auth.Mode, c.Transport = config.AuthModePassthrough, "stdio" }},
+		{name: "empty mode means passthrough", mutate: func(c *config.Config) { c.Auth.Mode, c.Transport = "", "stdio" }},
 		// Spec scenario "Issuer configured without the mode".
-		{name: "passthrough with a resource-server setting", transport: "http", mutate: func() {
-			flag.AuthMode = AuthModePassthrough
-			flag.ResourceServerSettings = []string{"FORGEJO_MCP_AUTHORIZATION_SERVER"}
+		{name: "passthrough with a resource-server setting", mutate: func(c *config.Config) {
+			c.Auth.Mode = config.AuthModePassthrough
+			*c = c.WithSuppliedResourceServerSettings([]string{"FORGEJO_MCP_AUTHORIZATION_SERVER"})
 		}, want: []string{"FORGEJO_MCP_AUTHORIZATION_SERVER", "requires -auth-mode resource-server"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			withResourceServerConfig(t)
-			tc.mutate()
-			err := ValidateAuthConfig(tc.transport, tc.cli)
+			t.Parallel()
+			app := resourceServerConfig()
+			tc.mutate(&app)
+			err := app.Validate()
 			if tc.want == nil {
 				if err != nil {
 					t.Fatalf("valid configuration refused: %v", err)
@@ -186,12 +164,13 @@ func assertPortFree(t *testing.T, port int) {
 
 // Spec scenario "Incompatible transport": refused before binding any listener.
 func TestRefusedConfigurationNeverBinds(t *testing.T) {
-	withResourceServerConfig(t)
-	flag.Host, flag.AllowedHosts = "127.0.0.1", []string{"mcp.example.org"}
+	app := resourceServerConfig()
+	app.Transport = "sse"
+	app.Listen.Host, app.Listen.AllowedHosts = "127.0.0.1", []string{"mcp.example.org"}
 	port := freePort(t)
-	flag.SSEPort = port
+	app.Listen.SSEPort = port
 
-	err := Run("sse", "test")
+	err := RunConfig(app, "test")
 	if err == nil || !strings.Contains(err.Error(), "requires the http transport") {
 		t.Fatalf("Run(sse) error = %v, want a transport refusal", err)
 	}
@@ -217,7 +196,7 @@ func (f *fixture) requests() []string {
 	return append([]string(nil), f.forgejoRequests...)
 }
 
-func newFixture(t *testing.T, forgejoVersion string, signingKey crypto.PrivateKey, issuerSuffix string) *fixture {
+func newFixture(t *testing.T, app *config.Config, forgejoVersion string, signingKey crypto.PrivateKey, issuerSuffix string) *fixture {
 	t.Helper()
 	f := &fixture{providerKid: "provider-1"}
 
@@ -237,6 +216,7 @@ func newFixture(t *testing.T, forgejoVersion string, signingKey crypto.PrivateKe
 	t.Cleanup(forgejoSrv.Close)
 	forgejo.ConfigureForTesting(forgejoSrv.URL, "", "")
 	t.Cleanup(func() { forgejo.ConfigureForTesting("", "", "") })
+	t.Cleanup(func() { forgejo.SetServerVersion("") })
 
 	providerKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -259,7 +239,7 @@ func newFixture(t *testing.T, forgejoVersion string, signingKey crypto.PrivateKe
 		}
 	}))
 	t.Cleanup(idp.Close)
-	flag.AuthorizationServer = idp.URL
+	app.Auth.AuthorizationServer = idp.URL
 	f.providerIssuer = idp.URL
 
 	der, err := x509.MarshalPKCS8PrivateKey(signingKey)
@@ -270,7 +250,7 @@ func newFixture(t *testing.T, forgejoVersion string, signingKey crypto.PrivateKe
 	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	flag.ForgejoJWTSigningKeyFile = path
+	app.Auth.ForgejoJWTSigningKeyFile = path
 	return f
 }
 
@@ -295,11 +275,11 @@ func captureLogs(t *testing.T, level zapcore.Level) *observer.ObservedLogs {
 
 // Spec forgejo-jwt-issuer, scenario "Startup warning".
 func TestPrepareResourceServerSucceedsAndWarnsAboutTheSigningKey(t *testing.T) {
-	withResourceServerConfig(t)
-	f := newFixture(t, "16.0.3", mustP256(t), "")
+	app := resourceServerConfig()
+	f := newFixture(t, &app, "16.0.3", mustP256(t), "")
 	logs := captureLogs(t, zap.WarnLevel)
 
-	rs, err := prepareResourceServer(context.Background())
+	rs, err := prepareResourceServer(context.Background(), app)
 	if err != nil {
 		t.Fatalf("prepareResourceServer: %v", err)
 	}
@@ -314,8 +294,8 @@ func TestPrepareResourceServerSucceedsAndWarnsAboutTheSigningKey(t *testing.T) {
 			continue
 		}
 		fields := entry.ContextMap()
-		if fields["kid"] != rs.issuer.SigningKeyID() || fields["issuer"] != flag.ForgejoJWTIssuer {
-			t.Fatalf("warning fields = %v, want kid %q and issuer %q", fields, rs.issuer.SigningKeyID(), flag.ForgejoJWTIssuer)
+		if fields["kid"] != rs.issuer.SigningKeyID() || fields["issuer"] != app.Auth.ForgejoJWTIssuer {
+			t.Fatalf("warning fields = %v, want kid %q and issuer %q", fields, rs.issuer.SigningKeyID(), app.Auth.ForgejoJWTIssuer)
 		}
 		found = true
 	}
@@ -326,34 +306,34 @@ func TestPrepareResourceServerSucceedsAndWarnsAboutTheSigningKey(t *testing.T) {
 
 // Spec oauth-resource-server, scenario "Forgejo too old".
 func TestPrepareResourceServerRefusesForgejoBefore16(t *testing.T) {
-	withResourceServerConfig(t)
-	newFixture(t, "15.0.3", mustP256(t), "")
+	app := resourceServerConfig()
+	newFixture(t, &app, "15.0.3", mustP256(t), "")
 
-	_, err := prepareResourceServer(context.Background())
+	_, err := prepareResourceServer(context.Background(), app)
 	if err == nil || !strings.Contains(err.Error(), "requires Forgejo 16.0 or newer") || !strings.Contains(err.Error(), "15.0.3") {
 		t.Fatalf("error = %v, want a refusal naming Forgejo 16.0 and the reported version", err)
 	}
 }
 
 func TestPrepareResourceServerAcceptsADevelopmentBuildOf16(t *testing.T) {
-	withResourceServerConfig(t)
-	newFixture(t, "16.0.0-dev-741-6f391573+gitea-1.22.0", mustP256(t), "")
+	app := resourceServerConfig()
+	newFixture(t, &app, "16.0.0-dev-741-6f391573+gitea-1.22.0", mustP256(t), "")
 
-	if _, err := prepareResourceServer(context.Background()); err != nil {
+	if _, err := prepareResourceServer(context.Background(), app); err != nil {
 		t.Fatalf("development build of Forgejo 16 refused: %v", err)
 	}
 }
 
 // Spec forgejo-jwt-issuer, scenario "Unsupported key".
 func TestPrepareResourceServerRefusesAnUnsupportedSigningKey(t *testing.T) {
-	withResourceServerConfig(t)
+	app := resourceServerConfig()
 	weak, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
-	newFixture(t, "16.0.3", weak, "")
+	newFixture(t, &app, "16.0.3", weak, "")
 
-	_, err = prepareResourceServer(context.Background())
+	_, err = prepareResourceServer(context.Background(), app)
 	if err == nil || !strings.Contains(err.Error(), "-forgejo-jwt-signing-key-file") {
 		t.Fatalf("error = %v, want a refusal naming -forgejo-jwt-signing-key-file", err)
 	}
@@ -361,10 +341,10 @@ func TestPrepareResourceServerRefusesAnUnsupportedSigningKey(t *testing.T) {
 
 // Spec oauth-resource-server, scenario "Provider issuer mismatch".
 func TestPrepareResourceServerRefusesAProviderIssuerMismatch(t *testing.T) {
-	withResourceServerConfig(t)
-	newFixture(t, "16.0.3", mustP256(t), "/")
+	app := resourceServerConfig()
+	newFixture(t, &app, "16.0.3", mustP256(t), "/")
 
-	_, err := prepareResourceServer(context.Background())
+	_, err := prepareResourceServer(context.Background(), app)
 	if err == nil || !strings.Contains(err.Error(), "-authorization-server") || !strings.Contains(err.Error(), "must match exactly") {
 		t.Fatalf("error = %v, want a refusal of the issuer mismatch", err)
 	}

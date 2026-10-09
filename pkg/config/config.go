@@ -85,3 +85,16 @@ type Auth struct {
 func (c Config) SuppliedResourceServerSettings() []string {
 	return append([]string(nil), c.suppliedResourceServer...)
 }
+
+// ResourceServerMode reports whether Auth selects the resource-server mode.
+func (c Config) ResourceServerMode() bool { return c.Auth.Mode == AuthModeResourceServer }
+
+// WithSuppliedResourceServerSettings returns c recording which
+// resource-server-only settings were given, for validation.
+//
+// TEMPORARY: operation.Run rebuilds a Config from pkg/flag until #42 hands it
+// the loaded one; this carries the one field the globals hold separately.
+func (c Config) WithSuppliedResourceServerSettings(names []string) Config {
+	c.suppliedResourceServer = append([]string(nil), names...)
+	return c
+}

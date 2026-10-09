@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	flagPkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
@@ -105,7 +105,38 @@ func loadSettings(t *testing.T, args []string, env map[string]string) {
 
 // validate runs the checks Execute runs after loading, on the loaded settings.
 func validate(cli bool) error {
-	return operation.ValidateAuthConfig(transport, cli)
+	return validateTransport(transport, cli)
+}
+
+// validateTransport validates what the pkg/flag globals hold as config.Validate
+// does for a loaded Config.
+//
+// TEMPORARY: it rebuilds the Config from the globals until these tests load one
+// through config.Load directly.
+func validateTransport(transportName string, cli bool) error {
+	mode := config.ModeServe
+	if cli {
+		mode = config.ModeCLI
+	}
+	cfg := config.Config{
+		Mode:      mode,
+		Transport: transportName,
+		Forgejo:   config.Forgejo{URL: flagPkg.URL, Token: config.NewSecret(flagPkg.Token), UserAgent: flagPkg.UserAgent},
+		Listen: config.Listen{
+			SSEPort: flagPkg.SSEPort, HTTPPort: flagPkg.HTTPPort, Host: flagPkg.Host,
+			AllowedHosts: flagPkg.AllowedHosts, AllowedOrigins: flagPkg.AllowedOrigins,
+			AllowOperatorTokenFallback: flagPkg.AllowOperatorTokenFallback,
+		},
+		Auth: config.Auth{
+			Mode: flagPkg.AuthMode, AuthorizationServer: flagPkg.AuthorizationServer, Resource: flagPkg.Resource,
+			ResourceAudience: flagPkg.ResourceAudience, ScopesSupported: flagPkg.ScopesSupported,
+			ForgejoAudienceClaim: flagPkg.ForgejoAudienceClaim, ForgejoJWTIssuer: flagPkg.ForgejoJWTIssuer,
+			ForgejoJWTSigningKeyFile:    flagPkg.ForgejoJWTSigningKeyFile,
+			ForgejoJWTPublishedKeyFiles: flagPkg.ForgejoJWTPublishedKeyFiles,
+		},
+		Debug: flagPkg.Debug,
+	}
+	return cfg.WithSuppliedResourceServerSettings(flagPkg.ResourceServerSettings).Validate()
 }
 
 // resourceServerArgs is a complete, valid resource-server configuration.

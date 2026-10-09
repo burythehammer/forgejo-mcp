@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"go.uber.org/zap"
@@ -73,24 +72,15 @@ func (s *scriptedListen) requireAllClosed(t *testing.T) {
 // binds both families.
 func loopbackConfig(t *testing.T) transportConfig {
 	t.Helper()
-	restoreFlags(t)
-	cfg, err := resolveTransportConfig("http")
-	if err != nil {
-		t.Fatalf("resolveTransportConfig: %v", err)
-	}
-	return cfg
+	return resolveTransportConfig(defaultListenConfig())
 }
 
 // literalConfig resolves a configuration that names one loopback address.
 func literalConfig(t *testing.T, host string) transportConfig {
 	t.Helper()
-	restoreFlags(t)
-	flag.Host = host
-	cfg, err := resolveTransportConfig("http")
-	if err != nil {
-		t.Fatalf("resolveTransportConfig(%s): %v", host, err)
-	}
-	return cfg
+	app := defaultListenConfig()
+	app.Listen.Host = host
+	return resolveTransportConfig(app)
 }
 
 // observeLogs routes this package's log output into memory for one test.
@@ -244,13 +234,10 @@ func TestRefusalOnALoopbackNameNamesTheSingleFamilyRemedy(t *testing.T) {
 func TestUnavailableAddressIsFatalOffLoopback(t *testing.T) {
 	// Skipping a family is for the second loopback family only. An operator who
 	// named an address this machine does not have must be told, not ignored.
-	restoreFlags(t)
-	flag.Host = "192.0.2.10"
-	flag.AllowedHosts = []string{"mcp.example.org"}
-	cfg, err := resolveTransportConfig("http")
-	if err != nil {
-		t.Fatalf("resolveTransportConfig: %v", err)
-	}
+	app := defaultListenConfig()
+	app.Listen.Host = "192.0.2.10"
+	app.Listen.AllowedHosts = []string{"mcp.example.org"}
+	cfg := resolveTransportConfig(app)
 	s := &scriptedListen{failures: map[string]syscall.Errno{"192.0.2.10:8080": syscall.EADDRNOTAVAIL}}
 	if _, err := bindListeners("http", cfg, 8080, s.listen); err == nil {
 		t.Fatal("started although the one configured address could not be bound")
@@ -323,12 +310,9 @@ func TestStartupLogSaysLoopbackIsThisMachineOnly(t *testing.T) {
 }
 
 func TestStartupLogAnnouncesTheCredentialFallback(t *testing.T) {
-	restoreFlags(t)
-	flag.AllowOperatorTokenFallback = true
-	cfg, err := resolveTransportConfig("http")
-	if err != nil {
-		t.Fatalf("resolveTransportConfig: %v", err)
-	}
+	app := defaultListenConfig()
+	app.Listen.AllowOperatorTokenFallback = true
+	cfg := resolveTransportConfig(app)
 	logs := observeLogs(t)
 
 	logListening("http", []string{v4Loopback}, cfg)
