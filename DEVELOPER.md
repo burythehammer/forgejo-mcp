@@ -71,10 +71,51 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 | `operation/user/` | User info tools |
 | `operation/version/` | Server version tool |
 | `pkg/forgejo/` | Singleton Forgejo SDK client wrapper |
+| `pkg/forge/` | The Forgejo port: per-domain interfaces and the `Factory` (no SDK client import) |
+| `pkg/forge/sdk/` | The real adapter: one `Adapter` type over the SDK and raw HTTP |
+| `pkg/forge/fake/` | Stateful in-memory `forge.Forgejo` for handler tests |
+| `pkg/forge/forgetest/` | Contract suite run against the fake and the adapter, and the shared stub server |
 | `pkg/to/` | Response formatting helpers (`TextResult`, `ErrorResult`) |
 | `pkg/params/` | Shared parameter descriptions for tool definitions |
 | `pkg/config/` | Typed Config, `Load` and `Validate` |
 | `pkg/log/` | Structured logging utilities |
+
+## The Forgejo port and migrating a domain
+
+Domains are moving off the `forgejo.Client(ctx)` singleton onto a port. The
+pull domain (`operation/pull/`, `pkg/forge/pull.go`) is the reference; copy its
+shape. A migrated domain has:
+
+1. **Port** (`pkg/forge/<domain>.go`). An interface named for what the tools
+   need, SDK types as plain data, `ctx` first. Server failures are
+   `*forge.StatusError` (use `forge.IsNotFound`); a decline that Forgejo reports
+   as a status rather than an error is a result field (see `forge.MergeResult`).
+   Embed the interface in `forge.Forgejo` (`pkg/forge/forge.go`).
+2. **Adapter** (`pkg/forge/sdk/<domain>.go`). Methods on `*Adapter`, a
+   one-line `var _ forge.<Domain> = (*Adapter)(nil)`, and every SDK call wrapped
+   in `statusErr(resp, err)`. Raw-HTTP workarounds go here too, with
+   `forgejo.APIPath`.
+3. **Fake** (`pkg/forge/fake/<domain>.go`). Methods on `*fake.Forgejo` with its
+   own state struct (and mutex) held in one new field on `fake.Forgejo`. It
+   must behave like Forgejo: round-trips, 404 for unknown things, pagination via
+   `page`. Add seeding helpers for what the port cannot write (the pull fake's
+   `AddRepo`, `SetPullRequestDiff`).
+4. **Contract cases** (`pkg/forge/forgetest/<domain>.go`, `RunXxx`). Behaviour
+   through the port only, never HTTP traffic. Add the seeding methods to
+   `Seeder`, then give the stub server the REST routes
+   (`forgetest/stub_<domain>.go`, a thin translation onto `Stub.Fake`) and call
+   `RunXxx` from `fake/contract_test.go` and `sdk/contract_test.go`. The stub
+   answers the SDK startup probe in one place, `forgetest.WriteVersion`.
+5. **Handlers take the factory.** `RegisterTool(s, f forge.Factory)` /
+   `RegisterResource(s, f)`, a `handlers{forge: f}` struct whose methods call
+   `h.forge.For(ctx)` per request (so each request gets its own credential), and
+   thread `f` through `operation/operation.go` and `cmd/cli.go`.
+6. **Handler tests on the fake** (`operation/<domain>/*_test.go`). Build a fresh
+   `fake.New()` per test, call the handler, assert on the tool result, and
+   `t.Parallel()`. No `flag.*`, no `SetClientForTesting`, no `httptest` server.
+   Delete the domain's old mock-server helpers.
+
+Unmigrated domains keep calling `forgejo.Client(ctx)` until their turn.
 
 ## Adding a New Tool
 
