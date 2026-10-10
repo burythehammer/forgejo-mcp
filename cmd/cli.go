@@ -44,8 +44,8 @@ func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Facto
 		{"tracking", operation.RegisterTrackingTool},
 		{"attachment", operation.RegisterAttachmentTool},
 		{"release", operation.RegisterReleaseTool},
-		{"branch-protection", operation.RegisterBranchProtectionTool},
-		{"webhook", operation.RegisterHookTool},
+		{"branch-protection", func(s *server.MCPServer) { operation.RegisterBranchProtectionTool(s, f) }},
+		{"webhook", func(s *server.MCPServer) { operation.RegisterHookTool(s, f) }},
 		{"wiki", operation.RegisterWikiTool},
 	}
 

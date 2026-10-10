@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -93,13 +93,19 @@ var (
 )
 
 // RegisterTool registers the branch protection CRUD tools on the MCP server.
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(ListBranchProtectionsTool, ListBranchProtectionsFn)
-	s.AddTool(GetBranchProtectionTool, GetBranchProtectionFn)
-	s.AddTool(CreateBranchProtectionTool, CreateBranchProtectionFn)
-	s.AddTool(EditBranchProtectionTool, EditBranchProtectionFn)
-	s.AddTool(DeleteBranchProtectionTool, DeleteBranchProtectionFn)
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(ListBranchProtectionsTool, h.ListBranchProtectionsFn)
+	s.AddTool(GetBranchProtectionTool, h.GetBranchProtectionFn)
+	s.AddTool(CreateBranchProtectionTool, h.CreateBranchProtectionFn)
+	s.AddTool(EditBranchProtectionTool, h.EditBranchProtectionFn)
+	s.AddTool(DeleteBranchProtectionTool, h.DeleteBranchProtectionFn)
 }
+
+// handlers serve the branch protection tools and resources. They hold the
+// factory rather than a port so each call is bound to the credential of its
+// own request.
+type handlers struct{ forge forge.Factory }
 
 // listBranchProtectionsResult wraps the rules with the page echo so callers can
 // resume pagination (output-bounding sub-rule 3).
@@ -110,7 +116,7 @@ type listBranchProtectionsResult struct {
 	BranchProtections []*forgejo_sdk.BranchProtection `json:"branch_protections"`
 }
 
-func ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListBranchProtectionsFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -127,11 +133,11 @@ func ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		limit = 100
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	bps, _, err := client.ListBranchProtections(owner, repo, forgejo_sdk.ListBranchProtectionsOptions{
+	bps, err := port.ListBranchProtections(ctx, owner, repo, forgejo_sdk.ListBranchProtectionsOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: int(page), PageSize: int(limit)},
 	})
 	if err != nil {
@@ -145,7 +151,7 @@ func ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	})
 }
 
-func GetBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetBranchProtectionFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -155,18 +161,18 @@ func GetBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		return to.ErrorResult(fmt.Errorf("owner, repo and rule are required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	bp, _, err := client.GetBranchProtection(owner, repo, rule)
+	bp, err := port.GetBranchProtection(ctx, owner, repo, rule)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get branch protection err: %w", err))
 	}
 	return to.TextResult(bp)
 }
 
-func CreateBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateBranchProtectionFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -205,18 +211,18 @@ func CreateBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 		opt.DismissStaleApprovals = v
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	bp, _, err := client.CreateBranchProtection(owner, repo, opt)
+	bp, err := port.CreateBranchProtection(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create branch protection err: %w", err))
 	}
 	return to.TextResult(bp)
 }
 
-func EditBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) EditBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditBranchProtectionFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -269,18 +275,18 @@ func EditBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		opt.ApprovalsWhitelistUsernames = splitContexts(v)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	bp, _, err := client.EditBranchProtection(owner, repo, rule, opt)
+	bp, err := port.EditBranchProtection(ctx, owner, repo, rule, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit branch protection err: %w", err))
 	}
 	return to.TextResult(bp)
 }
 
-func DeleteBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteBranchProtectionFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -290,11 +296,11 @@ func DeleteBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 		return to.ErrorResult(fmt.Errorf("owner, repo and rule are required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.DeleteBranchProtection(owner, repo, rule); err != nil {
+	if err := port.DeleteBranchProtection(ctx, owner, repo, rule); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete branch protection err: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("Deleted branch protection rule %q on %s/%s", rule, owner, repo))

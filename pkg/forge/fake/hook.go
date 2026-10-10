@@ -180,4 +180,3 @@ func (f *Forgejo) HookTestDeliveries(id int64) int {
 	defer f.hooks.mu.Unlock()
 	return f.hooks.deliveries[id]
 }
-
