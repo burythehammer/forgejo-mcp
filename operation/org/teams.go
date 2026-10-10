@@ -7,7 +7,6 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -74,7 +73,7 @@ var (
 	)
 )
 
-func ListOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListOrgTeamsFn")
 	orgName, ok := req.GetArguments()["org"].(string)
 	if !ok {
@@ -95,18 +94,18 @@ func ListOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 			PageSize: int(limit),
 		},
 	}
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	teams, _, err := client.ListOrgTeams(orgName, opt)
+	teams, err := client.ListOrgTeams(ctx, orgName, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list org teams err: %w", err))
 	}
 	return to.TextResult(teams)
 }
 
-func CreateOrgTeamFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateOrgTeamFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateOrgTeamFn")
 	orgName, ok := req.GetArguments()["org"].(string)
 	if !ok {
@@ -136,18 +135,18 @@ func CreateOrgTeamFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 		opt.IncludesAllRepositories = v
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	team, _, err := client.CreateTeam(orgName, opt)
+	team, err := client.CreateTeam(ctx, orgName, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create org team err: %w", err))
 	}
 	return to.TextResult(team)
 }
 
-func AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called AddTeamMemberFn")
 	teamIDFloat, ok := req.GetArguments()["team_id"].(float64)
 	if !ok {
@@ -159,18 +158,18 @@ func AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 		return to.ErrorResult(errors.New("username is required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.AddTeamMember(teamID, user)
+	err = client.AddTeamMember(ctx, teamID, user)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("add team member err: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("User '%s' added to team %d", user, teamID))
 }
 
-func RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called RemoveTeamMemberFn")
 	teamIDFloat, ok := req.GetArguments()["team_id"].(float64)
 	if !ok {
@@ -182,18 +181,18 @@ func RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		return to.ErrorResult(errors.New("username is required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.RemoveTeamMember(teamID, user)
+	err = client.RemoveTeamMember(ctx, teamID, user)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("remove team member err: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("User '%s' removed from team %d", user, teamID))
 }
 
-func AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called AddTeamRepoFn")
 	teamIDFloat, ok := req.GetArguments()["team_id"].(float64)
 	if !ok {
@@ -209,18 +208,18 @@ func AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 		return to.ErrorResult(errors.New("repository name is required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.AddTeamRepository(teamID, orgName, repo)
+	err = client.AddTeamRepository(ctx, teamID, orgName, repo)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("add team repo err: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("Repository '%s/%s' added to team %d", orgName, repo, teamID))
 }
 
-func RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called RemoveTeamRepoFn")
 	teamIDFloat, ok := req.GetArguments()["team_id"].(float64)
 	if !ok {
@@ -236,11 +235,11 @@ func RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 		return to.ErrorResult(errors.New("repository name is required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.RemoveTeamRepository(teamID, orgName, repo)
+	err = client.RemoveTeamRepository(ctx, teamID, orgName, repo)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("remove team repo err: %w", err))
 	}

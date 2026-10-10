@@ -7,7 +7,6 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -44,7 +43,7 @@ var (
 	)
 )
 
-func ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListOrgMembersFn")
 	orgName, ok := req.GetArguments()["org"].(string)
 	if !ok {
@@ -65,18 +64,18 @@ func ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 			PageSize: int(limit),
 		},
 	}
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	members, _, err := client.ListOrgMembership(orgName, opt)
+	members, err := client.ListOrgMembers(ctx, orgName, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list org members err: %w", err))
 	}
 	return to.TextResult(members)
 }
 
-func CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CheckOrgMembershipFn")
 	orgName, ok := req.GetArguments()["org"].(string)
 	if !ok {
@@ -87,11 +86,11 @@ func CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		return to.ErrorResult(errors.New("username is required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	isMember, _, err := client.CheckOrgMembership(orgName, user)
+	isMember, err := client.CheckOrgMembership(ctx, orgName, user)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("check org membership err: %w", err))
 	}
@@ -102,7 +101,7 @@ func CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	})
 }
 
-func RemoveOrgMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) RemoveOrgMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called RemoveOrgMemberFn")
 	orgName, ok := req.GetArguments()["org"].(string)
 	if !ok {
@@ -113,11 +112,11 @@ func RemoveOrgMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 		return to.ErrorResult(errors.New("username is required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.DeleteOrgMembership(orgName, user)
+	err = client.RemoveOrgMember(ctx, orgName, user)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("remove org member err: %w", err))
 	}

@@ -7,10 +7,9 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -33,12 +32,13 @@ type ownerResourcePayload struct {
 }
 
 // RegisterOwnerResource registers the forgejo://owner/{owner} resource template.
-func RegisterOwnerResource(s *server.MCPServer) {
+func RegisterOwnerResource(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
 	resource.RegisterTemplate(
 		s,
 		ownerResourceURITemplate,
 		"Forgejo Owner",
-		ownerResourceHandler,
+		h.ownerResourceHandler,
 		mcp.WithTemplateDescription(
 			"User or organization profile addressed by login. "+
 				"Tries user first; falls back to org if user returns 404. "+
@@ -49,19 +49,19 @@ func RegisterOwnerResource(s *server.MCPServer) {
 	log.Debug("Registered owner resource template")
 }
 
-func ownerResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) ownerResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	params, err := resource.ParseOwner(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	u, userResp, userErr := client.GetUserInfo(params.Owner)
+	u, userErr := client.GetUserInfo(ctx, params.Owner)
 
 	var payload ownerResourcePayload
 
@@ -80,27 +80,21 @@ func ownerResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]m
 		}
 	} else {
 		// if user fetch failed for a reason other than 404, surface it immediately
-		if userErr != nil && !is404(userResp, userErr) {
-			if userResp != nil {
-				return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", userResp.StatusCode, userErr.Error()))
-			}
-			return nil, resource.MapForgejoError(uri, userErr)
+		if userErr != nil && !is404(userErr) {
+			return nil, resource.MapForgejoError(uri, withStatus(userErr))
 		}
 
 		// fall back to org
-		org, orgResp, orgErr := client.GetOrg(params.Owner)
+		org, orgErr := client.GetOrg(ctx, params.Owner)
 		if orgErr != nil {
 			// Both user and org are "not found" → explicit -32003 with a clear message.
 			// This also guards the SDK edge where userErr==nil (u==nil, err==nil).
-			if is404(orgResp, orgErr) && (userErr == nil || is404(userResp, userErr)) {
+			if is404(orgErr) && (userErr == nil || is404(userErr)) {
 				return nil, &resource.ResourceError{URI: uri, Code: -32003, Message: "owner not found: " + uri}
 			}
-			// orgResp != nil (non-404 HTTP error): surface the status + org message.
-			if orgResp != nil {
-				return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", orgResp.StatusCode, orgErr.Error()))
-			}
-			// orgResp == nil: real transport/network/context error — surface orgErr.
-			return nil, resource.MapForgejoError(uri, orgErr)
+			// A non-404 HTTP error surfaces with its status; a transport or
+			// context error surfaces as it is.
+			return nil, resource.MapForgejoError(uri, withStatus(orgErr))
 		}
 
 		payload = ownerResourcePayload{
@@ -127,13 +121,23 @@ func ownerResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]m
 	}, nil
 }
 
-// is404 returns true if the response status or error message indicates HTTP 404.
-func is404(resp *forgejo_sdk.Response, err error) bool {
-	if resp != nil && resp.StatusCode == 404 {
-		return true
+// withStatus puts the HTTP status Forgejo answered with in front of the error's
+// message, when there was one.
+func withStatus(err error) error {
+	if code := forge.StatusCode(err); code != 0 {
+		return fmt.Errorf("%d %s", code, err.Error())
 	}
+	return err
+}
+
+// is404 returns true if the error carries HTTP 404, or, for an error with no
+// status, if its message says so.
+func is404(err error) bool {
 	if err == nil {
 		return false
+	}
+	if forge.IsNotFound(err) {
+		return true
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "404") || strings.Contains(msg, "Not Found") || strings.Contains(msg, "not found")
