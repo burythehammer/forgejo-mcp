@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/forgetest"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 )
 
@@ -36,8 +37,7 @@ func newStub(t *testing.T) *stub {
 		s.mu.Lock()
 		s.auth = append(s.auth, r.Header.Get("Authorization"))
 		s.mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"11.0.0"}`))
+		forgetest.WriteVersion(w)
 	}))
 	t.Cleanup(s.Close)
 	return s
