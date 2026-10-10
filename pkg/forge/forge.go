@@ -14,6 +14,9 @@ import "context"
 // ports; a domain joins it by embedding its interface here.
 type Forgejo interface {
 	Pulls
+	Actions
+	Tracking
+	Search
 }
 
 // Factory hands out a Forgejo port per request.

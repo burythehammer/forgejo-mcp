@@ -76,6 +76,27 @@ func resolveURL(pathOrURL string) (string, error) {
 	return base + "/api/v1" + pathOrURL, nil
 }
 
+type baseURLKey struct{}
+
+// WithBaseURL returns a context whose raw-HTTP calls go to base instead of the
+// process-wide target. The Forgejo port's adapter uses it so each adapter
+// serves its own instance, which keeps adapters testable side by side.
+func WithBaseURL(ctx context.Context, base string) context.Context {
+	return context.WithValue(ctx, baseURLKey{}, base)
+}
+
+// resolveURLFor is resolveURL honouring a WithBaseURL override on ctx.
+func resolveURLFor(ctx context.Context, pathOrURL string) (string, error) {
+	base, _ := ctx.Value(baseURLKey{}).(string)
+	if base == "" || strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
+		return resolveURL(pathOrURL)
+	}
+	if !strings.HasPrefix(pathOrURL, "/") {
+		pathOrURL = "/" + pathOrURL
+	}
+	return strings.TrimRight(base, "/") + "/api/v1" + pathOrURL, nil
+}
+
 // resolveSameOriginURL is like resolveURL but for asset/download URLs that
 // live outside the /api/v1 prefix (e.g. /attachments/{uuid}). Absolute URLs
 // pass through; relative URLs hang off the Forgejo URL with no /api/v1.
@@ -176,7 +197,7 @@ func DoJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out a
 // The header is returned even on error when a response was received, so a
 // caller mapping a 404 to "empty list" still sees whatever the server said.
 func doJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out any) (http.Header, error) {
-	full, err := resolveURL(pathOrURL)
+	full, err := resolveURLFor(ctx, pathOrURL)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +264,7 @@ func DoAPIRaw(ctx context.Context, pathOrURL, accept, byteRange string, maxBytes
 	if maxBytes <= 0 {
 		return nil, fmt.Errorf("maxBytes must be positive")
 	}
-	full, err := resolveURL(pathOrURL)
+	full, err := resolveURLFor(ctx, pathOrURL)
 	if err != nil {
 		return nil, err
 	}

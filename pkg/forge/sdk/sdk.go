@@ -7,6 +7,7 @@ package sdk
 
 import (
 	"context"
+	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
@@ -18,6 +19,9 @@ import (
 // Adapter is the real forge.Forgejo, bound to one credential.
 type Adapter struct {
 	client *forgejo_sdk.Client
+	// baseURL is the instance's web address, for the few answers that quote it;
+	// empty falls back to the process-wide target.
+	baseURL string
 }
 
 var _ forge.Forgejo = (*Adapter)(nil)
@@ -29,6 +33,13 @@ var _ forge.Forgejo = (*Adapter)(nil)
 // Each domain's methods live in their own file in this package (pull.go, ...),
 // all on *Adapter.
 func NewAdapter(c *forgejo_sdk.Client) *Adapter { return &Adapter{client: c} }
+
+// WithBaseURL binds the adapter's raw-HTTP calls, and the addresses it quotes,
+// to the instance at base. Without it they follow the process-wide target.
+func (a *Adapter) WithBaseURL(base string) *Adapter {
+	a.baseURL = strings.TrimRight(base, "/")
+	return a
+}
 
 // statusErr wraps an SDK failure with the HTTP status Forgejo answered with,
 // when there was one. The message is the SDK's, unchanged. ctx is not passed
@@ -64,5 +75,5 @@ func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewAdapter(c), nil
+	return NewAdapter(c).WithBaseURL(f.cfg.URL), nil
 }
