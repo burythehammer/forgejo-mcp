@@ -4,106 +4,69 @@ package repo
 
 import (
 	"context"
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 )
 
-func TestChangeFilesFnSendsAtomicBatch(t *testing.T) {
-	var captured []byte
-	var capturedPath string
+func TestChangeFilesFnAppliesAtomicBatch(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedFile(t, f, "binary.dat", "old bytes")
+	seedFile(t, f, "old.txt", "doomed")
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedPath = r.URL.Path
-		var err error
-		captured, err = io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("read request: %v", err)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"sha":"commit123"}`))
-	}))
-	defer srv.Close()
-
-	forgejo.ConfigureForTesting(srv.URL, "test", "forgejo-mcp-test/0.0.1")
-
-	client, err := forgejo_sdk.NewClient(
-		srv.URL,
-		forgejo_sdk.SetForgejoVersion("7.0.0"),
-	)
-	if err != nil {
-		t.Fatalf("creating client: %v", err)
-	}
-	forgejo.SetClientForTesting(client)
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":       "testowner",
-		"repo":        "testrepo",
+	result, err := h.ChangeFilesFn(context.Background(), filesReq(map[string]any{
 		"message":     "atomic change",
 		"branch_name": "main",
 		"files": []any{
-			map[string]any{
-				"operation": "create",
-				"path":      "new.txt",
-				"content":   "hello",
-			},
-			map[string]any{
-				"operation":      "update",
-				"path":           "binary.dat",
-				"content_base64": "AP8=",
-				"sha":            "oldsha",
-			},
-			map[string]any{
-				"operation": "delete",
-				"path":      "old.txt",
-				"sha":       "deletesha",
-			},
+			map[string]any{"operation": "create", "path": "new.txt", "content": "hello"},
+			map[string]any{"operation": "update", "path": "binary.dat", "content_base64": "AP8=", "sha": currentSHA(t, h, "binary.dat")},
+			map[string]any{"operation": "delete", "path": "old.txt", "sha": currentSHA(t, h, "old.txt")},
 		},
-	})
-
-	result, err := ChangeFilesFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("ChangeFilesFn returned error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("ChangeFilesFn returned tool error: %v", result.Content)
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("err=%v result=%v", err, result)
 	}
 
-	if capturedPath != "/api/v1/repos/testowner/testrepo/contents" {
-		t.Fatalf("unexpected request path: %q", capturedPath)
+	if got := string(fileOnMain(t, h, "new.txt")); got != "hello" {
+		t.Errorf("new.txt = %q, want plain text to be stored", got)
 	}
+	if got := fileOnMain(t, h, "binary.dat"); string(got) != "\x00\xff" {
+		t.Errorf("binary.dat = % x, want 00 ff", got)
+	}
+	port, _ := h.forge.For(context.Background())
+	if _, err := port.GetFile(context.Background(), filesOwner, filesRepo, "main", "old.txt"); err == nil {
+		t.Error("old.txt should be deleted")
+	}
+	commits, err := port.ListCommits(context.Background(), filesOwner, filesRepo, forgejo_sdk.ListCommitOptions{})
+	if err != nil || len(commits) != 1 || commits[0].RepoCommit.Message != "atomic change" {
+		t.Errorf("want the batch as exactly one commit, got %v (err %v)", commits, err)
+	}
+}
 
-	var body changeFilesOptions
-	if err := json.Unmarshal(captured, &body); err != nil {
-		t.Fatalf("unmarshal request: %v", err)
-	}
+func TestChangeFilesFnFailureChangesNothing(t *testing.T) {
+	t.Parallel()
+	h, _ := newFilesFixture(t)
 
-	if body.Message != "atomic change" || body.BranchName != "main" {
-		t.Fatalf("unexpected request envelope: %+v", body)
+	_, err := h.ChangeFilesFn(context.Background(), filesReq(map[string]any{
+		"message": "m", "branch_name": "main",
+		"files": []any{
+			map[string]any{"operation": "create", "path": "ok.txt", "content": "x"},
+			map[string]any{"operation": "delete", "path": "ghost.txt", "sha": "abc"},
+		},
+	}))
+	if err == nil || !strings.Contains(err.Error(), "change files error") {
+		t.Fatalf("want a change files error, got %v", err)
 	}
-	if len(body.Files) != 3 {
-		t.Fatalf("expected 3 file operations, got %d", len(body.Files))
-	}
-	if body.Files[0].Content == nil || *body.Files[0].Content != "aGVsbG8=" {
-		t.Fatalf("plaintext create was not encoded correctly: %+v", body.Files[0])
-	}
-	if body.Files[1].Content == nil || *body.Files[1].Content != "AP8=" {
-		t.Fatalf("binary update changed supplied base64: %+v", body.Files[1])
-	}
-	if body.Files[2].Content != nil {
-		t.Fatalf("delete unexpectedly contains content: %+v", body.Files[2])
+	port, _ := h.forge.For(context.Background())
+	if _, err := port.GetFile(context.Background(), filesOwner, filesRepo, "main", "ok.txt"); err == nil {
+		t.Error("a failed batch must not write ok.txt")
 	}
 }
 
 func TestParseChangeFilesArgumentsRejectsInvalidBatches(t *testing.T) {
+	t.Parallel()
 	base := func(files []any) map[string]any {
 		return map[string]any{
 			"owner":       "o",

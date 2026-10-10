@@ -9,7 +9,6 @@ import (
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -44,7 +43,7 @@ type getCommitStatusesResult struct {
 	TotalCount *int         `json:"total_count,omitempty"`
 }
 
-func GetCommitStatusesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetCommitStatusesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetCommitStatusesFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -69,29 +68,24 @@ func GetCommitStatusesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		limit = float64(maxCommitStatusesLimit)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	statuses, resp, err := client.ListStatuses(owner, repo, sha, forgejo_sdk.ListStatusesOption{
+	res, err := port.ListCommitStatuses(ctx, owner, repo, sha, forgejo_sdk.ListStatusesOption{
 		ListOptions: forgejo_sdk.ListOptions{Page: int(page), PageSize: int(limit)},
 	})
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get commit statuses: %w", err))
 	}
 
-	items := make([]statusItem, 0, len(statuses))
-	for _, s := range statuses {
+	items := make([]statusItem, 0, len(res.Statuses))
+	for _, s := range res.Statuses {
 		item, ok := toStatusItem(s)
 		if !ok {
 			continue
 		}
 		items = append(items, item)
-	}
-
-	var totalCount *int
-	if resp != nil {
-		totalCount = forgejo.TotalCountPtr(resp.Header)
 	}
 
 	return to.TextResult(getCommitStatusesResult{
@@ -100,6 +94,6 @@ func GetCommitStatusesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		Page:       int(page),
 		Limit:      int(limit),
 		Count:      len(items),
-		TotalCount: totalCount,
+		TotalCount: res.TotalCount,
 	})
 }

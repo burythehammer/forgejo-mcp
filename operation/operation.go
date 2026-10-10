@@ -106,7 +106,7 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	log.Info("Registering MCP tools")
 
 	RegisterUserTool(s)
-	RegisterRepoTool(s)
+	RegisterRepoTool(s, f)
 	RegisterIssueTool(s)
 	RegisterPullTool(s, f)
 	RegisterPullReviewTool(s, f)
@@ -132,8 +132,8 @@ func RegisterUserTool(s *server.MCPServer) {
 	log.Debug("Registered user tools")
 }
 
-func RegisterRepoTool(s *server.MCPServer) {
-	repo.RegisterTool(s)
+func RegisterRepoTool(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterTool(s, f)
 	log.Debug("Registered repository tools")
 }
 
@@ -326,13 +326,13 @@ func testConnection() error {
 }
 
 func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
-	RegisterCommitResource(s)
+	RegisterCommitResource(s, f)
 	RegisterIssueResources(s)
 	RegisterLabelResources(s)
 	RegisterOwnerResource(s)
 	RegisterPullResources(s, f)
 	RegisterRepoResource(s)
-	RegisterStatusResource(s)
+	RegisterStatusResource(s, f)
 	RegisterBranchProtectionResources(s)
 	RegisterHookResources(s)
 	RegisterWikiResource(s)
@@ -369,8 +369,8 @@ func RegisterIssueResources(s *server.MCPServer) {
 	log.Debug("Registered issue resource templates")
 }
 
-func RegisterCommitResource(s *server.MCPServer) {
-	repo.RegisterCommitResource(s)
+func RegisterCommitResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterCommitResource(s, f)
 	log.Debug("Registered commit resource template")
 }
 
@@ -384,8 +384,8 @@ func RegisterRepoResource(s *server.MCPServer) {
 	log.Debug("Registered repo resource template")
 }
 
-func RegisterStatusResource(s *server.MCPServer) {
-	repo.RegisterStatusResource(s)
+func RegisterStatusResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterStatusResource(s, f)
 	log.Debug("Registered commit status resource template")
 }
 

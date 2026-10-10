@@ -4,59 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 const testSHA = "a3f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9"
 
-func setupCommitMockServer(t *testing.T, statusCode int, body interface{}) *httptest.Server {
-	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(statusCode)
-		if body != nil {
-			json.NewEncoder(w).Encode(body)
-		}
-	}))
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
-	}
-	forgejo.SetClientForTesting(client)
-	return srv
-}
-
 func makeCommitResourceRequest(sha string) mcp.ReadResourceRequest {
 	return mcp.ReadResourceRequest{
 		Params: mcp.ReadResourceParams{
-			URI: "forgejo://repo/testowner/testrepo/commit/" + sha,
+			URI: "forgejo://repo/" + filesOwner + "/" + filesRepo + "/commit/" + sha,
 		},
 	}
 }
 
 func TestCommitResourceHandler_HappyPath(t *testing.T) {
-	fakeCommit := map[string]interface{}{
-		"sha":      testSHA,
-		"html_url": "https://codeberg.org/testowner/testrepo/commit/" + testSHA,
-		"commit": map[string]interface{}{
-			"message": "fix: resolve race condition\n\nDetailed explanation.",
-			"author":  map[string]interface{}{"name": "Alice", "email": "alice@example.com", "date": "2024-01-01"},
-		},
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, "fix: resolve race condition\n\nDetailed explanation.", "a.go"); err != nil {
+		t.Fatal(err)
 	}
-	srv := setupCommitMockServer(t, http.StatusOK, fakeCommit)
-	defer srv.Close()
 
-	req := makeCommitResourceRequest(testSHA)
-	contents, err := commitResourceHandler(context.Background(), req)
+	contents, err := h.commitResourceHandler(context.Background(), makeCommitResourceRequest(testSHA))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,6 +48,9 @@ func TestCommitResourceHandler_HappyPath(t *testing.T) {
 	if err := json.Unmarshal([]byte(jsonBlock.Text), &decoded); err != nil {
 		t.Errorf("first block is not valid JSON: %v", err)
 	}
+	if decoded["sha"] != testSHA {
+		t.Errorf("json sha = %v, want %s", decoded["sha"], testSHA)
+	}
 
 	mdBlock, ok := contents[1].(mcp.TextResourceContents)
 	if !ok {
@@ -89,17 +65,14 @@ func TestCommitResourceHandler_HappyPath(t *testing.T) {
 }
 
 func TestCommitResourceHandler_ShortSHA(t *testing.T) {
-	req := mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: "forgejo://repo/testowner/testrepo/commit/abc123",
-		},
-	}
-	_, err := commitResourceHandler(context.Background(), req)
+	t.Parallel()
+	h, _ := newFilesFixture(t)
+	_, err := h.commitResourceHandler(context.Background(), makeCommitResourceRequest("abc123"))
 	if err == nil {
 		t.Fatal("expected error for short sha")
 	}
 	// Parse errors surface as *resource.ResourceError with Code -32602 (invalid params)
-	// because the ErrInvalidParams sentinel is now wrapped at every parser return path.
+	// because the ErrInvalidParams sentinel is wrapped at every parser return path.
 	var resErr *resource.ResourceError
 	if !errors.As(err, &resErr) {
 		t.Fatalf("expected *resource.ResourceError, got %T: %v", err, err)
@@ -110,32 +83,26 @@ func TestCommitResourceHandler_ShortSHA(t *testing.T) {
 }
 
 func TestCommitResourceHandler_NotFound(t *testing.T) {
-	srv := setupCommitMockServer(t, http.StatusNotFound, map[string]string{"message": "commit not found"})
-	defer srv.Close()
-
-	req := makeCommitResourceRequest(testSHA)
-	_, err := commitResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for 404 response")
+	t.Parallel()
+	h, _ := newFilesFixture(t)
+	_, err := h.commitResourceHandler(context.Background(), makeCommitResourceRequest(testSHA))
+	var resErr *resource.ResourceError
+	if !errors.As(err, &resErr) || resErr.Code != -32003 {
+		t.Fatalf("want a not-found resource error (-32003), got %T %v", err, err)
 	}
 }
 
 func TestCommitResourceHandler_SidecarPresent(t *testing.T) {
-	fakeCommit := map[string]interface{}{
-		"sha": testSHA,
-		"commit": map[string]interface{}{
-			"message": "chore: update deps",
-		},
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, "chore: update deps"); err != nil {
+		t.Fatal(err)
 	}
-	srv := setupCommitMockServer(t, http.StatusOK, fakeCommit)
-	defer srv.Close()
 
-	req := makeCommitResourceRequest(testSHA)
-	contents, err := commitResourceHandler(context.Background(), req)
+	contents, err := h.commitResourceHandler(context.Background(), makeCommitResourceRequest(testSHA))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 	found := false
 	for _, c := range contents {
 		if tc, ok := c.(mcp.TextResourceContents); ok && tc.MIMEType == "text/markdown" {

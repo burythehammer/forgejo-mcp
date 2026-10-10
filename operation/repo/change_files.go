@@ -5,11 +5,11 @@ package repo
 import (
 	"context"
 	"fmt"
-	"net/http"
+
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -63,21 +63,7 @@ var ChangeFilesTool = mcp.NewTool(
 	),
 )
 
-type changeFileOperation struct {
-	Operation string  `json:"operation"`
-	Path      string  `json:"path"`
-	Content   *string `json:"content,omitempty"`
-	SHA       string  `json:"sha,omitempty"`
-}
-
-type changeFilesOptions struct {
-	BranchName    string                `json:"branch"`
-	NewBranchName string                `json:"new_branch,omitempty"`
-	Message       string                `json:"message"`
-	Files         []changeFileOperation `json:"files"`
-}
-
-func ChangeFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ChangeFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ChangeFilesFn")
 
 	owner, repo, options, err := parseChangeFilesArguments(req.GetArguments())
@@ -85,108 +71,111 @@ func ChangeFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 		return to.ErrorResult(err)
 	}
 
-	var response map[string]any
-	path := forgejo.APIPath("repos", owner, repo, "contents")
-	if err := forgejo.DoJSON(ctx, http.MethodPost, path, options, &response); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	response, err := port.ChangeFiles(ctx, owner, repo, options)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("change files error: %w", err))
 	}
 	return to.TextResult(response)
 }
 
-func parseChangeFilesArguments(args map[string]any) (string, string, changeFilesOptions, error) {
+func parseChangeFilesArguments(args map[string]any) (string, string, forge.ChangeFilesOptions, error) {
 	owner, err := requiredNonBlankString(args, "owner")
 	if err != nil {
-		return "", "", changeFilesOptions{}, err
+		return "", "", forge.ChangeFilesOptions{}, err
 	}
 	repo, err := requiredNonBlankString(args, "repo")
 	if err != nil {
-		return "", "", changeFilesOptions{}, err
+		return "", "", forge.ChangeFilesOptions{}, err
 	}
 	message, err := requiredNonBlankString(args, "message")
 	if err != nil {
-		return "", "", changeFilesOptions{}, err
+		return "", "", forge.ChangeFilesOptions{}, err
 	}
 	branchName, err := requiredNonBlankString(args, "branch_name")
 	if err != nil {
-		return "", "", changeFilesOptions{}, err
+		return "", "", forge.ChangeFilesOptions{}, err
 	}
 
 	newBranchName := ""
 	if raw, ok := args["new_branch_name"]; ok {
 		value, ok := raw.(string)
 		if !ok {
-			return "", "", changeFilesOptions{}, fmt.Errorf("new_branch_name must be a string")
+			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("new_branch_name must be a string")
 		}
 		newBranchName = value
 	}
 
 	rawFiles, ok := args["files"].([]any)
 	if !ok || len(rawFiles) == 0 {
-		return "", "", changeFilesOptions{}, fmt.Errorf("files must contain at least one operation")
+		return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files must contain at least one operation")
 	}
 
-	operations := make([]changeFileOperation, 0, len(rawFiles))
+	operations := make([]forge.ChangeFileOperation, 0, len(rawFiles))
 	seenPaths := make(map[string]struct{}, len(rawFiles))
 	for index, raw := range rawFiles {
 		item, ok := raw.(map[string]any)
 		if !ok {
-			return "", "", changeFilesOptions{}, fmt.Errorf("files[%d] must be an object", index)
+			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d] must be an object", index)
 		}
 
 		operation, err := requiredNonBlankString(item, "operation")
 		if err != nil {
-			return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
 		path, err := requiredNonBlankString(item, "path")
 		if err != nil {
-			return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
 		if _, duplicate := seenPaths[path]; duplicate {
-			return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: duplicate target path %q", index, path)
+			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: duplicate target path %q", index, path)
 		}
 		seenPaths[path] = struct{}{}
 
 		sha, hasSHA, err := optionalString(item, "sha")
 		if err != nil {
-			return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
 
-		entry := changeFileOperation{Operation: operation, Path: path}
+		entry := forge.ChangeFileOperation{Operation: operation, Path: path}
 		switch operation {
 		case "create":
 			if hasSHA {
-				return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: sha must be omitted for create", index)
+				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: sha must be omitted for create", index)
 			}
 			encoded, err := selectRepositoryWriteContent(item)
 			if err != nil {
-				return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
 			entry.Content = &encoded
 		case "update":
 			if !hasSHA || strings.TrimSpace(sha) == "" {
-				return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: sha is required for update", index)
+				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: sha is required for update", index)
 			}
 			encoded, err := selectRepositoryWriteContent(item)
 			if err != nil {
-				return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
 			entry.Content = &encoded
 			entry.SHA = sha
 		case "delete":
 			if err := rejectRepositoryWriteContent(item); err != nil {
-				return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
 			if !hasSHA || strings.TrimSpace(sha) == "" {
-				return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: sha is required for delete", index)
+				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: sha is required for delete", index)
 			}
 			entry.SHA = sha
 		default:
-			return "", "", changeFilesOptions{}, fmt.Errorf("files[%d]: unsupported operation %q", index, operation)
+			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: unsupported operation %q", index, operation)
 		}
 		operations = append(operations, entry)
 	}
 
-	return owner, repo, changeFilesOptions{
+	return owner, repo, forge.ChangeFilesOptions{
 		BranchName:    branchName,
 		NewBranchName: newBranchName,
 		Message:       message,
