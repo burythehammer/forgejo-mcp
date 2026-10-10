@@ -22,6 +22,25 @@ type Adapter struct {
 
 var _ forge.Forgejo = (*Adapter)(nil)
 
+// NewAdapter binds an adapter to an already-built SDK client. The factory uses
+// it for every request; the contract tests use it to point the adapter at a
+// stub server.
+//
+// Each domain's methods live in their own file in this package (pull.go, ...),
+// all on *Adapter.
+func NewAdapter(c *forgejo_sdk.Client) *Adapter { return &Adapter{client: c} }
+
+// statusErr wraps an SDK failure with the HTTP status Forgejo answered with,
+// when there was one. The message is the SDK's, unchanged. ctx is not passed
+// to the SDK by the adapter methods: the SDK client carries no per-call
+// context, and the request deadline is the HTTP client's.
+func statusErr(resp *forgejo_sdk.Response, err error) error {
+	if err == nil || resp == nil || resp.Response == nil {
+		return err
+	}
+	return &forge.StatusError{StatusCode: resp.StatusCode, Err: err}
+}
+
 // Factory is the real forge.Factory.
 //
 // The credential policy itself still lives in pkg/forgejo (credential.go),
@@ -45,5 +64,5 @@ func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Adapter{client: c}, nil
+	return NewAdapter(c), nil
 }

@@ -7,7 +7,7 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/diff"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -137,37 +137,40 @@ var (
 	)
 )
 
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(GetPullRequestByIndexTool, GetPullRequestByIndexFn)
-	s.AddTool(ListRepoPullRequestsTool, ListRepoPullRequestsFn)
-	s.AddTool(CreatePullRequestTool, CreatePullRequestFn)
-	s.AddTool(UpdatePullRequestTool, UpdatePullRequestFn)
-	s.AddTool(ListPullReviewsTool, ListPullReviewsFn)
-	s.AddTool(GetPullReviewTool, GetPullReviewFn)
-	s.AddTool(ListPullReviewCommentsTool, ListPullReviewCommentsFn)
-	s.AddTool(MergePullRequestTool, MergePullRequestFn)
-	s.AddTool(ListPullRequestFilesTool, ListPullRequestFilesFn)
-	s.AddTool(GetPullRequestDiffTool, GetPullRequestDiffFn)
+// RegisterTool registers the pull-request tools. Each call takes its Forgejo port
+// from f, so a request is served with the credential that request carries.
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(GetPullRequestByIndexTool, h.GetPullRequestByIndexFn)
+	s.AddTool(ListRepoPullRequestsTool, h.ListRepoPullRequestsFn)
+	s.AddTool(CreatePullRequestTool, h.CreatePullRequestFn)
+	s.AddTool(UpdatePullRequestTool, h.UpdatePullRequestFn)
+	s.AddTool(ListPullReviewsTool, h.ListPullReviewsFn)
+	s.AddTool(GetPullReviewTool, h.GetPullReviewFn)
+	s.AddTool(ListPullReviewCommentsTool, h.ListPullReviewCommentsFn)
+	s.AddTool(MergePullRequestTool, h.MergePullRequestFn)
+	s.AddTool(ListPullRequestFilesTool, h.ListPullRequestFilesFn)
+	s.AddTool(GetPullRequestDiffTool, h.GetPullRequestDiffFn)
 }
 
-func GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetPullRequestByIndexFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
 	index, _ := to.Float64(req.GetArguments()["index"])
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	pr, _, err := client.GetPullRequest(owner, repo, int64(index))
+	pr, err := port.GetPullRequest(ctx, owner, repo, int64(index))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get pull request err: %w", err))
 	}
 	return to.TextResult(pr)
 }
 
-func ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoPullRequestsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -203,18 +206,18 @@ func ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		opt.Milestone = milestoneID
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	prs, _, err := client.ListRepoPullRequests(owner, repo, opt)
+	prs, err := port.ListPullRequests(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get pull request list err: %w", err))
 	}
 	return to.TextResult(prs)
 }
 
-func CreatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreatePullRequestFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -229,18 +232,18 @@ func CreatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		Title: title,
 		Body:  body,
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	pr, _, err := client.CreatePullRequest(owner, repo, opt)
+	pr, err := port.CreatePullRequest(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create pull request err: %w", err))
 	}
 	return to.TextResult(pr)
 }
 
-func UpdatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called UpdatePullRequestFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -273,18 +276,18 @@ func UpdatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		opt.Milestone = milestoneID
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	pr, _, err := client.EditPullRequest(owner, repo, int64(index), opt)
+	pr, err := port.EditPullRequest(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("update pull request err: %w", err))
 	}
 	return to.TextResult(pr)
 }
 
-func ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPullReviewsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -305,36 +308,36 @@ func ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 		},
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	reviews, _, err := client.ListPullReviews(owner, repo, int64(index), opt)
+	reviews, err := port.ListPullReviews(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list pull reviews err: %w", err))
 	}
 	return to.TextResult(reviews)
 }
 
-func GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetPullReviewFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
 	index, _ := to.Float64(req.GetArguments()["index"])
 	id, _ := to.Float64(req.GetArguments()["id"])
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	review, _, err := client.GetPullReview(owner, repo, int64(index), int64(id))
+	review, err := port.GetPullReview(ctx, owner, repo, int64(index), int64(id))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get pull review err: %w", err))
 	}
 	return to.TextResult(review)
 }
 
-func MergePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) MergePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called MergePullRequestFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -360,20 +363,16 @@ func MergePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		opt.Message = message
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	merged, resp, err := client.MergePullRequest(owner, repo, int64(index), opt)
+	merged, err := port.MergePullRequest(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("merge pull request err: %w", err))
 	}
-	if !merged && !mergeWhenChecks {
-		statusCode := 0
-		if resp != nil {
-			statusCode = resp.StatusCode
-		}
-		return to.ErrorResult(fmt.Errorf("merge pull request: server returned HTTP %d (expected 200)", statusCode))
+	if !merged.Merged && !mergeWhenChecks {
+		return to.ErrorResult(fmt.Errorf("merge pull request: server returned HTTP %d (expected 200)", merged.StatusCode))
 	}
 
 	result := "Pull request merged successfully"
@@ -385,7 +384,7 @@ func MergePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 	}, nil
 }
 
-func ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPullRequestFilesFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -406,18 +405,18 @@ func ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		},
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	files, _, err := client.ListPullRequestFiles(owner, repo, int64(index), opt)
+	files, err := port.ListPullRequestFiles(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list pull request files err: %w", err))
 	}
 	return to.TextResult(files)
 }
 
-func GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetPullRequestDiffFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -425,11 +424,11 @@ func GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	index, _ := to.Float64(args["index"])
 	filePath, _ := args["file_path"].(string)
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	diffBytes, _, err := client.GetPullRequestDiff(owner, repo, int64(index), forgejo_sdk.PullRequestDiffOptions{})
+	diffBytes, err := port.GetPullRequestDiff(ctx, owner, repo, int64(index))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get pull request diff err: %w", err))
 	}
@@ -447,20 +446,24 @@ func GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	}, nil
 }
 
-func ListPullReviewCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPullReviewCommentsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
 	index, _ := to.Float64(req.GetArguments()["index"])
 	id, _ := to.Float64(req.GetArguments()["id"])
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	comments, _, err := client.ListPullReviewComments(owner, repo, int64(index), int64(id))
+	comments, err := port.ListPullReviewComments(ctx, owner, repo, int64(index), int64(id))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list pull review comments err: %w", err))
 	}
 	return to.TextResult(comments)
 }
+
+// handlers serve the pull tools. They hold the factory rather than a port so
+// each call is bound to the credential of its own request.
+type handlers struct{ forge forge.Factory }

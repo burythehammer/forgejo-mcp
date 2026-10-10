@@ -102,14 +102,14 @@ func newStreamableHTTPHandler(s *server.MCPServer, cfg config.Config) http.Handl
 // RegisterTool registers every tool; version is what the version tool reports.
 // The Forgejo factory is built once by the composition root; a domain takes it
 // when it migrates to the Forgejo port.
-func RegisterTool(s *server.MCPServer, version string, _ forge.Factory) {
+func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	log.Info("Registering MCP tools")
 
 	RegisterUserTool(s)
 	RegisterRepoTool(s)
 	RegisterIssueTool(s)
-	RegisterPullTool(s)
-	RegisterPullReviewTool(s)
+	RegisterPullTool(s, f)
+	RegisterPullReviewTool(s, f)
 	RegisterSearchTool(s)
 	RegisterVersionTool(s, version)
 	RegisterActionsTool(s)
@@ -142,13 +142,13 @@ func RegisterIssueTool(s *server.MCPServer) {
 	log.Debug("Registered issue tools")
 }
 
-func RegisterPullTool(s *server.MCPServer) {
-	pull.RegisterTool(s)
+func RegisterPullTool(s *server.MCPServer, f forge.Factory) {
+	pull.RegisterTool(s, f)
 	log.Debug("Registered pull request tools")
 }
 
-func RegisterPullReviewTool(s *server.MCPServer) {
-	pull.RegisterReviewTools(s)
+func RegisterPullReviewTool(s *server.MCPServer, f forge.Factory) {
+	pull.RegisterReviewTools(s, f)
 	log.Debug("Registered pull review write tools")
 }
 
@@ -229,8 +229,9 @@ func extractToken(auth string) string {
 func Run(cfg config.Config, version string) error {
 	transport := cfg.Transport
 	mcpServer := newMCPServer(version)
-	RegisterTool(mcpServer, version, sdk.NewFactory(cfg.Forgejo))
-	RegisterCoreResources(mcpServer)
+	factory := sdk.NewFactory(cfg.Forgejo)
+	RegisterTool(mcpServer, version, factory)
+	RegisterCoreResources(mcpServer, factory)
 
 	if cfg.ResourceServerMode() {
 		// config.Load has already refused every transport but http.
@@ -324,12 +325,12 @@ func testConnection() error {
 	return forgejo.VerifyConnection()
 }
 
-func RegisterCoreResources(s *server.MCPServer) {
+func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
 	RegisterCommitResource(s)
 	RegisterIssueResources(s)
 	RegisterLabelResources(s)
 	RegisterOwnerResource(s)
-	RegisterPullResources(s)
+	RegisterPullResources(s, f)
 	RegisterRepoResource(s)
 	RegisterStatusResource(s)
 	RegisterBranchProtectionResources(s)
@@ -358,8 +359,8 @@ func RegisterHookResources(s *server.MCPServer) {
 	log.Debug("Registered webhook resource templates")
 }
 
-func RegisterPullResources(s *server.MCPServer) {
-	pull.RegisterPullResources(s)
+func RegisterPullResources(s *server.MCPServer, f forge.Factory) {
+	pull.RegisterPullResources(s, f)
 	log.Debug("Registered pull request resource template")
 }
 

@@ -31,7 +31,7 @@ func TestCoreResourceDispatchRoutesWikiTemplate(t *testing.T) {
 	forgejo.ConfigureForTesting(api.URL, "test", "")
 
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, nil)
 	response := s.HandleMessage(context.Background(), []byte(`{
 		"jsonrpc":"2.0",
 		"id":1,

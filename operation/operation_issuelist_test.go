@@ -142,7 +142,7 @@ func rowCount(t *testing.T, payload map[string]any, key string) int {
 func TestResourceDispatchRoutesIssueListTemplate(t *testing.T) {
 	issueListBackend(t, 100, 69)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, nil)
 
 	t.Run("bare URI", func(t *testing.T) {
 		payload := readResource(t, s, "forgejo://repo/o/r/issues")
@@ -189,7 +189,7 @@ func TestResourceDispatchRoutesIssueListTemplate(t *testing.T) {
 func TestResourceDispatchRoutesCommentThreadTemplate(t *testing.T) {
 	issueListBackend(t, 100, 69)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, nil)
 
 	t.Run("bare URI", func(t *testing.T) {
 		payload := readResource(t, s, "forgejo://repo/o/r/issue/42/comments")
@@ -225,7 +225,7 @@ func TestResourceDispatchRoutesCommentThreadTemplate(t *testing.T) {
 func TestResourceDispatchRejectsUnknownIssueListURI(t *testing.T) {
 	issueListBackend(t, 10, 10)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, nil)
 
 	for _, uri := range []string{
 		"forgejo://repo/o/r/issues/extra",
