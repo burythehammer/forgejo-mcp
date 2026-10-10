@@ -8,7 +8,7 @@ check-demos:
     ./scripts/ci/check-spec-demo-anchors.sh
 
 # Verify castra:release will actually fire before you spend a label-toggle
-# finding out it doesn't. See AGENTS.md "Triggering a castra:release" and
+# finding out it doesn't. See docs/legacy/upstream-release.md "Triggering a castra:release" and
 # scripts/ci/check-castra-release-onboarding.sh for what this checks and why.
 castra-preflight repo="agentic-forges/forgejo-mcp":
     ./scripts/ci/check-castra-release-onboarding.sh {{repo}}

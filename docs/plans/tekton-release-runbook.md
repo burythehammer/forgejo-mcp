@@ -44,7 +44,8 @@ automatically.
 
 Releases are cut by tagging `main` with a semver `v*` tag. The project
 uses `b4mad/semantic-release` for this — see
-`AGENTS.md` ("Releasing") for how a release is cut.
+`docs/legacy/upstream-release.md` (inherited from upstream, unverified for
+this fork) for how a release is cut.
 
 Once the tag is pushed, **both** pipelines run in parallel:
 
