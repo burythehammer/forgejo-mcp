@@ -16,6 +16,7 @@ type Forgejo interface {
 	Pulls
 	Orgs
 	Users
+	RepoAdmin
 }
 
 // Factory hands out a Forgejo port per request.

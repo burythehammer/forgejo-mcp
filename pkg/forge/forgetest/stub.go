@@ -43,6 +43,7 @@ func NewStub(t testing.TB) *Stub {
 	s.mountPulls(mux)
 	s.mountOrgs(mux)
 	s.mountUsers(mux)
+	s.mountRepoAdmin(mux)
 	s.Server = httptest.NewServer(mux)
 	t.Cleanup(s.Close)
 	return s
