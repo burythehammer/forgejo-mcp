@@ -180,6 +180,43 @@ func doJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out a
 	if err != nil {
 		return nil, err
 	}
+	token, err := tokenForRequest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return doJSONFull(ctx, method, full, token, userAgent(), body, out)
+}
+
+// RawTarget is an explicit Forgejo instance and credential for the raw-HTTP
+// JSON helper, for callers (the Forgejo port's real adapter) that carry their
+// own binding instead of reading the process-wide target. The credential policy
+// has already been applied by whoever chose Token.
+type RawTarget struct {
+	BaseURL   string
+	Token     string
+	UserAgent string
+}
+
+// DoJSONWithHeaderAt is DoJSONWithHeader against an explicit target. Errors are
+// the same: 4xx/5xx are *HTTPError, including 404.
+func DoJSONWithHeaderAt(ctx context.Context, t RawTarget, method, apiPath string, body, out any) (http.Header, error) {
+	base := strings.TrimRight(t.BaseURL, "/")
+	if base == "" {
+		return nil, fmt.Errorf("Forgejo URL is empty; raw-HTTP helper needs a configured base URL")
+	}
+	if !strings.HasPrefix(apiPath, "/") {
+		apiPath = "/" + apiPath
+	}
+	return doJSONFull(ctx, method, base+"/api/v1"+apiPath, t.Token, t.UserAgent, body, out)
+}
+
+// TokenForRequest resolves the credential for ctx under the credential policy.
+func TokenForRequest(ctx context.Context) (string, error) { return tokenForRequest(ctx) }
+
+// UserAgent is the configured User-Agent for outgoing requests.
+func UserAgent() string { return userAgent() }
+
+func doJSONFull(ctx context.Context, method, full, token, ua string, body, out any) (http.Header, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		buf, err := json.Marshal(body)
@@ -192,9 +229,9 @@ func doJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out a
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	if err := setCommonHeaders(ctx, req); err != nil {
-		return nil, err
-	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("User-Agent", ua)
+	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

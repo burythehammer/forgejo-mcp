@@ -32,7 +32,9 @@ type Forgejo struct {
 	// Now supplies timestamps; replace it for deterministic times.
 	Now func() time.Time
 
-	pulls pullState
+	pulls    pullState
+	wiki     wikiState
+	packages packageState
 }
 
 var _ forge.Forgejo = (*Forgejo)(nil)
