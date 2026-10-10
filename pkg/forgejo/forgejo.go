@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -34,19 +33,13 @@ func WithToken(ctx context.Context, token string) context.Context {
 func Client(ctx context.Context) (*forgejo.Client, error) {
 	token, ok := ctx.Value(TokenContextKey).(string)
 	if ok && token != "" {
-		// Use configured user agent or default to forgejo-mcp/<version>
-		userAgent := flag.UserAgent
-		if userAgent == "" {
-			userAgent = "forgejo-mcp/" + flag.Version
-		}
-
-		c, err := forgejo.NewClient(flag.URL, clientOptions(
+		c, err := forgejo.NewClient(baseURL(), clientOptions(
 			forgejo.SetToken(token),
-			forgejo.SetUserAgent(userAgent),
+			forgejo.SetUserAgent(userAgent()),
 		)...)
 		if err != nil {
 			log.ErrorCtx(ctx, "Failed to create ephemeral Forgejo client",
-				log.SanitizedURLField("url", flag.URL),
+				log.SanitizedURLField("url", baseURL()),
 				log.ErrorField(err),
 			)
 			return nil, fmt.Errorf("create ephemeral client: %w", err)
@@ -75,19 +68,13 @@ func Client(ctx context.Context) (*forgejo.Client, error) {
 		return client, nil
 	}
 
-	// Use configured user agent or default to forgejo-mcp/<version>
-	userAgent := flag.UserAgent
-	if userAgent == "" {
-		userAgent = "forgejo-mcp/" + flag.Version
-	}
-
-	c, err := forgejo.NewClient(flag.URL, clientOptions(
-		forgejo.SetToken(flag.Token),
-		forgejo.SetUserAgent(userAgent),
+	c, err := forgejo.NewClient(baseURL(), clientOptions(
+		forgejo.SetToken(operatorToken()),
+		forgejo.SetUserAgent(userAgent()),
 	)...)
 	if err != nil {
 		log.Error("Failed to create Forgejo client",
-			log.SanitizedURLField("url", flag.URL),
+			log.SanitizedURLField("url", baseURL()),
 			log.ErrorField(err),
 		)
 		// Never fatal: the caller decides. At startup, RegisterTool's connection
@@ -97,16 +84,16 @@ func Client(ctx context.Context) (*forgejo.Client, error) {
 	}
 	client = c
 	log.Info("Successfully created Forgejo client",
-		log.SanitizedURLField("url", flag.URL),
-		log.BoolField("token_configured", flag.Token != ""),
-		log.StringField("user_agent", userAgent),
+		log.SanitizedURLField("url", baseURL()),
+		log.BoolField("token_configured", operatorToken() != ""),
+		log.StringField("user_agent", userAgent()),
 	)
 	return client, nil
 }
 
 // GetBaseURL returns the base URL of the Forgejo instance.
 func GetBaseURL() string {
-	return flag.URL
+	return baseURL()
 }
 
 // VerifyConnection attempts to get basic information to verify
@@ -117,7 +104,7 @@ func VerifyConnection() error {
 	start := time.Now()
 
 	log.Debug("Starting connection verification",
-		log.SanitizedURLField("url", flag.URL),
+		log.SanitizedURLField("url", baseURL()),
 	)
 
 	client, err := Client(context.Background())
@@ -129,15 +116,15 @@ func VerifyConnection() error {
 
 	if err != nil {
 		log.Error("Connection verification failed",
-			log.SanitizedURLField("url", flag.URL),
+			log.SanitizedURLField("url", baseURL()),
 			log.DurationField("duration", duration),
 			log.ErrorField(err),
 		)
-		return fmt.Errorf("failed to connect to Forgejo instance at %s: %w", flag.URL, err)
+		return fmt.Errorf("failed to connect to Forgejo instance at %s: %w", baseURL(), err)
 	}
 
 	log.Info("Connection verification successful",
-		log.SanitizedURLField("url", flag.URL),
+		log.SanitizedURLField("url", baseURL()),
 		log.DurationField("duration", duration),
 		log.StringField("server_version", version),
 		log.IntField("response_status", resp.StatusCode),
@@ -161,7 +148,7 @@ func HealthCheck() error {
 
 	if err != nil {
 		log.Error("Health check failed",
-			log.SanitizedURLField("url", flag.URL),
+			log.SanitizedURLField("url", baseURL()),
 			log.DurationField("duration", duration),
 			log.ErrorField(err),
 		)
@@ -169,7 +156,7 @@ func HealthCheck() error {
 	}
 
 	log.Debug("Health check successful",
-		log.SanitizedURLField("url", flag.URL),
+		log.SanitizedURLField("url", baseURL()),
 		log.DurationField("duration", duration),
 		log.StringField("server_version", version),
 		log.IntField("response_status", resp.StatusCode),

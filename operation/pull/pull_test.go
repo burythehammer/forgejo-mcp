@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -50,9 +49,7 @@ func newDiffBackend(t *testing.T, diff string) *httptest.Server {
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	flag.URL = srv.URL
-	flag.Token = "tkn"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
 
 	c, err := forgejo_sdk.NewClient(srv.URL,
 		forgejo_sdk.SetToken("tkn"),

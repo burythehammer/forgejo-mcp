@@ -10,12 +10,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
-	"net/url"
 	"strings"
 	"time"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 )
 
 // MaxInlineDownloadBytes caps inline base64 attachment payloads.
@@ -62,24 +58,16 @@ func (e *HTTPError) Unwrap() error { return e.wrapped }
 // shared client lets keep-alives work across tool calls.
 var rawHTTPClient = &http.Client{Timeout: 60 * time.Second}
 
-// userAgent returns the configured UA, falling back to forgejo-mcp/<version>.
-func userAgent() string {
-	if flag.UserAgent != "" {
-		return flag.UserAgent
-	}
-	return "forgejo-mcp/" + flag.Version
-}
-
 // resolveURL turns a path or absolute URL into an absolute URL string.
 // API paths (e.g. "/repos/x/y/issues/1/assets") are prefixed with
-// flag.URL + "/api/v1". Absolute URLs are returned verbatim.
+// the Forgejo URL + "/api/v1". Absolute URLs are returned verbatim.
 func resolveURL(pathOrURL string) (string, error) {
 	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
 		return pathOrURL, nil
 	}
-	base := strings.TrimRight(flag.URL, "/")
+	base := strings.TrimRight(baseURL(), "/")
 	if base == "" {
-		return "", fmt.Errorf("flag.URL is empty; raw-HTTP helper needs a configured base URL")
+		return "", fmt.Errorf("Forgejo URL is empty; raw-HTTP helper needs a configured base URL")
 	}
 	if !strings.HasPrefix(pathOrURL, "/") {
 		pathOrURL = "/" + pathOrURL
@@ -90,14 +78,14 @@ func resolveURL(pathOrURL string) (string, error) {
 
 // resolveSameOriginURL is like resolveURL but for asset/download URLs that
 // live outside the /api/v1 prefix (e.g. /attachments/{uuid}). Absolute URLs
-// pass through; relative URLs hang off flag.URL with no /api/v1.
+// pass through; relative URLs hang off the Forgejo URL with no /api/v1.
 func resolveSameOriginURL(pathOrURL string) (string, error) {
 	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
 		return pathOrURL, nil
 	}
-	base := strings.TrimRight(flag.URL, "/")
+	base := strings.TrimRight(baseURL(), "/")
 	if base == "" {
-		return "", fmt.Errorf("flag.URL is empty; raw-HTTP helper needs a configured base URL")
+		return "", fmt.Errorf("Forgejo URL is empty; raw-HTTP helper needs a configured base URL")
 	}
 	if !strings.HasPrefix(pathOrURL, "/") {
 		pathOrURL = "/" + pathOrURL
@@ -371,7 +359,7 @@ func writeMultipart(pipeWriter *io.PipeWriter, multipartWriter *multipart.Writer
 	_ = pipeWriter.Close()
 }
 
-// DoRaw fetches bytes from a URL (absolute or relative-to-flag.URL with no
+// DoRaw fetches bytes from a URL (absolute or relative-to-the-Forgejo-URL with no
 // /api/v1 prefix), adding the configured auth header. Caps the response at
 // MaxInlineDownloadBytes; ErrPayloadTooLarge is returned if the body would
 // exceed the cap. Returns body bytes + content type.
@@ -410,14 +398,4 @@ func DoRaw(ctx context.Context, pathOrURL string) ([]byte, string, error) {
 	}
 	ct := resp.Header.Get("Content-Type")
 	return buf, ct, nil
-}
-
-// helper used by tests to validate URL construction directly.
-func init() {
-	// Validate at init that net/url accepts our base format if set.
-	if flag.URL != "" {
-		if _, err := url.Parse(flag.URL); err != nil {
-			log.Errorf("flag.URL is not a valid URL: %v", err)
-		}
-	}
 }

@@ -21,26 +21,28 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/user"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/version"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/wiki"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var (
-	mcpServer *server.MCPServer
-)
-
 // streamableHTTPEndpointPath is the library's own default. It is named here
 // because the transport is mounted on a mux at this path rather than served as
 // the root handler.
-const streamableHTTPEndpointPath = "/mcp"
+const streamableHTTPEndpointPath = config.MCPEndpointPath
 
 // requestTokenContextFunc lifts a per-request credential out of the
 // Authorization header and into the context the tool handlers see.
-func requestTokenContextFunc(ctx context.Context, r *http.Request) context.Context {
-	if resourceServerMode() {
+func requestTokenContextFunc(cfg config.Config) func(context.Context, *http.Request) context.Context {
+	return func(ctx context.Context, r *http.Request) context.Context {
+		return withRequestToken(cfg, ctx, r)
+	}
+}
+
+func withRequestToken(cfg config.Config, ctx context.Context, r *http.Request) context.Context {
+	if cfg.ResourceServerMode() {
 		// The Authorization header carries the identity provider's token, which
 		// must never reach Forgejo. The authentication layer has minted a Forgejo
 		// token for this request; only that one enters the handler context.
@@ -64,16 +66,16 @@ func requestTokenContextFunc(ctx context.Context, r *http.Request) context.Conte
 // declared external name is refused by the library after our check has already
 // accepted it — two policies disagreeing about one header. With no declared
 // list the library's protection stays on as written.
-func disableLibraryHostCheck() bool { return len(flag.AllowedHosts) > 0 }
+func disableLibraryHostCheck(cfg config.Config) bool { return len(cfg.Listen.AllowedHosts) > 0 }
 
 // newSSEHandler builds the SSE transport exactly as Run does.
 //
 // It exists so the conformance tests drive the real construction — the option
 // set, the context function and the mount — rather than a copy of it that can
 // drift. A test that builds its own handler proves nothing about this one.
-func newSSEHandler(s *server.MCPServer) http.Handler {
-	opts := []server.SSEOption{server.WithSSEContextFunc(requestTokenContextFunc)}
-	if disableLibraryHostCheck() {
+func newSSEHandler(s *server.MCPServer, cfg config.Config) http.Handler {
+	opts := []server.SSEOption{server.WithSSEContextFunc(requestTokenContextFunc(cfg))}
+	if disableLibraryHostCheck(cfg) {
 		opts = append(opts, server.WithSSEDisableLocalhostProtection(true))
 	}
 	return server.NewSSEServer(s, opts...)
@@ -82,12 +84,12 @@ func newSSEHandler(s *server.MCPServer) http.Handler {
 // newStreamableHTTPHandler builds the streamable HTTP transport exactly as Run
 // does, mounted on a mux at its endpoint path. Serving the transport as the
 // root handler instead would make it answer on every path.
-func newStreamableHTTPHandler(s *server.MCPServer) http.Handler {
+func newStreamableHTTPHandler(s *server.MCPServer, cfg config.Config) http.Handler {
 	opts := []server.StreamableHTTPOption{
-		server.WithHTTPContextFunc(requestTokenContextFunc),
+		server.WithHTTPContextFunc(requestTokenContextFunc(cfg)),
 		server.WithEndpointPath(streamableHTTPEndpointPath),
 	}
-	if disableLibraryHostCheck() {
+	if disableLibraryHostCheck(cfg) {
 		opts = append(opts, server.WithDisableLocalhostProtection(true))
 	}
 	mux := http.NewServeMux()
@@ -95,7 +97,8 @@ func newStreamableHTTPHandler(s *server.MCPServer) http.Handler {
 	return mux
 }
 
-func RegisterTool(s *server.MCPServer) {
+// RegisterTool registers every tool; version is what the version tool reports.
+func RegisterTool(s *server.MCPServer, version string) {
 	log.Info("Registering MCP tools")
 
 	RegisterUserTool(s)
@@ -104,7 +107,7 @@ func RegisterTool(s *server.MCPServer) {
 	RegisterPullTool(s)
 	RegisterPullReviewTool(s)
 	RegisterSearchTool(s)
-	RegisterVersionTool(s)
+	RegisterVersionTool(s, version)
 	RegisterActionsTool(s)
 	RegisterOrgTool(s)
 	RegisterPackagesTool(s)
@@ -150,8 +153,8 @@ func RegisterSearchTool(s *server.MCPServer) {
 	log.Debug("Registered search tools")
 }
 
-func RegisterVersionTool(s *server.MCPServer) {
-	version.RegisterTool(s)
+func RegisterVersionTool(s *server.MCPServer, ver string) {
+	version.RegisterTool(s, ver)
 	log.Debug("Registered version tools")
 }
 
@@ -217,35 +220,32 @@ func extractToken(auth string) string {
 	return ""
 }
 
-func Run(transport, version string) error {
-	flag.Version = version
-	mcpServer = newMCPServer(version)
-	RegisterTool(mcpServer)
+// Run serves cfg on cfg.Transport. version is the build version, which is
+// build information and so not part of cfg.
+func Run(cfg config.Config, version string) error {
+	transport := cfg.Transport
+	mcpServer := newMCPServer(version)
+	RegisterTool(mcpServer, version)
 	RegisterCoreResources(mcpServer)
 
-	// Checked again here, not only in cmd, so that no caller of Run can reach a
-	// listener with a configuration the checks would refuse.
-	if err := ValidateAuthConfig(transport, false); err != nil {
-		return err
-	}
-	if resourceServerMode() {
-		// ValidateAuthConfig has already refused every transport but http.
-		rs, err := prepareResourceServer(context.Background())
+	if cfg.ResourceServerMode() {
+		// config.Load has already refused every transport but http.
+		rs, err := prepareResourceServer(context.Background(), cfg)
 		if err != nil {
 			return err
 		}
-		handler, err := rs.handler(newStreamableHTTPHandler(mcpServer))
+		handler, err := rs.handler(newStreamableHTTPHandler(mcpServer, cfg))
 		if err != nil {
 			return fmt.Errorf("refusing to start: %w", err)
 		}
 		log.Info("Starting MCP streamable HTTP server in resource-server mode",
-			log.IntField("port", flag.HTTPPort),
+			log.IntField("port", cfg.Listen.HTTPPort),
 			log.StringField("resource", rs.resource),
 			log.StringField("authorization_server", rs.authServer),
 		)
-		if err := serveMCPOverHTTP("http", handler, flag.HTTPPort); err != nil {
+		if err := serveMCPOverHTTP("http", handler, cfg.Listen.HTTPPort, cfg); err != nil {
 			log.Error("Failed to start streamable HTTP server",
-				log.IntField("port", flag.HTTPPort),
+				log.IntField("port", cfg.Listen.HTTPPort),
 				log.ErrorField(err),
 			)
 			return fmt.Errorf("failed to start streamable HTTP server: %w", err)
@@ -256,17 +256,17 @@ func Run(transport, version string) error {
 
 	// Test connection to Forgejo instance before starting the server
 	log.Info("Testing connection to Forgejo instance",
-		log.SanitizedURLField("url", flag.URL),
+		log.SanitizedURLField("url", cfg.Forgejo.URL),
 	)
 	if err := testConnection(); err != nil {
 		log.Error("Failed to connect to Forgejo instance",
-			log.SanitizedURLField("url", flag.URL),
+			log.SanitizedURLField("url", cfg.Forgejo.URL),
 			log.ErrorField(err),
 		)
 		return fmt.Errorf("connection test failed: %w", err)
 	}
 	log.Info("Successfully connected to Forgejo instance",
-		log.SanitizedURLField("url", flag.URL),
+		log.SanitizedURLField("url", cfg.Forgejo.URL),
 	)
 
 	switch transport {
@@ -281,26 +281,26 @@ func Run(transport, version string) error {
 		}
 		log.Info("MCP stdio server shutdown")
 	case "sse":
-		sseServer := newSSEHandler(mcpServer)
+		sseServer := newSSEHandler(mcpServer, cfg)
 		log.Info("Starting MCP SSE server",
-			log.IntField("port", flag.SSEPort),
+			log.IntField("port", cfg.Listen.SSEPort),
 		)
-		if err := serveMCPOverHTTP("sse", sseServer, flag.SSEPort); err != nil {
+		if err := serveMCPOverHTTP("sse", sseServer, cfg.Listen.SSEPort, cfg); err != nil {
 			log.Error("Failed to start SSE server",
-				log.IntField("port", flag.SSEPort),
+				log.IntField("port", cfg.Listen.SSEPort),
 				log.ErrorField(err),
 			)
 			return fmt.Errorf("failed to start SSE server: %w", err)
 		}
 		log.Info("MCP SSE server shutdown")
 	case "http":
-		httpMux := newStreamableHTTPHandler(mcpServer)
+		httpMux := newStreamableHTTPHandler(mcpServer, cfg)
 		log.Info("Starting MCP streamable HTTP server",
-			log.IntField("port", flag.HTTPPort),
+			log.IntField("port", cfg.Listen.HTTPPort),
 		)
-		if err := serveMCPOverHTTP("http", httpMux, flag.HTTPPort); err != nil {
+		if err := serveMCPOverHTTP("http", httpMux, cfg.Listen.HTTPPort, cfg); err != nil {
 			log.Error("Failed to start streamable HTTP server",
-				log.IntField("port", flag.HTTPPort),
+				log.IntField("port", cfg.Listen.HTTPPort),
 				log.ErrorField(err),
 			)
 			return fmt.Errorf("failed to start streamable HTTP server: %w", err)

@@ -5,8 +5,6 @@ package forgejo
 import (
 	"context"
 	"sync"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
 // settingsCacheEntry holds a cached, resolved pagination ceiling for one
@@ -20,7 +18,7 @@ type settingsCacheEntry struct {
 
 var (
 	settingsCacheMu sync.Mutex
-	// settingsCache is keyed on the instance base URL (flag.URL), not on any
+	// settingsCache is keyed on the instance base URL (baseURL()), not on any
 	// particular *forgejo.Client value. Client(ctx) hands out a fresh
 	// ephemeral client whenever a token is present in the context, so keying
 	// on the client would defeat caching entirely.
@@ -34,7 +32,7 @@ var (
 // restrict the settings endpoint), or is otherwise unreachable. Callers must
 // treat ok == false as "unknown", not as a ceiling of zero.
 func MaxResponseItems(ctx context.Context) (max int, ok bool) {
-	instance := flag.URL
+	instance := baseURL()
 
 	settingsCacheMu.Lock()
 	if entry, found := settingsCache[instance]; found {

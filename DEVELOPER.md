@@ -73,7 +73,7 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 | `pkg/forgejo/` | Singleton Forgejo SDK client wrapper |
 | `pkg/to/` | Response formatting helpers (`TextResult`, `ErrorResult`) |
 | `pkg/params/` | Shared parameter descriptions for tool definitions |
-| `pkg/flag/` | Global configuration state |
+| `pkg/config/` | Typed Config, `Load` and `Validate` |
 | `pkg/log/` | Structured logging utilities |
 
 ## Adding a New Tool

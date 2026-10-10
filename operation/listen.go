@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
@@ -47,75 +46,6 @@ const (
 	refusalLogBurst  = 10
 	refusalLogWindow = time.Second
 )
-
-// isLoopbackHostname reports whether host names a loopback interface. host may
-// carry brackets ("[::1]") but not a port.
-func isLoopbackHostname(host string) bool {
-	host = strings.Trim(strings.ToLower(host), "[]")
-	if host == "localhost" {
-		return true
-	}
-	addr, err := netip.ParseAddr(host)
-	if err != nil {
-		return false
-	}
-	return addr.IsLoopback()
-}
-
-// isIPLiteral reports whether host is an address rather than a name. Brackets
-// around an IPv6 literal are accepted, as in "[::1]".
-func isIPLiteral(host string) bool {
-	_, err := netip.ParseAddr(strings.Trim(host, "[]"))
-	return err == nil
-}
-
-// splitHostPort separates a "host" or "host:port" authority. It returns the
-// bare host (no brackets, lower-cased), the port ("" when absent), and whether
-// the value parsed at all.
-//
-// A value whose port is not a plain number does not parse. net.SplitHostPort
-// splits on the last colon without looking at what follows it, so
-// "127.0.0.1:8080@example.com" would otherwise reduce to a loopback host.
-func splitHostPort(authority string) (host, port string, ok bool) {
-	authority = strings.TrimSpace(strings.ToLower(authority))
-	if authority == "" {
-		return "", "", false
-	}
-	if h, p, err := net.SplitHostPort(authority); err == nil {
-		if !isNumericPort(p) {
-			return "", "", false
-		}
-		return strings.Trim(h, "[]"), p, true
-	}
-	// No port. A bracketed literal is an IPv6 address; an unbracketed value
-	// containing a colon is either a bare IPv6 address or malformed.
-	if strings.HasPrefix(authority, "[") && strings.HasSuffix(authority, "]") {
-		return strings.Trim(authority, "[]"), "", true
-	}
-	if strings.Contains(authority, ":") {
-		// A bare IPv6 address is legitimate in an allow-list entry even though
-		// it is not legal in a Host header. Accept it only if it really parses
-		// as one.
-		if _, err := netip.ParseAddr(authority); err == nil {
-			return authority, "", true
-		}
-		return "", "", false
-	}
-	return authority, "", true
-}
-
-// isNumericPort reports whether port is a non-empty run of decimal digits.
-func isNumericPort(port string) bool {
-	if port == "" {
-		return false
-	}
-	for _, r := range port {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
 
 // addrIsLoopbackOnly reports whether every address this listener can be reached
 // on is a loopback address.
@@ -157,20 +87,7 @@ type hostPolicy struct {
 }
 
 func (p hostPolicy) permits(value string) bool {
-	host, port, ok := splitHostPort(value)
-	if !ok {
-		return false
-	}
-	for _, entry := range p.allowed {
-		eHost, ePort, eOK := splitHostPort(entry)
-		if !eOK || eHost != host {
-			continue
-		}
-		if ePort == "" || ePort == port {
-			return true
-		}
-	}
-	return p.loopbackOnly && isLoopbackHostname(host)
+	return config.HostAllowed(p.allowed, p.loopbackOnly, value)
 }
 
 // originPolicy decides which Origin values this listener accepts.
@@ -181,14 +98,14 @@ func (p hostPolicy) permits(value string) bool {
 // service sharing a declared hostname on any port, and every plaintext-HTTP
 // origin on it — which is the cross-site case the Origin check exists to stop.
 type originPolicy struct {
-	// allowed holds full origins, normalised by normalizeOrigin. Empty means no
+	// allowed holds full origins, normalised by config.NormalizeOrigin. Empty means no
 	// browser origin is accepted, which is correct for a server whose clients
 	// are not browsers.
 	allowed []string
 }
 
 func (p originPolicy) permits(value string) bool {
-	normalised, ok := normalizeOrigin(value)
+	normalised, ok := config.NormalizeOrigin(value)
 	if !ok {
 		return false
 	}
@@ -198,38 +115,6 @@ func (p originPolicy) permits(value string) bool {
 		}
 	}
 	return false
-}
-
-// normalizeOrigin reduces an origin to "scheme://host[:port]", dropping the
-// port when it is the default for the scheme so that "https://x" and
-// "https://x:443" compare equal. Anything that is not a hierarchical http or
-// https URL — "null", an opaque value, a bare hostname, a file URL — does not
-// normalise and is therefore never permitted.
-func normalizeOrigin(value string) (string, bool) {
-	parsed, err := url.Parse(strings.TrimSpace(value))
-	if err != nil {
-		return "", false
-	}
-	scheme := strings.ToLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return "", false
-	}
-	if parsed.User != nil {
-		// Userinfo has no meaning in an origin and is a classic way to make a
-		// hostile authority read as a friendly one.
-		return "", false
-	}
-	host, port, ok := splitHostPort(parsed.Host)
-	if !ok || host == "" {
-		return "", false
-	}
-	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
-		port = ""
-	}
-	if port == "" {
-		return scheme + "://" + host, true
-	}
-	return scheme + "://" + host + ":" + port, true
 }
 
 // truncateForLog bounds an attacker-controlled value before it reaches the log.
@@ -380,62 +265,38 @@ type transportConfig struct {
 	// requireAuth is true unless the operator explicitly opted back in to the
 	// old behaviour. It is never inferred from the bind address.
 	requireAuth bool
+	// resourceServer is true in resource-server mode, where the handler
+	// authenticates its protected route itself.
+	resourceServer bool
 }
 
-// resolveTransportConfig validates the configuration and refuses before
-// anything is bound. Binding first and validating afterwards would briefly open
-// a public socket on a misconfigured start.
-func resolveTransportConfig(transportName string) (transportConfig, error) {
-	cfg := transportConfig{requireAuth: !flag.AllowOperatorTokenFallback}
-
-	host := strings.TrimSpace(flag.Host)
-	if host == "" {
-		return cfg, fmt.Errorf(
-			"refusing to start: %s transport has an empty bind address; "+
-				"pass -host with an address to listen on", transportName)
+// resolveTransportConfig derives the listener decisions from a Config that
+// config.Validate has accepted: Validate refuses an empty bind address, a
+// network-reachable bind with no allowed hosts, and an unusable origin, so none
+// of those can reach here.
+func resolveTransportConfig(cfg config.Config) transportConfig {
+	l := cfg.Listen
+	tc := transportConfig{
+		requireAuth:    !l.AllowOperatorTokenFallback,
+		resourceServer: cfg.ResourceServerMode(),
 	}
 
-	cfg.loopbackOnly = isLoopbackHostname(host)
+	host := strings.TrimSpace(l.Host)
+	tc.loopbackOnly = config.IsLoopbackHostname(host)
 	switch {
-	case !cfg.loopbackOnly, isIPLiteral(host):
-		cfg.listenHosts = []string{strings.Trim(host, "[]")}
+	case !tc.loopbackOnly, config.IsIPLiteral(host):
+		tc.listenHosts = []string{strings.Trim(host, "[]")}
 	default:
-		cfg.listenHosts = []string{"127.0.0.1", "::1"}
+		tc.listenHosts = []string{"127.0.0.1", "::1"}
 	}
 
-	cfg.hosts = hostPolicy{allowed: normalizeList(flag.AllowedHosts), loopbackOnly: cfg.loopbackOnly}
-	if !cfg.loopbackOnly && len(cfg.hosts.allowed) == 0 {
-		return cfg, fmt.Errorf(
-			"refusing to start: %s transport is configured to bind %s, which the network can reach, "+
-				"but no allowed hosts are declared; pass -allowed-hosts (or FORGEJO_MCP_ALLOWED_HOSTS) "+
-				"with the host names clients will use, or bind to loopback instead",
-			transportName, host)
-	}
-
-	for _, raw := range normalizeList(flag.AllowedOrigins) {
-		normalised, ok := normalizeOrigin(raw)
-		if !ok {
-			return cfg, fmt.Errorf(
-				"refusing to start: %q is not a usable origin for -allowed-origins; "+
-					"an origin is a scheme, a host and an optional port, for example https://console.example.org",
-				raw)
-		}
-		cfg.origins.allowed = append(cfg.origins.allowed, normalised)
-	}
-
-	return cfg, nil
-}
-
-// normalizeList lower-cases entries and drops empty ones.
-func normalizeList(values []string) []string {
-	out := make([]string, 0, len(values))
-	for _, v := range values {
-		v = strings.ToLower(strings.TrimSpace(v))
-		if v != "" {
-			out = append(out, v)
+	tc.hosts = hostPolicy{allowed: config.NormalizeList(l.AllowedHosts), loopbackOnly: tc.loopbackOnly}
+	for _, raw := range config.NormalizeList(l.AllowedOrigins) {
+		if normalised, ok := config.NormalizeOrigin(raw); ok {
+			tc.origins.allowed = append(tc.origins.allowed, normalised)
 		}
 	}
-	return out
+	return tc
 }
 
 // newMCPHTTPServer wraps handler in the policy stack for an already-resolved
@@ -446,7 +307,7 @@ func newMCPHTTPServer(handler http.Handler, cfg transportConfig) *http.Server {
 	// door does not look at Authorization. The credential fallback stays refused
 	// either way: cfg.requireAuth still drives forgejo.SetRequireRequestToken.
 	return &http.Server{
-		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, cfg.requireAuth && !resourceServerMode()),
+		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, cfg.requireAuth && !cfg.resourceServer),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		IdleTimeout:       idleTimeout,
@@ -556,11 +417,8 @@ func oneFamilyHint(cfg transportConfig) string {
 // Start method, so that the listen address, the header checks and the
 // credential policy are decided in exactly one place. A transport that bound
 // its own listener would silently miss all three.
-func serveMCPOverHTTP(transportName string, handler http.Handler, port int) error {
-	cfg, err := resolveTransportConfig(transportName)
-	if err != nil {
-		return err
-	}
+func serveMCPOverHTTP(transportName string, handler http.Handler, port int, appCfg config.Config) error {
+	cfg := resolveTransportConfig(appCfg)
 
 	forgejo.SetRequireRequestToken(cfg.requireAuth)
 

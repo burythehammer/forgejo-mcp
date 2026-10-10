@@ -6,8 +6,6 @@ import (
 	"context"
 	"errors"
 	"sync/atomic"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 )
 
 // ErrNoRequestToken is returned when a request carries no credential of its own
@@ -66,5 +64,5 @@ func tokenForRequest(ctx context.Context) (string, error) {
 	if requireRequestToken.Load() {
 		return "", ErrNoRequestToken
 	}
-	return flag.Token, nil
+	return operatorToken(), nil
 }

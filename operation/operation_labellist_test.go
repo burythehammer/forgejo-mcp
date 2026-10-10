@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/flag"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -70,9 +69,7 @@ func labelListBackend(t *testing.T, total int) {
 	}))
 	t.Cleanup(srv.Close)
 
-	flag.URL = srv.URL
-	flag.Token = "test"
-	flag.UserAgent = "test"
+	forgejo.ConfigureForTesting(srv.URL, "test", "test")
 	c, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
 	if err != nil {
 		t.Fatalf("building test client: %v", err)
