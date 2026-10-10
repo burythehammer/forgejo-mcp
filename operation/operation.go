@@ -22,6 +22,8 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/version"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/wiki"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
@@ -98,7 +100,9 @@ func newStreamableHTTPHandler(s *server.MCPServer, cfg config.Config) http.Handl
 }
 
 // RegisterTool registers every tool; version is what the version tool reports.
-func RegisterTool(s *server.MCPServer, version string) {
+// The Forgejo factory is built once by the composition root; a domain takes it
+// when it migrates to the Forgejo port.
+func RegisterTool(s *server.MCPServer, version string, _ forge.Factory) {
 	log.Info("Registering MCP tools")
 
 	RegisterUserTool(s)
@@ -225,7 +229,7 @@ func extractToken(auth string) string {
 func Run(cfg config.Config, version string) error {
 	transport := cfg.Transport
 	mcpServer := newMCPServer(version)
-	RegisterTool(mcpServer, version)
+	RegisterTool(mcpServer, version, sdk.NewFactory(cfg.Forgejo))
 	RegisterCoreResources(mcpServer)
 
 	if cfg.ResourceServerMode() {
