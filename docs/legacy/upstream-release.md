@@ -27,7 +27,6 @@ missing assets, and it is not: it is unfinished. Wait for the tag pipeline to
 report success before judging anything absent.
 
 `just --list` for the rest. Do not run semantic-release locally.
-<!-- <<< enable-semantic-release v0.0.0-dev sha256:66510a787d1a <<< -->
 
 ### Releasing: what the tag pipeline does after the Job exits
 

@@ -1,8 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to AI coding assistants (Claude Code, Cursor, etc.) when working with this repository.
-
-For detailed developer documentation, see [DEVELOPER.md](DEVELOPER.md).
+Code examples and patterns: [DEVELOPER.md](DEVELOPER.md).
 
 Default branch is `main`. `upstream` (b4mad) is a separate project; how its work merges in is not yet decided.
 
@@ -28,23 +26,7 @@ Key directories:
 
 ## File Header
 
-Every new source file MUST begin with an SPDX license header as the very first lines, before any package declaration or imports:
-
-```go
-// SPDX-License-Identifier: GPL-3.0-or-later
-```
-
-For non-Go files (YAML, Markdown, shell, etc.), use the appropriate comment syntax:
-
-```yaml
-# SPDX-License-Identifier: GPL-3.0-or-later
-```
-
-```bash
-# SPDX-License-Identifier: GPL-3.0-or-later
-```
-
-Do not add a copyright line — the SPDX identifier line alone is sufficient.
+Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its first line, in the file's own comment syntax, before any package declaration or import (`// …` in Go, `# …` in YAML and shell, `<!-- … -->` in Markdown). The identifier line alone is the header.
 
 ## Adding a New Tool
 
@@ -66,10 +48,9 @@ Do not add a copyright line — the SPDX identifier line alone is sufficient.
 7. **Add the README row.** Every registered tool needs a row in the README
    "Available Tools" table, and every `forgejo://` resource template a row in
    the "Resources" table. `scripts/ci/check-readme-tool-coverage.sh` fails the
-   build on a tool or template with no row — it compares the `…ToolName`
+   build on a tool or template with no row: it compares the `…ToolName`
    constants and registered URI templates under `operation/` against the
-   tables. This was unenforced until #601, by which point 22 of 155 tools and
-   4 of 17 templates had drifted out, `delete_org` among them.
+   tables.
 
 See [DEVELOPER.md](DEVELOPER.md) for complete code examples and patterns.
 
@@ -88,25 +69,10 @@ Some features are blocked on upstream API/SDK support. See `docs/plans/` for:
 - `wiki-support.md` - historical SDK plan, superseded by the direct REST implementation
 - `projects-support.md` - Projects/Kanban API (blocked on Gitea 1.26.0)
 
-## Labels
+## Attribution
 
-Use the triage vocabulary in [docs/agents/triage-labels.md](docs/agents/triage-labels.md). Pass label names, never IDs, to `add_issue_labels`, `remove_issue_labels`, `create_issue` and `update_issue`.
+End every commit with an `Assisted-by: [Model Name] via [Tool Name]` footer, for example `Assisted-by: GLM 4.6 via Claude Code`.
 
-## Attribution Requirements
-
-AI agents must disclose what tool and model they are using in the "Assisted-by" commit footer:
-
-```text
-Assisted-by: [Model Name] via [Tool Name]
-```
-
-Example:
-
-```text
-Assisted-by: GLM 4.6 via Claude Code
-```
-
-<!-- >>> enable-semantic-release v0.0.0-dev sha256:66510a787d1a (managed block — do not edit) >>> -->
 ## Releasing
 
 The release process in this repo is inherited from upstream and unverified for this fork. Do not cut a release unless asked; see [docs/legacy/upstream-release.md](docs/legacy/upstream-release.md).
@@ -119,7 +85,7 @@ Issues are tracked in Forgejo (`forgejo.burythehammer.com/burythehammer/forgejo-
 
 ### Triage labels
 
-Default triage labels (plus `needs-spec`, priority labels, and `spec`/`subtask`). See `docs/agents/triage-labels.md`.
+Default triage labels plus `needs-spec`, priority labels, and `spec`/`subtask`: `docs/agents/triage-labels.md`. Pass label names, never IDs, to `add_issue_labels`, `remove_issue_labels`, `create_issue` and `update_issue`.
 
 ### Domain docs
 
