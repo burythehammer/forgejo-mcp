@@ -17,3 +17,19 @@ func TestPullsContract(t *testing.T) {
 		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)), Seed: stub.Fake}
 	})
 }
+
+func TestOrgsContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunOrgs(t, func(t *testing.T) forgetest.Harness {
+		stub := forgetest.NewStub(t)
+		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)), Seed: stub.Fake}
+	})
+}
+
+func TestUsersContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunUsers(t, func(t *testing.T) forgetest.Harness {
+		stub := forgetest.NewStub(t)
+		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)), Seed: stub.Fake}
+	})
+}
