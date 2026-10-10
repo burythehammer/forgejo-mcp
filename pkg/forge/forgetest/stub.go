@@ -41,6 +41,7 @@ func NewStub(t testing.TB) *Stub {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/version", func(w http.ResponseWriter, _ *http.Request) { WriteVersion(w) })
 	s.mountPulls(mux)
+	s.mountRepoFiles(mux)
 	s.Server = httptest.NewServer(mux)
 	t.Cleanup(s.Close)
 	return s

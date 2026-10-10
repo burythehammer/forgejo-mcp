@@ -16,3 +16,11 @@ func TestPullsContract(t *testing.T) {
 		return forgetest.Harness{Port: f, Seed: f}
 	})
 }
+
+func TestRepoFilesContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunRepoFiles(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}
