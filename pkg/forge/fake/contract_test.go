@@ -9,6 +9,14 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/forgetest"
 )
 
+func TestIssuesContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunIssues(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}
+
 func TestPullsContract(t *testing.T) {
 	t.Parallel()
 	forgetest.RunPulls(t, func(*testing.T) forgetest.Harness {

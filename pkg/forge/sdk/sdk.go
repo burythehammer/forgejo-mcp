@@ -18,6 +18,18 @@ import (
 // Adapter is the real forge.Forgejo, bound to one credential.
 type Adapter struct {
 	client *forgejo_sdk.Client
+	// rawBase prefixes raw-HTTP workaround paths with an absolute API root.
+	// Empty in production, where the raw helpers resolve it from config; set
+	// by WithRawBase so the contract suite can aim them at a stub.
+	rawBase string
+}
+
+// WithRawBase returns a copy whose raw-HTTP workarounds hit apiRoot (for
+// example "http://127.0.0.1:1234/api/v1") instead of the configured instance.
+func (a *Adapter) WithRawBase(apiRoot string) *Adapter {
+	cp := *a
+	cp.rawBase = apiRoot
+	return &cp
 }
 
 var _ forge.Forgejo = (*Adapter)(nil)
