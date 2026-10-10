@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -77,7 +79,7 @@ func setup(t *testing.T) {
 		_, _ = forgejo.Client(context.Background())
 
 		mcpSrv = server.NewMCPServer("forgejo-mcp", "test", server.WithLogging())
-		operation.RegisterTool(mcpSrv, "test")
+		operation.RegisterTool(mcpSrv, "test", sdk.NewFactory(config.Forgejo{}))
 
 		tools := mcpSrv.ListTools()
 		allTools = make([]string, 0, len(tools))
@@ -236,7 +238,7 @@ func TestConcurrentListAndRegister(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		operation.RegisterTool(srv, "test")
+		operation.RegisterTool(srv, "test", sdk.NewFactory(config.Forgejo{}))
 	}()
 
 	for i := 0; i < 10; i++ {
