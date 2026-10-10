@@ -93,7 +93,7 @@ func firstLabelID(t *testing.T, payload map[string]any) int {
 func TestResourceDispatchRoutesRepoLabelsTemplate(t *testing.T) {
 	labelListBackend(t, 100)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, nil)
 
 	t.Run("bare URI", func(t *testing.T) {
 		payload := readResource(t, s, "forgejo://repo/o/r/labels")
@@ -125,7 +125,7 @@ func TestResourceDispatchRoutesRepoLabelsTemplate(t *testing.T) {
 func TestResourceDispatchRoutesOrgLabelsTemplate(t *testing.T) {
 	labelListBackend(t, 100)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, nil)
 
 	t.Run("bare URI", func(t *testing.T) {
 		payload := readResource(t, s, "forgejo://org/o/labels")
@@ -159,7 +159,7 @@ func TestResourceDispatchRoutesOrgLabelsTemplate(t *testing.T) {
 func TestResourceDispatchRejectsUnknownLabelListURI(t *testing.T) {
 	labelListBackend(t, 10)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, nil)
 
 	for _, uri := range []string{
 		"forgejo://repo/o/r/labels/extra",

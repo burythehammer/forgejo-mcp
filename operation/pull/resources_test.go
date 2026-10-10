@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package pull
 
 import (
@@ -5,141 +7,32 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// prRoutingHandler routes /pulls/{index}, /issues/{index}/comments, and /pulls/{index}/reviews.
-type prRoutingHandler struct {
-	prStatus       int
-	prBody         interface{}
-	commentsStatus int
-	commentsBody   interface{}
-	reviewsStatus  int
-	reviewsBody    interface{}
-}
-
-func (h *prRoutingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	path := r.URL.Path
-	switch {
-	case strings.Contains(path, "/reviews"):
-		w.WriteHeader(h.reviewsStatus)
-		if h.reviewsBody != nil {
-			json.NewEncoder(w).Encode(h.reviewsBody)
-		}
-	case strings.Contains(path, "/issues/") && strings.Contains(path, "/comments"):
-		w.WriteHeader(h.commentsStatus)
-		if h.commentsBody != nil {
-			json.NewEncoder(w).Encode(h.commentsBody)
-		}
-	case strings.Contains(path, "/pulls/"):
-		w.WriteHeader(h.prStatus)
-		if h.prBody != nil {
-			json.NewEncoder(w).Encode(h.prBody)
-		}
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func setupPRMockServer(t *testing.T, h *prRoutingHandler) *httptest.Server {
-	t.Helper()
-	srv := httptest.NewServer(h)
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
-	}
-	forgejo.SetClientForTesting(client)
-	return srv
-}
-
-func makePRResourceRequest(index int) mcp.ReadResourceRequest {
+func prResourceRequest(index int64) mcp.ReadResourceRequest {
 	return mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: fmt.Sprintf("forgejo://repo/testowner/testrepo/pr/%d", index),
-		},
+		Params: mcp.ReadResourceParams{URI: fmt.Sprintf("forgejo://repo/%s/%s/pr/%d", testOwner, testRepo, index)},
 	}
 }
 
-func fakePR(merged bool) map[string]interface{} {
-	now := time.Now().Format(time.RFC3339)
-	pr := map[string]interface{}{
-		"id":         1,
-		"number":     7,
-		"title":      "feat: add resources",
-		"body":       "This PR adds MCP resource support.",
-		"state":      "open",
-		"merged":     merged,
-		"mergeable":  true,
-		"comments":   2,
-		"user":       map[string]interface{}{"login": "alice"},
-		"labels":     []interface{}{},
-		"assignees":  []interface{}{},
-		"created_at": now,
-		"updated_at": now,
-		"head": map[string]interface{}{
-			"label": "alice:feature",
-			"ref":   "feature",
-			"sha":   "abc123",
-		},
-		"base": map[string]interface{}{
-			"label": "main",
-			"ref":   "main",
-			"sha":   "def456",
-		},
-	}
-	if merged {
-		pr["state"] = "closed"
-		pr["merged_at"] = now
-	}
-	return pr
-}
-
-func fakeReviews(n int) []map[string]interface{} {
-	result := make([]map[string]interface{}, n)
-	for i := range result {
-		result[i] = map[string]interface{}{
-			"id":           i + 1,
-			"state":        "approved",
-			"body":         fmt.Sprintf("review body %d", i+1),
-			"user":         map[string]interface{}{"login": "reviewer"},
-			"submitted_at": time.Now().Format(time.RFC3339),
-		}
-	}
-	return result
-}
-
-func TestPRResourceHandler_OpenPR_HappyPath(t *testing.T) {
-	h := &prRoutingHandler{
-		prStatus:       http.StatusOK,
-		prBody:         fakePR(false),
-		commentsStatus: http.StatusOK,
-		commentsBody:   fakeReviews(2), // reuse shape; comments just need id/body/user/created_at
-		reviewsStatus:  http.StatusOK,
-		reviewsBody:    fakeReviews(1),
-	}
-	srv := setupPRMockServer(t, h)
-	defer srv.Close()
-
-	req := makePRResourceRequest(7)
-	contents, err := prResourceHandler(context.Background(), req)
+// readPR reads the resource and returns its JSON payload and markdown sidecar.
+func readPR(t *testing.T, h handlers, index int64) (prResourcePayload, mcp.TextResourceContents) {
+	t.Helper()
+	contents, err := h.prResourceHandler(context.Background(), prResourceRequest(index))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(contents) != 2 {
 		t.Fatalf("expected 2 content blocks, got %d", len(contents))
 	}
-
 	block := contents[0].(mcp.TextResourceContents)
 	if block.MIMEType != "application/json" {
 		t.Errorf("MIME: got %q, want application/json", block.MIMEType)
@@ -148,44 +41,59 @@ func TestPRResourceHandler_OpenPR_HappyPath(t *testing.T) {
 	if err := json.Unmarshal([]byte(block.Text), &payload); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if payload.State != "open" {
-		t.Errorf("expected state=open, got %q", payload.State)
+	return payload, contents[1].(mcp.TextResourceContents)
+}
+
+func TestPRResourceHandler_OpenPR_HappyPath(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openPR(t, f, "feat: add resources")
+	for _, body := range []string{"first", "second"} {
+		if _, err := f.AddPullRequestComment(testOwner, testRepo, idx, "bob", body); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if !payload.Mergeable {
-		t.Error("expected mergeable=true")
-	}
-	if payload.CommentsTruncated {
-		t.Error("expected comments not truncated")
+	if _, err := f.CreatePullReview(context.Background(), testOwner, testRepo, idx, forgejo_sdk.CreatePullReviewOptions{
+		State: forgejo_sdk.ReviewStateApproved,
+	}); err != nil {
+		t.Fatal(err)
 	}
 
-	mdBlock := contents[1].(mcp.TextResourceContents)
-	if mdBlock.MIMEType != "text/markdown" {
-		t.Errorf("sidecar MIME: got %q, want text/markdown", mdBlock.MIMEType)
+	payload, md := readPR(t, h, idx)
+	if payload.State != "open" || !payload.Mergeable {
+		t.Errorf("state=%q mergeable=%v, want open and mergeable", payload.State, payload.Mergeable)
 	}
-	if !strings.Contains(mdBlock.Text, "feat: add resources") {
-		t.Errorf("sidecar missing title, got %q", mdBlock.Text)
+	if payload.Title != "feat: add resources" || payload.Author != fake.Poster {
+		t.Errorf("title=%q author=%q", payload.Title, payload.Author)
+	}
+	if payload.Head.Ref != "feature" || payload.Base.Ref != "main" {
+		t.Errorf("head=%+v base=%+v", payload.Head, payload.Base)
+	}
+	if len(payload.RecentComments) != 2 || payload.RecentComments[0].Author != "bob" || payload.CommentCount != 2 {
+		t.Errorf("comments=%+v count=%d", payload.RecentComments, payload.CommentCount)
+	}
+	if payload.ReviewCount != 1 || len(payload.RecentReviews) != 1 {
+		t.Errorf("reviews=%+v count=%d", payload.RecentReviews, payload.ReviewCount)
+	}
+	if payload.CommentsTruncated || payload.ReviewsTruncated {
+		t.Error("nothing should be truncated")
+	}
+	if md.MIMEType != "text/markdown" {
+		t.Errorf("sidecar MIME: got %q, want text/markdown", md.MIMEType)
+	}
+	if !strings.Contains(md.Text, "feat: add resources") {
+		t.Errorf("sidecar missing title, got %q", md.Text)
 	}
 }
 
 func TestPRResourceHandler_MergedPR(t *testing.T) {
-	h := &prRoutingHandler{
-		prStatus:       http.StatusOK,
-		prBody:         fakePR(true),
-		commentsStatus: http.StatusOK,
-		commentsBody:   []interface{}{},
-		reviewsStatus:  http.StatusOK,
-		reviewsBody:    []interface{}{},
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openPR(t, f, "merged")
+	if _, err := f.MergePullRequest(context.Background(), testOwner, testRepo, idx, forgejo_sdk.MergePullRequestOption{}); err != nil {
+		t.Fatal(err)
 	}
-	srv := setupPRMockServer(t, h)
-	defer srv.Close()
-
-	req := makePRResourceRequest(7)
-	contents, err := prResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	var payload prResourcePayload
-	json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &payload)
+	payload, _ := readPR(t, h, idx)
 	if payload.State != "merged" {
 		t.Errorf("expected state=merged, got %q", payload.State)
 	}
@@ -195,34 +103,15 @@ func TestPRResourceHandler_MergedPR(t *testing.T) {
 }
 
 func TestPRResourceHandler_OverCapComments(t *testing.T) {
-	comments := make([]map[string]interface{}, resource.EmbeddedListCap+1)
-	for i := range comments {
-		comments[i] = map[string]interface{}{
-			"id":         i + 1,
-			"body":       "comment",
-			"user":       map[string]interface{}{"login": "bob"},
-			"created_at": time.Now().Format(time.RFC3339),
-			"updated_at": time.Now().Format(time.RFC3339),
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openPR(t, f, "chatty")
+	for i := 0; i <= resource.EmbeddedListCap; i++ {
+		if _, err := f.AddPullRequestComment(testOwner, testRepo, idx, "bob", "comment"); err != nil {
+			t.Fatal(err)
 		}
 	}
-	h := &prRoutingHandler{
-		prStatus:       http.StatusOK,
-		prBody:         fakePR(false),
-		commentsStatus: http.StatusOK,
-		commentsBody:   comments,
-		reviewsStatus:  http.StatusOK,
-		reviewsBody:    []interface{}{},
-	}
-	srv := setupPRMockServer(t, h)
-	defer srv.Close()
-
-	req := makePRResourceRequest(7)
-	contents, err := prResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	var payload prResourcePayload
-	json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &payload)
+	payload, _ := readPR(t, h, idx)
 	if !payload.CommentsTruncated {
 		t.Error("expected comments_truncated=true")
 	}
@@ -235,24 +124,17 @@ func TestPRResourceHandler_OverCapComments(t *testing.T) {
 }
 
 func TestPRResourceHandler_OverCapReviews(t *testing.T) {
-	h := &prRoutingHandler{
-		prStatus:       http.StatusOK,
-		prBody:         fakePR(false),
-		commentsStatus: http.StatusOK,
-		commentsBody:   []interface{}{},
-		reviewsStatus:  http.StatusOK,
-		reviewsBody:    fakeReviews(resource.EmbeddedListCap + 1),
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openPR(t, f, "much reviewed")
+	for i := 0; i <= resource.EmbeddedListCap; i++ {
+		if _, err := f.CreatePullReview(context.Background(), testOwner, testRepo, idx, forgejo_sdk.CreatePullReviewOptions{
+			State: forgejo_sdk.ReviewStateComment, Body: "review",
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	srv := setupPRMockServer(t, h)
-	defer srv.Close()
-
-	req := makePRResourceRequest(7)
-	contents, err := prResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	var payload prResourcePayload
-	json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &payload)
+	payload, _ := readPR(t, h, idx)
 	if !payload.ReviewsTruncated {
 		t.Error("expected reviews_truncated=true")
 	}
@@ -265,18 +147,14 @@ func TestPRResourceHandler_OverCapReviews(t *testing.T) {
 }
 
 func TestPRResourceHandler_NonNumericIndex(t *testing.T) {
-	req := mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: "forgejo://repo/testowner/testrepo/pr/abc",
-		},
-	}
-	_, err := prResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for non-numeric index")
-	}
+	t.Parallel()
+	h, _ := newFixture(t)
+	_, err := h.prResourceHandler(context.Background(), mcp.ReadResourceRequest{
+		Params: mcp.ReadResourceParams{URI: "forgejo://repo/testowner/testrepo/pr/abc"},
+	})
 	var re *resource.ResourceError
 	if !errors.As(err, &re) {
-		t.Fatalf("expected *resource.ResourceError, got %T", err)
+		t.Fatalf("expected *resource.ResourceError, got %T (%v)", err, err)
 	}
 	if re.Code != -32602 {
 		t.Errorf("expected -32602, got %d", re.Code)
@@ -284,21 +162,12 @@ func TestPRResourceHandler_NonNumericIndex(t *testing.T) {
 }
 
 func TestPRResourceHandler_NotFound(t *testing.T) {
-	h := &prRoutingHandler{
-		prStatus: http.StatusNotFound,
-		prBody:   map[string]string{"message": "not found"},
-	}
-	srv := setupPRMockServer(t, h)
-	defer srv.Close()
-
-	req := makePRResourceRequest(999)
-	_, err := prResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for 404")
-	}
+	t.Parallel()
+	h, _ := newFixture(t)
+	_, err := h.prResourceHandler(context.Background(), prResourceRequest(999))
 	var re *resource.ResourceError
 	if !errors.As(err, &re) {
-		t.Fatalf("expected *resource.ResourceError, got %T", err)
+		t.Fatalf("expected *resource.ResourceError, got %T (%v)", err, err)
 	}
 	if re.Code != -32003 {
 		t.Errorf("expected -32003, got %d", re.Code)
