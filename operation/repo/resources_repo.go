@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -38,12 +38,13 @@ type repoResourcePayload struct {
 }
 
 // RegisterRepoResource registers the forgejo://repo/{owner}/{repo} resource template.
-func RegisterRepoResource(s *server.MCPServer) {
+func RegisterRepoResource(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
 	resource.RegisterTemplate(
 		s,
 		repoResourceURITemplate,
 		"Forgejo Repository",
-		repoResourceHandler,
+		h.repoResourceHandler,
 		mcp.WithTemplateDescription(
 			"Repository overview by name. Returns immutable identity (owner, name) plus "+
 				"mutable counts (stars, forks, open issues, open PRs). No embedded lists. "+
@@ -54,22 +55,22 @@ func RegisterRepoResource(s *server.MCPServer) {
 	log.Debug("Registered repo resource template")
 }
 
-func repoResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) repoResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	params, err := resource.ParseRepo(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	r, resp, err := client.GetRepo(params.Owner, params.Repo)
+	r, err := f.GetRepo(ctx, params.Owner, params.Repo)
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
+		if code := forge.StatusCode(err); code != 0 {
+			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
 		}
 		return nil, resource.MapForgejoError(uri, err)
 	}
