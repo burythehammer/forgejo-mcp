@@ -18,6 +18,9 @@ import (
 // Adapter is the real forge.Forgejo, bound to one credential.
 type Adapter struct {
 	client *forgejo_sdk.Client
+	// rawBase is the Forgejo URL raw-HTTP methods call; empty means the
+	// configured one (see WithRawBaseURL).
+	rawBase string
 }
 
 var _ forge.Forgejo = (*Adapter)(nil)
@@ -64,5 +67,5 @@ func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewAdapter(c), nil
+	return NewAdapter(c).WithRawBaseURL(f.cfg.URL), nil
 }
