@@ -31,7 +31,7 @@ func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Facto
 		fn   func(*server.MCPServer)
 	}
 	domains := []domainReg{
-		{"user", operation.RegisterUserTool},
+		{"user", func(s *server.MCPServer) { operation.RegisterUserTool(s, f) }},
 		{"repo", operation.RegisterRepoTool},
 		{"issue", operation.RegisterIssueTool},
 		{"pull", func(s *server.MCPServer) { operation.RegisterPullTool(s, f) }},
@@ -39,7 +39,7 @@ func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Facto
 		{"search", operation.RegisterSearchTool},
 		{"version", func(s *server.MCPServer) { operation.RegisterVersionTool(s, version) }},
 		{"actions", operation.RegisterActionsTool},
-		{"org", operation.RegisterOrgTool},
+		{"org", func(s *server.MCPServer) { operation.RegisterOrgTool(s, f) }},
 		{"packages", operation.RegisterPackagesTool},
 		{"tracking", operation.RegisterTrackingTool},
 		{"attachment", operation.RegisterAttachmentTool},

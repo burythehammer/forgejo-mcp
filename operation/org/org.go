@@ -7,7 +7,7 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -75,29 +75,36 @@ var (
 	)
 )
 
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(CreateOrgTool, CreateOrgFn)
-	s.AddTool(GetOrgTool, GetOrgFn)
-	s.AddTool(ListMyOrgsTool, ListMyOrgsFn)
-	s.AddTool(ListUserOrgsTool, ListUserOrgsFn)
-	s.AddTool(EditOrgTool, EditOrgFn)
-	s.AddTool(DeleteOrgTool, DeleteOrgFn)
-
-	// Membership
-	s.AddTool(ListOrgMembersTool, ListOrgMembersFn)
-	s.AddTool(CheckOrgMembershipTool, CheckOrgMembershipFn)
-	s.AddTool(RemoveOrgMemberTool, RemoveOrgMemberFn)
-
-	// Teams
-	s.AddTool(ListOrgTeamsTool, ListOrgTeamsFn)
-	s.AddTool(CreateOrgTeamTool, CreateOrgTeamFn)
-	s.AddTool(AddTeamMemberTool, AddTeamMemberFn)
-	s.AddTool(RemoveTeamMemberTool, RemoveTeamMemberFn)
-	s.AddTool(AddTeamRepoTool, AddTeamRepoFn)
-	s.AddTool(RemoveTeamRepoTool, RemoveTeamRepoFn)
+// handlers serve the org tools from the Forgejo port. The port is resolved per
+// request, so each request is served under its own credential.
+type handlers struct {
+	forge forge.Factory
 }
 
-func CreateOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(CreateOrgTool, h.CreateOrgFn)
+	s.AddTool(GetOrgTool, h.GetOrgFn)
+	s.AddTool(ListMyOrgsTool, h.ListMyOrgsFn)
+	s.AddTool(ListUserOrgsTool, h.ListUserOrgsFn)
+	s.AddTool(EditOrgTool, h.EditOrgFn)
+	s.AddTool(DeleteOrgTool, h.DeleteOrgFn)
+
+	// Membership
+	s.AddTool(ListOrgMembersTool, h.ListOrgMembersFn)
+	s.AddTool(CheckOrgMembershipTool, h.CheckOrgMembershipFn)
+	s.AddTool(RemoveOrgMemberTool, h.RemoveOrgMemberFn)
+
+	// Teams
+	s.AddTool(ListOrgTeamsTool, h.ListOrgTeamsFn)
+	s.AddTool(CreateOrgTeamTool, h.CreateOrgTeamFn)
+	s.AddTool(AddTeamMemberTool, h.AddTeamMemberFn)
+	s.AddTool(RemoveTeamMemberTool, h.RemoveTeamMemberFn)
+	s.AddTool(AddTeamRepoTool, h.AddTeamRepoFn)
+	s.AddTool(RemoveTeamRepoTool, h.RemoveTeamRepoFn)
+}
+
+func (h handlers) CreateOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateOrgFn")
 	name, ok := req.GetArguments()["name"].(string)
 	if !ok {
@@ -123,36 +130,36 @@ func CreateOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 		opt.Visibility = forgejo_sdk.VisibleType(v)
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	org, _, err := client.CreateOrg(opt)
+	org, err := client.CreateOrg(ctx, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create org err: %w", err))
 	}
 	return to.TextResult(org)
 }
 
-func GetOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetOrgFn")
 	orgName, ok := req.GetArguments()["org"].(string)
 	if !ok {
 		return to.ErrorResult(errors.New("organization name is required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	org, _, err := client.GetOrg(orgName)
+	org, err := client.GetOrg(ctx, orgName)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get org err: %w", err))
 	}
 	return to.TextResult(org)
 }
 
-func ListMyOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListMyOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListMyOrgsFn")
 	page, ok := req.GetArguments()["page"].(float64)
 	if !ok {
@@ -169,18 +176,18 @@ func ListMyOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 			PageSize: int(limit),
 		},
 	}
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	orgs, _, err := client.ListMyOrgs(opt)
+	orgs, err := client.ListMyOrgs(ctx, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list my orgs err: %w", err))
 	}
 	return to.TextResult(orgs)
 }
 
-func ListUserOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListUserOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListUserOrgsFn")
 	user, ok := req.GetArguments()["user"].(string)
 	if !ok {
@@ -201,18 +208,18 @@ func ListUserOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 			PageSize: int(limit),
 		},
 	}
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	orgs, _, err := client.ListUserOrgs(user, opt)
+	orgs, err := client.ListUserOrgs(ctx, user, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list user orgs err: %w", err))
 	}
 	return to.TextResult(orgs)
 }
 
-func EditOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) EditOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditOrgFn")
 	orgName, ok := req.GetArguments()["org"].(string)
 	if !ok {
@@ -236,35 +243,35 @@ func EditOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 		opt.Visibility = forgejo_sdk.VisibleType(v)
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.EditOrg(orgName, opt)
+	err = client.EditOrg(ctx, orgName, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit org err: %w", err))
 	}
 
 	// Fetch updated org to return
-	org, _, err := client.GetOrg(orgName)
+	org, err := client.GetOrg(ctx, orgName)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get updated org err: %w", err))
 	}
 	return to.TextResult(org)
 }
 
-func DeleteOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteOrgFn")
 	orgName, ok := req.GetArguments()["org"].(string)
 	if !ok {
 		return to.ErrorResult(errors.New("organization name is required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.DeleteOrg(orgName)
+	err = client.DeleteOrg(ctx, orgName)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("delete org err: %w", err))
 	}
