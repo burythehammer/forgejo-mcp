@@ -25,6 +25,14 @@ func TestHooksContract(t *testing.T) {
 	})
 }
 
+func TestRepoAdminContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunRepoAdmin(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}
+
 func TestPullsContract(t *testing.T) {
 	t.Parallel()
 	forgetest.RunPulls(t, func(*testing.T) forgetest.Harness {

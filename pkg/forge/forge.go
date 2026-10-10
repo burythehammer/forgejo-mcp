@@ -16,6 +16,7 @@ type Forgejo interface {
 	Pulls
 	BranchProtections
 	Hooks
+	RepoAdmin
 }
 
 // Factory hands out a Forgejo port per request.

@@ -106,7 +106,7 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	log.Info("Registering MCP tools")
 
 	RegisterUserTool(s)
-	RegisterRepoTool(s)
+	RegisterRepoTool(s, f)
 	RegisterIssueTool(s)
 	RegisterPullTool(s, f)
 	RegisterPullReviewTool(s, f)
@@ -132,8 +132,8 @@ func RegisterUserTool(s *server.MCPServer) {
 	log.Debug("Registered user tools")
 }
 
-func RegisterRepoTool(s *server.MCPServer) {
-	repo.RegisterTool(s)
+func RegisterRepoTool(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterTool(s, f)
 	log.Debug("Registered repository tools")
 }
 
@@ -331,7 +331,7 @@ func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
 	RegisterLabelResources(s)
 	RegisterOwnerResource(s)
 	RegisterPullResources(s, f)
-	RegisterRepoResource(s)
+	RegisterRepoResource(s, f)
 	RegisterStatusResource(s)
 	RegisterBranchProtectionResources(s, f)
 	RegisterHookResources(s, f)
@@ -379,8 +379,8 @@ func RegisterOwnerResource(s *server.MCPServer) {
 	log.Debug("Registered owner resource template")
 }
 
-func RegisterRepoResource(s *server.MCPServer) {
-	repo.RegisterRepoResource(s)
+func RegisterRepoResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterRepoResource(s, f)
 	log.Debug("Registered repo resource template")
 }
 
