@@ -37,6 +37,8 @@ type Seeder interface {
 	SetPullRequestDiff(owner, repo string, index int64, diff string) error
 	SetPullRequestFiles(owner, repo string, index int64, files ...*forgejo_sdk.ChangedFile) error
 	AddPullRequestComment(owner, repo string, index int64, author, body string) (*forgejo_sdk.Comment, error)
+	AddAttachmentIssue(owner, repo string, index int64)
+	AddAttachmentComment(owner, repo string, commentID int64)
 }
 
 // Repo is the repository every case works in.

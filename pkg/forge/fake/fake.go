@@ -32,7 +32,13 @@ type Forgejo struct {
 	// Now supplies timestamps; replace it for deterministic times.
 	Now func() time.Time
 
-	pulls pullState
+	// BaseURL is the origin attachment download URLs point at; the contract
+	// stub sets it to its own address. Empty means a placeholder host.
+	BaseURL string
+
+	pulls    pullState
+	releases releaseState
+	assets   assetState
 }
 
 var _ forge.Forgejo = (*Forgejo)(nil)
