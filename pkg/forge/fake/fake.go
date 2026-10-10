@@ -33,6 +33,7 @@ type Forgejo struct {
 	Now func() time.Time
 
 	pulls pullState
+	admin repoAdminState
 }
 
 var _ forge.Forgejo = (*Forgejo)(nil)
