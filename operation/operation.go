@@ -326,13 +326,13 @@ func testConnection() error {
 }
 
 func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
-	RegisterCommitResource(s)
+	RegisterCommitResource(s, f)
 	RegisterIssueResources(s)
 	RegisterLabelResources(s)
 	RegisterOwnerResource(s, f)
 	RegisterPullResources(s, f)
 	RegisterRepoResource(s, f)
-	RegisterStatusResource(s)
+	RegisterStatusResource(s, f)
 	RegisterBranchProtectionResources(s, f)
 	RegisterHookResources(s, f)
 	RegisterWikiResource(s)
@@ -369,8 +369,8 @@ func RegisterIssueResources(s *server.MCPServer) {
 	log.Debug("Registered issue resource templates")
 }
 
-func RegisterCommitResource(s *server.MCPServer) {
-	repo.RegisterCommitResource(s)
+func RegisterCommitResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterCommitResource(s, f)
 	log.Debug("Registered commit resource template")
 }
 
@@ -384,8 +384,8 @@ func RegisterRepoResource(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered repo resource template")
 }
 
-func RegisterStatusResource(s *server.MCPServer) {
-	repo.RegisterStatusResource(s)
+func RegisterStatusResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterStatusResource(s, f)
 	log.Debug("Registered commit status resource template")
 }
 

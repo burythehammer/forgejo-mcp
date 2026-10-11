@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -16,12 +16,13 @@ import (
 const commitResourceURITemplate = "forgejo://repo/{owner}/{repo}/commit/{sha}"
 
 // RegisterCommitResource registers the forgejo://repo/{owner}/{repo}/commit/{sha} resource template.
-func RegisterCommitResource(s *server.MCPServer) {
+func RegisterCommitResource(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
 	resource.RegisterTemplate(
 		s,
 		commitResourceURITemplate,
 		"Forgejo Commit",
-		commitResourceHandler,
+		h.commitResourceHandler,
 		mcp.WithTemplateDescription(
 			"Immutable commit metadata for a Forgejo repository commit. "+
 				"URI: forgejo://repo/{owner}/{repo}/commit/{sha} — sha must be a full 40-character hex SHA. "+
@@ -32,22 +33,22 @@ func RegisterCommitResource(s *server.MCPServer) {
 	log.Debug("Registered commit resource template")
 }
 
-func commitResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) commitResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	params, err := resource.ParseCommit(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	commit, resp, err := client.GetSingleCommit(params.Owner, params.Repo, params.SHA)
+	commit, err := port.GetCommit(ctx, params.Owner, params.Repo, params.SHA)
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
+		if code := forge.StatusCode(err); code != 0 {
+			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
 		}
 		return nil, resource.MapForgejoError(uri, err)
 	}

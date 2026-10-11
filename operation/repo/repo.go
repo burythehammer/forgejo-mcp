@@ -72,11 +72,11 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(DeleteRepoTopicTool, h.DeleteRepoTopicFn)
 
 	// File
-	s.AddTool(GetFileContentTool, GetFileContentFn)
-	s.AddTool(CreateFileTool, CreateFileFn)
-	s.AddTool(UpdateFileTool, UpdateFileFn)
-	s.AddTool(DeleteFileTool, DeleteFileFn)
-	s.AddTool(ChangeFilesTool, ChangeFilesFn)
+	s.AddTool(GetFileContentTool, h.GetFileContentFn)
+	s.AddTool(CreateFileTool, h.CreateFileFn)
+	s.AddTool(UpdateFileTool, h.UpdateFileFn)
+	s.AddTool(DeleteFileTool, h.DeleteFileFn)
+	s.AddTool(ChangeFilesTool, h.ChangeFilesFn)
 
 	// Branch
 	s.AddTool(CreateBranchTool, h.CreateBranchFn)
@@ -84,12 +84,12 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(ListBranchesTool, h.ListBranchesFn)
 
 	// Commit
-	s.AddTool(ListRepoCommitsTool, ListRepoCommitsFn)
-	s.AddTool(GetCommitStatusesTool, GetCommitStatusesFn)
+	s.AddTool(ListRepoCommitsTool, h.ListRepoCommitsFn)
+	s.AddTool(GetCommitStatusesTool, h.GetCommitStatusesFn)
 
 	// Contents / Tree
-	s.AddTool(ListRepoContentsTool, ListRepoContentsFn)
-	s.AddTool(GetRepoTreeTool, GetRepoTreeFn)
+	s.AddTool(ListRepoContentsTool, h.ListRepoContentsFn)
+	s.AddTool(GetRepoTreeTool, h.GetRepoTreeFn)
 }
 
 func CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

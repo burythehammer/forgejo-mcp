@@ -33,6 +33,7 @@ type Forgejo struct {
 	Now func() time.Time
 
 	pulls pullState
+	files filesState
 	orgs  orgState
 	users userState
 	bps   bpState

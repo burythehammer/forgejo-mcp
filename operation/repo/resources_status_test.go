@@ -3,14 +3,13 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -19,58 +18,26 @@ import (
 func makeStatusResourceRequest(sha string) mcp.ReadResourceRequest {
 	return mcp.ReadResourceRequest{
 		Params: mcp.ReadResourceParams{
-			URI: "forgejo://repo/testowner/testrepo/commit/" + sha + "/status",
+			URI: "forgejo://repo/" + filesOwner + "/" + filesRepo + "/commit/" + sha + "/status",
 		},
 	}
 }
 
-func setupStatusMockServer(t *testing.T, statusCode int, body interface{}) *httptest.Server {
+// seedStatuses puts one status per state on testSHA.
+func seedStatuses(t *testing.T, f *fake.Forgejo, states ...forgejo_sdk.StatusState) {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(statusCode)
-		if body != nil {
-			json.NewEncoder(w).Encode(body)
-		}
-	}))
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
-	}
-	forgejo.SetClientForTesting(client)
-	return srv
-}
-
-func makeStatusList(states ...string) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(states))
 	for i, s := range states {
-		result[i] = map[string]interface{}{
-			"id":          i + 1,
-			"status":      s,
-			"context":     fmt.Sprintf("ci/test-%d", i),
-			"description": "test context " + s,
-			"target_url":  "https://ci.example.com/" + s,
-			"created_at":  time.Now().Format(time.RFC3339),
-			"updated_at":  time.Now().Format(time.RFC3339),
+		if err := f.AddCommitStatus(filesOwner, filesRepo, testSHA, fmt.Sprintf("ci/test-%d", i), s, "test context "+string(s)); err != nil {
+			t.Fatalf("seeding status: %v", err)
 		}
 	}
-	return result
 }
 
-func TestStatusResourceHandler_HappyPath_UnderCap(t *testing.T) {
-	statuses := makeStatusList("success", "success", "pending")
-	srv := setupStatusMockServer(t, http.StatusOK, statuses)
-	defer srv.Close()
-
-	req := makeStatusResourceRequest(testSHA)
-	contents, err := statusResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func statusPayload(t *testing.T, contents []mcp.ResourceContents) statusResourcePayload {
+	t.Helper()
 	if len(contents) != 1 {
 		t.Fatalf("expected 1 content block, got %d", len(contents))
 	}
-
 	block, ok := contents[0].(mcp.TextResourceContents)
 	if !ok {
 		t.Fatal("content block must be TextResourceContents")
@@ -78,11 +45,23 @@ func TestStatusResourceHandler_HappyPath_UnderCap(t *testing.T) {
 	if block.MIMEType != "application/json" {
 		t.Errorf("MIME type: got %q, want application/json", block.MIMEType)
 	}
-
 	var payload statusResourcePayload
 	if err := json.Unmarshal([]byte(block.Text), &payload); err != nil {
 		t.Fatalf("response is not valid JSON: %v", err)
 	}
+	return payload
+}
+
+func TestStatusResourceHandler_HappyPath_UnderCap(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedStatuses(t, f, forgejo_sdk.StatusSuccess, forgejo_sdk.StatusSuccess, forgejo_sdk.StatusPending)
+
+	contents, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest(testSHA))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	payload := statusPayload(t, contents)
 	if payload.State != "pending" {
 		t.Errorf("expected aggregate state=pending (has one pending), got %q", payload.State)
 	}
@@ -98,33 +77,20 @@ func TestStatusResourceHandler_HappyPath_UnderCap(t *testing.T) {
 }
 
 func TestStatusResourceHandler_OverCap_Truncated(t *testing.T) {
-	// Use exactly EmbeddedListCap+1 items. In production, ListStatuses is now
-	// called with PageSize=EmbeddedListCap+1, so the server can return up to
-	// cap+1 items when there are more than cap contexts. The mock HTTP server
-	// does not enforce server-side pagination limits, so it returns all items
-	// we supply regardless of the PageSize query parameter — but the
-	// production fix ensures the server is asked for cap+1 and Bounded can
-	// correctly detect truncation.
+	t.Parallel()
+	h, f := newFilesFixture(t)
 	capPlus1 := resource.EmbeddedListCap + 1
-	states := make([]string, capPlus1)
+	states := make([]forgejo_sdk.StatusState, capPlus1)
 	for i := range states {
-		states[i] = "success"
+		states[i] = forgejo_sdk.StatusSuccess
 	}
-	statuses := makeStatusList(states...)
-	srv := setupStatusMockServer(t, http.StatusOK, statuses)
-	defer srv.Close()
+	seedStatuses(t, f, states...)
 
-	req := makeStatusResourceRequest(testSHA)
-	contents, err := statusResourceHandler(context.Background(), req)
+	contents, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest(testSHA))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	block := contents[0].(mcp.TextResourceContents)
-	var payload statusResourcePayload
-	if err := json.Unmarshal([]byte(block.Text), &payload); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
+	payload := statusPayload(t, contents)
 	if !payload.Truncated {
 		t.Errorf("expected truncated=true for %d statuses (EmbeddedListCap+1)", capPlus1)
 	}
@@ -139,46 +105,56 @@ func TestStatusResourceHandler_OverCap_Truncated(t *testing.T) {
 	}
 }
 
-func TestStatusResourceHandler_EmptyStatuses_StateUnknown(t *testing.T) {
-	srv := setupStatusMockServer(t, http.StatusOK, []map[string]interface{}{})
-	defer srv.Close()
+func TestStatusResourceHandler_ExactlyAtCap_NotTruncated(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	states := make([]forgejo_sdk.StatusState, resource.EmbeddedListCap)
+	for i := range states {
+		states[i] = forgejo_sdk.StatusSuccess
+	}
+	seedStatuses(t, f, states...)
 
-	req := makeStatusResourceRequest(testSHA)
-	contents, err := statusResourceHandler(context.Background(), req)
+	contents, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest(testSHA))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	block := contents[0].(mcp.TextResourceContents)
-	var payload statusResourcePayload
-	if err := json.Unmarshal([]byte(block.Text), &payload); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+	if payload := statusPayload(t, contents); payload.Truncated || len(payload.Statuses) != resource.EmbeddedListCap {
+		t.Errorf("exactly at cap must not truncate: truncated=%v len=%d", payload.Truncated, len(payload.Statuses))
 	}
-	if payload.State != "unknown" {
+}
+
+func TestStatusResourceHandler_EmptyStatuses_StateUnknown(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, "a commit with no checks"); err != nil {
+		t.Fatal(err)
+	}
+
+	contents, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest(testSHA))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if payload := statusPayload(t, contents); payload.State != "unknown" {
 		t.Errorf("expected state=unknown for empty statuses, got %q", payload.State)
 	}
 }
 
 func TestStatusResourceHandler_ShortSHA(t *testing.T) {
-	req := mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: "forgejo://repo/testowner/testrepo/commit/abc123/status",
-		},
-	}
-	_, err := statusResourceHandler(context.Background(), req)
+	t.Parallel()
+	h, _ := newFilesFixture(t)
+	_, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest("abc123"))
 	if err == nil {
 		t.Fatal("expected error for short sha")
 	}
 }
 
 func TestStatusResourceHandler_NotFound(t *testing.T) {
-	srv := setupStatusMockServer(t, http.StatusNotFound, map[string]string{"message": "not found"})
-	defer srv.Close()
-
-	req := makeStatusResourceRequest(testSHA)
-	_, err := statusResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for 404 response")
+	t.Parallel()
+	h, _ := newFilesFixture(t)
+	_, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest(testSHA))
+	var resErr *resource.ResourceError
+	if !errors.As(err, &resErr) || resErr.Code != -32003 {
+		t.Fatalf("want a not-found resource error (-32003), got %T %v", err, err)
 	}
 }
 

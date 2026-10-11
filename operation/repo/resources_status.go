@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -42,12 +42,13 @@ type statusResourcePayload struct {
 // returns a combined state. This is the canonical "is the commit green?" surface. The
 // combined state is computed server-side from the per-context list. The resource is
 // pinned to an immutable SHA; clients may cache responses keyed by URI.
-func RegisterStatusResource(s *server.MCPServer) {
+func RegisterStatusResource(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
 	resource.RegisterTemplate(
 		s,
 		statusResourceURITemplate,
 		"Forgejo Commit Status",
-		statusResourceHandler,
+		h.statusResourceHandler,
 		mcp.WithTemplateDescription(
 			"Aggregated CI status for a Forgejo repository commit. "+
 				"URI: forgejo://repo/{owner}/{repo}/commit/{sha}/status — sha must be a full 40-character hex SHA. "+
@@ -60,14 +61,14 @@ func RegisterStatusResource(s *server.MCPServer) {
 	log.Debug("Registered commit status resource template")
 }
 
-func statusResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) statusResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	params, err := resource.ParseStatus(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
@@ -77,15 +78,16 @@ func statusResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]
 	// Forgejo's server default page size equals EmbeddedListCap (30), so
 	// leaving PageSize at zero silently caps responses at the cap and the
 	// >cap check in Bounded never fires.
-	statuses, resp, err := client.ListStatuses(params.Owner, params.Repo, params.SHA, forgejo_sdk.ListStatusesOption{
+	page, err := port.ListCommitStatuses(ctx, params.Owner, params.Repo, params.SHA, forgejo_sdk.ListStatusesOption{
 		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
 	})
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
+		if code := forge.StatusCode(err); code != 0 {
+			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
 		}
 		return nil, resource.MapForgejoError(uri, err)
 	}
+	statuses := page.Statuses
 
 	items := make([]string, 0, len(statuses))
 	itemData := make([]statusItem, 0, len(statuses))

@@ -25,34 +25,32 @@ func TestHooksContract(t *testing.T) {
 	})
 }
 
+func harness(*testing.T) forgetest.Harness {
+	f := fake.New()
+	return forgetest.Harness{Port: f, Seed: f}
+}
+
 func TestRepoAdminContract(t *testing.T) {
 	t.Parallel()
-	forgetest.RunRepoAdmin(t, func(*testing.T) forgetest.Harness {
-		f := fake.New()
-		return forgetest.Harness{Port: f, Seed: f}
-	})
+	forgetest.RunRepoAdmin(t, harness)
 }
 
 func TestPullsContract(t *testing.T) {
 	t.Parallel()
-	forgetest.RunPulls(t, func(*testing.T) forgetest.Harness {
-		f := fake.New()
-		return forgetest.Harness{Port: f, Seed: f}
-	})
+	forgetest.RunPulls(t, harness)
+}
+
+func TestRepoFilesContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunRepoFiles(t, harness)
 }
 
 func TestOrgsContract(t *testing.T) {
 	t.Parallel()
-	forgetest.RunOrgs(t, func(*testing.T) forgetest.Harness {
-		f := fake.New()
-		return forgetest.Harness{Port: f, Seed: f}
-	})
+	forgetest.RunOrgs(t, harness)
 }
 
 func TestUsersContract(t *testing.T) {
 	t.Parallel()
-	forgetest.RunUsers(t, func(*testing.T) forgetest.Harness {
-		f := fake.New()
-		return forgetest.Harness{Port: f, Seed: f}
-	})
+	forgetest.RunUsers(t, harness)
 }
