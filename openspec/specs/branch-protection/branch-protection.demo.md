@@ -68,8 +68,8 @@ the whitelist filters *which writers* may push, it does not grant access.
 
 PATCH null-safety extends to the whitelists: an unpassed list serializes as
 `null` (leave-unchanged), never `[]` (which would silently wipe an existing
-whitelist). This is asserted by `TestEditBranchProtectionFn_PushWhitelistRoundTrip`
-below, which sends `enable_push_whitelist: true` + `push_whitelist_usernames:
+whitelist). This is asserted by the `edit_whitelists` golden pin in
+`operation/branchprotection/testdata/`, which sends `enable_push_whitelist: true` + `push_whitelist_usernames:
 ["goern","op1st-gitops"]` and verifies the unpassed merge whitelist stays `null`.
 
 ## Scenario coverage via the executable spec

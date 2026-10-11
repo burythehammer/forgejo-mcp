@@ -1,0 +1,3 @@
+{"Result":{"owner":"octo","type":"generic","name":"tool","version":"1.0","status":"deleted"}}
+-- port calls --
+DeletePackage ["octo","generic","tool","1.0"]

@@ -4,10 +4,11 @@ package packages
 
 import (
 	"context"
-	"fmt"
 	"math"
 
+	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -25,6 +26,7 @@ var ListPackageFilesTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(defaultPackagesLimit), mcp.Min(1), mcp.Max(maxPackagesLimit)),
 )
 
+// ListPackageFilesFn validates the arguments, then runs the files use case.
 func (h handlers) ListPackageFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPackageFilesFn")
 	args := req.GetArguments()
@@ -42,34 +44,13 @@ func (h handlers) ListPackageFilesFn(ctx context.Context, req mcp.CallToolReques
 		return to.ErrorResult(err)
 	}
 
-	f, err := h.forge.For(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	listed, err := f.ListPackageFiles(ctx, owner, packageType, name, version)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list package files: %w", err))
-	}
-	allFiles := make([]packageFile, 0, len(listed))
-	for _, file := range listed {
-		allFiles = append(allFiles, packageFile{ID: file.ID, Name: file.Name, Size: file.Size, SHA256: file.SHA256})
-	}
-
-	start64 := int64(page-1) * int64(limit)
-	start := len(allFiles)
-	if start64 < int64(len(allFiles)) {
-		start = int(start64)
-	}
-	end := min(start+limit, len(allFiles))
-	files := allFiles[start:end]
-	hasNext := end < len(allFiles)
-
-	return to.TextResult(listPackageFilesResult{
-		Files:      files,
-		Page:       page,
-		Limit:      limit,
-		Count:      len(files),
-		HasNext:    hasNext,
-		TotalCount: len(allFiles),
-	})
+	return render(apppkg.New(packagesadapter.New(port)).ListFiles(ctx, apppkg.ListFilesRequest{
+		Coords: apppkg.Coords{Owner: owner, Type: packageType, Name: name, Version: version},
+		Page:   page,
+		Limit:  limit,
+	}))
 }

@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get one package version (id, type, name, version, html_url, created_at, repository full_name). Does not embed owner or creator users.",
+  "inputSchema": {
+    "properties": {
+      "name": {
+        "description": "Package name (container names may contain /)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "type": {
+        "description": "Package type (container, generic, npm, maven, …). Omit on list to include every type",
+        "type": "string"
+      },
+      "version": {
+        "description": "Package version",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "type",
+      "name",
+      "version"
+    ],
+    "type": "object"
+  },
+  "name": "get_package"
+}

@@ -1,0 +1,3 @@
+{"Result":"Deleted branch protection rule \"main\" on octo/hello"}
+-- port calls --
+DeleteBranchProtection ["octo","hello","main"]

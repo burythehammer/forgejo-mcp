@@ -1,0 +1,3 @@
+ERROR: delete wiki page: boom
+-- port calls --
+DeleteWikiPage ["octo","hello","Home"]

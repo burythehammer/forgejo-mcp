@@ -90,8 +90,10 @@ func fill(req mcp.CallToolRequest, dst any) ([]string, error) {
 			}
 			continue
 		}
-		if s, isString := raw.(string); isString && takesStringNumber(f) {
-			// Some MCP clients send number parameters as strings.
+		if s, isString := raw.(string); isString && takesStringNumber(f) && f.Tag.Get("exact") != "true" {
+			// Some MCP clients send number parameters as strings. A field tagged
+			// exact:"true" refuses that, for a tool whose handler read the
+			// argument with a strict float64 assertion.
 			s = strings.TrimSpace(s)
 			if s == "" {
 				continue

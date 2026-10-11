@@ -4,15 +4,15 @@ package wiki
 
 import (
 	"context"
-	"encoding/base64"
-	"fmt"
-	"strings"
 
-	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	appwiki "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/wiki"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/wikiadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -95,226 +95,121 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 // a port so each request gets its own credential.
 type handlers struct{ forge forge.Factory }
 
-func pagination(args map[string]any) (int, int) {
-	page, limit := 1, defaultLimit
-	if value, ok := args["page"].(float64); ok && value > 0 {
-		page = int(value)
-	}
-	if value, ok := args["limit"].(float64); ok && value > 0 {
-		limit = int(value)
-	}
-	return page, limit
+// Argument structs, one per tool. `json` names the MCP argument and
+// `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps
+// them in agreement with the tool definitions. The numbers are tagged
+// exact:"true": these tools have always read a number with a float64
+// assertion, so a numeric string is ignored rather than read.
+
+type listArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Page  float64 `json:"page" exact:"true"`
+	Limit float64 `json:"limit" exact:"true"`
 }
 
-type wikiPageSummary struct {
-	Title    string `json:"title"`
-	PageName string `json:"page_name"`
-	SubURL   string `json:"sub_url"`
+type getArgs struct {
+	Owner     string   `json:"owner" required:"true"`
+	Repo      string   `json:"repo" required:"true"`
+	PageName  string   `json:"page_name" required:"true"`
+	StartLine *float64 `json:"start_line" exact:"true"`
+	EndLine   *float64 `json:"end_line" exact:"true"`
 }
 
-type wikiRevisionSummary struct {
-	SHA     string `json:"sha"`
-	Author  string `json:"author"`
+type revisionsArgs struct {
+	Owner    string  `json:"owner" required:"true"`
+	Repo     string  `json:"repo" required:"true"`
+	PageName string  `json:"page_name" required:"true"`
+	Page     float64 `json:"page" exact:"true"`
+	Limit    float64 `json:"limit" exact:"true"`
+}
+
+type createArgs struct {
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Title   string `json:"title" required:"true"`
+	Content string `json:"content" required:"true"`
 	Message string `json:"message"`
 }
 
-type wikiWriteResult struct {
-	Title     string `json:"title"`
-	PageName  string `json:"page_name"`
-	CommitSHA string `json:"commit_sha"`
+type updateArgs struct {
+	Owner    string `json:"owner" required:"true"`
+	Repo     string `json:"repo" required:"true"`
+	PageName string `json:"page_name" required:"true"`
+	Title    string `json:"title"`
+	Content  string `json:"content" required:"true"`
+	Message  string `json:"message"`
 }
 
-func pageSummary(page forge.WikiPageMeta) wikiPageSummary {
-	return wikiPageSummary{Title: page.Title, PageName: page.SubURL, SubURL: page.SubURL}
+type pageArgs struct {
+	Owner    string `json:"owner" required:"true"`
+	Repo     string `json:"repo" required:"true"`
+	PageName string `json:"page_name" required:"true"`
 }
 
-func writeResult(page *forge.WikiPage) wikiWriteResult {
-	return wikiWriteResult{Title: page.Title, PageName: page.SubURL, CommitSHA: page.LastCommit.SHA}
+// run is the shared shape of a tool call: decode the arguments into A, take the
+// use cases bound to this request's credential, and hand both to do, which
+// runs one use case and renders its result.
+func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
+	do func(context.Context, *appwiki.Service, A) (*mcp.CallToolResult, error),
+) (*mcp.CallToolResult, error) {
+	log.Debugf("Called %s", name)
+	var args A
+	if err := decode.Lax(req, &args); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return fail(err)
+	}
+	return do(ctx, appwiki.New(wikiadapter.New(port)), args)
+}
+
+// fail is the one place use-case errors become MCP errors.
+func fail(err error) (*mcp.CallToolResult, error) { return to.ErrorResult(err) }
+
+// render sends a use case's result, or its error, to the client as JSON.
+func render(v any, err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return fail(err)
+	}
+	return to.TextResult(v)
 }
 
 func (h handlers) ListWikiPagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	log.Debugf("Called ListWikiPagesFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repoName, _ := args["repo"].(string)
-	page, limit := pagination(args)
-	listed, err := f.ListWikiPages(ctx, owner, repoName, page, limit)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list wiki pages: %w", err))
-	}
-	pages := listed.Pages
-	hasNext := false
-	if len(pages) == limit {
-		next, err := f.ListWikiPages(ctx, owner, repoName, page+1, limit)
-		if err != nil {
-			return to.ErrorResult(fmt.Errorf("probe next wiki page: %w", err))
-		}
-		hasNext = len(next.Pages) > 0
-	}
-	resultPages := make([]wikiPageSummary, len(pages))
-	for i, wikiPage := range pages {
-		resultPages[i] = pageSummary(wikiPage)
-	}
-	return to.TextResult(struct {
-		Pages      []wikiPageSummary `json:"pages"`
-		Page       int               `json:"page"`
-		HasNext    bool              `json:"has_next"`
-		TotalCount *int              `json:"total_count,omitempty"`
-	}{resultPages, page, hasNext, listed.TotalCount})
+	return run(ctx, h, req, "ListWikiPagesFn", func(ctx context.Context, s *appwiki.Service, a listArgs) (*mcp.CallToolResult, error) {
+		return render(s.List(ctx, appwiki.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
+	})
 }
 
 func (h handlers) GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repoName, _ := args["repo"].(string)
-	pageName, _ := args["page_name"].(string)
-	page, err := f.GetWikiPage(ctx, owner, repoName, pageName)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("get wiki page: %w", err))
-	}
-	decoded, err := base64.StdEncoding.DecodeString(page.ContentBase64)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("decode wiki page content: %w", err))
-	}
-	content := string(decoded)
-	total := len(strings.Split(content, "\n"))
-	start, end := 0, 0
-	startValue, hasStart := args["start_line"].(float64)
-	endValue, hasEnd := args["end_line"].(float64)
-	if hasStart || hasEnd {
-		start, end = int(startValue), int(endValue)
-		content, err = apprepo.SliceLines(content, start, end)
-		if err != nil {
-			return to.ErrorResult(err)
-		}
-		if start <= 0 {
-			start = 1
-		}
-		if end <= 0 || end > total {
-			end = total
-		}
-	}
-	return to.TextResult(struct {
-		Title      string `json:"title"`
-		PageName   string `json:"page_name"`
-		Content    string `json:"content"`
-		CommitSHA  string `json:"commit_sha"`
-		TotalLines int    `json:"total_lines"`
-		StartLine  int    `json:"start_line,omitempty"`
-		EndLine    int    `json:"end_line,omitempty"`
-	}{page.Title, page.SubURL, content, page.LastCommit.SHA, total, start, end})
+	return run(ctx, h, req, "GetWikiPageFn", func(ctx context.Context, s *appwiki.Service, a getArgs) (*mcp.CallToolResult, error) {
+		return render(s.Get(ctx, appwiki.GetRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, StartLine: a.StartLine, EndLine: a.EndLine}))
+	})
 }
 
 func (h handlers) GetWikiRevisionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repoName, _ := args["repo"].(string)
-	pageName, _ := args["page_name"].(string)
-	page, limit := pagination(args)
-	revisions, err := f.GetWikiPageRevisions(ctx, owner, repoName, pageName, page, limit)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("get wiki revisions: %w", err))
-	}
-	hasNext := false
-	if len(revisions.Commits) == limit {
-		next, err := f.GetWikiPageRevisions(ctx, owner, repoName, pageName, page+1, limit)
-		if err != nil {
-			return to.ErrorResult(fmt.Errorf("probe next wiki revision page: %w", err))
-		}
-		hasNext = len(next.Commits) > 0
-	}
-	resultRevisions := make([]wikiRevisionSummary, len(revisions.Commits))
-	for i, revision := range revisions.Commits {
-		resultRevisions[i] = wikiRevisionSummary{SHA: revision.SHA, Author: revision.Author.Name, Message: revision.Message}
-	}
-	// The revisions body carries the page's total revision count directly, so
-	// total_count comes from it rather than the X-Total-Count header: the two
-	// report the same number, the body field is not strippable by a proxy, and
-	// operation/wiki/resources.go already treats it as the authoritative total.
-	return to.TextResult(struct {
-		Revisions  []wikiRevisionSummary `json:"revisions"`
-		Page       int                   `json:"page"`
-		HasNext    bool                  `json:"has_next"`
-		TotalCount int                   `json:"total_count"`
-	}{resultRevisions, page, hasNext, revisions.Count})
+	return run(ctx, h, req, "GetWikiRevisionsFn", func(ctx context.Context, s *appwiki.Service, a revisionsArgs) (*mcp.CallToolResult, error) {
+		return render(s.Revisions(ctx, appwiki.RevisionsRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Page: a.Page, Limit: a.Limit}))
+	})
 }
 
 func (h handlers) CreateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repoName, _ := args["repo"].(string)
-	title, _ := args["title"].(string)
-	content, _ := args["content"].(string)
-	message, _ := args["message"].(string)
-	if message == "" {
-		message = fmt.Sprintf("Create wiki page '%s'", title)
-	}
-	page, err := f.CreateWikiPage(ctx, owner, repoName, title, base64.StdEncoding.EncodeToString([]byte(content)), message)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("create wiki page: %w", err))
-	}
-	return to.TextResult(writeResult(page))
+	return run(ctx, h, req, "CreateWikiPageFn", func(ctx context.Context, s *appwiki.Service, a createArgs) (*mcp.CallToolResult, error) {
+		return render(s.Create(ctx, appwiki.CreateRequest{Owner: a.Owner, Repo: a.Repo, Title: a.Title, Content: a.Content, Message: a.Message}))
+	})
 }
 
 func (h handlers) UpdateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repoName, _ := args["repo"].(string)
-	pageName, _ := args["page_name"].(string)
-	title, _ := args["title"].(string)
-	content, _ := args["content"].(string)
-	message, _ := args["message"].(string)
-	if title == "" {
-		current, err := f.GetWikiPage(ctx, owner, repoName, pageName)
-		if err != nil {
-			return to.ErrorResult(fmt.Errorf("read wiki page before update: %w", err))
-		}
-		title = current.Title
-	}
-	if message == "" {
-		message = fmt.Sprintf("Update wiki page '%s'", pageName)
-	}
-	page, err := f.EditWikiPage(ctx, owner, repoName, pageName, title, base64.StdEncoding.EncodeToString([]byte(content)), message)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("update wiki page: %w", err))
-	}
-	return to.TextResult(writeResult(page))
+	return run(ctx, h, req, "UpdateWikiPageFn", func(ctx context.Context, s *appwiki.Service, a updateArgs) (*mcp.CallToolResult, error) {
+		return render(s.Update(ctx, appwiki.UpdateRequest{
+			Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Title: a.Title, Content: a.Content, Message: a.Message,
+		}))
+	})
 }
 
 func (h handlers) DeleteWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repoName, _ := args["repo"].(string)
-	pageName, _ := args["page_name"].(string)
-	if err := f.DeleteWikiPage(ctx, owner, repoName, pageName); err != nil {
-		return to.ErrorResult(fmt.Errorf("delete wiki page: %w", err))
-	}
-	return to.TextResult(struct {
-		Deleted  bool   `json:"deleted"`
-		PageName string `json:"page_name"`
-	}{true, pageName})
+	return run(ctx, h, req, "DeleteWikiPageFn", func(ctx context.Context, s *appwiki.Service, a pageArgs) (*mcp.CallToolResult, error) {
+		return render(s.Delete(ctx, appwiki.PageRef{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName}))
+	})
 }
