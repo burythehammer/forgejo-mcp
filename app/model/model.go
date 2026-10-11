@@ -238,3 +238,82 @@ type User struct {
 	FollowingCount   int       `json:"following_count"`
 	StarredRepoCount int       `json:"starred_repos_count"`
 }
+
+// ScopedLabel is a label listed for an issue, tagged with where it lives:
+// "repo" for the repository's own labels, "org" for its organization's.
+type ScopedLabel struct {
+	Label
+	Scope string `json:"scope"`
+}
+
+// PullRequestMeta is the pull-request link an issue carries when the issue is
+// a pull request.
+type PullRequestMeta struct {
+	HasMerged bool       `json:"merged"`
+	Merged    *time.Time `json:"merged_at"`
+}
+
+// RepositoryMeta is the repository an issue belongs to, as an issue carries it.
+type RepositoryMeta struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Owner    string `json:"owner"`
+	FullName string `json:"full_name"`
+}
+
+type Issue struct {
+	ID               int64            `json:"id"`
+	URL              string           `json:"url"`
+	HTMLURL          string           `json:"html_url"`
+	Index            int64            `json:"number"`
+	Poster           *User            `json:"user"`
+	OriginalAuthor   string           `json:"original_author"`
+	OriginalAuthorID int64            `json:"original_author_id"`
+	Title            string           `json:"title"`
+	Body             string           `json:"body"`
+	Ref              string           `json:"ref"`
+	Labels           []*Label         `json:"labels"`
+	Milestone        *Milestone       `json:"milestone"`
+	Assignees        []*User          `json:"assignees"`
+	State            string           `json:"state"`
+	IsLocked         bool             `json:"is_locked"`
+	Comments         int              `json:"comments"`
+	Created          time.Time        `json:"created_at"`
+	Updated          time.Time        `json:"updated_at"`
+	Closed           *time.Time       `json:"closed_at"`
+	Deadline         *time.Time       `json:"due_date"`
+	PullRequest      *PullRequestMeta `json:"pull_request"`
+	Repository       *RepositoryMeta  `json:"repository"`
+}
+
+type Comment struct {
+	ID               int64     `json:"id"`
+	HTMLURL          string    `json:"html_url"`
+	PRURL            string    `json:"pull_request_url"`
+	IssueURL         string    `json:"issue_url"`
+	Poster           *User     `json:"user"`
+	OriginalAuthor   string    `json:"original_author"`
+	OriginalAuthorID int64     `json:"original_author_id"`
+	Body             string    `json:"body"`
+	Created          time.Time `json:"created_at"`
+	Updated          time.Time `json:"updated_at"`
+}
+
+// IssueSearchPage is the response of search_issues: the issues with the
+// continuation signal of docs/design/output-bounding.md.
+type IssueSearchPage struct {
+	Issues     []*Issue `json:"issues"`
+	Page       int      `json:"page"`
+	Limit      int      `json:"limit"`
+	Count      int      `json:"count"`
+	HasNext    bool     `json:"has_next"`
+	TotalCount *int     `json:"total_count,omitempty"`
+}
+
+// DependencyPage is one page of an issue's dependencies or dependents, with
+// the page and limit that were requested so the caller can fetch the next.
+type DependencyPage struct {
+	Page   int      `json:"page"`
+	Limit  int      `json:"limit"`
+	Issues []*Issue `json:"issues"`
+}
