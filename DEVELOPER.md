@@ -74,6 +74,10 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 | `pkg/forge/sdk/` | The one real adapter: `Factory` (credential policy, startup checks) and `Adapter` over the SDK and one raw-HTTP client; the only package that touches the SDK client or the raw transport |
 | `pkg/forge/fake/` | Stateful in-memory `forge.Forgejo` for handler tests |
 | `pkg/forge/forgetest/` | Contract suite run against the fake and the adapter, and the shared stub server |
+| `app/<domain>/` | Use cases (ADR 0003): typed inputs, a domain port, repo-owned results. No mcp-go or SDK import (`scripts/ci/check-app-boundary.sh`) |
+| `app/model/` | Repo-owned domain types that use cases return (wire-shaped copies of the SDK types) |
+| `operation/decode/`, `operation/mcptest/` | Argument decoding into per-tool structs; golden, schema-snapshot and args-vs-schema test helpers |
+| `pkg/forge/<domain>adapter/` | Bridge from a use case's port to `forge.<Domain>`: the one place SDK and repo-owned types are translated |
 | `pkg/to/` | Response formatting helpers (`TextResult`, `ErrorResult`) |
 | `pkg/params/` | Shared parameter descriptions for tool definitions |
 | `pkg/config/` | Typed Config, `Load` and `Validate` |
@@ -122,6 +126,51 @@ into every `RegisterTool`/`Register...Resource`. The credential policy (does a
 request with no token of its own fall back to the operator's?) is a Factory
 option, chosen in `operation.newFactory`; `Factory.VerifyConnection(ctx)` is the
 startup gate `Run` calls before serving.
+
+## Splitting a domain into MCP adapters and use cases
+
+ADR 0003 splits every tool into an MCP adapter (`operation/<domain>`) and an
+MCP-free use case (`app/<domain>`). `version` is the smallest example and `pull`
+(all 16 pull tools) the reference for a domain with a port. Per domain:
+
+1. **Pin first.** Before moving anything, write the characterisation tests
+   against the existing code: `mcptest.SchemaSnapshot` for each tool and
+   `mcptest.Golden` for each case's output and error text (see
+   `operation/pull/golden_test.go`: a stub `forge.Forgejo` returning fixed,
+   fully populated SDK data and recording the port calls, rendered together).
+   Create the files with `go test ./operation/<domain> -update`. They must pass
+   unchanged after the move: tool names, schemas, output bytes and error text
+   are frozen.
+2. **Use case** (`app/<domain>`): a `Port` interface in repo-owned types
+   (`port.go`), a `Service` with one method per tool taking a typed input
+   (`service.go`; defaults and parsing live here), and the few typed error
+   kinds callers can act on (`errors.go`; text must stay what the tool said,
+   Forgejo failures are wrapped `fmt.Errorf("<op> err: %w", err)`). Results come
+   from `app/model`; add the wire-shaped types a domain needs there.
+3. **Port bridge** (`pkg/forge/<domain>adapter`): `New(forge.<Domain>) app.Port`
+   translates inputs to SDK options and converts SDK results to `app/model`
+   values through JSON. `shape_test.go` there fails if an SDK upgrade changes a
+   shape the model copies. The shared `forge.<Domain>` stays SDK-typed (the
+   resources and contract suite use it) until #8 retires it.
+4. **MCP adapter** (`operation/<domain>/handlers.go`): one argument struct per
+   tool (`json:"name"`, `required:"true"`; mind that `decode.Args` also accepts
+   string-encoded numbers), and each handler is a few lines through the generic
+   `run` helper: decode, build `apppull.New(pulladapter.New(port))`, call the
+   use case, render with `to.TextResult` / plain text. Use-case errors become
+   MCP errors in one function (`fail`); invalid or missing arguments are a tool
+   error result (`mcp.NewToolResultError`). Keep the exported `XxxTool`
+   definitions and `XxxToolName` constants as they were.
+5. **Tests.** Use cases: `app/<domain>/service_test.go`, an external test
+   package over the in-memory fake through the bridge (no SDK import allowed
+   under `app/`, so seed through the fake's SDK-free helpers or the use case
+   itself). Adapter: the goldens and snapshots, `mcptest.ArgsMatchSchema` per
+   argument struct, a thin table test that tools reach their use case, the
+   failure paths, and one `httptest` smoke test through the real SDK adapter
+   (`forgetest.NewStub`). New tests call `t.Parallel()`. Retire old handler
+   tests only where a use-case or golden test covers the behaviour.
+6. **Docs.** README tool tables stay complete
+   (`scripts/ci/check-readme-tool-coverage.sh`); update any spec that names a
+   moved symbol.
 
 ## Adding a New Tool
 
@@ -210,6 +259,10 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 ## Key Patterns
 
 ### Parameter Handling
+
+Migrated domains (`version`, `pull`) decode arguments into a per-tool struct
+with `decode.Args`; see "Splitting a domain into MCP adapters and use cases".
+Not-yet-migrated tools still read the argument map directly:
 
 - String parameters: `value, _ := req.Params.Arguments["param"].(string)`
 - Number parameters: `value, _ := req.Params.Arguments["num"].(float64)` (always float64)
