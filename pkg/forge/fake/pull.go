@@ -79,6 +79,7 @@ func user(name string) *forgejo_sdk.User { return &forgejo_sdk.User{UserName: na
 // AddRepo makes owner/repo exist. Everything else under an unknown repository
 // is 404, as on Forgejo.
 func (f *Forgejo) AddRepo(owner, repo string) {
+	f.files.addRepo(owner, repo)
 	f.pulls.mu.Lock()
 	defer f.pulls.mu.Unlock()
 	if f.pulls.repos == nil {

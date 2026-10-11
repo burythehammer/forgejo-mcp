@@ -10,17 +10,21 @@ import (
 	"unicode/utf8"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func RegisterWikiResource(s *server.MCPServer) {
+// RegisterWikiResource registers the wiki page resource template, served from
+// the factory like the tools.
+func RegisterWikiResource(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
 	resource.RegisterTemplate(s,
 		"forgejo://repo/{owner}/{repo}/wiki/{pageName}",
 		"Forgejo Wiki Page",
-		wikiResourceHandler,
+		h.wikiResourceHandler,
 		mcp.WithTemplateDescription("Single wiki page metadata plus a text/markdown sidecar. URI: forgejo://repo/{owner}/{repo}/wiki/{pageName}. Use the server-normalized page name and percent-encode characters such as slash (%2F) and space (%20), for example Guides%2FGetting%20Started. If slash-bearing names cannot resolve through the resource, use get_wiki_page."),
 		mcp.WithTemplateMIMEType("application/json"),
 	)
@@ -46,13 +50,17 @@ type wikiResourcePayload struct {
 	Sentinel        string            `json:"sentinel,omitempty"`
 }
 
-func wikiResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) wikiResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseWiki(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
-	page, err := forgejo.GetWikiPage(ctx, p.Owner, p.Repo, p.PageName)
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return nil, resource.MapForgejoError(uri, err)
+	}
+	page, err := f.GetWikiPage(ctx, p.Owner, p.Repo, p.PageName)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
@@ -64,7 +72,7 @@ func wikiResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mc
 	refs := make([]wikiRevisionRef, 0)
 	revisionIDs := make([]string, 0)
 	revisionCount := 0
-	if revisions, revisionErr := forgejo.GetWikiPageRevisions(ctx, p.Owner, p.Repo, p.PageName, 1, resource.EmbeddedListCap+1); revisionErr == nil {
+	if revisions, revisionErr := f.GetWikiPageRevisions(ctx, p.Owner, p.Repo, p.PageName, 1, resource.EmbeddedListCap+1); revisionErr == nil {
 		revisionCount = revisions.Count
 		for _, revision := range revisions.Commits {
 			refs = append(refs, wikiRevisionRef{SHA: revision.SHA, Author: revision.Author.Name, Message: revision.Message})

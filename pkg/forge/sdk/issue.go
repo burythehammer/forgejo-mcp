@@ -4,7 +4,6 @@ package sdk
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -39,15 +38,6 @@ func headerPageInfo(h http.Header) forge.PageInfo {
 	return info
 }
 
-// rawErr gives a raw-HTTP failure the same shape as an SDK one.
-func rawErr(err error) error {
-	var he *forgejo.HTTPError
-	if errors.As(err, &he) {
-		return &forge.StatusError{StatusCode: he.StatusCode, Err: err}
-	}
-	return err
-}
-
 func (a *Adapter) GetIssue(_ context.Context, owner, repo string, index int64) (*forgejo_sdk.Issue, error) {
 	iss, resp, err := a.client.GetIssue(owner, repo, index)
 	return iss, statusErr(resp, err)
@@ -63,12 +53,12 @@ func (a *Adapter) ListRepoIssues(ctx context.Context, owner, repo string, opt fo
 	// endpoint answers 200 [] for a repo with no issues, so a 404 means the
 	// repository does not exist and must not read as "no issues".
 	if opt.Sort != "" {
-		query := opt.ListIssueOption.QueryEncode() + "&sort=" + url.QueryEscape(opt.Sort)
-		path := a.rawBase + forgejo.APIPath("repos", owner, repo, "issues") + "?" + query
+		query := opt.QueryEncode() + "&sort=" + url.QueryEscape(opt.Sort)
+		path := forgejo.APIPath("repos", owner, repo, "issues") + "?" + query
 		var issues []*forgejo_sdk.Issue
-		header, err := forgejo.DoJSONWithHeader(ctx, http.MethodGet, path, nil, &issues)
+		header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
 		if err != nil {
-			return nil, forge.PageInfo{}, rawErr(err)
+			return nil, forge.PageInfo{}, err
 		}
 		return issues, headerPageInfo(header), nil
 	}
@@ -131,12 +121,7 @@ func (a *Adapter) ListRepoMilestones(_ context.Context, owner, repo string, opt 
 	return ms, statusErr(resp, err)
 }
 
-// MaxResponseItems reads the instance setting, cached per instance. An adapter
-// pointed at a stub (rawBase set) reports it unknown: the settings endpoint is
-// not modelled there.
+// MaxResponseItems reads the instance setting, cached per instance.
 func (a *Adapter) MaxResponseItems(ctx context.Context) (int, bool) {
-	if a.rawBase != "" {
-		return 0, false
-	}
 	return forgejo.MaxResponseItems(ctx)
 }

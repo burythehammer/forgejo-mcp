@@ -10,7 +10,7 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/repo"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -79,14 +79,21 @@ var DeleteWikiPageTool = mcp.NewTool(DeleteWikiPageToolName,
 	mcp.WithString("page_name", mcp.Required(), mcp.Description(params.WikiPage)),
 )
 
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(ListWikiPagesTool, ListWikiPagesFn)
-	s.AddTool(GetWikiPageTool, GetWikiPageFn)
-	s.AddTool(GetWikiRevisionsTool, GetWikiRevisionsFn)
-	s.AddTool(CreateWikiPageTool, CreateWikiPageFn)
-	s.AddTool(UpdateWikiPageTool, UpdateWikiPageFn)
-	s.AddTool(DeleteWikiPageTool, DeleteWikiPageFn)
+// RegisterTool registers the wiki tools. Each call takes its Forgejo port from
+// f, so it runs under the credential of the request that made it.
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(ListWikiPagesTool, h.ListWikiPagesFn)
+	s.AddTool(GetWikiPageTool, h.GetWikiPageFn)
+	s.AddTool(GetWikiRevisionsTool, h.GetWikiRevisionsFn)
+	s.AddTool(CreateWikiPageTool, h.CreateWikiPageFn)
+	s.AddTool(UpdateWikiPageTool, h.UpdateWikiPageFn)
+	s.AddTool(DeleteWikiPageTool, h.DeleteWikiPageFn)
 }
+
+// handlers serve the wiki tools and resource. They hold the factory rather than
+// a port so each request gets its own credential.
+type handlers struct{ forge forge.Factory }
 
 func pagination(args map[string]any) (int, int) {
 	page, limit := 1, defaultLimit
@@ -117,31 +124,36 @@ type wikiWriteResult struct {
 	CommitSHA string `json:"commit_sha"`
 }
 
-func pageSummary(page forgejo.WikiPageMeta) wikiPageSummary {
+func pageSummary(page forge.WikiPageMeta) wikiPageSummary {
 	return wikiPageSummary{Title: page.Title, PageName: page.SubURL, SubURL: page.SubURL}
 }
 
-func writeResult(page *forgejo.WikiPage) wikiWriteResult {
+func writeResult(page *forge.WikiPage) wikiWriteResult {
 	return wikiWriteResult{Title: page.Title, PageName: page.SubURL, CommitSHA: page.LastCommit.SHA}
 }
 
-func ListWikiPagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListWikiPagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	log.Debugf("Called ListWikiPagesFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
 	repoName, _ := args["repo"].(string)
 	page, limit := pagination(args)
-	pages, header, err := forgejo.ListWikiPages(ctx, owner, repoName, page, limit)
+	listed, err := f.ListWikiPages(ctx, owner, repoName, page, limit)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list wiki pages: %w", err))
 	}
+	pages := listed.Pages
 	hasNext := false
 	if len(pages) == limit {
-		next, _, err := forgejo.ListWikiPages(ctx, owner, repoName, page+1, limit)
+		next, err := f.ListWikiPages(ctx, owner, repoName, page+1, limit)
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("probe next wiki page: %w", err))
 		}
-		hasNext = len(next) > 0
+		hasNext = len(next.Pages) > 0
 	}
 	resultPages := make([]wikiPageSummary, len(pages))
 	for i, wikiPage := range pages {
@@ -152,15 +164,19 @@ func ListWikiPagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 		Page       int               `json:"page"`
 		HasNext    bool              `json:"has_next"`
 		TotalCount *int              `json:"total_count,omitempty"`
-	}{resultPages, page, hasNext, forgejo.TotalCountPtr(header)})
+	}{resultPages, page, hasNext, listed.TotalCount})
 }
 
-func GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
 	repoName, _ := args["repo"].(string)
 	pageName, _ := args["page_name"].(string)
-	page, err := forgejo.GetWikiPage(ctx, owner, repoName, pageName)
+	page, err := f.GetWikiPage(ctx, owner, repoName, pageName)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get wiki page: %w", err))
 	}
@@ -197,19 +213,23 @@ func GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	}{page.Title, page.SubURL, content, page.LastCommit.SHA, total, start, end})
 }
 
-func GetWikiRevisionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetWikiRevisionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
 	repoName, _ := args["repo"].(string)
 	pageName, _ := args["page_name"].(string)
 	page, limit := pagination(args)
-	revisions, err := forgejo.GetWikiPageRevisions(ctx, owner, repoName, pageName, page, limit)
+	revisions, err := f.GetWikiPageRevisions(ctx, owner, repoName, pageName, page, limit)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get wiki revisions: %w", err))
 	}
 	hasNext := false
 	if len(revisions.Commits) == limit {
-		next, err := forgejo.GetWikiPageRevisions(ctx, owner, repoName, pageName, page+1, limit)
+		next, err := f.GetWikiPageRevisions(ctx, owner, repoName, pageName, page+1, limit)
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("probe next wiki revision page: %w", err))
 		}
@@ -231,7 +251,11 @@ func GetWikiRevisionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 	}{resultRevisions, page, hasNext, revisions.Count})
 }
 
-func CreateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
 	repoName, _ := args["repo"].(string)
@@ -241,14 +265,18 @@ func CreateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 	if message == "" {
 		message = fmt.Sprintf("Create wiki page '%s'", title)
 	}
-	page, err := forgejo.CreateWikiPage(ctx, owner, repoName, title, base64.StdEncoding.EncodeToString([]byte(content)), message)
+	page, err := f.CreateWikiPage(ctx, owner, repoName, title, base64.StdEncoding.EncodeToString([]byte(content)), message)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create wiki page: %w", err))
 	}
 	return to.TextResult(writeResult(page))
 }
 
-func UpdateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) UpdateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
 	repoName, _ := args["repo"].(string)
@@ -257,7 +285,7 @@ func UpdateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 	content, _ := args["content"].(string)
 	message, _ := args["message"].(string)
 	if title == "" {
-		current, err := forgejo.GetWikiPage(ctx, owner, repoName, pageName)
+		current, err := f.GetWikiPage(ctx, owner, repoName, pageName)
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("read wiki page before update: %w", err))
 		}
@@ -266,19 +294,23 @@ func UpdateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 	if message == "" {
 		message = fmt.Sprintf("Update wiki page '%s'", pageName)
 	}
-	page, err := forgejo.EditWikiPage(ctx, owner, repoName, pageName, title, base64.StdEncoding.EncodeToString([]byte(content)), message)
+	page, err := f.EditWikiPage(ctx, owner, repoName, pageName, title, base64.StdEncoding.EncodeToString([]byte(content)), message)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("update wiki page: %w", err))
 	}
 	return to.TextResult(writeResult(page))
 }
 
-func DeleteWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
 	repoName, _ := args["repo"].(string)
 	pageName, _ := args["page_name"].(string)
-	if err := forgejo.DeleteWikiPage(ctx, owner, repoName, pageName); err != nil {
+	if err := f.DeleteWikiPage(ctx, owner, repoName, pageName); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete wiki page: %w", err))
 	}
 	return to.TextResult(struct {

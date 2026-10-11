@@ -34,9 +34,17 @@ type Harness struct {
 // contributes the methods it needs; the fake provides them all.
 type Seeder interface {
 	AddRepo(owner, repo string)
+	AddUser(login string)
+	AddOrgMember(org, login string) error
+	AddNotification(owner, repo, title string, unread bool) *forgejo_sdk.NotificationThread
 	SetPullRequestDiff(owner, repo string, index int64, diff string) error
 	SetPullRequestFiles(owner, repo string, index int64, files ...*forgejo_sdk.ChangedFile) error
 	AddPullRequestComment(owner, repo string, index int64, author, body string) (*forgejo_sdk.Comment, error)
+	SetFile(owner, repo, branch, path, content string) error
+	AddCommit(owner, repo, sha, message string, paths ...string) error
+	AddCommitStatus(owner, repo, sha, statusContext string, state forgejo_sdk.StatusState, description string) error
+	AddPackageOwner(owner string)
+	AddPackage(owner string, v forge.PackageVersion, files ...forge.PackageFile) forge.PackageVersion
 	SeedIssueLabel(owner, repo, name string) int64
 	SeedMilestone(owner, repo, title string) int64
 	CloseMilestone(owner, repo string, id int64)

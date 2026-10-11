@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package user
 
 import (
@@ -5,86 +7,25 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func makeOwnerResourceRequest(owner string) mcp.ReadResourceRequest {
-	return mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: "forgejo://owner/" + owner,
-		},
-	}
+func readOwner(h handlers, owner string) ([]mcp.ResourceContents, error) {
+	return h.ownerResourceHandler(context.Background(), mcp.ReadResourceRequest{
+		Params: mcp.ReadResourceParams{URI: "forgejo://owner/" + owner},
+	})
 }
 
-// routingHandler routes /users/{login} and /orgs/{orgname} to separate handlers.
-type routingHandler struct {
-	userStatus int
-	userBody   interface{}
-	orgStatus  int
-	orgBody    interface{}
-}
-
-func (h *routingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	if strings.Contains(r.URL.Path, "/users/") {
-		w.WriteHeader(h.userStatus)
-		if h.userBody != nil {
-			json.NewEncoder(w).Encode(h.userBody)
-		}
-		return
-	}
-	if strings.Contains(r.URL.Path, "/orgs/") {
-		w.WriteHeader(h.orgStatus)
-		if h.orgBody != nil {
-			json.NewEncoder(w).Encode(h.orgBody)
-		}
-		return
-	}
-	w.WriteHeader(http.StatusNotFound)
-}
-
-func setupOwnerMockServer(t *testing.T, h *routingHandler) *httptest.Server {
+func ownerPayload(t *testing.T, contents []mcp.ResourceContents) ownerResourcePayload {
 	t.Helper()
-	srv := httptest.NewServer(h)
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
-	}
-	forgejo.SetClientForTesting(client)
-	return srv
-}
-
-func TestOwnerResourceHandler_HappyPath_User(t *testing.T) {
-	h := &routingHandler{
-		userStatus: http.StatusOK,
-		userBody: map[string]interface{}{
-			"login":           "alice",
-			"full_name":       "Alice Smith",
-			"html_url":        "https://codeberg.org/alice",
-			"description":     "open source dev",
-			"location":        "Berlin",
-			"website":         "https://alice.dev",
-			"created":         "2020-01-01T00:00:00Z",
-			"followers_count": 10,
-			"following_count": 5,
-		},
-	}
-	srv := setupOwnerMockServer(t, h)
-	defer srv.Close()
-
-	req := makeOwnerResourceRequest("alice")
-	contents, err := ownerResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 	if len(contents) != 1 {
 		t.Fatalf("expected 1 content block, got %d", len(contents))
 	}
@@ -96,152 +37,108 @@ func TestOwnerResourceHandler_HappyPath_User(t *testing.T) {
 	if err := json.Unmarshal([]byte(block.Text), &payload); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if payload.Kind != "user" {
-		t.Errorf("expected kind=user, got %q", payload.Kind)
+	return payload
+}
+
+// failing makes the named lookups fail with the given status, whatever the
+// underlying fake holds.
+type failing struct {
+	forge.Forgejo
+	userStatus, orgStatus int
+}
+
+func (f failing) GetUserInfo(ctx context.Context, name string) (*forgejo_sdk.User, error) {
+	if f.userStatus != 0 {
+		return nil, &forge.StatusError{StatusCode: f.userStatus, Err: errors.New("user lookup failed")}
 	}
-	if payload.Login != "alice" {
-		t.Errorf("expected login=alice, got %q", payload.Login)
+	return f.Forgejo.GetUserInfo(ctx, name)
+}
+
+func (f failing) GetOrg(ctx context.Context, name string) (*forgejo_sdk.Organization, error) {
+	if f.orgStatus != 0 {
+		return nil, &forge.StatusError{StatusCode: f.orgStatus, Err: errors.New("upstream timeout")}
+	}
+	return f.Forgejo.GetOrg(ctx, name)
+}
+
+func TestOwnerResourceHandler_User(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture()
+	f.AddUser("alice")
+	p := ownerPayload(t, mustRead(t, h, "alice"))
+	if p.Kind != "user" || p.Login != "alice" {
+		t.Fatalf("got %+v", p)
 	}
 }
 
-func TestOwnerResourceHandler_HappyPath_OrgFallback(t *testing.T) {
-	h := &routingHandler{
-		userStatus: http.StatusNotFound,
-		userBody:   map[string]string{"message": "user not found"},
-		orgStatus:  http.StatusOK,
-		orgBody: map[string]interface{}{
-			"username":    "forgejo-org",
-			"full_name":   "Forgejo Community",
-			"description": "The Forgejo org",
-			"location":    "Internet",
-			"website":     "https://forgejo.org",
-		},
-	}
-	srv := setupOwnerMockServer(t, h)
-	defer srv.Close()
-
-	req := makeOwnerResourceRequest("forgejo-org")
-	contents, err := ownerResourceHandler(context.Background(), req)
+func mustRead(t *testing.T, h handlers, owner string) []mcp.ResourceContents {
+	t.Helper()
+	c, err := readOwner(h, owner)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	block := contents[0].(mcp.TextResourceContents)
-	var payload ownerResourcePayload
-	if err := json.Unmarshal([]byte(block.Text), &payload); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+	return c
+}
+
+func TestOwnerResourceHandler_OrgFallback(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture()
+	if _, err := f.CreateOrg(context.Background(), forgejo_sdk.CreateOrgOption{
+		Name: "forgejo-org", FullName: "Forgejo Community", Description: "The Forgejo org", Location: "Internet", Website: "https://forgejo.org",
+	}); err != nil {
+		t.Fatal(err)
 	}
-	if payload.Kind != "org" {
-		t.Errorf("expected kind=org, got %q", payload.Kind)
+	p := ownerPayload(t, mustRead(t, h, "forgejo-org"))
+	if p.Kind != "org" || p.Login != "forgejo-org" || p.FullName != "Forgejo Community" || p.Website != "https://forgejo.org" {
+		t.Fatalf("got %+v", p)
 	}
 }
 
 func TestOwnerResourceHandler_BothNotFound(t *testing.T) {
-	h := &routingHandler{
-		userStatus: http.StatusNotFound,
-		userBody:   map[string]string{"message": "not found"},
-		orgStatus:  http.StatusNotFound,
-		orgBody:    map[string]string{"message": "not found"},
+	t.Parallel()
+	h, _ := newFixture()
+	_, err := readOwner(h, "ghost")
+	var resErr *resource.ResourceError
+	if !errors.As(err, &resErr) {
+		t.Fatalf("expected *resource.ResourceError, got %T: %v", err, err)
 	}
-	srv := setupOwnerMockServer(t, h)
-	defer srv.Close()
-
-	req := makeOwnerResourceRequest("nobody")
-	_, err := ownerResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error when both user and org return 404")
+	if resErr.Code != -32003 || !strings.Contains(resErr.Message, "owner not found") {
+		t.Fatalf("got %+v", resErr)
 	}
 }
 
-func TestOwnerResourceHandler_UserForbidden(t *testing.T) {
-	h := &routingHandler{
-		userStatus: http.StatusForbidden,
-		userBody:   map[string]string{"message": "Forbidden"},
-	}
-	srv := setupOwnerMockServer(t, h)
-	defer srv.Close()
-
-	req := makeOwnerResourceRequest("secretuser")
-	_, err := ownerResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for 403")
+func TestOwnerResourceHandler_UserForbiddenIsNotMaskedByOrgFallback(t *testing.T) {
+	t.Parallel()
+	f := fake.New()
+	f.AddUser("secret")
+	h := handlers{forge: fake.Factory{Forgejo: failing{Forgejo: f, userStatus: http.StatusForbidden}}}
+	_, err := readOwner(h, "secret")
+	if err == nil || !strings.Contains(err.Error(), "403") {
+		t.Fatalf("expected the 403 to surface, got %v", err)
 	}
 }
 
-func TestOwnerResourceHandler_BothNotFound_Returns32003(t *testing.T) {
-	h := &routingHandler{
-		userStatus: http.StatusNotFound,
-		userBody:   map[string]string{"message": "not found"},
-		orgStatus:  http.StatusNotFound,
-		orgBody:    map[string]string{"message": "not found"},
-	}
-	srv := setupOwnerMockServer(t, h)
-	defer srv.Close()
-
-	req := makeOwnerResourceRequest("ghost")
-	_, err := ownerResourceHandler(context.Background(), req)
+func TestOwnerResourceHandler_OrgServerErrorSurfacesOrgError(t *testing.T) {
+	t.Parallel()
+	h := handlers{forge: fake.Factory{Forgejo: failing{Forgejo: fake.New(), orgStatus: http.StatusInternalServerError}}}
+	_, err := readOwner(h, "flaky-org")
 	if err == nil {
-		t.Fatal("expected error when both user and org return 404")
+		t.Fatal("expected an error when the org lookup returns 500")
 	}
 	var resErr *resource.ResourceError
 	if !errors.As(err, &resErr) {
 		t.Fatalf("expected *resource.ResourceError, got %T: %v", err, err)
 	}
-	if resErr.Code != -32003 {
-		t.Errorf("expected Code -32003, got %d", resErr.Code)
-	}
-	if !strings.Contains(resErr.Message, "owner not found") {
-		t.Errorf("expected message to contain 'owner not found', got %q", resErr.Message)
+	if strings.Contains(resErr.Message, "owner not found") || !strings.Contains(resErr.Message, "500") {
+		t.Fatalf("expected the org's 500, got %q", resErr.Message)
 	}
 }
 
-func TestOwnerResourceHandler_OrgTransportError_Surfaces_OrgErr(t *testing.T) {
-	// User returns 404; org endpoint returns a 500 (non-404 error with body present).
-	h := &routingHandler{
-		userStatus: http.StatusNotFound,
-		userBody:   map[string]string{"message": "not found"},
-		orgStatus:  http.StatusInternalServerError,
-		orgBody:    map[string]string{"message": "upstream timeout"},
-	}
-	srv := setupOwnerMockServer(t, h)
-	defer srv.Close()
-
-	req := makeOwnerResourceRequest("flaky-org")
-	_, err := ownerResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error when org returns 500")
-	}
-	var resErr *resource.ResourceError
-	if !errors.As(err, &resErr) {
-		t.Fatalf("expected *resource.ResourceError, got %T: %v", err, err)
-	}
-	// Must NOT be the original user 404 message — should contain org error signal.
-	if strings.Contains(resErr.Message, "not found: ") && !strings.Contains(resErr.Message, "500") {
-		t.Errorf("error appears to surface user 404 instead of org error: %q", resErr.Message)
-	}
-}
-
-func TestOwnerResourceHandler_UserNilErr_OrgNotFound_Returns32003(t *testing.T) {
-	// SDK edge: user endpoint returns 404 with empty body (u==nil, userErr may be nil
-	// depending on SDK version). Org also 404 → must return explicit -32003, not (nil,nil).
-	h := &routingHandler{
-		userStatus: http.StatusNotFound,
-		userBody:   nil, // empty body — SDK may return nil error
-		orgStatus:  http.StatusNotFound,
-		orgBody:    map[string]string{"message": "not found"},
-	}
-	srv := setupOwnerMockServer(t, h)
-	defer srv.Close()
-
-	req := makeOwnerResourceRequest("phantom")
-	_, err := ownerResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error, not (nil,nil), when both endpoints 404")
-	}
-	var resErr *resource.ResourceError
-	if !errors.As(err, &resErr) {
-		t.Fatalf("expected *resource.ResourceError, got %T: %v", err, err)
-	}
-	if resErr.Code != -32003 {
-		t.Errorf("expected Code -32003, got %d", resErr.Code)
+func TestOwnerResourceHandler_CredentialPolicyError(t *testing.T) {
+	t.Parallel()
+	h := handlers{forge: fake.Factory{Err: errors.New("no credential")}}
+	_, err := readOwner(h, "alice")
+	if err == nil || !strings.Contains(err.Error(), "no credential") {
+		t.Fatalf("got %v", err)
 	}
 }

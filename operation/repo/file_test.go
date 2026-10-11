@@ -3,23 +3,11 @@ package repo
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
+	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
-
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
-
-// apiFileRequest mirrors the Forgejo API request body for create/update file.
-type apiFileRequest struct {
-	Content string `json:"content"`
-}
 
 func newCallToolRequest(args map[string]interface{}) mcp.CallToolRequest {
 	return mcp.CallToolRequest{
@@ -29,486 +17,257 @@ func newCallToolRequest(args map[string]interface{}) mcp.CallToolRequest {
 	}
 }
 
-// setupMockServer creates an httptest server that captures the request body
-// and returns a minimal valid FileResponse. It returns the server and a
-// pointer to the captured request body bytes.
-func setupMockServer(t *testing.T) (*httptest.Server, *[]byte) {
+// fileOnMain reads a file back through the port, as the tool's caller would.
+func fileOnMain(t *testing.T, h handlers, filePath string) []byte {
 	t.Helper()
-	var captured []byte
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("reading request body: %v", err)
-		}
-		captured = body
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"content": map[string]interface{}{
-				"name": "test.txt",
-				"path": "test.txt",
-				"sha":  "abc123",
-			},
-		})
-	}))
-
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
+	port, err := h.forge.For(context.Background())
 	if err != nil {
-		t.Fatalf("creating test client: %v", err)
+		t.Fatal(err)
 	}
-	forgejo.SetClientForTesting(client)
-
-	return srv, &captured
+	b, err := port.GetFile(context.Background(), filesOwner, filesRepo, "main", filePath)
+	if err != nil {
+		t.Fatalf("reading %s back: %v", filePath, err)
+	}
+	return b
 }
 
-// setupRawMockServer creates an httptest server that serves raw file content,
-// simulating the Forgejo /raw/ endpoint used by GetFile.
-func setupRawMockServer(t *testing.T, responseBody string, statusCode int) *httptest.Server {
-	t.Helper()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(statusCode)
-		fmt.Fprint(w, responseBody)
-	}))
-
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
-	}
-	forgejo.SetClientForTesting(client)
-
-	return srv
-}
-
-func TestCreateFileFn_Base64EncodesContent(t *testing.T) {
-	srv, captured := setupMockServer(t)
-	defer srv.Close()
-
+func TestCreateFileFn_StoresPlainContent(t *testing.T) {
+	t.Parallel()
+	h, _ := newFilesFixture(t)
 	plainText := "Hello, World!\nThis is a test file."
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":       "testowner",
-		"repo":        "testrepo",
-		"filePath":    "test.txt",
-		"content":     plainText,
-		"message":     "add test file",
-		"branch_name": "main",
-	})
-
-	result, err := CreateFileFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("CreateFileFn returned error: %v", err)
+	result, err := h.CreateFileFn(context.Background(), filesReq(map[string]any{
+		"filePath": "test.txt", "content": plainText, "message": "add test file", "branch_name": "main",
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("err=%v result=%v", err, result)
 	}
-	if result.IsError {
-		t.Fatalf("CreateFileFn returned tool error")
-	}
-
-	var body apiFileRequest
-	if err := json.Unmarshal(*captured, &body); err != nil {
-		t.Fatalf("unmarshaling captured body: %v", err)
-	}
-
-	expected := base64.StdEncoding.EncodeToString([]byte(plainText))
-	if body.Content != expected {
-		decoded, _ := base64.StdEncoding.DecodeString(body.Content)
-		t.Errorf("content sent to API is not correctly base64-encoded\n  got decoded: %q\n  want:        %q", string(decoded), plainText)
+	if got := string(fileOnMain(t, h, "test.txt")); got != plainText {
+		t.Errorf("stored %q, want %q", got, plainText)
 	}
 }
 
-func TestUpdateFileFn_Base64EncodesContent(t *testing.T) {
-	srv, captured := setupMockServer(t)
-	defer srv.Close()
-
+func TestUpdateFileFn_StoresPlainContent(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedFile(t, f, "test.txt", "old")
+	sha := currentSHA(t, h, "test.txt")
 	plainText := "Updated content with special chars: <>&\"\n\ttabs too"
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":       "testowner",
-		"repo":        "testrepo",
-		"filePath":    "test.txt",
-		"content":     plainText,
-		"message":     "update test file",
-		"branch_name": "main",
-		"sha":         "abc123",
-	})
-
-	result, err := UpdateFileFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("UpdateFileFn returned error: %v", err)
+	result, err := h.UpdateFileFn(context.Background(), filesReq(map[string]any{
+		"filePath": "test.txt", "content": plainText, "message": "update", "branch_name": "main", "sha": sha,
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("err=%v result=%v", err, result)
 	}
-	if result.IsError {
-		t.Fatalf("UpdateFileFn returned tool error")
-	}
-
-	var body apiFileRequest
-	if err := json.Unmarshal(*captured, &body); err != nil {
-		t.Fatalf("unmarshaling captured body: %v", err)
-	}
-
-	expected := base64.StdEncoding.EncodeToString([]byte(plainText))
-	if body.Content != expected {
-		decoded, _ := base64.StdEncoding.DecodeString(body.Content)
-		t.Errorf("content sent to API is not correctly base64-encoded\n  got decoded: %q\n  want:        %q", string(decoded), plainText)
+	if got := string(fileOnMain(t, h, "test.txt")); got != plainText {
+		t.Errorf("stored %q, want %q", got, plainText)
 	}
 }
 
-// setupContentsResponseMockServer creates an httptest server that returns a
-// proper Forgejo ContentsResponse (for the GetContents/with_metadata path).
-func setupContentsResponseMockServer(t *testing.T) *httptest.Server {
+func currentSHA(t *testing.T, h handlers, filePath string) string {
 	t.Helper()
-	encodedContent := base64.StdEncoding.EncodeToString([]byte("binary-like content"))
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"type":"file","name":"README.md","path":"README.md","sha":"abc123","content":"%s","encoding":"base64"}`, encodedContent)
-	}))
-
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
+	port, _ := h.forge.For(context.Background())
+	c, err := port.GetContents(context.Background(), filesOwner, filesRepo, "main", filePath)
 	if err != nil {
-		t.Fatalf("creating test client: %v", err)
+		t.Fatal(err)
 	}
-	forgejo.SetClientForTesting(client)
+	return c.SHA
+}
 
-	return srv
+func TestUpdateFileFn_StaleSHAIsAToolError(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedFile(t, f, "test.txt", "old")
+
+	_, err := h.UpdateFileFn(context.Background(), filesReq(map[string]any{
+		"filePath": "test.txt", "content": "new", "message": "m", "branch_name": "main", "sha": "stale",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "update file error") {
+		t.Fatalf("want an update file error, got %v", err)
+	}
+	if got := string(fileOnMain(t, h, "test.txt")); got != "old" {
+		t.Errorf("file changed to %q", got)
+	}
+}
+
+func TestDeleteFileFn_RemovesFile(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedFile(t, f, "gone.txt", "bye")
+
+	result, err := h.DeleteFileFn(context.Background(), filesReq(map[string]any{
+		"filePath": "gone.txt", "message": "rm", "branch_name": "main", "sha": currentSHA(t, h, "gone.txt"),
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("err=%v result=%v", err, result)
+	}
+	if got := resultText(t, result); got != "Delete file success" {
+		t.Errorf("result %q", got)
+	}
+	port, _ := h.forge.For(context.Background())
+	if _, err := port.GetFile(context.Background(), filesOwner, filesRepo, "main", "gone.txt"); err == nil {
+		t.Error("file still there")
+	}
 }
 
 func TestGetFileContentFn_ReturnsPlainText(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
 	plainText := "Hello from Forgejo!\nSecond line.\n"
-	srv := setupRawMockServer(t, plainText, http.StatusOK)
-	defer srv.Close()
+	seedFile(t, f, "README.md", plainText)
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":    "testowner",
-		"repo":     "testrepo",
-		"ref":      "main",
-		"filePath": "README.md",
-	})
+	result, err := h.GetFileContentFn(context.Background(), filesReq(map[string]any{"ref": "main", "filePath": "README.md"}))
+	if err != nil || result.IsError {
+		t.Fatalf("err=%v result=%v", err, result)
+	}
+	if got := resultText(t, result); got != plainText {
+		t.Errorf("got %q want %q", got, plainText)
+	}
+}
 
-	result, err := GetFileContentFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("GetFileContentFn returned error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("GetFileContentFn returned tool error")
-	}
+func TestGetFileContentFn_MissingFileIsAToolError(t *testing.T) {
+	t.Parallel()
+	h, _ := newFilesFixture(t)
 
-	// Result is wrapped as {"Result":"<text>"} — unmarshal to compare string value.
-	text := result.Content[0].(mcp.TextContent).Text
-	var wrapper struct{ Result string }
-	if err := json.Unmarshal([]byte(text), &wrapper); err != nil {
-		t.Fatalf("response is not valid JSON: %v\n  got: %q", err, text)
-	}
-	if wrapper.Result != plainText {
-		t.Errorf("plain text mismatch\n  got:  %q\n  want: %q", wrapper.Result, plainText)
+	_, err := h.GetFileContentFn(context.Background(), filesReq(map[string]any{"ref": "main", "filePath": "nope.md"}))
+	if err == nil || !strings.Contains(err.Error(), "get file err") {
+		t.Fatalf("want a get file err, got %v", err)
 	}
 }
 
 func TestGetFileContentFn_WithMetadataReturnsContentsResponse(t *testing.T) {
-	// with_metadata=true must route through GetContents and return a JSON ContentsResponse,
-	// not plain text. We verify the response is valid JSON with a "Result" wrapper.
-	srv := setupContentsResponseMockServer(t)
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedFile(t, f, "README.md", "binary-like content")
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":         "testowner",
-		"repo":          "testrepo",
-		"ref":           "main",
-		"filePath":      "README.md",
-		"with_metadata": true,
-	})
-
-	result, err := GetFileContentFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("GetFileContentFn (with_metadata=true) returned error: %v", err)
+	result, err := h.GetFileContentFn(context.Background(), filesReq(map[string]any{
+		"ref": "main", "filePath": "README.md", "with_metadata": true,
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("err=%v result=%v", err, result)
 	}
-	if result.IsError {
-		t.Fatalf("GetFileContentFn (with_metadata=true) returned tool error")
-	}
-
-	text := result.Content[0].(mcp.TextContent).Text
-	var wrapper map[string]interface{}
-	if err := json.Unmarshal([]byte(text), &wrapper); err != nil {
-		t.Errorf("with_metadata=true response is not valid JSON: %v\n  got: %q", err, text)
-	}
-	if _, ok := wrapper["Result"]; !ok {
-		t.Errorf("with_metadata=true response missing 'Result' key\n  got: %q", text)
+	text := extractText(t, result)
+	for _, want := range []string{`"sha":"` + currentSHA(t, h, "README.md") + `"`, `"path":"README.md"`, base64.StdEncoding.EncodeToString([]byte("binary-like content"))} {
+		if !strings.Contains(text, want) {
+			t.Errorf("response missing %s: %q", want, text)
+		}
 	}
 }
 
-// fileContentText pulls the plain-text payload out of the
-// {"Result":"..."} wrapper that to.TextResult emits, so range
-// assertions can compare raw line content.
-func fileContentText(t *testing.T, result *mcp.CallToolResult) string {
+func rangeResult(t *testing.T, body string, args map[string]any) (string, error) {
 	t.Helper()
-	text := result.Content[0].(mcp.TextContent).Text
-	var wrapper struct{ Result string }
-	if err := json.Unmarshal([]byte(text), &wrapper); err != nil {
-		t.Fatalf("response is not valid JSON: %v\n  got: %q", err, text)
+	h, f := newFilesFixture(t)
+	seedFile(t, f, "f.txt", body)
+	args["ref"], args["filePath"] = "main", "f.txt"
+	result, err := h.GetFileContentFn(context.Background(), filesReq(args))
+	if err != nil {
+		return "", err
 	}
-	return wrapper.Result
+	return resultText(t, result), nil
 }
 
-func TestGetFileContentFn_LineRange_InRange(t *testing.T) {
-	body := "one\ntwo\nthree\nfour\nfive\n"
-	srv := setupRawMockServer(t, body, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "ref": "main", "filePath": "f.txt",
-		"start_line": float64(2), "end_line": float64(4),
-	})
-	result, err := GetFileContentFn(context.Background(), req)
-	if err != nil || result.IsError {
-		t.Fatalf("err=%v isError=%v", err, result != nil && result.IsError)
+func TestGetFileContentFn_LineRange(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		body string
+		args map[string]any
+		want string
+	}{
+		{"in range", "one\ntwo\nthree\nfour\nfive\n", map[string]any{"start_line": float64(2), "end_line": float64(4)}, "two\nthree\nfour"},
+		{"start omitted defaults to one", "one\ntwo\nthree\nfour", map[string]any{"end_line": float64(2)}, "one\ntwo"},
+		{"end omitted defaults to count", "one\ntwo\nthree\nfour", map[string]any{"start_line": float64(3)}, "three\nfour"},
+		{"end beyond clamps", "one\ntwo\nthree", map[string]any{"start_line": float64(2), "end_line": float64(999)}, "two\nthree"},
+		{"start below one clamps", "one\ntwo\nthree", map[string]any{"start_line": float64(-5), "end_line": float64(2)}, "one\ntwo"},
+		{"both omitted returns full", "one\ntwo\nthree\n", map[string]any{}, "one\ntwo\nthree\n"},
 	}
-	if got, want := fileContentText(t, result), "two\nthree\nfour"; got != want {
-		t.Errorf("range 2-4 mismatch:\n  got:  %q\n  want: %q", got, want)
-	}
-}
-
-func TestGetFileContentFn_LineRange_StartOmittedDefaultsToOne(t *testing.T) {
-	body := "one\ntwo\nthree\nfour"
-	srv := setupRawMockServer(t, body, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "ref": "main", "filePath": "f.txt",
-		"end_line": float64(2),
-	})
-	result, _ := GetFileContentFn(context.Background(), req)
-	if got, want := fileContentText(t, result), "one\ntwo"; got != want {
-		t.Errorf("end-only mismatch:\n  got:  %q\n  want: %q", got, want)
-	}
-}
-
-func TestGetFileContentFn_LineRange_EndOmittedDefaultsToCount(t *testing.T) {
-	body := "one\ntwo\nthree\nfour"
-	srv := setupRawMockServer(t, body, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "ref": "main", "filePath": "f.txt",
-		"start_line": float64(3),
-	})
-	result, _ := GetFileContentFn(context.Background(), req)
-	if got, want := fileContentText(t, result), "three\nfour"; got != want {
-		t.Errorf("start-only mismatch:\n  got:  %q\n  want: %q", got, want)
-	}
-}
-
-func TestGetFileContentFn_LineRange_EndBeyondClamps(t *testing.T) {
-	body := "one\ntwo\nthree"
-	srv := setupRawMockServer(t, body, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "ref": "main", "filePath": "f.txt",
-		"start_line": float64(2), "end_line": float64(999),
-	})
-	result, err := GetFileContentFn(context.Background(), req)
-	if err != nil || result.IsError {
-		t.Fatalf("err=%v isError=%v", err, result != nil && result.IsError)
-	}
-	if got, want := fileContentText(t, result), "two\nthree"; got != want {
-		t.Errorf("clamped range mismatch:\n  got:  %q\n  want: %q", got, want)
-	}
-}
-
-func TestGetFileContentFn_LineRange_StartBelowOneClamps(t *testing.T) {
-	body := "one\ntwo\nthree"
-	srv := setupRawMockServer(t, body, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "ref": "main", "filePath": "f.txt",
-		"start_line": float64(-5), "end_line": float64(2),
-	})
-	result, _ := GetFileContentFn(context.Background(), req)
-	if got, want := fileContentText(t, result), "one\ntwo"; got != want {
-		t.Errorf("start clamp mismatch:\n  got:  %q\n  want: %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := rangeResult(t, tt.body, tt.args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q want %q", got, tt.want)
+			}
+		})
 	}
 }
 
 func TestGetFileContentFn_LineRange_InvertedAfterClamping(t *testing.T) {
-	body := "one\ntwo\nthree"
-	srv := setupRawMockServer(t, body, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "ref": "main", "filePath": "f.txt",
-		"start_line": float64(20), "end_line": float64(10),
-	})
-	_, err := GetFileContentFn(context.Background(), req)
-	if err == nil {
+	t.Parallel()
+	if _, err := rangeResult(t, "one\ntwo\nthree", map[string]any{"start_line": float64(20), "end_line": float64(10)}); err == nil {
 		t.Fatal("expected error on inverted range")
 	}
 }
 
-func TestGetFileContentFn_LineRange_BothOmittedReturnsFull(t *testing.T) {
-	body := "one\ntwo\nthree\n"
-	srv := setupRawMockServer(t, body, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "ref": "main", "filePath": "f.txt",
-	})
-	result, _ := GetFileContentFn(context.Background(), req)
-	if got := fileContentText(t, result); got != body {
-		t.Errorf("expected full body, got %q want %q", got, body)
-	}
-}
-
 func TestGetFileContentFn_LineRange_IgnoredWithMetadata(t *testing.T) {
-	// with_metadata=true takes the GetContents branch and must not apply
-	// start_line/end_line — the response carries base64 content whose
-	// semantics line-slicing would break.
-	srv := setupContentsResponseMockServer(t)
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedFile(t, f, "README.md", "one\ntwo")
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "ref": "main", "filePath": "README.md",
-		"with_metadata": true,
-		"start_line":    float64(5), "end_line": float64(10),
-	})
-	result, err := GetFileContentFn(context.Background(), req)
+	result, err := h.GetFileContentFn(context.Background(), filesReq(map[string]any{
+		"ref": "main", "filePath": "README.md", "with_metadata": true,
+		"start_line": float64(5), "end_line": float64(10),
+	}))
 	if err != nil || result.IsError {
-		t.Fatalf("err=%v isError=%v", err, result != nil && result.IsError)
+		t.Fatalf("err=%v result=%v", err, result)
 	}
-	text := result.Content[0].(mcp.TextContent).Text
-	if !contains(text, `"sha":"abc123"`) {
-		t.Fatalf("expected ContentsResponse with sha when with_metadata=true, got %q", text)
-	}
-}
-
-func contains(haystack, needle string) bool {
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func TestGetFileContentFn_DefaultIsPlainText(t *testing.T) {
-	// Omitting with_metadata must behave the same as with_metadata=false (plain text default).
-	plainText := "package main\n\nfunc main() {}\n"
-	srv := setupRawMockServer(t, plainText, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":    "testowner",
-		"repo":     "testrepo",
-		"ref":      "main",
-		"filePath": "main.go",
-		// with_metadata intentionally omitted
-	})
-
-	result, err := GetFileContentFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("GetFileContentFn returned error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("GetFileContentFn returned tool error")
-	}
-
-	text := result.Content[0].(mcp.TextContent).Text
-	var wrapper struct{ Result string }
-	if err := json.Unmarshal([]byte(text), &wrapper); err != nil {
-		t.Fatalf("response is not valid JSON: %v\n  got: %q", err, text)
-	}
-	if wrapper.Result != plainText {
-		t.Errorf("default (no with_metadata) did not return plain text\n  got:  %q\n  want: %q", wrapper.Result, plainText)
+	if !strings.Contains(extractText(t, result), `"sha":"`) {
+		t.Fatalf("expected ContentsResponse with sha when with_metadata=true, got %q", extractText(t, result))
 	}
 }
 
 func TestCreateFileFn_AcceptsBase64Content(t *testing.T) {
-	srv, captured := setupMockServer(t)
-	defer srv.Close()
+	t.Parallel()
+	h, _ := newFilesFixture(t)
+	raw := []byte{0x00, 0xff, 0x10, 0x80}
 
-	encoded := base64.StdEncoding.EncodeToString([]byte{0x00, 0xff, 0x10, 0x80})
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":          "testowner",
-		"repo":           "testrepo",
-		"filePath":       "binary.dat",
-		"content_base64": encoded,
-		"message":        "add binary file",
-		"branch_name":    "main",
-	})
-
-	result, err := CreateFileFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("CreateFileFn returned error: %v", err)
+	result, err := h.CreateFileFn(context.Background(), filesReq(map[string]any{
+		"filePath": "binary.dat", "content_base64": base64.StdEncoding.EncodeToString(raw),
+		"message": "add binary file", "branch_name": "main",
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("err=%v result=%v", err, result)
 	}
-	if result.IsError {
-		t.Fatalf("CreateFileFn returned tool error: %v", result.Content)
-	}
-
-	var body apiFileRequest
-	if err := json.Unmarshal(*captured, &body); err != nil {
-		t.Fatalf("unmarshaling captured body: %v", err)
-	}
-	if body.Content != encoded {
-		t.Errorf("base64 content changed: got %q want %q", body.Content, encoded)
+	if got := fileOnMain(t, h, "binary.dat"); string(got) != string(raw) {
+		t.Errorf("stored % x, want % x", got, raw)
 	}
 }
 
 func TestUpdateFileFn_AcceptsBase64Content(t *testing.T) {
-	srv, captured := setupMockServer(t)
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedFile(t, f, "binary.dat", "old")
+	raw := []byte{0xde, 0xad, 0xbe, 0xef}
 
-	encoded := base64.StdEncoding.EncodeToString([]byte{0xde, 0xad, 0xbe, 0xef})
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":          "testowner",
-		"repo":           "testrepo",
-		"filePath":       "binary.dat",
-		"content_base64": encoded,
-		"message":        "update binary file",
-		"branch_name":    "main",
-		"sha":            "abc123",
-	})
-
-	result, err := UpdateFileFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("UpdateFileFn returned error: %v", err)
+	result, err := h.UpdateFileFn(context.Background(), filesReq(map[string]any{
+		"filePath": "binary.dat", "content_base64": base64.StdEncoding.EncodeToString(raw),
+		"message": "update binary file", "branch_name": "main", "sha": currentSHA(t, h, "binary.dat"),
+	}))
+	if err != nil || result.IsError {
+		t.Fatalf("err=%v result=%v", err, result)
 	}
-	if result.IsError {
-		t.Fatalf("UpdateFileFn returned tool error: %v", result.Content)
-	}
-
-	var body apiFileRequest
-	if err := json.Unmarshal(*captured, &body); err != nil {
-		t.Fatalf("unmarshaling captured body: %v", err)
-	}
-	if body.Content != encoded {
-		t.Errorf("base64 content changed: got %q want %q", body.Content, encoded)
+	if got := fileOnMain(t, h, "binary.dat"); string(got) != string(raw) {
+		t.Errorf("stored % x, want % x", got, raw)
 	}
 }
 
 func TestRepositoryWriteContentRejectsMissingAndAmbiguousContent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args map[string]any
 	}{
-		{
-			name: "missing",
-			args: map[string]any{},
-		},
-		{
-			name: "both",
-			args: map[string]any{
-				"content":        "text",
-				"content_base64": "dGV4dA==",
-			},
-		},
+		{name: "missing", args: map[string]any{}},
+		{name: "both", args: map[string]any{"content": "text", "content_base64": "dGV4dA=="}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if _, err := selectRepositoryWriteContent(tt.args); err == nil {
 				t.Fatal("expected content selection error")
 			}
@@ -517,15 +276,14 @@ func TestRepositoryWriteContentRejectsMissingAndAmbiguousContent(t *testing.T) {
 }
 
 func TestRepositoryWriteContentRejectsInvalidBase64(t *testing.T) {
-	_, err := selectRepositoryWriteContent(map[string]any{
-		"content_base64": "%%%not-base64%%%",
-	})
-	if err == nil {
+	t.Parallel()
+	if _, err := selectRepositoryWriteContent(map[string]any{"content_base64": "%%%not-base64%%%"}); err == nil {
 		t.Fatal("expected invalid base64 error")
 	}
 }
 
 func TestRepositoryWriteContentAcceptsExplicitEmptyValues(t *testing.T) {
+	t.Parallel()
 	for _, args := range []map[string]any{
 		{"content": ""},
 		{"content_base64": ""},

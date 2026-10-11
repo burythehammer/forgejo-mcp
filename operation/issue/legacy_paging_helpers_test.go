@@ -14,7 +14,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // Mock-server helpers for the label resource tests, which still run against
@@ -84,59 +83,5 @@ func assertPagesCoverCorpus(t *testing.T, seen []int, pages, limit int) {
 			t.Fatalf("page boundary lost or repeated a row at position %d: want %d, got %d\nfull sequence: %v",
 				i, i+1, got, seen)
 		}
-	}
-}
-
-func fakeIssueRow(number int, title string) map[string]interface{} {
-	return map[string]interface{}{
-		"id":     number,
-		"number": number,
-		"title":  title,
-		"body":   strings.Repeat("a long body that must not appear in a list row. ", 20),
-		"state":  "open",
-		"user":   map[string]interface{}{"login": "alice"},
-		"labels": []interface{}{
-			map[string]interface{}{"id": 1, "name": "security"},
-		},
-		"assignees":  []interface{}{map[string]interface{}{"login": "bob"}},
-		"comments":   3,
-		"created_at": "2026-08-01T10:00:00Z",
-		"updated_at": "2026-08-02T11:00:00Z",
-		"due_date":   "2026-09-01T00:00:00Z",
-	}
-}
-
-func fakeIssueRows(n int) []interface{} {
-	rows := make([]interface{}, 0, n)
-	for i := 1; i <= n; i++ {
-		rows = append(rows, fakeIssueRow(i, fmt.Sprintf("issue %d", i)))
-	}
-	return rows
-}
-
-func fakeCommentRow(id int, body string) map[string]interface{} {
-	return map[string]interface{}{
-		"id":         id,
-		"body":       body,
-		"user":       map[string]interface{}{"login": "carol"},
-		"created_at": "2026-08-03T09:00:00Z",
-		"updated_at": "2026-08-03T09:00:00Z",
-	}
-}
-
-func readListPayload(t *testing.T, contents []mcp.ResourceContents, into interface{}) {
-	t.Helper()
-	if len(contents) == 0 {
-		t.Fatal("no resource contents returned")
-	}
-	text, ok := contents[0].(mcp.TextResourceContents)
-	if !ok {
-		t.Fatalf("expected TextResourceContents, got %T", contents[0])
-	}
-	if text.MIMEType != "application/json" {
-		t.Fatalf("expected application/json, got %q", text.MIMEType)
-	}
-	if err := json.Unmarshal([]byte(text.Text), into); err != nil {
-		t.Fatalf("unmarshal payload: %v\npayload was: %s", err, text.Text)
 	}
 }

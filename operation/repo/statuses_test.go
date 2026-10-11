@@ -5,303 +5,169 @@ package repo
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
+
+	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func TestGetCommitStatusesFn_ShortSHANoRequest(t *testing.T) {
-	records := newRepoBackend(t, func(_ *http.ServeMux) {})
-	_, err := GetCommitStatusesFn(context.Background(), newCallToolRequest(map[string]any{
-		"owner": "o", "repo": "r", "sha": "abc123",
-	}))
+func statusesReq(extra map[string]any) mcp.CallToolRequest {
+	args := map[string]any{"sha": testSHA}
+	for k, v := range extra {
+		args[k] = v
+	}
+	return filesReq(args)
+}
+
+func decodeStatuses(t *testing.T, res *mcp.CallToolResult) getCommitStatusesResult {
+	t.Helper()
+	var envelope struct {
+		Result getCommitStatusesResult `json:"Result"`
+	}
+	if err := json.Unmarshal([]byte(extractText(t, res)), &envelope); err != nil {
+		t.Fatalf("result JSON: %v", err)
+	}
+	return envelope.Result
+}
+
+// knownCommit seeds a commit so its (empty) status list is not a 404.
+func knownCommit(t *testing.T, f *fake.Forgejo) {
+	t.Helper()
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, "c"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetCommitStatusesFn_ShortSHA(t *testing.T) {
+	t.Parallel()
+	h, _ := newFilesFixture(t)
+	_, err := h.GetCommitStatusesFn(context.Background(), filesReq(map[string]any{"sha": "abc123"}))
 	if err == nil {
 		t.Fatal("expected error for short sha")
-	}
-	if len(*records) != 0 {
-		t.Errorf("expected zero upstream requests, got %+v", *records)
 	}
 }
 
 func TestGetCommitStatusesFn_EmptyList(t *testing.T) {
-	newRepoBackend(t, func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/o/r/commits/"+testSHA+"/statuses", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet {
-				t.Errorf("method: got %q, want GET", r.Method)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`[]`))
-		})
-	})
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	knownCommit(t, f)
 
-	res, err := GetCommitStatusesFn(context.Background(), newCallToolRequest(map[string]any{
-		"owner": "o", "repo": "r", "sha": testSHA,
-	}))
+	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(nil))
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("list failed: err=%v res=%+v", err, res)
 	}
-
-	var envelope struct {
-		Result getCommitStatusesResult `json:"Result"`
+	got := decodeStatuses(t, res)
+	if got.SHA != testSHA || got.Count != 0 {
+		t.Errorf("sha=%q count=%d", got.SHA, got.Count)
 	}
-	if err := json.Unmarshal([]byte(extractText(t, res)), &envelope); err != nil {
-		t.Fatalf("result JSON: %v", err)
+	if got.Statuses == nil || len(got.Statuses) != 0 {
+		t.Errorf("statuses must be [] not null, got %v", got.Statuses)
 	}
-	if envelope.Result.SHA != testSHA {
-		t.Errorf("sha: got %q", envelope.Result.SHA)
+	if got.Page != 1 || got.Limit != 30 {
+		t.Errorf("page/limit: got page=%d limit=%d", got.Page, got.Limit)
 	}
-	if envelope.Result.Count != 0 {
-		t.Errorf("count: got %d, want 0", envelope.Result.Count)
-	}
-	if envelope.Result.Statuses == nil {
-		t.Fatal("statuses must be [] not null")
-	}
-	if len(envelope.Result.Statuses) != 0 {
-		t.Errorf("statuses: got %v, want empty", envelope.Result.Statuses)
-	}
-	if envelope.Result.Page != 1 || envelope.Result.Limit != 30 {
-		t.Errorf("page/limit: got page=%d limit=%d", envelope.Result.Page, envelope.Result.Limit)
-	}
-	if envelope.Result.TotalCount != nil {
-		t.Errorf("total_count must be omitted when the header is absent, got %d", *envelope.Result.TotalCount)
-	}
-	if text := extractText(t, res); strings.Contains(text, "total_count") {
-		t.Errorf("total_count must be omitted when the header is absent: %s", text)
+	if got.TotalCount == nil || *got.TotalCount != 0 {
+		t.Errorf("a confirmed-zero total_count must be emitted, got %v", got.TotalCount)
 	}
 }
 
 func TestGetCommitStatusesFn_SuccessPage(t *testing.T) {
-	var gotMethod, gotPath, gotQuery string
-	newRepoBackend(t, func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/o/r/commits/"+testSHA+"/statuses", func(w http.ResponseWriter, r *http.Request) {
-			gotMethod = r.Method
-			gotPath = r.URL.Path
-			gotQuery = r.URL.RawQuery
-			if r.Method != http.MethodGet {
-				t.Errorf("method: got %q, want GET", r.Method)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`[
-				{
-					"id": 1,
-					"status": "success",
-					"target_url": "https://ci.example/1",
-					"description": "ok",
-					"context": "ci/woodpecker",
-					"created_at": "2026-08-01T12:00:00Z"
-				}
-			]`))
-		})
-	})
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedStatuses(t, f, forgejo_sdk.StatusSuccess)
 
-	res, err := GetCommitStatusesFn(context.Background(), newCallToolRequest(map[string]any{
-		"owner": "o", "repo": "r", "sha": testSHA,
-	}))
+	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(nil))
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("list failed: err=%v res=%+v", err, res)
 	}
-	if gotMethod != http.MethodGet {
-		t.Fatalf("method: got %q, want GET", gotMethod)
+	got := decodeStatuses(t, res)
+	if got.Count != 1 || len(got.Statuses) != 1 {
+		t.Fatalf("count=%d statuses=%v", got.Count, got.Statuses)
 	}
-	if gotPath != "/api/v1/repos/o/r/commits/"+testSHA+"/statuses" {
-		t.Fatalf("path: got %q", gotPath)
-	}
-	if !strings.Contains(gotQuery, "page=1") {
-		t.Errorf("query missing page=1: %q", gotQuery)
-	}
-	if !strings.Contains(gotQuery, "limit=30") {
-		t.Errorf("query missing limit=30: %q", gotQuery)
-	}
-
-	var envelope struct {
-		Result getCommitStatusesResult `json:"Result"`
-	}
-	if err := json.Unmarshal([]byte(extractText(t, res)), &envelope); err != nil {
-		t.Fatalf("result JSON: %v", err)
-	}
-	if envelope.Result.Count != 1 {
-		t.Fatalf("count: got %d, want 1", envelope.Result.Count)
-	}
-	if len(envelope.Result.Statuses) != 1 {
-		t.Fatalf("statuses: got %v", envelope.Result.Statuses)
-	}
-	item := envelope.Result.Statuses[0]
-	if item.Context != "ci/woodpecker" {
-		t.Errorf("context: got %q", item.Context)
-	}
-	if item.State != "success" {
-		t.Errorf("state: got %q, want success", item.State)
-	}
-	if item.TargetURL != "https://ci.example/1" {
-		t.Errorf("target_url: got %q", item.TargetURL)
-	}
-	if item.Description != "ok" {
-		t.Errorf("description: got %q", item.Description)
-	}
-	if item.CreatedAt != "2026-08-01T12:00:00Z" {
-		t.Errorf("created_at: got %q", item.CreatedAt)
+	item := got.Statuses[0]
+	if item.Context != "ci/test-0" || item.State != "success" || item.Description != "test context success" || item.TargetURL == "" || item.CreatedAt == "" {
+		t.Errorf("item: %+v", item)
 	}
 	text := extractText(t, res)
-	if !strings.Contains(text, `"state":"success"`) {
-		t.Errorf("item must use state: %s", text)
+	if !strings.Contains(text, `"state":"success"`) || strings.Contains(text, `"status":"success"`) {
+		t.Errorf("item must use state, not the SDK's status: %s", text)
 	}
-	if strings.Contains(text, `"status":"success"`) {
-		t.Errorf("item must not use SDK status: %s", text)
-	}
-}
-
-func TestGetCommitStatusesFn_NotFound(t *testing.T) {
-	newRepoBackend(t, func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/o/r/commits/"+testSHA+"/statuses", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet {
-				t.Errorf("method: got %q, want GET", r.Method)
-			}
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"message":"not found"}`))
-		})
-	})
-
-	res, err := GetCommitStatusesFn(context.Background(), newCallToolRequest(map[string]any{
-		"owner": "o", "repo": "r", "sha": testSHA,
-	}))
-	if err == nil {
-		t.Fatalf("expected error for 404, got %v", res)
+	if got.TotalCount == nil || *got.TotalCount != 1 {
+		t.Errorf("total_count: %v", got.TotalCount)
 	}
 }
 
-func TestGetCommitStatusesFn_Page2(t *testing.T) {
-	var gotQuery string
-	newRepoBackend(t, func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/o/r/commits/"+testSHA+"/statuses", func(w http.ResponseWriter, r *http.Request) {
-			gotQuery = r.URL.RawQuery
-			if r.Method != http.MethodGet {
-				t.Errorf("method: got %q, want GET", r.Method)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`[]`))
-		})
-	})
+func TestGetCommitStatusesFn_UnknownCommitIsAToolError(t *testing.T) {
+	t.Parallel()
+	h, _ := newFilesFixture(t)
+	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(nil))
+	if err == nil && (res == nil || !res.IsError) {
+		t.Fatalf("expected an error for an unknown commit, got %v", res)
+	}
+}
 
-	res, err := GetCommitStatusesFn(context.Background(), newCallToolRequest(map[string]any{
-		"owner": "o", "repo": "r", "sha": testSHA, "page": float64(2),
-	}))
+func TestGetCommitStatusesFn_Paginates(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	seedStatuses(t, f, forgejo_sdk.StatusSuccess, forgejo_sdk.StatusFailure, forgejo_sdk.StatusPending)
+
+	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(map[string]any{"page": float64(2), "limit": float64(2)}))
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("list failed: err=%v res=%+v", err, res)
 	}
-	if !strings.Contains(gotQuery, "page=2") {
-		t.Errorf("query missing page=2: %q", gotQuery)
+	got := decodeStatuses(t, res)
+	if got.Page != 2 || got.Limit != 2 || got.Count != 1 || got.Statuses[0].Context != "ci/test-2" {
+		t.Errorf("page 2 = %+v", got)
 	}
-
-	var envelope struct {
-		Result getCommitStatusesResult `json:"Result"`
-	}
-	if err := json.Unmarshal([]byte(extractText(t, res)), &envelope); err != nil {
-		t.Fatalf("result JSON: %v", err)
-	}
-	if envelope.Result.Page != 2 {
-		t.Errorf("page: got %d, want 2", envelope.Result.Page)
+	if got.TotalCount == nil || *got.TotalCount != 3 {
+		t.Errorf("total_count: %v", got.TotalCount)
 	}
 }
 
 func TestGetCommitStatusesFn_LimitClamp(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		limit float64
-		query string
 		echo  int
 	}{
-		{name: "over_max", limit: 999, query: "limit=50", echo: 50},
-		{name: "under_min", limit: 0, query: "limit=30", echo: 30},
+		{name: "over_max", limit: 999, echo: 50},
+		{name: "under_min", limit: 0, echo: 30},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var gotQuery string
-			newRepoBackend(t, func(mux *http.ServeMux) {
-				mux.HandleFunc("/api/v1/repos/o/r/commits/"+testSHA+"/statuses", func(w http.ResponseWriter, r *http.Request) {
-					gotQuery = r.URL.RawQuery
-					if r.Method != http.MethodGet {
-						t.Errorf("method: got %q, want GET", r.Method)
-					}
-					w.Header().Set("Content-Type", "application/json")
-					_, _ = w.Write([]byte(`[]`))
-				})
-			})
-
-			res, err := GetCommitStatusesFn(context.Background(), newCallToolRequest(map[string]any{
-				"owner": "o", "repo": "r", "sha": testSHA, "limit": tc.limit,
-			}))
+			t.Parallel()
+			h, f := newFilesFixture(t)
+			knownCommit(t, f)
+			res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(map[string]any{"limit": tc.limit}))
 			if err != nil || res == nil || res.IsError {
 				t.Fatalf("list failed: err=%v res=%+v", err, res)
 			}
-			if !strings.Contains(gotQuery, tc.query) {
-				t.Errorf("query missing %s: %q", tc.query, gotQuery)
-			}
-
-			var envelope struct {
-				Result getCommitStatusesResult `json:"Result"`
-			}
-			if err := json.Unmarshal([]byte(extractText(t, res)), &envelope); err != nil {
-				t.Fatalf("result JSON: %v", err)
-			}
-			if envelope.Result.Limit != tc.echo {
-				t.Errorf("limit: got %d, want %d", envelope.Result.Limit, tc.echo)
+			if got := decodeStatuses(t, res); got.Limit != tc.echo {
+				t.Errorf("limit: got %d, want %d", got.Limit, tc.echo)
 			}
 		})
 	}
 }
 
-func TestGetCommitStatusesFn_TotalCountFromHeader(t *testing.T) {
-	newRepoBackend(t, func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/o/r/commits/"+testSHA+"/statuses", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet {
-				t.Errorf("method: got %q, want GET", r.Method)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set(forgejo.TotalCountHeader, "4")
-			_, _ = w.Write([]byte(`[]`))
-		})
-	})
+func TestGetCommitStatusesFn_LimitClampBoundsThePage(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	states := make([]forgejo_sdk.StatusState, 60)
+	for i := range states {
+		states[i] = forgejo_sdk.StatusSuccess
+	}
+	seedStatuses(t, f, states...)
 
-	res, err := GetCommitStatusesFn(context.Background(), newCallToolRequest(map[string]any{
-		"owner": "o", "repo": "r", "sha": testSHA,
-	}))
+	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(map[string]any{"limit": float64(999)}))
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("list failed: err=%v res=%+v", err, res)
 	}
-
-	var envelope struct {
-		Result getCommitStatusesResult `json:"Result"`
-	}
-	if err := json.Unmarshal([]byte(extractText(t, res)), &envelope); err != nil {
-		t.Fatalf("result JSON: %v", err)
-	}
-	if envelope.Result.TotalCount == nil || *envelope.Result.TotalCount != 4 {
-		t.Fatalf("total_count: %+v", envelope.Result.TotalCount)
-	}
-}
-
-func TestGetCommitStatusesFn_TotalCountZeroIsEmitted(t *testing.T) {
-	newRepoBackend(t, func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/o/r/commits/"+testSHA+"/statuses", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet {
-				t.Errorf("method: got %q, want GET", r.Method)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set(forgejo.TotalCountHeader, "0")
-			_, _ = w.Write([]byte(`[]`))
-		})
-	})
-
-	res, err := GetCommitStatusesFn(context.Background(), newCallToolRequest(map[string]any{
-		"owner": "o", "repo": "r", "sha": testSHA,
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("list failed: err=%v res=%+v", err, res)
-	}
-	text := extractText(t, res)
-	if !strings.Contains(text, `"total_count":0`) {
-		t.Fatalf("expected a confirmed-zero total_count to be emitted, got: %s", text)
+	got := decodeStatuses(t, res)
+	if got.Count != 50 || got.TotalCount == nil || *got.TotalCount != 60 {
+		t.Errorf("count=%d total=%v, want 50 of 60", got.Count, got.TotalCount)
 	}
 }

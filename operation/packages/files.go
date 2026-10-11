@@ -6,10 +6,8 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -27,7 +25,7 @@ var ListPackageFilesTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(defaultPackagesLimit), mcp.Min(1), mcp.Max(maxPackagesLimit)),
 )
 
-func ListPackageFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListPackageFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPackageFilesFn")
 	args := req.GetArguments()
 
@@ -44,14 +42,17 @@ func ListPackageFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		return to.ErrorResult(err)
 	}
 
-	path := forgejo.APIPath("packages", owner, packageType, name, version, "files")
-	allFiles := make([]packageFile, 0)
-	if err := forgejo.DoJSON(ctx, http.MethodGet, path, nil, &allFiles); err != nil {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	listed, err := f.ListPackageFiles(ctx, owner, packageType, name, version)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list package files: %w", err))
 	}
-	// A JSON null body unmarshals onto a nil slice and overwrites the make above.
-	if allFiles == nil {
-		allFiles = []packageFile{}
+	allFiles := make([]packageFile, 0, len(listed))
+	for _, file := range listed {
+		allFiles = append(allFiles, packageFile{ID: file.ID, Name: file.Name, Size: file.Size, SHA256: file.SHA256})
 	}
 
 	start64 := int64(page-1) * int64(limit)

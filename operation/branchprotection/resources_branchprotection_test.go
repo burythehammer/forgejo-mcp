@@ -5,32 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+
+	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
-
-func setupBPResourceServer(t *testing.T, status int, body interface{}) *httptest.Server {
-	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(status)
-		if body != nil {
-			_ = json.NewEncoder(w).Encode(body)
-		}
-	}))
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
-	}
-	forgejo.SetClientForTesting(client)
-	return srv
-}
 
 func readResourceReq(uri string) mcp.ReadResourceRequest {
 	return mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: uri}}
@@ -49,13 +30,12 @@ func resourceText(t *testing.T, contents []mcp.ResourceContents) string {
 }
 
 func TestBranchProtectionsResource_HappyPath(t *testing.T) {
-	srv := setupBPResourceServer(t, http.StatusOK, []map[string]interface{}{
-		{"rule_name": "main", "branch_name": "main", "required_approvals": 1},
-		{"rule_name": "release/*", "branch_name": "release/*"},
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
+	seedRule(t, f, forgejo_sdk.CreateBranchProtectionOption{BranchName: "main", RequiredApprovals: 1})
+	seedRule(t, f, forgejo_sdk.CreateBranchProtectionOption{BranchName: "release/*"})
 
-	contents, err := branchProtectionsResourceHandler(context.Background(),
+	contents, err := h.branchProtectionsResourceHandler(context.Background(),
 		readResourceReq("forgejo://repo/goern/forgejo-mcp/branch_protections"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -73,14 +53,13 @@ func TestBranchProtectionsResource_HappyPath(t *testing.T) {
 }
 
 func TestBranchProtectionsResource_Truncation(t *testing.T) {
-	rules := make([]map[string]interface{}, resource.EmbeddedListCap+1)
-	for i := range rules {
-		rules[i] = map[string]interface{}{"rule_name": fmt.Sprintf("rule-%d", i), "branch_name": fmt.Sprintf("b-%d", i)}
+	t.Parallel()
+	h, f := newFixture(t)
+	for i := 0; i < resource.EmbeddedListCap+1; i++ {
+		seedRule(t, f, forgejo_sdk.CreateBranchProtectionOption{BranchName: fmt.Sprintf("b-%d", i), RuleName: fmt.Sprintf("rule-%d", i)})
 	}
-	srv := setupBPResourceServer(t, http.StatusOK, rules)
-	defer srv.Close()
 
-	contents, err := branchProtectionsResourceHandler(context.Background(),
+	contents, err := h.branchProtectionsResourceHandler(context.Background(),
 		readResourceReq("forgejo://repo/goern/forgejo-mcp/branch_protections"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -101,17 +80,15 @@ func TestBranchProtectionsResource_Truncation(t *testing.T) {
 }
 
 func TestBranchProtectionsResource_NotFound(t *testing.T) {
-	srv := setupBPResourceServer(t, http.StatusNotFound, map[string]string{"message": "Not Found"})
-	defer srv.Close()
-
-	_, err := branchProtectionsResourceHandler(context.Background(),
+	t.Parallel()
+	h, _ := newFixture(t)
+	_, err := h.branchProtectionsResourceHandler(context.Background(),
 		readResourceReq("forgejo://repo/goern/missing/branch_protections"))
 	if err == nil {
 		t.Fatal("expected error for 404")
 	}
 	var re *resource.ResourceError
-	ok := errors.As(err, &re)
-	if !ok {
+	if !errors.As(err, &re) {
 		t.Fatalf("expected *resource.ResourceError, got %T", err)
 	}
 	if re.Code != -32003 {
@@ -120,13 +97,13 @@ func TestBranchProtectionsResource_NotFound(t *testing.T) {
 }
 
 func TestBranchProtectionResource_HappyPath(t *testing.T) {
-	srv := setupBPResourceServer(t, http.StatusOK, map[string]interface{}{
-		"rule_name": "main", "branch_name": "main",
-		"status_check_contexts": []string{"ci/build"}, "required_approvals": 2,
+	t.Parallel()
+	h, f := newFixture(t)
+	seedRule(t, f, forgejo_sdk.CreateBranchProtectionOption{
+		BranchName: "main", StatusCheckContexts: []string{"ci/build"}, RequiredApprovals: 2,
 	})
-	defer srv.Close()
 
-	contents, err := branchProtectionResourceHandler(context.Background(),
+	contents, err := h.branchProtectionResourceHandler(context.Background(),
 		readResourceReq("forgejo://repo/goern/forgejo-mcp/branch_protection/main"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -141,15 +118,16 @@ func TestBranchProtectionResource_HappyPath(t *testing.T) {
 }
 
 func TestBranchProtectionResource_MalformedURI(t *testing.T) {
-	// No server needed: parse fails before any client call.
-	_, err := branchProtectionResourceHandler(context.Background(),
+	t.Parallel()
+	// Parse fails before any port call.
+	h, _ := newFixture(t)
+	_, err := h.branchProtectionResourceHandler(context.Background(),
 		readResourceReq("forgejo://repo/goern/forgejo-mcp/branch_protection"))
 	if err == nil {
 		t.Fatal("expected error for malformed URI (missing rule)")
 	}
 	var re *resource.ResourceError
-	ok := errors.As(err, &re)
-	if !ok {
+	if !errors.As(err, &re) {
 		t.Fatalf("expected *resource.ResourceError, got %T", err)
 	}
 	if re.Code != -32602 {

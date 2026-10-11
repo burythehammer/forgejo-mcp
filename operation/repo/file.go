@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -74,7 +73,7 @@ var (
 	)
 )
 
-func GetFileContentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetFileContentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetFileFn")
 	args := req.GetArguments()
 	owner, ok := args["owner"].(string)
@@ -93,11 +92,11 @@ func GetFileContentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 	withMetadata, _ := args["with_metadata"].(bool)
 
 	if withMetadata {
-		client, err := forgejo.Client(ctx)
+		port, err := h.forge.For(ctx)
 		if err != nil {
 			return to.ErrorResult(err)
 		}
-		content, _, err := client.GetContents(owner, repo, ref, filePath)
+		content, err := port.GetContents(ctx, owner, repo, ref, filePath)
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("get file err: %w", err))
 		}
@@ -106,11 +105,11 @@ func GetFileContentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 
 	// Default: plain text via GetFile (SDK /raw/ endpoint, no base64).
 	// GetFile returns []byte; binary files are returned as-is without detection.
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rawBytes, _, err := client.GetFile(owner, repo, ref, filePath)
+	rawBytes, err := port.GetFile(ctx, owner, repo, ref, filePath)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get file err: %w", err))
 	}
@@ -152,7 +151,7 @@ func SliceLines(content string, start, end int) (string, error) {
 	return strings.Join(lines[start-1:end], "\n"), nil
 }
 
-func CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateFileFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -176,18 +175,18 @@ func CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 		},
 		Content: encodedContent,
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	fileResp, _, err := client.CreateFile(owner, repo, filePath, opt)
+	fileResp, err := port.CreateFile(ctx, owner, repo, filePath, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create file error: %w", err))
 	}
 	return to.TextResult(fileResp)
 }
 
-func UpdateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) UpdateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called UpdateFileFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -213,18 +212,18 @@ func UpdateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 		SHA:     sha,
 		Content: encodedContent,
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	fileResp, _, err := client.UpdateFile(owner, repo, filePath, opt)
+	fileResp, err := port.UpdateFile(ctx, owner, repo, filePath, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("update file error: %w", err))
 	}
 	return to.TextResult(fileResp)
 }
 
-func DeleteFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteFileFn")
 	owner, ok := req.GetArguments()["owner"].(string)
 	if !ok {
@@ -253,11 +252,11 @@ func DeleteFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 		},
 		SHA: sha,
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.DeleteFile(owner, repo, filePath, opt)
+	err = port.DeleteFile(ctx, owner, repo, filePath, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("delete file err: %w", err))
 	}

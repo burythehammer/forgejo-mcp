@@ -31,22 +31,22 @@ func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Facto
 		fn   func(*server.MCPServer)
 	}
 	domains := []domainReg{
-		{"user", operation.RegisterUserTool},
-		{"repo", operation.RegisterRepoTool},
+		{"user", func(s *server.MCPServer) { operation.RegisterUserTool(s, f) }},
+		{"repo", func(s *server.MCPServer) { operation.RegisterRepoTool(s, f) }},
 		{"issue", func(s *server.MCPServer) { operation.RegisterIssueTool(s, f) }},
 		{"pull", func(s *server.MCPServer) { operation.RegisterPullTool(s, f) }},
 		{"pull", func(s *server.MCPServer) { operation.RegisterPullReviewTool(s, f) }},
 		{"search", operation.RegisterSearchTool},
 		{"version", func(s *server.MCPServer) { operation.RegisterVersionTool(s, version) }},
 		{"actions", operation.RegisterActionsTool},
-		{"org", operation.RegisterOrgTool},
-		{"packages", operation.RegisterPackagesTool},
+		{"org", func(s *server.MCPServer) { operation.RegisterOrgTool(s, f) }},
+		{"packages", func(s *server.MCPServer) { operation.RegisterPackagesTool(s, f) }},
 		{"tracking", operation.RegisterTrackingTool},
 		{"attachment", operation.RegisterAttachmentTool},
 		{"release", operation.RegisterReleaseTool},
-		{"branch-protection", operation.RegisterBranchProtectionTool},
-		{"webhook", operation.RegisterHookTool},
-		{"wiki", operation.RegisterWikiTool},
+		{"branch-protection", func(s *server.MCPServer) { operation.RegisterBranchProtectionTool(s, f) }},
+		{"webhook", func(s *server.MCPServer) { operation.RegisterHookTool(s, f) }},
+		{"wiki", func(s *server.MCPServer) { operation.RegisterWikiTool(s, f) }},
 	}
 
 	for _, d := range domains {

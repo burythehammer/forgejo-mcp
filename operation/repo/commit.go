@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -17,20 +16,18 @@ const (
 	ListRepoCommitsToolName = "list_repo_commits"
 )
 
-var (
-	ListRepoCommitsTool = mcp.NewTool(
-		ListRepoCommitsToolName,
-		mcp.WithDescription("List repo commits"),
-		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
-		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-		mcp.WithString("path", mcp.Description("File/dir path")),
-		mcp.WithString("sha", mcp.Description("SHA/branch to start from")),
-		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
-		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
-	)
+var ListRepoCommitsTool = mcp.NewTool(
+	ListRepoCommitsToolName,
+	mcp.WithDescription("List repo commits"),
+	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
+	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
+	mcp.WithString("path", mcp.Description("File/dir path")),
+	mcp.WithString("sha", mcp.Description("SHA/branch to start from")),
+	mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
+	mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
 )
 
-func ListRepoCommitsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListRepoCommitsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoCommitsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -60,11 +57,11 @@ func ListRepoCommitsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 			PageSize: int(limit),
 		},
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	commits, _, err := client.ListRepoCommits(owner, repo, opt)
+	commits, err := port.ListCommits(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list repo commits error: %w", err))
 	}
