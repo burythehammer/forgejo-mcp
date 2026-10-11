@@ -5,33 +5,24 @@ package operation
 import (
 	"context"
 	"encoding/base64"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 func TestCoreResourceDispatchRoutesWikiTemplate(t *testing.T) {
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.Contains(r.URL.Path, "/wiki/page/Home"):
-			content := base64.StdEncoding.EncodeToString([]byte("# Dispatched\n"))
-			_, _ = w.Write([]byte(`{"title":"Home","sub_url":"Home","content_base64":"` + content + `","last_commit":{"sha":"abc"}}`))
-		case strings.Contains(r.URL.Path, "/wiki/revisions/Home"):
-			_, _ = w.Write([]byte(`{"commits":[],"count":0}`))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(api.Close)
-	forgejo.ConfigureForTesting(api.URL, "test", "")
+	t.Parallel()
+	f := fake.New()
+	f.AddRepo("o", "r")
+	if _, err := f.CreateWikiPage(context.Background(), "o", "r", "Home", base64.StdEncoding.EncodeToString([]byte("# Dispatched\n")), "seed"); err != nil {
+		t.Fatal(err)
+	}
 
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s, nil)
+	RegisterCoreResources(s, fake.Factory{Forgejo: f})
 	response := s.HandleMessage(context.Background(), []byte(`{
 		"jsonrpc":"2.0",
 		"id":1,

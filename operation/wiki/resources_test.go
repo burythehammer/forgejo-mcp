@@ -4,17 +4,19 @@ package wiki
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"net/http"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -31,16 +33,16 @@ func wikiPayload(t *testing.T, contents []mcp.ResourceContents) wikiResourcePayl
 	return payload
 }
 
+func readWiki(h handlers, name string) ([]mcp.ResourceContents, error) {
+	uri := fmt.Sprintf("forgejo://repo/%s/%s/wiki/%s", testOwner, testRepo, name)
+	return h.wikiResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: uri}})
+}
+
 func TestWikiResourceReturnsMetadataAndMarkdown(t *testing.T) {
-	wikiServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/revisions/") {
-			_, _ = w.Write([]byte(`{"commits":[{"sha":"abc","author":{"name":"Ada"},"message":"create"}],"count":1}`))
-			return
-		}
-		content := base64.StdEncoding.EncodeToString([]byte("# Hello\n"))
-		_, _ = w.Write([]byte(`{"title":"Hello","sub_url":"Hello","content_base64":"` + content + `","last_commit":{"sha":"abc"}}`))
-	})
-	contents, err := wikiResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/o/r/wiki/Hello"}})
+	t.Parallel()
+	h, f := newFixture(t)
+	made := seedPage(t, f, "Hello", "# Hello\n")
+	contents, err := readWiki(h, "Hello")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,10 +50,10 @@ func TestWikiResourceReturnsMetadataAndMarkdown(t *testing.T) {
 		t.Fatalf("expected JSON and markdown, got %d blocks", len(contents))
 	}
 	payload := wikiPayload(t, contents)
-	if len(payload.RecentRevisions) != 1 || payload.RecentRevisions[0].Author != "Ada" {
+	if len(payload.RecentRevisions) != 1 || payload.RecentRevisions[0].Author != fake.Poster {
 		t.Fatalf("unexpected JSON payload: %#v", payload)
 	}
-	if payload.CommitSHA != "abc" || payload.Truncated || payload.Sentinel != "" {
+	if payload.CommitSHA != made.LastCommit.SHA || payload.Truncated || payload.Sentinel != "" {
 		t.Fatalf("unexpected metadata/bounding: %#v", payload)
 	}
 	markdown, ok := contents[1].(mcp.TextResourceContents)
@@ -60,15 +62,19 @@ func TestWikiResourceReturnsMetadataAndMarkdown(t *testing.T) {
 	}
 }
 
+// revisionsFail is a port whose revision history cannot be read.
+type revisionsFail struct{ *fake.Forgejo }
+
+func (revisionsFail) GetWikiPageRevisions(context.Context, string, string, string, int, int) (*forge.WikiRevisions, error) {
+	return nil, errors.New("500 internal error")
+}
+
 func TestWikiResourceDegradesWhenRevisionsFail(t *testing.T) {
-	wikiServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/revisions/") {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		_, _ = w.Write([]byte(`{"title":"Hello","sub_url":"Hello","content_base64":""}`))
-	})
-	contents, err := wikiResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/o/r/wiki/Hello"}})
+	t.Parallel()
+	_, f := newFixture(t)
+	seedPage(t, f, "Hello", "")
+	h := handlers{forge: fake.Factory{Forgejo: revisionsFail{f}}}
+	contents, err := readWiki(h, "Hello")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,20 +88,19 @@ func TestWikiResourceDegradesWhenRevisionsFail(t *testing.T) {
 }
 
 func TestWikiResourceBoundsRevisionsWithSharedSentinel(t *testing.T) {
+	t.Parallel()
 	const total = resource.EmbeddedListCap + 7
-	wikiServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/revisions/") {
-			commits := make([]string, resource.EmbeddedListCap+1)
-			for i := range commits {
-				commits[i] = `{"sha":"sha-` + strconv.Itoa(i) + `","author":{"name":"Ada"},"message":"edit"}`
-			}
-			_, _ = w.Write([]byte(`{"commits":[` + strings.Join(commits, ",") + `],"count":` + strconv.Itoa(total) + `}`))
-			return
+	h, f := newFixture(t)
+	made := seedPage(t, f, "Hello", "v0")
+	var last *forge.WikiPage
+	for i := 1; i < total; i++ {
+		var err error
+		last, err = f.EditWikiPage(context.Background(), testOwner, testRepo, made.SubURL, "Hello", b64("v"+strconv.Itoa(i)), "edit")
+		if err != nil {
+			t.Fatal(err)
 		}
-		_, _ = w.Write([]byte(`{"title":"Hello","sub_url":"Hello","content_base64":"","last_commit":{"sha":"page-sha"}}`))
-	})
-
-	contents, err := wikiResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/o/r/wiki/Hello"}})
+	}
+	contents, err := readWiki(h, "Hello")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,48 +114,40 @@ func TestWikiResourceBoundsRevisionsWithSharedSentinel(t *testing.T) {
 	if !strings.Contains(payload.Sentinel, "[truncated:") || !strings.Contains(payload.Sentinel, strconv.Itoa(total)) || !strings.Contains(payload.Sentinel, GetWikiRevisionsToolName) {
 		t.Fatalf("unexpected sentinel: %q", payload.Sentinel)
 	}
-	if payload.CommitSHA != "page-sha" {
-		t.Fatalf("commit SHA must come from page payload, got %q", payload.CommitSHA)
+	if payload.CommitSHA != last.LastCommit.SHA {
+		t.Fatalf("commit SHA must come from the page, got %q", payload.CommitSHA)
 	}
 }
 
-func TestWikiResourceMapsPrimaryHTTPError(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		status int
-		code   int
-	}{
-		{name: "forbidden", status: http.StatusForbidden, code: -32002},
-		{name: "not found", status: http.StatusNotFound, code: -32003},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			wikiServer(t, func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(tc.status)
-			})
-			uri := "forgejo://repo/o/r/wiki/Missing"
-			_, err := wikiResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: uri}})
-			var resourceErr *resource.ResourceError
-			if !errors.As(err, &resourceErr) || resourceErr.Code != tc.code {
-				t.Fatalf("expected resource error %d, got %v", tc.code, err)
-			}
-		})
+func TestWikiResourceMapsPrimaryError(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	_, err := readWiki(h, "Missing")
+	var resourceErr *resource.ResourceError
+	if !errors.As(err, &resourceErr) || resourceErr.Code != -32003 {
+		t.Fatalf("expected not-found resource error, got %v", err)
+	}
+}
+
+func TestWikiResourceMapsCredentialRefusal(t *testing.T) {
+	t.Parallel()
+	h := handlers{forge: fake.Factory{Err: errors.New("403 forbidden: no credential")}}
+	_, err := readWiki(h, "Hello")
+	var resourceErr *resource.ResourceError
+	if !errors.As(err, &resourceErr) || resourceErr.Code != -32002 {
+		t.Fatalf("expected access-denied resource error, got %v", err)
 	}
 }
 
 func TestWikiResourceTruncatesMarkdownAtUTF8Boundary(t *testing.T) {
+	t.Parallel()
 	const marker = "\n\n[truncated: use get_wiki_page with start_line/end_line to retrieve the remainder.]"
 	keep := forgejo.MaxInlineDownloadBytes - len(marker)
 	// Put the nominal byte boundary in the middle of a multi-byte rune.
 	content := strings.Repeat("a", keep-1) + "€" + strings.Repeat("z", len(marker)+10)
-	wikiServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/revisions/") {
-			_, _ = w.Write([]byte(`{"commits":[],"count":0}`))
-			return
-		}
-		encoded := base64.StdEncoding.EncodeToString([]byte(content))
-		_, _ = w.Write([]byte(`{"title":"Hello","sub_url":"Hello","content_base64":"` + encoded + `"}`))
-	})
-	contents, err := wikiResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/o/r/wiki/Hello"}})
+	h, f := newFixture(t)
+	seedPage(t, f, "Hello", content)
+	contents, err := readWiki(h, "Hello")
 	if err != nil {
 		t.Fatal(err)
 	}
