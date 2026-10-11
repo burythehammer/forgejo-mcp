@@ -18,9 +18,6 @@ func NewSecret(value string) Secret { return Secret{value: value} }
 // Reveal returns the credential. Call it only where the value is used.
 func (s Secret) Reveal() string { return s.value }
 
-// IsSet reports whether a credential was supplied.
-func (s Secret) IsSet() bool { return s.value != "" }
-
 // String implements fmt.Stringer.
 func (Secret) String() string { return redacted }
 

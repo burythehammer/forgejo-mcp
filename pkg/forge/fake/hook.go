@@ -14,10 +14,9 @@ import (
 var _ forge.Hooks = (*Forgejo)(nil)
 
 type hookState struct {
-	mu         sync.Mutex
-	hooks      map[string][]*forgejo_sdk.Hook // key "owner/repo", creation order
-	next       int64
-	deliveries map[int64]int // test deliveries by hook id
+	mu    sync.Mutex
+	hooks map[string][]*forgejo_sdk.Hook // key "owner/repo", creation order
+	next  int64
 }
 
 func (f *Forgejo) hookList(owner, repo string) ([]*forgejo_sdk.Hook, error) {
@@ -166,17 +165,5 @@ func (f *Forgejo) TestRepoHook(_ context.Context, owner, repo string, id int64) 
 	if _, err := findHook(hooks, id); err != nil {
 		return err
 	}
-	if f.hooks.deliveries == nil {
-		f.hooks.deliveries = map[int64]int{}
-	}
-	f.hooks.deliveries[id]++
 	return nil
-}
-
-// HookTestDeliveries reports how many test deliveries TestRepoHook triggered
-// for a hook, which the port cannot observe.
-func (f *Forgejo) HookTestDeliveries(id int64) int {
-	f.hooks.mu.Lock()
-	defer f.hooks.mu.Unlock()
-	return f.hooks.deliveries[id]
 }

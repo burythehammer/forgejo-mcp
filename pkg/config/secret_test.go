@@ -47,7 +47,4 @@ func TestSecretIsReadOnlyThroughReveal(t *testing.T) {
 	if s.Reveal() != canary {
 		t.Fatalf("Reveal() = %q", s.Reveal())
 	}
-	if !s.IsSet() || NewSecret("").IsSet() {
-		t.Fatal("IsSet() wrong")
-	}
 }

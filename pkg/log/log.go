@@ -184,34 +184,9 @@ func InfoCtx(ctx context.Context, msg string, fields ...zap.Field) {
 	Default().Info(msg, fields...)
 }
 
-func WarnCtx(ctx context.Context, msg string, fields ...zap.Field) {
-	fields = append(GetContextFields(ctx), fields...)
-	Default().Warn(msg, fields...)
-}
-
 func ErrorCtx(ctx context.Context, msg string, fields ...zap.Field) {
 	fields = append(GetContextFields(ctx), fields...)
 	Default().Error(msg, fields...)
-}
-
-func DebugfCtx(ctx context.Context, format string, args ...any) {
-	fields := GetContextFields(ctx)
-	Default().With(fields...).Sugar().Debugf(format, args...)
-}
-
-func InfofCtx(ctx context.Context, format string, args ...any) {
-	fields := GetContextFields(ctx)
-	Default().With(fields...).Sugar().Infof(format, args...)
-}
-
-func WarnfCtx(ctx context.Context, format string, args ...any) {
-	fields := GetContextFields(ctx)
-	Default().With(fields...).Sugar().Warnf(format, args...)
-}
-
-func ErrorfCtx(ctx context.Context, format string, args ...any) {
-	fields := GetContextFields(ctx)
-	Default().With(fields...).Sugar().Errorf(format, args...)
 }
 
 // Helper functions for common field types
