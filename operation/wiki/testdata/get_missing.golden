@@ -1,0 +1,3 @@
+ERROR: get wiki page: wiki page does not exist
+-- port calls --
+GetWikiPage ["octo","hello","missing"]

@@ -1,0 +1,3 @@
+{"Result":{"revisions":[{"sha":"r1","author":"octo","message":"first"},{"sha":"r2","author":"bob","message":"second"},{"sha":"r3","author":"alice","message":"third"}],"page":1,"has_next":false,"total_count":3}}
+-- port calls --
+GetWikiPageRevisions ["octo","hello","Home",1,30]

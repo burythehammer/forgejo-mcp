@@ -1,0 +1,3 @@
+{"Result":{"deleted":true,"page_name":"Home"}}
+-- port calls --
+DeleteWikiPage ["octo","hello","Home"]
