@@ -5,12 +5,14 @@ package version
 import "testing"
 
 func TestRunReportsConfiguredVersion(t *testing.T) {
+	t.Parallel()
 	if got := Run("1.2.3"); got.Version != "1.2.3" {
 		t.Fatalf("got %q", got.Version)
 	}
 }
 
 func TestRunFallsBackToDev(t *testing.T) {
+	t.Parallel()
 	if got := Run(""); got.Version != "dev" {
 		t.Fatalf("got %q", got.Version)
 	}
