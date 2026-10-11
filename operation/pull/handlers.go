@@ -26,19 +26,19 @@ type handlers struct{ forge forge.Factory }
 // them in agreement with the tool definitions.
 
 type getArgs struct {
-	Owner string `json:"owner" required:"true"`
-	Repo  string `json:"repo" required:"true"`
-	Index int64  `json:"index" required:"true"`
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index float64 `json:"index" required:"true"`
 }
 
 type listArgs struct {
-	Owner     string `json:"owner" required:"true"`
-	Repo      string `json:"repo" required:"true"`
-	State     string `json:"state"`
-	Sort      string `json:"sort"`
-	Milestone string `json:"milestone"`
-	Page      int    `json:"page"`
-	Limit     int    `json:"limit"`
+	Owner     string  `json:"owner" required:"true"`
+	Repo      string  `json:"repo" required:"true"`
+	State     string  `json:"state"`
+	Sort      string  `json:"sort"`
+	Milestone string  `json:"milestone"`
+	Page      float64 `json:"page"`
+	Limit     float64 `json:"limit"`
 }
 
 type createArgs struct {
@@ -51,82 +51,82 @@ type createArgs struct {
 }
 
 type updateArgs struct {
-	Owner     string `json:"owner" required:"true"`
-	Repo      string `json:"repo" required:"true"`
-	Index     int64  `json:"index" required:"true"`
-	Title     string `json:"title"`
-	Body      string `json:"body"`
-	Base      string `json:"base"`
-	Assignee  string `json:"assignee"`
-	Milestone string `json:"milestone"`
+	Owner     string  `json:"owner" required:"true"`
+	Repo      string  `json:"repo" required:"true"`
+	Index     float64 `json:"index" required:"true"`
+	Title     string  `json:"title"`
+	Body      string  `json:"body"`
+	Base      string  `json:"base"`
+	Assignee  string  `json:"assignee"`
+	Milestone string  `json:"milestone"`
 }
 
 type pagedArgs struct {
-	Owner string `json:"owner" required:"true"`
-	Repo  string `json:"repo" required:"true"`
-	Index int64  `json:"index" required:"true"`
-	Page  int    `json:"page"`
-	Limit int    `json:"limit"`
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index float64 `json:"index" required:"true"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
 }
 
 type reviewArgs struct {
-	Owner string `json:"owner" required:"true"`
-	Repo  string `json:"repo" required:"true"`
-	Index int64  `json:"index" required:"true"`
-	ID    int64  `json:"id" required:"true"`
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index float64 `json:"index" required:"true"`
+	ID    float64 `json:"id" required:"true"`
 }
 
 type mergeArgs struct {
-	Owner             string `json:"owner" required:"true"`
-	Repo              string `json:"repo" required:"true"`
-	Index             int64  `json:"index" required:"true"`
-	Style             string `json:"style" required:"true"`
-	Title             string `json:"title"`
-	Message           string `json:"message"`
-	DeleteBranch      bool   `json:"delete_branch_after_merge"`
-	ForceMerge        bool   `json:"force_merge"`
-	MergeWhenChecksOK bool   `json:"merge_when_checks_succeed"`
+	Owner             string  `json:"owner" required:"true"`
+	Repo              string  `json:"repo" required:"true"`
+	Index             float64 `json:"index" required:"true"`
+	Style             string  `json:"style" required:"true"`
+	Title             string  `json:"title"`
+	Message           string  `json:"message"`
+	DeleteBranch      bool    `json:"delete_branch_after_merge"`
+	ForceMerge        bool    `json:"force_merge"`
+	MergeWhenChecksOK bool    `json:"merge_when_checks_succeed"`
 }
 
 type diffArgs struct {
-	Owner    string `json:"owner" required:"true"`
-	Repo     string `json:"repo" required:"true"`
-	Index    int64  `json:"index" required:"true"`
-	FilePath string `json:"file_path"`
+	Owner    string  `json:"owner" required:"true"`
+	Repo     string  `json:"repo" required:"true"`
+	Index    float64 `json:"index" required:"true"`
+	FilePath string  `json:"file_path"`
 }
 
 type createReviewArgs struct {
-	Owner    string `json:"owner" required:"true"`
-	Repo     string `json:"repo" required:"true"`
-	Index    int64  `json:"index" required:"true"`
-	Body     string `json:"body"`
-	State    string `json:"state" required:"true"`
-	Comments string `json:"comments"`
+	Owner    string  `json:"owner" required:"true"`
+	Repo     string  `json:"repo" required:"true"`
+	Index    float64 `json:"index" required:"true"`
+	Body     string  `json:"body"`
+	State    string  `json:"state" required:"true"`
+	Comments string  `json:"comments"`
 }
 
 type submitReviewArgs struct {
-	Owner string `json:"owner" required:"true"`
-	Repo  string `json:"repo" required:"true"`
-	Index int64  `json:"index" required:"true"`
-	ID    int64  `json:"id" required:"true"`
-	Body  string `json:"body"`
-	State string `json:"state" required:"true"`
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index float64 `json:"index" required:"true"`
+	ID    float64 `json:"id" required:"true"`
+	Body  string  `json:"body"`
+	State string  `json:"state" required:"true"`
 }
 
 type dismissArgs struct {
-	Owner   string `json:"owner" required:"true"`
-	Repo    string `json:"repo" required:"true"`
-	Index   int64  `json:"index" required:"true"`
-	ID      int64  `json:"id" required:"true"`
-	Message string `json:"message" required:"true"`
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	ID      float64 `json:"id" required:"true"`
+	Message string  `json:"message" required:"true"`
 }
 
 type reviewersArgs struct {
-	Owner         string `json:"owner" required:"true"`
-	Repo          string `json:"repo" required:"true"`
-	Index         int64  `json:"index" required:"true"`
-	Reviewers     string `json:"reviewers"`
-	TeamReviewers string `json:"team_reviewers"`
+	Owner         string  `json:"owner" required:"true"`
+	Repo          string  `json:"repo" required:"true"`
+	Index         float64 `json:"index" required:"true"`
+	Reviewers     string  `json:"reviewers"`
+	TeamReviewers string  `json:"team_reviewers"`
 }
 
 // run is the shared shape of a tool call: decode the arguments into A, take
@@ -137,7 +137,7 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 ) (*mcp.CallToolResult, error) {
 	log.Debugf("Called %s", name)
 	var args A
-	if err := decode.Args(req, &args); err != nil {
+	if err := decode.Lax(req, &args); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	port, err := h.forge.For(ctx)
@@ -171,14 +171,14 @@ func message(text string, err error) (*mcp.CallToolResult, error) {
 
 func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetPullRequestByIndexFn", func(ctx context.Context, s *apppull.Service, a getArgs) (*mcp.CallToolResult, error) {
-		return render(s.Get(ctx, apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index}))
+		return render(s.Get(ctx, apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}))
 	})
 }
 
 func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoPullRequestsFn", func(ctx context.Context, s *apppull.Service, a listArgs) (*mcp.CallToolResult, error) {
 		return render(s.List(ctx, apppull.ListInput{
-			Owner: a.Owner, Repo: a.Repo, State: a.State, Sort: a.Sort, Milestone: a.Milestone, Page: a.Page, Limit: a.Limit,
+			Owner: a.Owner, Repo: a.Repo, State: a.State, Sort: a.Sort, Milestone: a.Milestone, Page: int(a.Page), Limit: int(a.Limit),
 		}))
 	})
 }
@@ -192,7 +192,7 @@ func (h handlers) CreatePullRequestFn(ctx context.Context, req mcp.CallToolReque
 func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdatePullRequestFn", func(ctx context.Context, s *apppull.Service, a updateArgs) (*mcp.CallToolResult, error) {
 		return render(s.Update(ctx, apppull.UpdateInput{
-			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index},
+			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
 			Title: a.Title, Body: a.Body, Base: a.Base, Assignee: a.Assignee, Milestone: a.Milestone,
 		}))
 	})
@@ -200,7 +200,7 @@ func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolReque
 
 func (h handlers) ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullReviewsFn", func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
-		return render(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index}, Page: a.Page, Limit: a.Limit}))
+		return render(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)}))
 	})
 }
 
@@ -219,7 +219,7 @@ func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallTool
 func (h handlers) MergePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "MergePullRequestFn", func(ctx context.Context, s *apppull.Service, a mergeArgs) (*mcp.CallToolResult, error) {
 		res, err := s.Merge(ctx, apppull.MergeRequest{
-			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index},
+			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
 			Style: a.Style, Title: a.Title, Message: a.Message,
 			DeleteBranch: a.DeleteBranch, Force: a.ForceMerge, WhenChecksSucceed: a.MergeWhenChecksOK,
 		})
@@ -233,13 +233,13 @@ func (h handlers) MergePullRequestFn(ctx context.Context, req mcp.CallToolReques
 
 func (h handlers) ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullRequestFilesFn", func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
-		return render(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index}, Page: a.Page, Limit: a.Limit}))
+		return render(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)}))
 	})
 }
 
 func (h handlers) GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetPullRequestDiffFn", func(ctx context.Context, s *apppull.Service, a diffArgs) (*mcp.CallToolResult, error) {
-		body, err := s.Diff(ctx, apppull.DiffInput{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index}, FilePath: a.FilePath})
+		body, err := s.Diff(ctx, apppull.DiffInput{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, FilePath: a.FilePath})
 		return message(body, err)
 	})
 }
@@ -247,7 +247,7 @@ func (h handlers) GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequ
 func (h handlers) CreatePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreatePullReviewFn", func(ctx context.Context, s *apppull.Service, a createReviewArgs) (*mcp.CallToolResult, error) {
 		return render(s.CreateReview(ctx, apppull.CreateReviewRequest{
-			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index},
+			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
 			State: a.State, Body: a.Body, Comments: a.Comments,
 		}))
 	})
@@ -291,12 +291,12 @@ func (h handlers) DeleteReviewRequestsFn(ctx context.Context, req mcp.CallToolRe
 }
 
 func reviewRef(a reviewArgs) apppull.ReviewRef {
-	return apppull.ReviewRef{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index}, ID: a.ID}
+	return apppull.ReviewRef{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, ID: int64(a.ID)}
 }
 
 func reviewers(a reviewersArgs) apppull.ReviewersInput {
 	return apppull.ReviewersInput{
-		PR:        apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.Index},
+		PR:        apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
 		Reviewers: a.Reviewers, TeamReviewers: a.TeamReviewers,
 	}
 }

@@ -189,6 +189,10 @@ func invoke(t *testing.T, stub *stubPulls, tool string, args map[string]any) str
 	}
 	base := map[string]any{"owner": "octo", "repo": "hello"}
 	for k, v := range args {
+		if v == nil {
+			delete(base, k) // a nil value means "leave the argument out"
+			continue
+		}
 		base[k] = v
 	}
 	res, err := st.Handler(context.Background(), mcp.CallToolRequest{Params: mcp.CallToolParams{Name: tool, Arguments: base}})
@@ -214,6 +218,13 @@ type goldenCase struct {
 var goldenCases = []goldenCase{
 	{name: "get_pr", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}},
 	{name: "get_pr_string_index", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": "7"}},
+	// Forgiving argument handling of the original handlers, kept: a missing
+	// required argument is forwarded as its zero value, and a fractional
+	// number is truncated.
+	{name: "get_pr_missing_required", tool: GetPullRequestByIndexToolName, args: map[string]any{"owner": nil, "repo": nil}},
+	{name: "get_pr_fractional_index", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": 5.5}},
+	{name: "list_prs_fractional_paging", tool: ListRepoPullRequestsToolName, args: map[string]any{"page": 2.9, "limit": 3.5}},
+	{name: "merge_missing_style", tool: MergePullRequestToolName, args: map[string]any{"index": float64(7)}},
 	{name: "get_pr_port_error", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}, stub: func(s *stubPulls) { s.fail = errors.New("boom") }},
 	{name: "list_prs_defaults", tool: ListRepoPullRequestsToolName},
 	{name: "list_prs_filtered", tool: ListRepoPullRequestsToolName, args: map[string]any{"state": "all", "sort": "oldest", "milestone": "4", "page": float64(2), "limit": float64(5)}},

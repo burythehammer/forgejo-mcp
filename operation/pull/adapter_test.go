@@ -85,17 +85,24 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 	}
 }
 
-func TestMissingRequiredArgumentIsAToolError(t *testing.T) {
+// The tools keep the forgiving argument handling of the handlers they
+// replaced (decode.Lax): nothing is rejected up front, Forgejo answers.
+func TestMissingRequiredArgumentIsForwardedNotRejected(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	res, err := h.GetPullRequestByIndexFn(context.Background(), mcp.CallToolRequest{})
-	if err != nil || res == nil || !res.IsError {
-		t.Fatalf("want a tool error result, got %+v, %v", res, err)
+	_, err := h.GetPullRequestByIndexFn(context.Background(), mcp.CallToolRequest{})
+	if err == nil || !strings.HasPrefix(err.Error(), "get pull request err: ") {
+		t.Fatalf("want the use case's error for an unknown pull request, got %v", err)
 	}
-	text := res.Content[0].(mcp.TextContent).Text
-	for _, name := range []string{"owner", "repo", "index"} {
-		if !strings.Contains(text, name) {
-			t.Errorf("%q does not name %s", text, name)
+}
+
+func TestFractionalAndStringNumbersAreTruncatedLikeBefore(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openPR(t, f, "five")
+	for _, v := range []any{float64(idx) + 0.5, "1", "1.9"} {
+		if got := call(t, h.GetPullRequestByIndexFn, map[string]any{"index": v}); !strings.Contains(got, "five") {
+			t.Fatalf("index %v: %s", v, got)
 		}
 	}
 }

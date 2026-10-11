@@ -153,8 +153,11 @@ MCP-free use case (`app/<domain>`). `version` is the smallest example and `pull`
    shape the model copies. The shared `forge.<Domain>` stays SDK-typed (the
    resources and contract suite use it) until #8 retires it.
 4. **MCP adapter** (`operation/<domain>/handlers.go`): one argument struct per
-   tool (`json:"name"`, `required:"true"`; mind that `decode.Args` also accepts
-   string-encoded numbers), and each handler is a few lines through the generic
+   tool (`json:"name"`, `required:"true"` so `ArgsMatchSchema` checks them against the
+   schema). Decode with `decode.Lax`, not `decode.Args`, while the wire contract
+   is frozen: the old handlers never rejected a missing or mistyped argument,
+   and truncated numbers, so declare numeric fields `float64` and convert with
+   `int64(...)` in the handler. Both accept string-encoded numbers. Then each handler is a few lines through the generic
    `run` helper: decode, build `apppull.New(pulladapter.New(port))`, call the
    use case, render with `to.TextResult` / plain text. Use-case errors become
    MCP errors in one function (`fail`); invalid or missing arguments are a tool

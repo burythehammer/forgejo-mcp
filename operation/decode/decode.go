@@ -35,9 +35,30 @@ func isNumber(k reflect.Kind) bool {
 // Args decodes req's arguments into dst (a pointer to a struct) and reports
 // every missing required field and every wrongly typed field in one error.
 func Args(req mcp.CallToolRequest, dst any) error {
+	problems, err := fill(req, dst)
+	if err != nil {
+		return err
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("invalid arguments: %s", strings.Join(problems, "; "))
+	}
+	return nil
+}
+
+// Lax is Args for tools that must keep the forgiving behaviour of the
+// hand-written handlers they replace: a missing or wrongly typed argument is
+// not an error but leaves its field at the zero value, so the use case sees
+// what the old code saw. Declare numbers as float64 to keep their truncation
+// (int64(5.5) is 5; an integer field would reject 5.5).
+func Lax(req mcp.CallToolRequest, dst any) error {
+	_, err := fill(req, dst)
+	return err
+}
+
+func fill(req mcp.CallToolRequest, dst any) ([]string, error) {
 	rv := reflect.ValueOf(dst)
 	if rv.Kind() != reflect.Pointer || rv.Elem().Kind() != reflect.Struct {
-		return errors.New("decode: dst must be a pointer to a struct")
+		return nil, errors.New("decode: dst must be a pointer to a struct")
 	}
 	args := req.GetArguments()
 
@@ -76,8 +97,5 @@ func Args(req mcp.CallToolRequest, dst any) error {
 			problems = append(problems, fmt.Sprintf("%s has the wrong type", name))
 		}
 	}
-	if len(problems) > 0 {
-		return fmt.Errorf("invalid arguments: %s", strings.Join(problems, "; "))
-	}
-	return nil
+	return problems, nil
 }

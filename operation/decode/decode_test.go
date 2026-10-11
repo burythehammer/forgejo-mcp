@@ -58,6 +58,21 @@ func TestArgsIgnoresUnknownAndAllowsNoArguments(t *testing.T) {
 	}
 }
 
+func TestLaxForwardsMissingAndTruncatesFloats(t *testing.T) {
+	t.Parallel()
+	var a struct {
+		Owner string  `json:"owner" required:"true"`
+		Index float64 `json:"index" required:"true"`
+		Draft bool    `json:"draft"`
+	}
+	if err := Lax(req(map[string]any{"index": 5.5, "draft": "nope"}), &a); err != nil {
+		t.Fatal(err)
+	}
+	if a.Owner != "" || int64(a.Index) != 5 || a.Draft {
+		t.Fatalf("got %+v", a)
+	}
+}
+
 type numbers struct {
 	ID    int64   `json:"id"`
 	Limit int     `json:"limit"`

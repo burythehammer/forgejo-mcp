@@ -1,0 +1,3 @@
+ERROR: merge pull request: server returned HTTP 0 (expected 200)
+-- port calls --
+MergePullRequest ["octo","hello",7,{"Do":"","MergeCommitID":"","MergeTitleField":"","MergeMessageField":"","delete_branch_after_merge":false,"force_merge":false,"head_commit_id":"","merge_when_checks_succeed":false}]
