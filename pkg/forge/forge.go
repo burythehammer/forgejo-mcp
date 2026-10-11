@@ -15,6 +15,8 @@ import "context"
 type Forgejo interface {
 	Pulls
 	RepoFiles
+	Wiki
+	Packages
 	Orgs
 	Users
 	BranchProtections

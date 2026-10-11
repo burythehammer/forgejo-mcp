@@ -7,10 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -27,20 +26,6 @@ const (
 	defaultPackagesLimit = 30
 	maxPackagesLimit     = 50
 )
-
-// packageVersionAPI is the Forgejo package JSON we accept. Extra fields
-// (nested User, Repository objects, creator) are dropped on unmarshal.
-type packageVersionAPI struct {
-	ID         int64  `json:"id"`
-	Type       string `json:"type"`
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	HTMLURL    string `json:"html_url"`
-	CreatedAt  string `json:"created_at"`
-	Repository *struct {
-		FullName string `json:"full_name"`
-	} `json:"repository"`
-}
 
 type packageVersion struct {
 	ID         int64  `json:"id"`
@@ -105,14 +90,21 @@ var (
 	)
 )
 
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(ListPackagesTool, ListPackagesFn)
-	s.AddTool(GetPackageTool, GetPackageFn)
-	s.AddTool(DeletePackageTool, DeletePackageFn)
-	s.AddTool(ListPackageFilesTool, ListPackageFilesFn)
+// RegisterTool registers the package tools. Each call takes its Forgejo port
+// from f, so it runs under the credential of the request that made it.
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(ListPackagesTool, h.ListPackagesFn)
+	s.AddTool(GetPackageTool, h.GetPackageFn)
+	s.AddTool(DeletePackageTool, h.DeletePackageFn)
+	s.AddTool(ListPackageFilesTool, h.ListPackageFilesFn)
 }
 
-func GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// handlers serve the package tools. They hold the factory rather than a port
+// so each request gets its own credential.
+type handlers struct{ forge forge.Factory }
+
+func (h handlers) GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetPackageFn")
 	args := req.GetArguments()
 
@@ -121,15 +113,18 @@ func GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 		return to.ErrorResult(err)
 	}
 
-	path := forgejo.APIPath("packages", owner, packageType, name, version)
-	var src packageVersionAPI
-	if err := forgejo.DoJSON(ctx, http.MethodGet, path, nil, &src); err != nil {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	src, err := f.GetPackage(ctx, owner, packageType, name, version)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get package: %w", err))
 	}
-	return to.TextResult(projectPackageVersion(src))
+	return to.TextResult(projectPackageVersion(*src))
 }
 
-func DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeletePackageFn")
 	args := req.GetArguments()
 
@@ -138,8 +133,11 @@ func DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 		return to.ErrorResult(err)
 	}
 
-	path := forgejo.APIPath("packages", owner, packageType, name, version)
-	if err := forgejo.DoJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := f.DeletePackage(ctx, owner, packageType, name, version); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete package: %w", err))
 	}
 	return to.TextResult(deletePackageResult{
@@ -151,7 +149,7 @@ func DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 	})
 }
 
-func projectPackageVersion(src packageVersionAPI) packageVersion {
+func projectPackageVersion(src forge.PackageVersion) packageVersion {
 	row := packageVersion{
 		ID:        src.ID,
 		Type:      src.Type,
@@ -160,9 +158,7 @@ func projectPackageVersion(src packageVersionAPI) packageVersion {
 		HTMLURL:   src.HTMLURL,
 		CreatedAt: src.CreatedAt,
 	}
-	if src.Repository != nil {
-		row.Repository = src.Repository.FullName
-	}
+	row.Repository = src.Repository
 	return row
 }
 

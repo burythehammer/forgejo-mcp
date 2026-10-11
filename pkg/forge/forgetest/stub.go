@@ -42,6 +42,8 @@ func NewStub(t testing.TB) *Stub {
 	mux.HandleFunc("GET /api/v1/version", func(w http.ResponseWriter, _ *http.Request) { WriteVersion(w) })
 	s.mountPulls(mux)
 	s.mountRepoFiles(mux)
+	s.mountWiki(mux)
+	s.mountPackages(mux)
 	s.mountOrgs(mux)
 	s.mountUsers(mux)
 	s.mountBranchProtections(mux)

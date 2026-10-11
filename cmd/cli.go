@@ -40,13 +40,13 @@ func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Facto
 		{"version", func(s *server.MCPServer) { operation.RegisterVersionTool(s, version) }},
 		{"actions", operation.RegisterActionsTool},
 		{"org", func(s *server.MCPServer) { operation.RegisterOrgTool(s, f) }},
-		{"packages", operation.RegisterPackagesTool},
+		{"packages", func(s *server.MCPServer) { operation.RegisterPackagesTool(s, f) }},
 		{"tracking", operation.RegisterTrackingTool},
 		{"attachment", operation.RegisterAttachmentTool},
 		{"release", operation.RegisterReleaseTool},
 		{"branch-protection", func(s *server.MCPServer) { operation.RegisterBranchProtectionTool(s, f) }},
 		{"webhook", func(s *server.MCPServer) { operation.RegisterHookTool(s, f) }},
-		{"wiki", operation.RegisterWikiTool},
+		{"wiki", func(s *server.MCPServer) { operation.RegisterWikiTool(s, f) }},
 	}
 
 	for _, d := range domains {

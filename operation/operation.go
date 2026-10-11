@@ -114,13 +114,13 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	RegisterVersionTool(s, version)
 	RegisterActionsTool(s)
 	RegisterOrgTool(s, f)
-	RegisterPackagesTool(s)
+	RegisterPackagesTool(s, f)
 	RegisterTrackingTool(s)
 	RegisterAttachmentTool(s)
 	RegisterReleaseTool(s)
 	RegisterBranchProtectionTool(s, f)
 	RegisterHookTool(s, f)
-	RegisterWikiTool(s)
+	RegisterWikiTool(s, f)
 
 	log.Info("All MCP tools registered successfully")
 }
@@ -172,8 +172,8 @@ func RegisterOrgTool(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered org tools")
 }
 
-func RegisterPackagesTool(s *server.MCPServer) {
-	packages.RegisterTool(s)
+func RegisterPackagesTool(s *server.MCPServer, f forge.Factory) {
+	packages.RegisterTool(s, f)
 	log.Debug("Registered packages tools")
 }
 
@@ -202,8 +202,8 @@ func RegisterHookTool(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered webhook tools")
 }
 
-func RegisterWikiTool(s *server.MCPServer) {
-	wiki.RegisterTool(s)
+func RegisterWikiTool(s *server.MCPServer, f forge.Factory) {
+	wiki.RegisterTool(s, f)
 	log.Debug("Registered wiki tools")
 }
 
@@ -335,12 +335,12 @@ func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
 	RegisterStatusResource(s, f)
 	RegisterBranchProtectionResources(s, f)
 	RegisterHookResources(s, f)
-	RegisterWikiResource(s)
+	RegisterWikiResource(s, f)
 	log.Debug("Registered core resource templates")
 }
 
-func RegisterWikiResource(s *server.MCPServer) {
-	wiki.RegisterWikiResource(s)
+func RegisterWikiResource(s *server.MCPServer, f forge.Factory) {
+	wiki.RegisterWikiResource(s, f)
 	log.Debug("Registered wiki resource template")
 }
 
