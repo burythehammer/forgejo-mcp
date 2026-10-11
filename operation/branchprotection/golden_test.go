@@ -171,6 +171,7 @@ var bpGoldenCases = []bpGoldenCase{
 		"enable_approvals_whitelist": true, "approvals_whitelist_usernames": " d ,",
 	}},
 	{name: "edit_wrong_type_approvals", tool: EditBranchProtectionTool.Name, args: map[string]any{"rule": "main", "required_approvals": "many"}},
+	{name: "edit_string_approvals", tool: EditBranchProtectionTool.Name, args: map[string]any{"rule": "main", "required_approvals": "7"}},
 	{name: "edit_missing_rule", tool: EditBranchProtectionTool.Name},
 	{name: "edit_port_error", tool: EditBranchProtectionTool.Name, args: map[string]any{"rule": "main"}, stub: func(s *stubBP) { s.fail = errors.New("boom") }},
 
