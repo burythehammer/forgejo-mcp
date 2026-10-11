@@ -5,9 +5,9 @@ Read and write repository wiki pages — list, get, get revisions, create, updat
 ## Requirements
 ### Requirement: Wiki tools go through the Forgejo port's Wiki interface
 
-The wiki tool handlers SHALL call the Forgejo port's `Wiki` interface (`pkg/forge`),
+The wiki MCP adapters SHALL call the Forgejo port's `Wiki` interface (`pkg/forge`),
 which uses plain types and SHALL NOT depend on any `forgejo-sdk` wiki type or method.
-The raw HTTP lives inside the real adapter in `pkg/forge/sdk`, and every API path it
+The raw HTTP lives inside the Forgejo adapter (the real one) in `pkg/forge/sdk`, and every API path it
 builds SHALL be escaped with `forge.APIPath`. The `operation/wiki` package SHALL compile in the
 default build (no `//go:build wiki` tag) and SHALL be registered from
 `operation/operation.go` via `RegisterWikiTool`.
