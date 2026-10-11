@@ -19,9 +19,12 @@ import (
 var _ forge.Issues = (*Forgejo)(nil)
 
 type issueState struct {
-	mu       sync.Mutex
-	repos    map[string]*issueRepo // key "owner/repo"
-	maxItems int                   // 0 = unknown
+	mu        sync.Mutex
+	repos     map[string]*issueRepo                   // key "owner/repo"
+	maxItems  int                                     // 0 = unknown
+	nextLabel int64                                   // label IDs are unique across the instance
+	orgLabels map[string]map[int64]*forgejo_sdk.Label // by org
+	deps      [][2]depKey                             // issue -> issue it depends on
 }
 
 type issueRepo struct {
@@ -29,7 +32,6 @@ type issueRepo struct {
 	issues      []*issueRecord
 	next        int64
 	nextComment int64
-	nextLabel   int64
 	nextMS      int64
 	labels      map[int64]*forgejo_sdk.Label
 	milestones  []*forgejo_sdk.Milestone
@@ -116,9 +118,9 @@ func (f *Forgejo) SeedIssueLabel(owner, repo, name string) int64 {
 	if err != nil {
 		panic(fmt.Sprintf("fake: SeedIssueLabel in unknown repository %s/%s", owner, repo))
 	}
-	r.nextLabel++
-	r.labels[r.nextLabel] = &forgejo_sdk.Label{ID: r.nextLabel, Name: name}
-	return r.nextLabel
+	f.issues.nextLabel++
+	r.labels[f.issues.nextLabel] = &forgejo_sdk.Label{ID: f.issues.nextLabel, Name: name}
+	return f.issues.nextLabel
 }
 
 // SeedMilestone makes an open milestone exist in owner/repo and returns its ID.
@@ -229,6 +231,9 @@ func (f *Forgejo) ListRepoIssues(_ context.Context, owner, repo string, opt forg
 	// unknown labels is no filter at all.
 	known := map[string]bool{}
 	for _, l := range r.labels {
+		known[l.Name] = true
+	}
+	for _, l := range f.issues.orgLabels[owner] {
 		known[l.Name] = true
 	}
 	var out []*forgejo_sdk.Issue
@@ -361,7 +366,7 @@ func (f *Forgejo) CreateIssue(_ context.Context, owner, repo string, opt forgejo
 		Repository: &forgejo_sdk.RepositoryMeta{Owner: owner, Name: repo, FullName: owner + "/" + repo},
 	}
 	for _, id := range opt.Labels {
-		if l, ok := r.labels[id]; ok {
+		if l, ok := f.assignableLabel(r, id); ok {
 			cp := *l
 			iss.Labels = append(iss.Labels, &cp)
 		}
@@ -453,7 +458,7 @@ func (f *Forgejo) ReplaceIssueLabels(_ context.Context, owner, repo string, inde
 	}
 	var labels []*forgejo_sdk.Label
 	for _, id := range labelIDs {
-		l, ok := r.labels[id]
+		l, ok := f.assignableLabel(r, id)
 		if !ok {
 			return notFound("label")
 		}

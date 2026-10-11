@@ -95,3 +95,19 @@ func TestIssuesContract(t *testing.T) {
 		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
 	})
 }
+
+func TestLabelsContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunLabels(t, func(t *testing.T) forgetest.Harness {
+		stub := forgetest.NewStub(t)
+		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
+	})
+}
+
+func TestDependenciesContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunDependencies(t, func(t *testing.T) forgetest.Harness {
+		stub := forgetest.NewStub(t)
+		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
+	})
+}

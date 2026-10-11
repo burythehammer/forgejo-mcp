@@ -28,6 +28,8 @@ type Forgejo interface {
 	Tracking
 	Search
 	Issues
+	Labels
+	Dependencies
 }
 
 // Factory hands out a Forgejo port per request.

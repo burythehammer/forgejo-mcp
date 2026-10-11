@@ -56,6 +56,27 @@ func issueListOption(r *http.Request) forgejo_sdk.ListIssueOption {
 	return opt
 }
 
+// issueMeta is the IssueMeta body of the dependency mutation endpoints.
+type issueMeta struct {
+	Index int64  `json:"index"`
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+}
+
+func (m issueMeta) ref() forge.IssueRef {
+	return forge.IssueRef{Owner: m.Owner, Repo: m.Repo, Index: m.Index}
+}
+
+// listRelated serves GET {index}/dependencies and {index}/blocks, reached
+// through the two-segment dispatcher in mountIssues.
+func (s *Stub) listRelated(r *http.Request) ([]*forgejo_sdk.Issue, error) {
+	owner, repo, index, lo := r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "a"), listOptions(r)
+	if r.PathValue("b") == "blocks" {
+		return s.Fake.ListIssueDependents(r.Context(), owner, repo, index, lo.Page, lo.PageSize)
+	}
+	return s.Fake.ListIssueDependencies(r.Context(), owner, repo, index, lo.Page, lo.PageSize)
+}
+
 // mountIssues serves the issue endpoints from the stub's Fake.
 //
 // GET and DELETE of {index}/comments, {index}/labels and comments/{id} overlap
@@ -105,6 +126,9 @@ func (s *Stub) mountIssues(mux *http.ServeMux) {
 				ListOptions: listOptions(r), Since: parseTime(q, "since"), Before: parseTime(q, "before"),
 			})
 			replyPaged(w, r, out, info, err)
+		case r.PathValue("b") == "dependencies" || r.PathValue("b") == "blocks":
+			out, err := s.listRelated(r)
+			reply(w, out, err)
 		default:
 			s.assets["GET"](w, r)
 		}
@@ -132,6 +156,12 @@ func (s *Stub) mountIssues(mux *http.ServeMux) {
 			replyEmpty(w, f.DeleteIssueComment(r.Context(), owner, repo, pathIndex(r, "b")))
 		case r.PathValue("b") == "labels":
 			replyEmpty(w, f.ClearIssueLabels(r.Context(), owner, repo, pathIndex(r, "a")))
+		case r.PathValue("b") == "dependencies":
+			var meta issueMeta
+			if !decode(w, r, &meta) {
+				return
+			}
+			replyEmpty(w, f.RemoveIssueDependency(r.Context(), owner, repo, pathIndex(r, "a"), meta.ref()))
 		default:
 			s.assets["DELETE"](w, r)
 		}
