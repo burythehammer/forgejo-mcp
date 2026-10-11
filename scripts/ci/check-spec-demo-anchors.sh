@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 #
 # check-spec-demo-anchors.sh — validate anchored Showboat demos against specs.
 #

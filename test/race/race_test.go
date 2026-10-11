@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package race_test reproduces the "concurrent map writes" panic from
 // https://git.b4mad.industries/agentic-forges/forgejo-mcp/issues/76
 //

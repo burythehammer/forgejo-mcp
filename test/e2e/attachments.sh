@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # E2E test for issue-attachment MCP tools (v2.19.0-alpha.1+).
 #
 # Validates that ./forgejo-mcp --cli can:

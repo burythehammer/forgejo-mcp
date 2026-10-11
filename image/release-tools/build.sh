@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # Single-shot local image build via podman. No push.
 # Mirrors the PR pipeline so contributors can reproduce locally.
 # Requires: podman, git

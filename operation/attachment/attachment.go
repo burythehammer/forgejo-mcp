@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package attachment registers MCP tools for issue and issue-comment
 // attachments. It reaches Forgejo through the forge.Attachments port; the adapter uses raw
 // HTTP because forgejo-sdk/v3 has no methods for these endpoints (see

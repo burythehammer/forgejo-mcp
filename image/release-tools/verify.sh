@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # Verify that the locally built release-tools image contains all expected tools.
 # Used both locally and by the PR build pipeline.
 # Requires: podman

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package release registers MCP tools for Forgejo releases and their
 // attachments. It reaches Forgejo through the forge.Releases and
 // forge.Attachments ports; which transport serves a call is the adapter's

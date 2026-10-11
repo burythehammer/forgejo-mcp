@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package branchprotection provides MCP tools and resources to read and manage
 // Forgejo/Codeberg branch protection rules
 // (/repos/{owner}/{repo}/branch_protections). Motivated by forgejo-mcp-f6h:

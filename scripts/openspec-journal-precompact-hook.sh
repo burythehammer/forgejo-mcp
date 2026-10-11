@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # Pre-compact hook for the OpenSpec journal.
 #
 # Emits a `context.compacted` event into the journal of the most recently

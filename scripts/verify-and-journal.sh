@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # verify-and-journal.sh — run a verifier command and journal its verdict.
 #
 # Wraps the dev-loop verifier so every run appends a `verifier.result`

@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # Snapshot per-asset release download counts into an append-only JSONL time series.
 #
 # The Forgejo API exposes a *cumulative* download_count per release asset but keeps

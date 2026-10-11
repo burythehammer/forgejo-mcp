@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package diff offers small helpers for slicing unified-diff strings.
 // It exists so MCP tools that return diff payloads can satisfy the
 // output-bounding rule (docs/design/output-bounding.md) by handing
