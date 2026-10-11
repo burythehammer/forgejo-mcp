@@ -16,6 +16,36 @@ func (s *Stub) mountRepoAdmin(mux *http.ServeMux) {
 	f := s.Fake
 	own := func(r *http.Request) (string, string) { return r.PathValue("owner"), r.PathValue("repo") }
 
+	mux.HandleFunc("POST /api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
+		var opt forgejo_sdk.CreateRepoOption
+		if !decode(w, r, &opt) {
+			return
+		}
+		out, err := f.CreateRepo(r.Context(), opt)
+		replyStatus(w, http.StatusCreated, out, err)
+	})
+	mux.HandleFunc("POST /api/v1/orgs/{org}/repos", func(w http.ResponseWriter, r *http.Request) {
+		var opt forgejo_sdk.CreateRepoOption
+		if !decode(w, r, &opt) {
+			return
+		}
+		out, err := f.CreateOrgRepo(r.Context(), r.PathValue("org"), opt)
+		replyStatus(w, http.StatusCreated, out, err)
+	})
+	mux.HandleFunc("POST "+repoAdminBase+"/forks", func(w http.ResponseWriter, r *http.Request) {
+		var opt forgejo_sdk.CreateForkOption
+		if !decode(w, r, &opt) {
+			return
+		}
+		o, n := own(r)
+		out, err := f.ForkRepo(r.Context(), o, n, opt)
+		replyStatus(w, http.StatusAccepted, out, err)
+	})
+	mux.HandleFunc("GET /api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
+		out, err := f.ListMyRepos(r.Context(), forgejo_sdk.ListReposOptions{ListOptions: listOptions(r)})
+		reply(w, out, err)
+	})
+
 	mux.HandleFunc("GET "+repoAdminBase, func(w http.ResponseWriter, r *http.Request) {
 		o, n := own(r)
 		out, err := f.GetRepo(r.Context(), o, n)

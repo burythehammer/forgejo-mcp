@@ -56,3 +56,23 @@ func (a *Adapter) DeleteBranch(_ context.Context, owner, repo, branch string) (b
 	ok, resp, err := a.client.DeleteRepoBranch(owner, repo, branch)
 	return ok, statusErr(resp, err)
 }
+
+func (a *Adapter) CreateRepo(_ context.Context, opt forgejo_sdk.CreateRepoOption) (*forgejo_sdk.Repository, error) {
+	r, resp, err := a.client.CreateRepo(opt)
+	return r, statusErr(resp, err)
+}
+
+func (a *Adapter) CreateOrgRepo(_ context.Context, org string, opt forgejo_sdk.CreateRepoOption) (*forgejo_sdk.Repository, error) {
+	r, resp, err := a.client.CreateOrgRepo(org, opt)
+	return r, statusErr(resp, err)
+}
+
+func (a *Adapter) ForkRepo(_ context.Context, owner, repo string, opt forgejo_sdk.CreateForkOption) (*forgejo_sdk.Repository, error) {
+	r, resp, err := a.client.CreateFork(owner, repo, opt)
+	return r, statusErr(resp, err)
+}
+
+func (a *Adapter) ListMyRepos(_ context.Context, opt forgejo_sdk.ListReposOptions) ([]*forgejo_sdk.Repository, error) {
+	rs, resp, err := a.client.ListMyRepos(opt)
+	return rs, statusErr(resp, err)
+}

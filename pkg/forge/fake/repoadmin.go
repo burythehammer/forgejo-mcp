@@ -5,6 +5,8 @@ package fake
 import (
 	"context"
 	"net/http"
+	"sort"
+	"strings"
 	"sync"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
@@ -250,4 +252,88 @@ func (f *Forgejo) DeleteBranch(_ context.Context, owner, repo, branch string) (b
 	}
 	r.branches = append(r.branches[:i], r.branches[i+1:]...)
 	return true, nil
+}
+
+// newRepo registers owner/repo as existing, with the settings opt asks for.
+// It is refused when the repository already exists.
+func (f *Forgejo) newRepo(owner, name, desc string, private bool, def string) (*forgejo_sdk.Repository, error) {
+	if name == "" {
+		return nil, statusErr(http.StatusUnprocessableEntity, "repository name is required")
+	}
+	if f.repoExists(owner, name) {
+		return nil, statusErr(http.StatusConflict, "repository already exists")
+	}
+	f.AddRepo(owner, name)
+	f.admin.mu.Lock()
+	defer f.admin.mu.Unlock()
+	r, err := f.adminRepo(owner, name)
+	if err != nil {
+		return nil, err
+	}
+	r.repo.Description = desc
+	r.repo.Private = private
+	if def != "" && def != "main" {
+		r.repo.DefaultBranch = def
+		r.branches = []*forgejo_sdk.Branch{{Name: def}}
+	}
+	c := *r.repo
+	return &c, nil
+}
+
+func (f *Forgejo) CreateRepo(_ context.Context, opt forgejo_sdk.CreateRepoOption) (*forgejo_sdk.Repository, error) {
+	return f.newRepo(Poster, opt.Name, opt.Description, opt.Private, opt.DefaultBranch)
+}
+
+func (f *Forgejo) CreateOrgRepo(_ context.Context, org string, opt forgejo_sdk.CreateRepoOption) (*forgejo_sdk.Repository, error) {
+	if !f.orgExists(org) {
+		return nil, notFound("organization")
+	}
+	return f.newRepo(org, opt.Name, opt.Description, opt.Private, opt.DefaultBranch)
+}
+
+func (f *Forgejo) ForkRepo(ctx context.Context, owner, repo string, opt forgejo_sdk.CreateForkOption) (*forgejo_sdk.Repository, error) {
+	src, err := f.GetRepo(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	target := Poster
+	if opt.Organization != nil && *opt.Organization != "" {
+		target = *opt.Organization
+		if !f.orgExists(target) {
+			return nil, notFound("organization")
+		}
+	}
+	name := repo
+	if opt.Name != nil && *opt.Name != "" {
+		name = *opt.Name
+	}
+	return f.newRepo(target, name, src.Description, src.Private, src.DefaultBranch)
+}
+
+func (f *Forgejo) ListMyRepos(_ context.Context, opt forgejo_sdk.ListReposOptions) ([]*forgejo_sdk.Repository, error) {
+	f.pulls.mu.Lock()
+	var names []string
+	for k := range f.pulls.repos {
+		if o, n, ok := strings.Cut(k, "/"); ok && o == Poster {
+			names = append(names, n)
+		}
+	}
+	f.pulls.mu.Unlock()
+	sort.Strings(names)
+	lo, hi := page(opt.ListOptions, len(names))
+	out := []*forgejo_sdk.Repository{}
+	for _, n := range names[lo:hi] {
+		r, err := f.GetRepo(context.Background(), Poster, n)
+		if err == nil {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+func (f *Forgejo) orgExists(name string) bool {
+	f.orgs.mu.Lock()
+	defer f.orgs.mu.Unlock()
+	_, err := f.orgs.find(name)
+	return err == nil
 }
