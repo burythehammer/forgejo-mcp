@@ -71,7 +71,7 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 | `operation/user/` | User info tools |
 | `operation/version/` | Server version tool |
 | `pkg/forge/` | The Forgejo port: per-domain interfaces and the `Factory` (no SDK client import) |
-| `pkg/forge/sdk/` | The one real adapter: `Factory` (credential policy, startup checks) and `Adapter` over the SDK and one raw-HTTP client; the only package that touches the SDK client or the raw transport |
+| `pkg/forge/sdk/` | The one real adapter: `Factory` (credential policy, startup checks) and `Adapter` over the SDK and one raw-HTTP client; the only package that constructs the SDK client or the raw transport. SDK types may appear in `pkg/forge/*` and on the MCP adapter side (`operation/*`, `pkg/forge/*adapter/`), never under `app/**` |
 | `pkg/forge/fake/` | Stateful in-memory `forge.Forgejo` for handler tests |
 | `pkg/forge/forgetest/` | Contract suite run against the fake and the adapter, and the shared stub server |
 | `app/<domain>/` | Use cases (ADR 0003): typed inputs, a domain port, repo-owned results. No mcp-go or SDK import (`scripts/ci/check-app-boundary.sh`) |
