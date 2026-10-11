@@ -4,133 +4,100 @@ package actions
 
 import (
 	"context"
-	"net/http"
 	"strings"
 	"testing"
+
+	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
-func TestCancelWorkflowRunFn_RunningRun(t *testing.T) {
-	_, capture := setupActionAPIServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	result, err := CancelWorkflowRunFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "run_id": float64(42),
-	}))
+func runStatus(t *testing.T, h handlers, id int64) string {
+	t.Helper()
+	port, _ := h.forge.For(context.Background())
+	run, err := port.GetWorkflowRun(context.Background(), testOwner, testRepo, id)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("reading run %d: %v", id, err)
 	}
-	decoded := decodeActionResult[workflowRunControlResult](t, result)
-	if capture.method != http.MethodPost {
-		t.Fatalf("method: %s", capture.method)
+	return run.Status
+}
+
+func TestCancelWorkflowRunFn_RunningRun(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Status: "running"})
+
+	got := decode[workflowRunControlResult](t, h.CancelWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+
+	if got.RunID != run.ID || got.Status != "cancelled" {
+		t.Fatalf("result: %+v", got)
 	}
-	if capture.path != "/api/v1/repos/o/r/actions/runs/42/cancel" {
-		t.Fatalf("path: %s", capture.path)
-	}
-	if decoded.RunID != 42 || decoded.Status != "cancelled" {
-		t.Fatalf("result: %+v", decoded)
+	if s := runStatus(t, h, run.ID); s != "cancelled" {
+		t.Fatalf("run is %q", s)
 	}
 }
 
 func TestCancelWorkflowRunFn_AlreadyFinishedIsSuccess(t *testing.T) {
-	setupActionAPIServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
+	t.Parallel()
+	h, f := newFixture(t)
+	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Status: "success"})
 
-	result, err := CancelWorkflowRunFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "run_id": float64(7),
-	}))
-	if err != nil {
-		t.Fatalf("already-finished 204 must be success, got %v", err)
+	got := decode[workflowRunControlResult](t, h.CancelWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+
+	if got.Status != "cancelled" {
+		t.Fatalf("result: %+v", got)
 	}
-	decoded := decodeActionResult[workflowRunControlResult](t, result)
-	if decoded.Status != "cancelled" {
-		t.Fatalf("result: %+v", decoded)
+	if s := runStatus(t, h, run.ID); s != "success" {
+		t.Fatalf("a finished run must be left unchanged, is %q", s)
+	}
+}
+
+func TestCancelWorkflowRunFn_UnknownRun(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+
+	err := callErr(t, h.CancelWorkflowRunFn, repoArgs(map[string]any{"run_id": 5.0}))
+
+	if !strings.Contains(err.Error(), "cancel workflow run") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
 func TestDeleteWorkflowRunFn_CompletedRun(t *testing.T) {
-	_, capture := setupActionAPIServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
+	t.Parallel()
+	h, f := newFixture(t)
+	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Status: "failure"})
 
-	result, err := DeleteWorkflowRunFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "run_id": float64(42),
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	got := decode[workflowRunControlResult](t, h.DeleteWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+
+	if got.RunID != run.ID || got.Status != "deleted" {
+		t.Fatalf("result: %+v", got)
 	}
-	decoded := decodeActionResult[workflowRunControlResult](t, result)
-	if capture.method != http.MethodDelete {
-		t.Fatalf("method: %s", capture.method)
-	}
-	if capture.path != "/api/v1/repos/o/r/actions/runs/42" {
-		t.Fatalf("path: %s", capture.path)
-	}
-	if decoded.RunID != 42 || decoded.Status != "deleted" {
-		t.Fatalf("result: %+v", decoded)
-	}
+	callErr(t, h.GetWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
 }
 
 func TestDeleteWorkflowRunFn_LiveRunIsError(t *testing.T) {
-	for _, status := range []int{http.StatusBadRequest, http.StatusInternalServerError} {
-		t.Run(http.StatusText(status), func(t *testing.T) {
-			_, capture := setupActionAPIServer(t, func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(status)
-				_, _ = w.Write([]byte(`{"message":"cannot delete run 42 because it has not completed yet"}`))
-			})
+	t.Parallel()
+	h, f := newFixture(t)
+	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Status: "running"})
 
-			result, err := DeleteWorkflowRunFn(context.Background(), newCallToolRequest(map[string]interface{}{
-				"owner": "o", "repo": "r", "run_id": float64(42),
-			}))
-			if err == nil {
-				t.Fatal("live-run delete must be an error")
-			}
-			if result != nil {
-				t.Fatalf("expected nil result, got %+v", result)
-			}
-			if strings.Contains(err.Error(), `"status":"deleted"`) {
-				t.Fatalf("error mapped to success: %v", err)
-			}
-			if capture.method != http.MethodDelete || capture.count != 1 {
-				t.Fatalf("DELETE still has to be sent: method=%s count=%d", capture.method, capture.count)
-			}
-		})
+	err := callErr(t, h.DeleteWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+
+	if !strings.Contains(err.Error(), "delete workflow run") || strings.Contains(err.Error(), `"status":"deleted"`) {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if s := runStatus(t, h, run.ID); s != "running" {
+		t.Fatalf("live run must survive, is %q", s)
 	}
 }
 
-func TestCancelWorkflowRunFn_MissingArgsSendNoRequest(t *testing.T) {
-	_, capture := setupActionAPIServer(t, func(w http.ResponseWriter, r *http.Request) {
-		t.Error("no request should be sent")
-	})
-
-	for _, args := range []map[string]interface{}{
-		{"repo": "r", "run_id": float64(1)},
-		{"owner": "o", "run_id": float64(1)},
+func TestCancelWorkflowRunFn_InvalidArguments(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	for _, args := range []map[string]any{
+		{"repo": "r", "run_id": 1.0},
+		{"owner": "o", "run_id": 1.0},
 		{"owner": "o", "repo": "r"},
-		{"owner": "o", "repo": "r", "run_id": float64(0)},
+		{"owner": "o", "repo": "r", "run_id": 0.0},
 	} {
-		if _, err := CancelWorkflowRunFn(context.Background(), newCallToolRequest(args)); err == nil {
-			t.Fatalf("expected error for %+v", args)
-		}
-		if capture.count != 0 {
-			t.Fatalf("request sent for %+v", args)
-		}
-	}
-}
-
-func TestCancelWorkflowRunFn_OwnerSlashDoesNotRetarget(t *testing.T) {
-	_, capture := setupActionAPIServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	_, err := CancelWorkflowRunFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"owner": "o/x", "repo": "r", "run_id": float64(42),
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if capture.escapedPath != "/api/v1/repos/o%2Fx/r/actions/runs/42/cancel" {
-		t.Fatalf("path retargeted: path=%s escaped=%s", capture.path, capture.escapedPath)
+		callErr(t, h.CancelWorkflowRunFn, args)
 	}
 }

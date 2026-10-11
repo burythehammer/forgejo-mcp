@@ -47,6 +47,9 @@ type Forgejo struct {
 	bps      bpState
 	hooks    hookState
 	admin    repoAdminState
+	actions  actionsState
+	tracking trackingState
+	search   searchState
 }
 
 var _ forge.Forgejo = (*Forgejo)(nil)

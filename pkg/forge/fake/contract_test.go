@@ -54,3 +54,27 @@ func TestUsersContract(t *testing.T) {
 	t.Parallel()
 	forgetest.RunUsers(t, harness)
 }
+
+func TestActionsContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunActions(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}
+
+func TestTrackingContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunTracking(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}
+
+func TestSearchContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunSearch(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}

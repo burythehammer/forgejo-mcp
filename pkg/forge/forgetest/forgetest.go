@@ -47,6 +47,22 @@ type Seeder interface {
 	AddPackage(owner string, v forge.PackageVersion, files ...forge.PackageFile) forge.PackageVersion
 	AddAttachmentIssue(owner, repo string, index int64)
 	AddAttachmentComment(owner, repo string, commentID int64)
+
+	// Actions.
+	AddActionsOrg(org string)
+	AddWorkflow(owner, repo, name string)
+	AddWorkflowRun(owner, repo string, run forgejo_sdk.ActionRun) *forgejo_sdk.ActionRun
+	AddRunJob(owner, repo string, runID int64, job forge.ActionRunJob) (forge.ActionRunJob, error)
+	SetJobLog(owner, repo string, jobID int64, log string) error
+	AddRunArtifact(owner, repo string, runID int64, a forge.ActionArtifact) (forge.ActionArtifact, error)
+
+	// Time tracking.
+	AddTrackableIssue(owner, repo string, index int64, title string)
+
+	// Search.
+	SeedUser(u forgejo_sdk.User)
+	SeedTeam(org string, t forgejo_sdk.Team)
+	SeedSearchableRepo(r forgejo_sdk.Repository)
 }
 
 // Repo is the repository every case works in.

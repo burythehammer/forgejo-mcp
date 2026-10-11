@@ -110,12 +110,12 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	RegisterIssueTool(s)
 	RegisterPullTool(s, f)
 	RegisterPullReviewTool(s, f)
-	RegisterSearchTool(s)
+	RegisterSearchTool(s, f)
 	RegisterVersionTool(s, version)
-	RegisterActionsTool(s)
+	RegisterActionsTool(s, f)
 	RegisterOrgTool(s, f)
 	RegisterPackagesTool(s, f)
-	RegisterTrackingTool(s)
+	RegisterTrackingTool(s, f)
 	RegisterAttachmentTool(s, f)
 	RegisterReleaseTool(s, f)
 	RegisterBranchProtectionTool(s, f)
@@ -152,8 +152,8 @@ func RegisterPullReviewTool(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered pull review write tools")
 }
 
-func RegisterSearchTool(s *server.MCPServer) {
-	search.RegisterTool(s)
+func RegisterSearchTool(s *server.MCPServer, f forge.Factory) {
+	search.RegisterTool(s, f)
 	log.Debug("Registered search tools")
 }
 
@@ -162,8 +162,8 @@ func RegisterVersionTool(s *server.MCPServer, ver string) {
 	log.Debug("Registered version tools")
 }
 
-func RegisterActionsTool(s *server.MCPServer) {
-	actions.RegisterTool(s)
+func RegisterActionsTool(s *server.MCPServer, f forge.Factory) {
+	actions.RegisterTool(s, f)
 	log.Debug("Registered actions tools")
 }
 
@@ -177,8 +177,8 @@ func RegisterPackagesTool(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered packages tools")
 }
 
-func RegisterTrackingTool(s *server.MCPServer) {
-	tracking.RegisterTool(s)
+func RegisterTrackingTool(s *server.MCPServer, f forge.Factory) {
+	tracking.RegisterTool(s, f)
 	log.Debug("Registered time tracking tools")
 }
 
