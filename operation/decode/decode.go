@@ -22,6 +22,15 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// numberKind is the kind a field's number is read as: a pointer field is an
+// optional number, so its element kind counts.
+func numberKind(t reflect.Type) reflect.Kind {
+	if t.Kind() == reflect.Pointer {
+		return t.Elem().Kind()
+	}
+	return t.Kind()
+}
+
 func isNumber(k reflect.Kind) bool {
 	switch k {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -77,8 +86,10 @@ func fill(req mcp.CallToolRequest, dst any) ([]string, error) {
 			}
 			continue
 		}
-		if s, isString := raw.(string); isString && isNumber(f.Type.Kind()) {
-			// Some MCP clients send number parameters as strings.
+		if s, isString := raw.(string); isString && isNumber(numberKind(f.Type)) && f.Tag.Get("exact") != "true" {
+			// Some MCP clients send number parameters as strings. A field tagged
+			// exact:"true" refuses that, for a tool whose handler read the
+			// argument with a strict float64 assertion.
 			s = strings.TrimSpace(s)
 			if s == "" {
 				continue
