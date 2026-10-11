@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	apprelease "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/release"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/releaseadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
@@ -53,23 +54,129 @@ func useCases(ctx context.Context, h handlers) (*apprelease.Service, error) {
 	return apprelease.New(releaseadapter.New(port, port)), nil
 }
 
+// Argument structs, one per tool shape. `json` names the MCP argument and
+// `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps them
+// in agreement with the tool definitions.
+//
+// A number that is required and must fail with its own "<name>: <cause>" text
+// when missing or wrongly typed is kept as `any` (with schema:"number") and read
+// by number(). decode.Lax would otherwise hide that failure as zero. Optional
+// numbers are float64: decode.Lax reads them as the old to.Float64 calls did.
+
+type repoArgs struct {
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+}
+
+type releaseRefArgs struct {
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	ReleaseID any    `json:"release_id" required:"true" schema:"number"`
+}
+
+type tagRefArgs struct {
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Tag   string `json:"tag" required:"true"`
+}
+
+type listReleasesArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
+	State string  `json:"state"`
+}
+
+type createReleaseArgs struct {
+	Owner           string `json:"owner" required:"true"`
+	Repo            string `json:"repo" required:"true"`
+	TagName         string `json:"tag_name" required:"true"`
+	TargetCommitish string `json:"target_commitish"`
+	Name            string `json:"name"`
+	Body            string `json:"body"`
+	Draft           bool   `json:"draft"`
+	Prerelease      bool   `json:"prerelease"`
+}
+
+// editReleaseArgs keeps draft and prerelease as pointers: an absent or
+// wrongly typed flag must leave the stored value alone.
+type editReleaseArgs struct {
+	Owner           string `json:"owner" required:"true"`
+	Repo            string `json:"repo" required:"true"`
+	ReleaseID       any    `json:"release_id" required:"true" schema:"number"`
+	TagName         string `json:"tag_name"`
+	TargetCommitish string `json:"target_commitish"`
+	Name            string `json:"name"`
+	Body            string `json:"body"`
+	Draft           *bool  `json:"draft"`
+	Prerelease      *bool  `json:"prerelease"`
+}
+
+type listAttachmentsArgs struct {
+	Owner     string  `json:"owner" required:"true"`
+	Repo      string  `json:"repo" required:"true"`
+	ReleaseID any     `json:"release_id" required:"true" schema:"number"`
+	Page      float64 `json:"page"`
+	Limit     float64 `json:"limit"`
+}
+
+type attachmentRefArgs struct {
+	Owner        string `json:"owner" required:"true"`
+	Repo         string `json:"repo" required:"true"`
+	ReleaseID    any    `json:"release_id" required:"true" schema:"number"`
+	AttachmentID any    `json:"attachment_id" required:"true" schema:"number"`
+}
+
+// createAttachmentArgs declares content and file_path so the schema check covers
+// them, but the upload source is read from the raw arguments by
+// upload.SourceFromArguments: it must tell an explicit null or wrongly typed
+// value (present, empty) from an absent one, which decode.Lax cannot.
+type createAttachmentArgs struct {
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	ReleaseID any    `json:"release_id" required:"true" schema:"number"`
+	Content   any    `json:"content" schema:"string"`
+	FilePath  any    `json:"file_path" schema:"string"`
+	Filename  string `json:"filename"`
+	MimeType  string `json:"mime_type"`
+}
+
+type editAttachmentArgs struct {
+	Owner        string `json:"owner" required:"true"`
+	Repo         string `json:"repo" required:"true"`
+	ReleaseID    any    `json:"release_id" required:"true" schema:"number"`
+	AttachmentID any    `json:"attachment_id" required:"true" schema:"number"`
+	Name         string `json:"name" required:"true"`
+}
+
+// number reads a required numeric argument, with the tool's error text.
+func number(v any, name string) (int64, error) {
+	f, err := to.Float64(v)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", name, err)
+	}
+	return int64(f), nil
+}
+
 // --- Release tools ----------------------------------------------------------
 
 func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListReleasesFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	page, _ := to.Float64(args["page"])
+	var a listReleasesArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	page := a.Page
 	if page == 0 {
 		page = 1
 	}
-	limit, _ := to.Float64(args["limit"])
+	limit := a.Limit
 	if limit == 0 {
 		limit = 20
 	}
-	state, ok := args["state"].(string)
-	if !ok || state == "" {
+	state := a.State
+	if state == "" {
 		state = stateAll
 	}
 	switch state {
@@ -82,7 +189,7 @@ func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rels, err := svc.ListReleases(ctx, owner, repo, apprelease.ListQuery{
+	rels, err := svc.ListReleases(ctx, a.Owner, a.Repo, apprelease.ListQuery{
 		State:  state,
 		Paging: apprelease.Paging{Page: int(page), Limit: int(limit)},
 	})
@@ -94,18 +201,19 @@ func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (
 
 func (h handlers) GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetReleaseByIDFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
+	var a releaseRefArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+		return to.ErrorResult(err)
 	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, err := svc.GetRelease(ctx, owner, repo, int64(rid))
+	rel, err := svc.GetRelease(ctx, a.Owner, a.Repo, rid)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -114,18 +222,18 @@ func (h handlers) GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) GetReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetReleaseByTagFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	tag, _ := args["tag"].(string)
-	if tag == "" {
+	var a tagRefArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if a.Tag == "" {
 		return to.ErrorResult(fmt.Errorf("tag is required"))
 	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, err := svc.GetReleaseByTag(ctx, owner, repo, tag)
+	rel, err := svc.GetReleaseByTag(ctx, a.Owner, a.Repo, a.Tag)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -134,14 +242,15 @@ func (h handlers) GetReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest
 
 func (h handlers) GetLatestReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetLatestReleaseFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
+	var a repoArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, err := svc.GetLatestRelease(ctx, owner, repo)
+	rel, err := svc.GetLatestRelease(ctx, a.Owner, a.Repo)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -150,26 +259,21 @@ func (h handlers) GetLatestReleaseFn(ctx context.Context, req mcp.CallToolReques
 
 func (h handlers) CreateReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateReleaseFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	tagName, _ := args["tag_name"].(string)
-	if tagName == "" {
+	var a createReleaseArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if a.TagName == "" {
 		return to.ErrorResult(fmt.Errorf("tag_name is required"))
 	}
-	target, _ := args["target_commitish"].(string)
-	name, _ := args["name"].(string)
-	body, _ := args["body"].(string)
-	draft, _ := args["draft"].(bool)
-	prerelease, _ := args["prerelease"].(bool)
 
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, err := svc.CreateRelease(ctx, owner, repo, apprelease.CreateInput{
-		TagName: tagName, Target: target, Title: name, Note: body,
-		IsDraft: draft, IsPrerelease: prerelease,
+	rel, err := svc.CreateRelease(ctx, a.Owner, a.Repo, apprelease.CreateInput{
+		TagName: a.TagName, Target: a.TargetCommitish, Title: a.Name, Note: a.Body,
+		IsDraft: a.Draft, IsPrerelease: a.Prerelease,
 	})
 	if err != nil {
 		return to.ErrorResult(err)
@@ -179,39 +283,29 @@ func (h handlers) CreateReleaseFn(ctx context.Context, req mcp.CallToolRequest) 
 
 func (h handlers) EditReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditReleaseFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
+	var a editReleaseArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+		return to.ErrorResult(err)
 	}
 
-	var in apprelease.EditInput
-	if v, ok := args["tag_name"].(string); ok {
-		in.TagName = v
-	}
-	if v, ok := args["target_commitish"].(string); ok {
-		in.Target = v
-	}
-	if v, ok := args["name"].(string); ok {
-		in.Title = v
-	}
-	if v, ok := args["body"].(string); ok {
-		in.Note = v
-	}
-	if v, ok := args["draft"].(bool); ok {
-		in.IsDraft = &v
-	}
-	if v, ok := args["prerelease"].(bool); ok {
-		in.IsPrerelease = &v
+	in := apprelease.EditInput{
+		TagName:      a.TagName,
+		Target:       a.TargetCommitish,
+		Title:        a.Name,
+		Note:         a.Body,
+		IsDraft:      a.Draft,
+		IsPrerelease: a.Prerelease,
 	}
 
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, err := svc.EditRelease(ctx, owner, repo, int64(rid), in)
+	rel, err := svc.EditRelease(ctx, a.Owner, a.Repo, rid, in)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -220,18 +314,19 @@ func (h handlers) EditReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 func (h handlers) DeleteReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteReleaseFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
+	var a releaseRefArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+		return to.ErrorResult(err)
 	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := svc.DeleteRelease(ctx, owner, repo, int64(rid)); err != nil {
+	if err := svc.DeleteRelease(ctx, a.Owner, a.Repo, rid); err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
@@ -239,18 +334,18 @@ func (h handlers) DeleteReleaseFn(ctx context.Context, req mcp.CallToolRequest) 
 
 func (h handlers) DeleteReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteReleaseByTagFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	tag, _ := args["tag"].(string)
-	if tag == "" {
+	var a tagRefArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if a.Tag == "" {
 		return to.ErrorResult(fmt.Errorf("tag is required"))
 	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := svc.DeleteReleaseByTag(ctx, owner, repo, tag); err != nil {
+	if err := svc.DeleteReleaseByTag(ctx, a.Owner, a.Repo, a.Tag); err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
@@ -260,18 +355,19 @@ func (h handlers) DeleteReleaseByTagFn(ctx context.Context, req mcp.CallToolRequ
 
 func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListReleaseAttachmentsFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+	var a listAttachmentsArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	page, _ := to.Float64(args["page"])
+	rid, err := number(a.ReleaseID, "release_id")
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	page := a.Page
 	if page == 0 {
 		page = 1
 	}
-	limit, _ := to.Float64(args["limit"])
+	limit := a.Limit
 	if limit == 0 {
 		limit = 20
 	}
@@ -280,7 +376,7 @@ func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	list, err := svc.ListAttachments(ctx, owner, repo, int64(rid), apprelease.Paging{Page: int(page), Limit: int(limit)})
+	list, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: int(page), Limit: int(limit)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -289,22 +385,23 @@ func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallTool
 
 func (h handlers) GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetReleaseAttachmentFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+	var a attachmentRefArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	aid, err := to.Float64(args["attachment_id"])
+	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
+		return to.ErrorResult(err)
+	}
+	aid, err := number(a.AttachmentID, "attachment_id")
+	if err != nil {
+		return to.ErrorResult(err)
 	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	att, err := svc.GetAttachment(ctx, owner, repo, int64(rid), int64(aid))
+	att, err := svc.GetAttachment(ctx, a.Owner, a.Repo, rid, aid)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -313,22 +410,23 @@ func (h handlers) GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) DownloadReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DownloadReleaseAttachmentFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+	var a attachmentRefArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	aid, err := to.Float64(args["attachment_id"])
+	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
+		return to.ErrorResult(err)
+	}
+	aid, err := number(a.AttachmentID, "attachment_id")
+	if err != nil {
+		return to.ErrorResult(err)
 	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	dl, err := svc.DownloadAttachment(ctx, owner, repo, int64(rid), int64(aid))
+	dl, err := svc.DownloadAttachment(ctx, a.Owner, a.Repo, rid, aid)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -346,15 +444,15 @@ func (h handlers) DownloadReleaseAttachmentFn(ctx context.Context, req mcp.CallT
 
 func (h handlers) CreateReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateReleaseAttachmentFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+	var a createAttachmentArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	mimeType, _ := args["mime_type"].(string)
-	reader, filename, err := upload.Open(upload.SourceFromArguments(args))
+	rid, err := number(a.ReleaseID, "release_id")
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	reader, filename, err := upload.Open(upload.SourceFromArguments(req.GetArguments()))
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -364,7 +462,7 @@ func (h handlers) CreateReleaseAttachmentFn(ctx context.Context, req mcp.CallToo
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	att, err := svc.CreateAttachment(ctx, owner, repo, int64(rid), apprelease.Upload{Filename: filename, MIMEType: mimeType, Content: reader})
+	att, err := svc.CreateAttachment(ctx, a.Owner, a.Repo, rid, apprelease.Upload{Filename: filename, MIMEType: a.MimeType, Content: reader})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -373,26 +471,26 @@ func (h handlers) CreateReleaseAttachmentFn(ctx context.Context, req mcp.CallToo
 
 func (h handlers) EditReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditReleaseAttachmentFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+	var a editAttachmentArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	aid, err := to.Float64(args["attachment_id"])
+	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
+		return to.ErrorResult(err)
 	}
-	name, _ := args["name"].(string)
-	if name == "" {
+	aid, err := number(a.AttachmentID, "attachment_id")
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if a.Name == "" {
 		return to.ErrorResult(fmt.Errorf("name is required"))
 	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	att, err := svc.EditAttachment(ctx, owner, repo, int64(rid), int64(aid), name)
+	att, err := svc.EditAttachment(ctx, a.Owner, a.Repo, rid, aid, a.Name)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -401,22 +499,23 @@ func (h handlers) EditReleaseAttachmentFn(ctx context.Context, req mcp.CallToolR
 
 func (h handlers) DeleteReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteReleaseAttachmentFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rid, err := to.Float64(args["release_id"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
+	var a attachmentRefArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	aid, err := to.Float64(args["attachment_id"])
+	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
+		return to.ErrorResult(err)
+	}
+	aid, err := number(a.AttachmentID, "attachment_id")
+	if err != nil {
+		return to.ErrorResult(err)
 	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := svc.DeleteAttachment(ctx, owner, repo, int64(rid), int64(aid)); err != nil {
+	if err := svc.DeleteAttachment(ctx, a.Owner, a.Repo, rid, aid); err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
