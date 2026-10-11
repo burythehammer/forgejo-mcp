@@ -22,13 +22,17 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// numberKind is the kind of a field's value, looking through a pointer, so an
-// optional number (*float64) takes a string number as a plain one does.
-func numberKind(t reflect.Type) reflect.Kind {
-	if t.Kind() == reflect.Pointer {
-		return t.Elem().Kind()
+// takesStringNumber reports whether a string given for f is read as a number.
+// A plain number field always does, as the search and pull tools always have.
+// An optional number (a pointer) does only when tagged `numeric:"string"`: the
+// original handlers read some optional numbers with a type assertion, which
+// refuses a string, and others with to.Float64, which accepts one, so the tag
+// keeps each field to the one it had.
+func takesStringNumber(f reflect.StructField) bool {
+	if f.Type.Kind() == reflect.Pointer {
+		return f.Tag.Get("numeric") == "string" && isNumber(f.Type.Elem().Kind())
 	}
-	return t.Kind()
+	return isNumber(f.Type.Kind())
 }
 
 func isNumber(k reflect.Kind) bool {
@@ -86,7 +90,7 @@ func fill(req mcp.CallToolRequest, dst any) ([]string, error) {
 			}
 			continue
 		}
-		if s, isString := raw.(string); isString && isNumber(numberKind(f.Type)) {
+		if s, isString := raw.(string); isString && takesStringNumber(f) {
 			// Some MCP clients send number parameters as strings.
 			s = strings.TrimSpace(s)
 			if s == "" {

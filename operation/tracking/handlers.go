@@ -58,7 +58,7 @@ type addTimeArgs struct {
 	Owner     string   `json:"owner" required:"true"`
 	Repo      string   `json:"repo" required:"true"`
 	Index     float64  `json:"index" required:"true"`
-	Seconds   *float64 `json:"seconds"`
+	Seconds   *float64 `json:"seconds" numeric:"string"`
 	Duration  string   `json:"duration"`
 	CreatedAt string   `json:"created_at"`
 	UserName  string   `json:"user_name"`

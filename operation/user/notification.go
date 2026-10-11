@@ -102,7 +102,7 @@ type repoCheckArgs struct {
 }
 
 type threadArgs struct {
-	ID *float64 `json:"id" required:"true"`
+	ID *float64 `json:"id" required:"true" numeric:"string"`
 }
 
 type markAllArgs struct {
