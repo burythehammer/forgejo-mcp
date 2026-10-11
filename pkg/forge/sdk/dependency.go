@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package sdk
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+
+	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+)
+
+var _ forge.Dependencies = (*Adapter)(nil)
+
+func pageQuery(page, limit int) string { return fmt.Sprintf("page=%d&limit=%d", page, limit) }
+
+// issueMetaBody is the IssueMeta body Forgejo's dependency mutation endpoints
+// take: owner, repo and index of the other issue.
+type issueMetaBody struct {
+	Index int64  `json:"index"`
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+}
+
+// listIssues lists issues at an issue sub-resource, a 404 meaning none.
+func (a *Adapter) listIssues(ctx context.Context, owner, repo string, index int64, sub string, page, limit int) ([]*forgejo_sdk.Issue, error) {
+	path := forge.APIPath("repos", owner, repo, "issues", index, sub) + "?" + pageQuery(page, limit)
+	issues := []*forgejo_sdk.Issue{}
+	_, err := a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
+	if forge.IsNotFound(err) {
+		return []*forgejo_sdk.Issue{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return issues, nil
+}
+
+func (a *Adapter) ListIssueDependencies(ctx context.Context, owner, repo string, index int64, page, limit int) ([]*forgejo_sdk.Issue, error) {
+	return a.listIssues(ctx, owner, repo, index, "dependencies", page, limit)
+}
+
+func (a *Adapter) ListIssueDependents(ctx context.Context, owner, repo string, index int64, page, limit int) ([]*forgejo_sdk.Issue, error) {
+	return a.listIssues(ctx, owner, repo, index, "blocks", page, limit)
+}
+
+func (a *Adapter) AddIssueDependency(ctx context.Context, owner, repo string, index int64, dep forge.IssueRef) error {
+	path := forge.APIPath("repos", owner, repo, "issues", index, "dependencies")
+	_, err := a.rawJSON(ctx, http.MethodPost, path, issueMetaBody{Index: dep.Index, Owner: dep.Owner, Repo: dep.Repo}, nil)
+	return err
+}
+
+func (a *Adapter) RemoveIssueDependency(ctx context.Context, owner, repo string, index int64, dep forge.IssueRef) error {
+	path := forge.APIPath("repos", owner, repo, "issues", index, "dependencies")
+	_, err := a.rawJSON(ctx, http.MethodDelete, path, issueMetaBody{Index: dep.Index, Owner: dep.Owner, Repo: dep.Repo}, nil)
+	return err
+}

@@ -20,7 +20,7 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 Key directories:
 
 - `operation/` - MCP tool definitions and handlers by domain
-- `pkg/forgejo/` - Singleton Forgejo SDK client wrapper
+- `pkg/forge/` - The Forgejo port (interfaces, no SDK client); `pkg/forge/sdk/` is the one real adapter
 - `pkg/to/` - Response formatting helpers
 - `pkg/params/` - Shared parameter descriptions
 
@@ -34,11 +34,15 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 2. Define tool with `mcp.NewTool()` and implement handler function
 3. Register in the domain's `RegisterTool(s *server.MCPServer)` function
 4. If new domain, import and call in `operation/operation.go`
-5. **Escape API paths.** If the tool uses the raw-HTTP helpers
-   (`forgejo.DoJSON`, `DoJSONList`, `DoAPIRaw`, `DoMultipart`) rather than the
-   SDK, build the path with `forgejo.APIPath("repos", owner, repo, …)` — it
-   escapes every segment. A hand-rolled `fmt.Sprintf("/repos/%s/…")` lets an
-   owner containing `/` or `?` retarget the request at another endpoint;
+5. **Go through the port.** Handlers take a `forge.Factory`, call
+   `f.For(ctx)` per request and use the returned `forge.Forgejo`; a new
+   endpoint is a port method, its adapter in `pkg/forge/sdk/`, its fake and a
+   contract case. Nothing outside `pkg/forge/sdk` builds an SDK client or an
+   HTTP request to Forgejo. **Escape API paths** in the adapter's raw-HTTP
+   methods (`a.rawJSON`, `a.rawDo`, `a.raw.doAPIRaw`, `a.raw.doMultipart`):
+   build the path with `forge.APIPath("repos", owner, repo, …)` — it escapes
+   every segment. A hand-rolled `fmt.Sprintf("/repos/%s/…")` lets an owner
+   containing `/` or `?` retarget the request at another endpoint;
    `scripts/ci/check-api-path-escaping.sh` fails the build on it. Append query
    strings to the `APIPath` result.
 6. **Bound the output.** If response size depends on data (not tool

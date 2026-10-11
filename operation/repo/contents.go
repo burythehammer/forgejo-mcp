@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -40,7 +39,7 @@ var (
 	)
 )
 
-func ListRepoContentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListRepoContentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoContentsFn")
 	owner, ok := req.GetArguments()["owner"].(string)
 	if !ok {
@@ -53,18 +52,18 @@ func ListRepoContentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 	ref, _ := req.GetArguments()["ref"].(string)
 	path, _ := req.GetArguments()["path"].(string)
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	contents, _, err := client.ListContents(owner, repo, ref, path)
+	contents, err := port.ListContents(ctx, owner, repo, ref, path)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list repo contents err: %w", err))
 	}
 	return to.TextResult(contents)
 }
 
-func GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetRepoTreeFn")
 	owner, ok := req.GetArguments()["owner"].(string)
 	if !ok {
@@ -95,11 +94,11 @@ func GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 			PageSize: int(limit),
 		},
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	tree, _, err := client.GetTrees(owner, repo, ref, opt)
+	tree, err := port.GetTree(ctx, owner, repo, ref, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get repo tree err: %w", err))
 	}

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -88,16 +88,18 @@ var (
 	)
 )
 
-func RegisterReviewTools(s *server.MCPServer) {
-	s.AddTool(CreatePullReviewTool, CreatePullReviewFn)
-	s.AddTool(SubmitPullReviewTool, SubmitPullReviewFn)
-	s.AddTool(DismissPullReviewTool, DismissPullReviewFn)
-	s.AddTool(DeletePullReviewTool, DeletePullReviewFn)
-	s.AddTool(CreateReviewRequestsTool, CreateReviewRequestsFn)
-	s.AddTool(DeleteReviewRequestsTool, DeleteReviewRequestsFn)
+// RegisterReviewTools registers the pull-review tools, served from f like RegisterTool.
+func RegisterReviewTools(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(CreatePullReviewTool, h.CreatePullReviewFn)
+	s.AddTool(SubmitPullReviewTool, h.SubmitPullReviewFn)
+	s.AddTool(DismissPullReviewTool, h.DismissPullReviewFn)
+	s.AddTool(DeletePullReviewTool, h.DeletePullReviewFn)
+	s.AddTool(CreateReviewRequestsTool, h.CreateReviewRequestsFn)
+	s.AddTool(DeleteReviewRequestsTool, h.DeleteReviewRequestsFn)
 }
 
-func CreatePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreatePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreatePullReviewFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -119,18 +121,18 @@ func CreatePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		opt.Comments = comments
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	review, _, err := client.CreatePullReview(owner, repo, int64(index), opt)
+	review, err := port.CreatePullReview(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create pull review err: %w", err))
 	}
 	return to.TextResult(review)
 }
 
-func SubmitPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) SubmitPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called SubmitPullReviewFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -144,18 +146,18 @@ func SubmitPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		Body:  body,
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	review, _, err := client.SubmitPullReview(owner, repo, int64(index), int64(id), opt)
+	review, err := port.SubmitPullReview(ctx, owner, repo, int64(index), int64(id), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("submit pull review err: %w", err))
 	}
 	return to.TextResult(review)
 }
 
-func DismissPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DismissPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DismissPullReviewFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -167,36 +169,36 @@ func DismissPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		Message: message,
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.DismissPullReview(owner, repo, int64(index), int64(id), opt)
+	err = port.DismissPullReview(ctx, owner, repo, int64(index), int64(id), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("dismiss pull review err: %w", err))
 	}
 	return mcp.NewToolResultText(`{"Result":"review dismissed successfully"}`), nil
 }
 
-func DeletePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeletePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeletePullReviewFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
 	index, _ := to.Float64(req.GetArguments()["index"])
 	id, _ := to.Float64(req.GetArguments()["id"])
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.DeletePullReview(owner, repo, int64(index), int64(id))
+	err = port.DeletePullReview(ctx, owner, repo, int64(index), int64(id))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("delete pull review err: %w", err))
 	}
 	return mcp.NewToolResultText(`{"Result":"review deleted successfully"}`), nil
 }
 
-func CreateReviewRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateReviewRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateReviewRequestsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -212,18 +214,18 @@ func CreateReviewRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		opt.TeamReviewers = splitCSV(teamReviewers)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.CreateReviewRequests(owner, repo, int64(index), opt)
+	err = port.CreateReviewRequests(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create review requests err: %w", err))
 	}
 	return mcp.NewToolResultText(`{"Result":"review requests created successfully"}`), nil
 }
 
-func DeleteReviewRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteReviewRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteReviewRequestsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -239,11 +241,11 @@ func DeleteReviewRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		opt.TeamReviewers = splitCSV(teamReviewers)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = client.DeleteReviewRequests(owner, repo, int64(index), opt)
+	err = port.DeleteReviewRequests(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("delete review requests err: %w", err))
 	}

@@ -7,7 +7,7 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -58,39 +58,40 @@ var (
 	)
 )
 
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(CreateRepoTool, CreateRepoFn)
-	s.AddTool(ForkRepoTool, ForkRepoFn)
-	s.AddTool(ListMyReposTool, ListMyReposFn)
-	s.AddTool(GetRepoTool, GetRepoFn)
-	s.AddTool(EditRepoTool, EditRepoFn)
-	s.AddTool(ListRepoTopicsTool, ListRepoTopicsFn)
-	s.AddTool(SetRepoTopicsTool, SetRepoTopicsFn)
-	s.AddTool(AddRepoTopicTool, AddRepoTopicFn)
-	s.AddTool(DeleteRepoTopicTool, DeleteRepoTopicFn)
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(CreateRepoTool, h.CreateRepoFn)
+	s.AddTool(ForkRepoTool, h.ForkRepoFn)
+	s.AddTool(ListMyReposTool, h.ListMyReposFn)
+	s.AddTool(GetRepoTool, h.GetRepoFn)
+	s.AddTool(EditRepoTool, h.EditRepoFn)
+	s.AddTool(ListRepoTopicsTool, h.ListRepoTopicsFn)
+	s.AddTool(SetRepoTopicsTool, h.SetRepoTopicsFn)
+	s.AddTool(AddRepoTopicTool, h.AddRepoTopicFn)
+	s.AddTool(DeleteRepoTopicTool, h.DeleteRepoTopicFn)
 
 	// File
-	s.AddTool(GetFileContentTool, GetFileContentFn)
-	s.AddTool(CreateFileTool, CreateFileFn)
-	s.AddTool(UpdateFileTool, UpdateFileFn)
-	s.AddTool(DeleteFileTool, DeleteFileFn)
-	s.AddTool(ChangeFilesTool, ChangeFilesFn)
+	s.AddTool(GetFileContentTool, h.GetFileContentFn)
+	s.AddTool(CreateFileTool, h.CreateFileFn)
+	s.AddTool(UpdateFileTool, h.UpdateFileFn)
+	s.AddTool(DeleteFileTool, h.DeleteFileFn)
+	s.AddTool(ChangeFilesTool, h.ChangeFilesFn)
 
 	// Branch
-	s.AddTool(CreateBranchTool, CreateBranchFn)
-	s.AddTool(DeleteBranchTool, DeleteBranchFn)
-	s.AddTool(ListBranchesTool, ListBranchesFn)
+	s.AddTool(CreateBranchTool, h.CreateBranchFn)
+	s.AddTool(DeleteBranchTool, h.DeleteBranchFn)
+	s.AddTool(ListBranchesTool, h.ListBranchesFn)
 
 	// Commit
-	s.AddTool(ListRepoCommitsTool, ListRepoCommitsFn)
-	s.AddTool(GetCommitStatusesTool, GetCommitStatusesFn)
+	s.AddTool(ListRepoCommitsTool, h.ListRepoCommitsFn)
+	s.AddTool(GetCommitStatusesTool, h.GetCommitStatusesFn)
 
 	// Contents / Tree
-	s.AddTool(ListRepoContentsTool, ListRepoContentsFn)
-	s.AddTool(GetRepoTreeTool, GetRepoTreeFn)
+	s.AddTool(ListRepoContentsTool, h.ListRepoContentsFn)
+	s.AddTool(GetRepoTreeTool, h.GetRepoTreeFn)
 }
 
-func CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateRepoFn")
 	name, ok := req.GetArguments()["name"].(string)
 	if !ok {
@@ -119,21 +120,15 @@ func CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 		Readme:        readme,
 		DefaultBranch: defaultBranch,
 	}
+	f, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	var repo *forgejo_sdk.Repository
-	var err error
-	var client *forgejo_sdk.Client
 	if owner != "" {
-		client, err = forgejo.Client(ctx)
-		if err != nil {
-			return to.ErrorResult(err)
-		}
-		repo, _, err = client.CreateOrgRepo(owner, opt)
+		repo, err = f.CreateOrgRepo(ctx, owner, opt)
 	} else {
-		client, err = forgejo.Client(ctx)
-		if err != nil {
-			return to.ErrorResult(err)
-		}
-		repo, _, err = client.CreateRepo(opt)
+		repo, err = f.CreateRepo(ctx, opt)
 	}
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create repo err: %w", err))
@@ -141,7 +136,7 @@ func CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 	return to.TextResult(repo)
 }
 
-func ForkRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ForkRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ForkRepoFn")
 	user, ok := req.GetArguments()["user"].(string)
 	if !ok {
@@ -165,18 +160,18 @@ func ForkRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResu
 		Organization: organizationPtr,
 		Name:         namePtr,
 	}
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, _, err = client.CreateFork(user, repo, opt)
+	_, err = f.ForkRepo(ctx, user, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("fork repository error %w", err))
 	}
 	return to.TextResult("Fork success")
 }
 
-func ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListMyReposFn")
 	page, _ := to.Float64(req.GetArguments()["page"])
 	if page == 0 {
@@ -192,11 +187,11 @@ func ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 			PageSize: int(limit),
 		},
 	}
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	repos, _, err := client.ListMyRepos(opt)
+	repos, err := f.ListMyRepos(ctx, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list my repositories error: %w", err))
 	}

@@ -22,7 +22,8 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/version"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/wiki"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/server"
@@ -47,12 +48,12 @@ func withRequestToken(cfg config.Config, ctx context.Context, r *http.Request) c
 		// must never reach Forgejo. The authentication layer has minted a Forgejo
 		// token for this request; only that one enters the handler context.
 		if token, ok := r.Context().Value(mintedTokenKey{}).(string); ok && token != "" {
-			return forgejo.WithToken(ctx, token)
+			return forge.WithToken(ctx, token)
 		}
 		return ctx
 	}
 	if token := extractToken(r.Header.Get("Authorization")); token != "" {
-		return forgejo.WithToken(ctx, token)
+		return forge.WithToken(ctx, token)
 	}
 	return ctx
 }
@@ -98,58 +99,60 @@ func newStreamableHTTPHandler(s *server.MCPServer, cfg config.Config) http.Handl
 }
 
 // RegisterTool registers every tool; version is what the version tool reports.
-func RegisterTool(s *server.MCPServer, version string) {
+// The Forgejo factory is built once by the composition root; a domain takes it
+// when it migrates to the Forgejo port.
+func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	log.Info("Registering MCP tools")
 
-	RegisterUserTool(s)
-	RegisterRepoTool(s)
-	RegisterIssueTool(s)
-	RegisterPullTool(s)
-	RegisterPullReviewTool(s)
-	RegisterSearchTool(s)
+	RegisterUserTool(s, f)
+	RegisterRepoTool(s, f)
+	RegisterIssueTool(s, f)
+	RegisterPullTool(s, f)
+	RegisterPullReviewTool(s, f)
+	RegisterSearchTool(s, f)
 	RegisterVersionTool(s, version)
-	RegisterActionsTool(s)
-	RegisterOrgTool(s)
-	RegisterPackagesTool(s)
-	RegisterTrackingTool(s)
-	RegisterAttachmentTool(s)
-	RegisterReleaseTool(s)
-	RegisterBranchProtectionTool(s)
-	RegisterHookTool(s)
-	RegisterWikiTool(s)
+	RegisterActionsTool(s, f)
+	RegisterOrgTool(s, f)
+	RegisterPackagesTool(s, f)
+	RegisterTrackingTool(s, f)
+	RegisterAttachmentTool(s, f)
+	RegisterReleaseTool(s, f)
+	RegisterBranchProtectionTool(s, f)
+	RegisterHookTool(s, f)
+	RegisterWikiTool(s, f)
 
 	log.Info("All MCP tools registered successfully")
 }
 
 // Per-domain registration functions exposed for CLI domain grouping.
 
-func RegisterUserTool(s *server.MCPServer) {
-	user.RegisterTool(s)
+func RegisterUserTool(s *server.MCPServer, f forge.Factory) {
+	user.RegisterTool(s, f)
 	log.Debug("Registered user tools")
 }
 
-func RegisterRepoTool(s *server.MCPServer) {
-	repo.RegisterTool(s)
+func RegisterRepoTool(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterTool(s, f)
 	log.Debug("Registered repository tools")
 }
 
-func RegisterIssueTool(s *server.MCPServer) {
-	issue.RegisterTool(s)
+func RegisterIssueTool(s *server.MCPServer, f forge.Factory) {
+	issue.RegisterTool(s, f)
 	log.Debug("Registered issue tools")
 }
 
-func RegisterPullTool(s *server.MCPServer) {
-	pull.RegisterTool(s)
+func RegisterPullTool(s *server.MCPServer, f forge.Factory) {
+	pull.RegisterTool(s, f)
 	log.Debug("Registered pull request tools")
 }
 
-func RegisterPullReviewTool(s *server.MCPServer) {
-	pull.RegisterReviewTools(s)
+func RegisterPullReviewTool(s *server.MCPServer, f forge.Factory) {
+	pull.RegisterReviewTools(s, f)
 	log.Debug("Registered pull review write tools")
 }
 
-func RegisterSearchTool(s *server.MCPServer) {
-	search.RegisterTool(s)
+func RegisterSearchTool(s *server.MCPServer, f forge.Factory) {
+	search.RegisterTool(s, f)
 	log.Debug("Registered search tools")
 }
 
@@ -158,48 +161,48 @@ func RegisterVersionTool(s *server.MCPServer, ver string) {
 	log.Debug("Registered version tools")
 }
 
-func RegisterActionsTool(s *server.MCPServer) {
-	actions.RegisterTool(s)
+func RegisterActionsTool(s *server.MCPServer, f forge.Factory) {
+	actions.RegisterTool(s, f)
 	log.Debug("Registered actions tools")
 }
 
-func RegisterOrgTool(s *server.MCPServer) {
-	org.RegisterTool(s)
+func RegisterOrgTool(s *server.MCPServer, f forge.Factory) {
+	org.RegisterTool(s, f)
 	log.Debug("Registered org tools")
 }
 
-func RegisterPackagesTool(s *server.MCPServer) {
-	packages.RegisterTool(s)
+func RegisterPackagesTool(s *server.MCPServer, f forge.Factory) {
+	packages.RegisterTool(s, f)
 	log.Debug("Registered packages tools")
 }
 
-func RegisterTrackingTool(s *server.MCPServer) {
-	tracking.RegisterTool(s)
+func RegisterTrackingTool(s *server.MCPServer, f forge.Factory) {
+	tracking.RegisterTool(s, f)
 	log.Debug("Registered time tracking tools")
 }
 
-func RegisterAttachmentTool(s *server.MCPServer) {
-	attachment.RegisterTool(s)
+func RegisterAttachmentTool(s *server.MCPServer, f forge.Factory) {
+	attachment.RegisterTool(s, f)
 	log.Debug("Registered attachment tools")
 }
 
-func RegisterReleaseTool(s *server.MCPServer) {
-	release.RegisterTool(s)
+func RegisterReleaseTool(s *server.MCPServer, f forge.Factory) {
+	release.RegisterTool(s, f)
 	log.Debug("Registered release tools")
 }
 
-func RegisterBranchProtectionTool(s *server.MCPServer) {
-	branchprotection.RegisterTool(s)
+func RegisterBranchProtectionTool(s *server.MCPServer, f forge.Factory) {
+	branchprotection.RegisterTool(s, f)
 	log.Debug("Registered branch protection tools")
 }
 
-func RegisterHookTool(s *server.MCPServer) {
-	hook.RegisterTools(s)
+func RegisterHookTool(s *server.MCPServer, f forge.Factory) {
+	hook.RegisterTools(s, f)
 	log.Debug("Registered webhook tools")
 }
 
-func RegisterWikiTool(s *server.MCPServer) {
-	wiki.RegisterTool(s)
+func RegisterWikiTool(s *server.MCPServer, f forge.Factory) {
+	wiki.RegisterTool(s, f)
 	log.Debug("Registered wiki tools")
 }
 
@@ -225,12 +228,13 @@ func extractToken(auth string) string {
 func Run(cfg config.Config, version string) error {
 	transport := cfg.Transport
 	mcpServer := newMCPServer(version)
-	RegisterTool(mcpServer, version)
-	RegisterCoreResources(mcpServer)
+	factory := newFactory(cfg, version)
+	RegisterTool(mcpServer, version, factory)
+	RegisterCoreResources(mcpServer, factory)
 
 	if cfg.ResourceServerMode() {
 		// config.Load has already refused every transport but http.
-		rs, err := prepareResourceServer(context.Background(), cfg)
+		rs, err := prepareResourceServer(context.Background(), cfg, factory)
 		if err != nil {
 			return err
 		}
@@ -258,7 +262,7 @@ func Run(cfg config.Config, version string) error {
 	log.Info("Testing connection to Forgejo instance",
 		log.SanitizedURLField("url", cfg.Forgejo.URL),
 	)
-	if err := testConnection(); err != nil {
+	if err := factory.VerifyConnection(context.Background()); err != nil {
 		log.Error("Failed to connect to Forgejo instance",
 			log.SanitizedURLField("url", cfg.Forgejo.URL),
 			log.ErrorField(err),
@@ -316,71 +320,78 @@ func Run(cfg config.Config, version string) error {
 	return nil
 }
 
-func testConnection() error {
-	return forgejo.VerifyConnection()
+// newFactory builds the Forgejo factory from cfg: the one place the credential
+// policy is chosen. The network transports refuse a request that carries no
+// credential of its own unless the operator opted in to the fallback; stdio
+// always falls back, because the client launched this process and there is no
+// per-request identity to carry. The policy is a decision about transport, not
+// about the address a listener bound.
+func newFactory(cfg config.Config, version string) *sdk.Factory {
+	require := cfg.Transport != "stdio" && resolveTransportConfig(cfg).requireAuth
+	return sdk.NewFactory(cfg.Forgejo, version, sdk.WithRequireRequestToken(require))
 }
 
-func RegisterCoreResources(s *server.MCPServer) {
-	RegisterCommitResource(s)
-	RegisterIssueResources(s)
-	RegisterLabelResources(s)
-	RegisterOwnerResource(s)
-	RegisterPullResources(s)
-	RegisterRepoResource(s)
-	RegisterStatusResource(s)
-	RegisterBranchProtectionResources(s)
-	RegisterHookResources(s)
-	RegisterWikiResource(s)
+func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
+	RegisterCommitResource(s, f)
+	RegisterIssueResources(s, f)
+	RegisterLabelResources(s, f)
+	RegisterOwnerResource(s, f)
+	RegisterPullResources(s, f)
+	RegisterRepoResource(s, f)
+	RegisterStatusResource(s, f)
+	RegisterBranchProtectionResources(s, f)
+	RegisterHookResources(s, f)
+	RegisterWikiResource(s, f)
 	log.Debug("Registered core resource templates")
 }
 
-func RegisterWikiResource(s *server.MCPServer) {
-	wiki.RegisterWikiResource(s)
+func RegisterWikiResource(s *server.MCPServer, f forge.Factory) {
+	wiki.RegisterWikiResource(s, f)
 	log.Debug("Registered wiki resource template")
 }
 
-func RegisterLabelResources(s *server.MCPServer) {
-	issue.RegisterLabelResources(s)
+func RegisterLabelResources(s *server.MCPServer, f forge.Factory) {
+	issue.RegisterLabelResources(s, f)
 	log.Debug("Registered label resource templates")
 }
 
-func RegisterBranchProtectionResources(s *server.MCPServer) {
-	branchprotection.RegisterResource(s)
+func RegisterBranchProtectionResources(s *server.MCPServer, f forge.Factory) {
+	branchprotection.RegisterResource(s, f)
 	log.Debug("Registered branch protection resource templates")
 }
 
-func RegisterHookResources(s *server.MCPServer) {
-	hook.RegisterResources(s)
+func RegisterHookResources(s *server.MCPServer, f forge.Factory) {
+	hook.RegisterResources(s, f)
 	log.Debug("Registered webhook resource templates")
 }
 
-func RegisterPullResources(s *server.MCPServer) {
-	pull.RegisterPullResources(s)
+func RegisterPullResources(s *server.MCPServer, f forge.Factory) {
+	pull.RegisterPullResources(s, f)
 	log.Debug("Registered pull request resource template")
 }
 
-func RegisterIssueResources(s *server.MCPServer) {
-	issue.RegisterIssueResources(s)
+func RegisterIssueResources(s *server.MCPServer, f forge.Factory) {
+	issue.RegisterIssueResources(s, f)
 	log.Debug("Registered issue resource templates")
 }
 
-func RegisterCommitResource(s *server.MCPServer) {
-	repo.RegisterCommitResource(s)
+func RegisterCommitResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterCommitResource(s, f)
 	log.Debug("Registered commit resource template")
 }
 
-func RegisterOwnerResource(s *server.MCPServer) {
-	user.RegisterOwnerResource(s)
+func RegisterOwnerResource(s *server.MCPServer, f forge.Factory) {
+	user.RegisterOwnerResource(s, f)
 	log.Debug("Registered owner resource template")
 }
 
-func RegisterRepoResource(s *server.MCPServer) {
-	repo.RegisterRepoResource(s)
+func RegisterRepoResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterRepoResource(s, f)
 	log.Debug("Registered repo resource template")
 }
 
-func RegisterStatusResource(s *server.MCPServer) {
-	repo.RegisterStatusResource(s)
+func RegisterStatusResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterStatusResource(s, f)
 	log.Debug("Registered commit status resource template")
 }
 

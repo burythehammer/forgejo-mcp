@@ -14,16 +14,18 @@ import (
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// fakeAPI is a package-level test server so the forgejo.Client(context.Background()) singleton
-// (initialized via sync.Once) always points to a live server.
+// fakeAPI is a package-level test server (initialized via sync.Once) that the
+// shared factory always points at, so every test talks to a live server.
 var (
 	fakeAPI  *httptest.Server
+	factory  *sdk.Factory
 	setupMu  sync.Once
 	mcpSrv   *server.MCPServer
 	allTools []string
@@ -71,13 +73,13 @@ func setup(t *testing.T) {
 			}
 		}))
 
-		forgejo.ConfigureForTesting(fakeAPI.URL, "fake-token-for-testing", "")
+		factory = sdk.NewFactory(config.Forgejo{URL: fakeAPI.URL, Token: config.NewSecret("fake-token-for-testing")}, "test")
 
-		// Force the forgejo client singleton to initialize against our fake server.
-		_, _ = forgejo.Client(context.Background())
+		// Build the operator's client up front, against our fake server.
+		_, _ = factory.For(context.Background())
 
 		mcpSrv = server.NewMCPServer("forgejo-mcp", "test", server.WithLogging())
-		operation.RegisterTool(mcpSrv, "test")
+		operation.RegisterTool(mcpSrv, "test", factory)
 
 		tools := mcpSrv.ListTools()
 		allTools = make([]string, 0, len(tools))
@@ -236,7 +238,7 @@ func TestConcurrentListAndRegister(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		operation.RegisterTool(srv, "test")
+		operation.RegisterTool(srv, "test", sdk.NewFactory(config.Forgejo{}, "test"))
 	}()
 
 	for i := 0; i < 10; i++ {
@@ -264,8 +266,8 @@ func TestInitFlagParseBug(t *testing.T) {
 // When the forgejo client returns (nil, nil, err), this panics.
 // Example: operation/user/user.go:44
 //
-//	user, resp, err := forgejo.Client(context.Background()).GetMyUserInfo()
-//	forgejo.LogAPICall(ctx, "GET", "/user", duration, resp.StatusCode, err) // CRASH if resp==nil
+//	user, resp, err := client.GetMyUserInfo()
+//	forge.LogAPICall(ctx, "GET", "/user", duration, resp.StatusCode, err) // CRASH if resp==nil
 //	if err != nil { ... }
 //
 // This is a separate bug but was discovered while investigating #76.

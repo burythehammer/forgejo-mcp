@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -15,12 +15,13 @@ import (
 )
 
 // RegisterPullResources registers the forgejo://repo/{owner}/{repo}/pr/{index} resource template.
-func RegisterPullResources(s *server.MCPServer) {
+func RegisterPullResources(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
 	resource.RegisterTemplate(
 		s,
 		"forgejo://repo/{owner}/{repo}/pr/{index}",
 		"Forgejo Pull Request",
-		prResourceHandler,
+		h.prResourceHandler,
 		mcp.WithTemplateDescription(
 			"Pull request metadata, head/base refs, mergeability, body sidecar, "+
 				"and bounded recent comments and reviews. "+
@@ -84,33 +85,32 @@ type prResourcePayload struct {
 	ReviewsListTool  string        `json:"reviews_list_tool,omitempty"`
 }
 
-func prResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) prResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	params, err := resource.ParsePR(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	pr, resp, err := client.GetPullRequest(params.Owner, params.Repo, params.Index)
+	pr, err := port.GetPullRequest(ctx, params.Owner, params.Repo, params.Index)
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
+		if code := forge.StatusCode(err); code != 0 {
+			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
 		}
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
 	// fetch comments (PR comments live on the issue-comments endpoint)
-	comments, _, _ := client.ListIssueComments(params.Owner, params.Repo, params.Index, forgejo_sdk.ListIssueCommentOptions{
-		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
-	})
+	comments, _ := port.ListPullRequestComments(ctx, params.Owner, params.Repo, params.Index,
+		forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1})
 
 	// fetch reviews
-	reviews, _, _ := client.ListPullReviews(params.Owner, params.Repo, params.Index, forgejo_sdk.ListPullReviewsOptions{
+	reviews, _ := port.ListPullReviews(ctx, params.Owner, params.Repo, params.Index, forgejo_sdk.ListPullReviewsOptions{
 		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
 	})
 

@@ -4,15 +4,11 @@ package operation
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"strconv"
-	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -30,51 +26,28 @@ import (
 // ReadResourceRequest and never cross the matcher. Only a real resources/read
 // envelope through server.HandleMessage does.
 
-// labelListBackend serves both label endpoints, honouring page and limit so a
-// query-bearing URI has an observable effect rather than merely being accepted.
-func labelListBackend(t *testing.T, total int) {
+// labelListFactory serves total labels, ids 1..total, either as the repository
+// labels of o/r (scope "repo") or the labels of organization o (scope "org"). The
+// fake pages, so a query-bearing URI has an observable effect rather than merely
+// being accepted.
+func labelListFactory(t *testing.T, scope string, total int) forge.Factory {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if !strings.HasSuffix(r.URL.Path, "/labels") {
-			http.NotFound(w, r)
-			return
+	f := fake.New()
+	f.AddRepo("o", "r")
+	ctx := context.Background()
+	for i := 1; i <= total; i++ {
+		opt := forgejo_sdk.CreateLabelOption{Name: fmt.Sprintf("label-%d", i), Color: "#aabbcc"}
+		var err error
+		if scope == "org" {
+			_, err = f.CreateOrgLabel(ctx, "o", opt)
+		} else {
+			_, err = f.CreateRepoLabel(ctx, "o", "r", opt)
 		}
-
-		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-		if page < 1 {
-			page = 1
+		if err != nil {
+			t.Fatal(err)
 		}
-		size, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		if size < 1 {
-			size = 10
-		}
-		offset := (page - 1) * size
-
-		rows := make([]any, 0, size)
-		for i := offset + 1; i <= offset+size && i <= total; i++ {
-			rows = append(rows, map[string]any{
-				"id":          i,
-				"name":        fmt.Sprintf("label-%d", i),
-				"color":       "aabbcc",
-				"description": "",
-				"url":         fmt.Sprintf("https://example.test/labels/%d", i),
-			})
-		}
-		w.Header().Set("X-Total-Count", strconv.Itoa(total))
-		if offset+len(rows) < total {
-			w.Header().Set("Link", fmt.Sprintf(`<%s?page=%d&limit=%d>; rel="next"`, r.URL.Path, page+1, size))
-		}
-		_ = json.NewEncoder(w).Encode(rows)
-	}))
-	t.Cleanup(srv.Close)
-
-	forgejo.ConfigureForTesting(srv.URL, "test", "test")
-	c, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("building test client: %v", err)
 	}
-	forgejo.SetClientForTesting(c)
+	return fake.Factory{Forgejo: f}
 }
 
 // firstLabelID reports the id of the first row, so a paged read can be shown to
@@ -91,9 +64,8 @@ func firstLabelID(t *testing.T, payload map[string]any) int {
 }
 
 func TestResourceDispatchRoutesRepoLabelsTemplate(t *testing.T) {
-	labelListBackend(t, 100)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, labelListFactory(t, "repo", 100))
 
 	t.Run("bare URI", func(t *testing.T) {
 		payload := readResource(t, s, "forgejo://repo/o/r/labels")
@@ -123,9 +95,8 @@ func TestResourceDispatchRoutesRepoLabelsTemplate(t *testing.T) {
 }
 
 func TestResourceDispatchRoutesOrgLabelsTemplate(t *testing.T) {
-	labelListBackend(t, 100)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, labelListFactory(t, "org", 100))
 
 	t.Run("bare URI", func(t *testing.T) {
 		payload := readResource(t, s, "forgejo://org/o/labels")
@@ -157,9 +128,8 @@ func TestResourceDispatchRoutesOrgLabelsTemplate(t *testing.T) {
 // that swallows neighbouring paths. Without this, "register everything as a
 // prefix" would pass the tests above.
 func TestResourceDispatchRejectsUnknownLabelListURI(t *testing.T) {
-	labelListBackend(t, 10)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, labelListFactory(t, "repo", 10))
 
 	for _, uri := range []string{
 		"forgejo://repo/o/r/labels/extra",

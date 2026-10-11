@@ -6,12 +6,9 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"net/http"
-	"net/url"
-	"strconv"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -26,25 +23,13 @@ const (
 	maxActionArtifactsLimit     = 50
 )
 
-type actionArtifact struct {
-	ID                 int64  `json:"id"`
-	Name               string `json:"name"`
-	RunID              int64  `json:"run_id"`
-	SizeInBytes        int64  `json:"size_in_bytes"`
-	Expired            bool   `json:"expired"`
-	ExpiresAt          string `json:"expires_at,omitempty"`
-	CreatedAt          string `json:"created_at,omitempty"`
-	UpdatedAt          string `json:"updated_at,omitempty"`
-	ArchiveDownloadURL string `json:"archive_download_url,omitempty"`
-}
-
 type listActionRunArtifactsResult struct {
-	RunID      int64            `json:"run_id"`
-	Artifacts  []actionArtifact `json:"artifacts"`
-	Page       int              `json:"page"`
-	Limit      int              `json:"limit"`
-	Count      int              `json:"count"`
-	TotalCount *int             `json:"total_count,omitempty"`
+	RunID      int64                  `json:"run_id"`
+	Artifacts  []forge.ActionArtifact `json:"artifacts"`
+	Page       int                    `json:"page"`
+	Limit      int                    `json:"limit"`
+	Count      int                    `json:"count"`
+	TotalCount *int                   `json:"total_count,omitempty"`
 }
 
 var (
@@ -68,7 +53,7 @@ var (
 	)
 )
 
-func ListActionRunArtifactsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListActionRunArtifactsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListActionRunArtifactsFn")
 	args := req.GetArguments()
 
@@ -90,35 +75,26 @@ func ListActionRunArtifactsFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 	}
 	name, _ := args["name"].(string)
 
-	query := url.Values{}
-	query.Set("page", strconv.Itoa(page))
-	query.Set("limit", strconv.Itoa(limit))
-	if name != "" {
-		query.Set("name", name)
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
 	}
-	path := forgejo.APIPath("repos", owner, repo, "actions", "runs", runID, "artifacts") + "?" + query.Encode()
-
-	artifacts := make([]actionArtifact, 0)
-	header, err := forgejo.DoJSONWithHeader(ctx, http.MethodGet, path, nil, &artifacts)
+	list, err := port.ListRunArtifacts(ctx, owner, repo, runID, forge.ArtifactListOptions{Page: page, Limit: limit, Name: name})
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list action run artifacts: %w", err))
-	}
-	// A JSON null body unmarshals onto a nil slice and overwrites the make above.
-	if artifacts == nil {
-		artifacts = []actionArtifact{}
 	}
 
 	return to.TextResult(listActionRunArtifactsResult{
 		RunID:      runID,
-		Artifacts:  artifacts,
+		Artifacts:  list.Artifacts,
 		Page:       page,
 		Limit:      limit,
-		Count:      len(artifacts),
-		TotalCount: forgejo.TotalCountPtr(header),
+		Count:      len(list.Artifacts),
+		TotalCount: list.TotalCount,
 	})
 }
 
-func GetActionArtifactFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetActionArtifactFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetActionArtifactFn")
 	args := req.GetArguments()
 
@@ -131,9 +107,12 @@ func GetActionArtifactFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		return to.ErrorResult(err)
 	}
 
-	path := forgejo.APIPath("repos", owner, repo, "actions", "artifacts", artifactID)
-	var artifact actionArtifact
-	if err := forgejo.DoJSON(ctx, http.MethodGet, path, nil, &artifact); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	artifact, err := port.GetArtifact(ctx, owner, repo, artifactID)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get action artifact: %w", err))
 	}
 	return to.TextResult(artifact)

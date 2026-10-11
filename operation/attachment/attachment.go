@@ -1,6 +1,7 @@
 // Package attachment registers MCP tools for issue and issue-comment
-// attachments. It uses pkg/forgejo's raw-HTTP helper because forgejo-sdk/v3
-// has no methods for these endpoints; see docs/plans/issue-attachments.md.
+// attachments. It reaches Forgejo through the forge.Attachments port; the adapter uses raw
+// HTTP because forgejo-sdk/v3 has no methods for these endpoints (see
+// docs/plans/issue-attachments.md).
 package attachment
 
 import (
@@ -8,11 +9,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/upload"
@@ -75,8 +75,6 @@ const (
 	CreateCommentAttachmentToolName   = "create_comment_attachment"
 	EditCommentAttachmentToolName     = "edit_comment_attachment"
 	DeleteCommentAttachmentToolName   = "delete_comment_attachment"
-
-	multipartFieldName = "attachment"
 )
 
 // downloadResult is the shape returned by download_*_attachment when bytes
@@ -205,26 +203,33 @@ var (
 	)
 )
 
-// RegisterTool registers all 12 attachment tools with the MCP server.
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(ListIssueAttachmentsTool, ListIssueAttachmentsFn)
-	s.AddTool(GetIssueAttachmentTool, GetIssueAttachmentFn)
-	s.AddTool(DownloadIssueAttachmentTool, DownloadIssueAttachmentFn)
-	s.AddTool(CreateIssueAttachmentTool, CreateIssueAttachmentFn)
-	s.AddTool(EditIssueAttachmentTool, EditIssueAttachmentFn)
-	s.AddTool(DeleteIssueAttachmentTool, DeleteIssueAttachmentFn)
+// RegisterTool registers all 12 attachment tools with the MCP server. Each call
+// takes its Forgejo port from f, so a request is served with the credential
+// that request carries.
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(ListIssueAttachmentsTool, h.ListIssueAttachmentsFn)
+	s.AddTool(GetIssueAttachmentTool, h.GetIssueAttachmentFn)
+	s.AddTool(DownloadIssueAttachmentTool, h.DownloadIssueAttachmentFn)
+	s.AddTool(CreateIssueAttachmentTool, h.CreateIssueAttachmentFn)
+	s.AddTool(EditIssueAttachmentTool, h.EditIssueAttachmentFn)
+	s.AddTool(DeleteIssueAttachmentTool, h.DeleteIssueAttachmentFn)
 
-	s.AddTool(ListCommentAttachmentsTool, ListCommentAttachmentsFn)
-	s.AddTool(GetCommentAttachmentTool, GetCommentAttachmentFn)
-	s.AddTool(DownloadCommentAttachmentTool, DownloadCommentAttachmentFn)
-	s.AddTool(CreateCommentAttachmentTool, CreateCommentAttachmentFn)
-	s.AddTool(EditCommentAttachmentTool, EditCommentAttachmentFn)
-	s.AddTool(DeleteCommentAttachmentTool, DeleteCommentAttachmentFn)
+	s.AddTool(ListCommentAttachmentsTool, h.ListCommentAttachmentsFn)
+	s.AddTool(GetCommentAttachmentTool, h.GetCommentAttachmentFn)
+	s.AddTool(DownloadCommentAttachmentTool, h.DownloadCommentAttachmentFn)
+	s.AddTool(CreateCommentAttachmentTool, h.CreateCommentAttachmentFn)
+	s.AddTool(EditCommentAttachmentTool, h.EditCommentAttachmentFn)
+	s.AddTool(DeleteCommentAttachmentTool, h.DeleteCommentAttachmentFn)
 }
+
+// handlers serve the attachment tools. They hold the factory rather than a
+// port so each request gets the port for its own credential.
+type handlers struct{ forge forge.Factory }
 
 // --- Issue-scoped handlers --------------------------------------------------
 
-func ListIssueAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListIssueAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListIssueAttachmentsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -233,10 +238,19 @@ func ListIssueAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return to.ErrorResult(fmt.Errorf("index: %w", err))
 	}
 
-	var out []*forgejo_sdk.Attachment
-	path := forgejo.APIPath("repos", owner, repo, "issues", int64(index), "assets")
-	if err := forgejo.DoJSONList(ctx, http.MethodGet, path, &out); err != nil {
-		return to.ErrorResult(fmt.Errorf("list issue attachments err: %w", err))
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	out, err := port.ListIssueAttachments(ctx, owner, repo, int64(index))
+	return listResult(out, err, "list issue attachments err")
+}
+
+// listResult renders an attachment list. Forgejo answers 404 for a parent with
+// no attachments as often as for a missing one, so a 404 is an empty list.
+func listResult(out []*forgejo_sdk.Attachment, err error, what string) (*mcp.CallToolResult, error) {
+	if err != nil && !forge.IsNotFound(err) {
+		return to.ErrorResult(fmt.Errorf("%s: %w", what, err))
 	}
 	if out == nil {
 		out = []*forgejo_sdk.Attachment{}
@@ -244,7 +258,7 @@ func ListIssueAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	return to.TextResult(out)
 }
 
-func GetIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetIssueAttachmentFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -257,14 +271,18 @@ func GetIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
 
-	att, err := getIssueAttachment(ctx, owner, repo, int64(index), int64(aid))
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	att, err := port.GetIssueAttachment(ctx, owner, repo, int64(index), int64(aid))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get issue attachment err: %w", err))
 	}
 	return to.TextResult(att)
 }
 
-func DownloadIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DownloadIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DownloadIssueAttachmentFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -277,14 +295,18 @@ func DownloadIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*m
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
 
-	att, err := getIssueAttachment(ctx, owner, repo, int64(index), int64(aid))
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	att, err := port.GetIssueAttachment(ctx, owner, repo, int64(index), int64(aid))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("download issue attachment (metadata) err: %w", err))
 	}
-	return downloadResultFor(ctx, att)
+	return downloadResultFor(ctx, port, att)
 }
 
-func CreateIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateIssueAttachmentFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -300,18 +322,21 @@ func CreateIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	}
 	defer reader.Close()
 
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	uploadCtx, cancel := context.WithTimeout(ctx, attachmentUploadTimeout)
 	defer cancel()
 
-	var att forgejo_sdk.Attachment
-	path := forgejo.APIPath("repos", owner, repo, "issues", int64(index), "assets")
-	if err := forgejo.DoMultipart(uploadCtx, http.MethodPost, path, multipartFieldName, filename, mimeType, reader, &att); err != nil {
+	att, err := port.CreateIssueAttachment(uploadCtx, owner, repo, int64(index), forge.Upload{Filename: filename, MIMEType: mimeType, Content: reader})
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create issue attachment err: %w", wrapUploadTimeout(ctx, uploadCtx, err)))
 	}
 	return to.TextResult(att)
 }
 
-func EditIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) EditIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditIssueAttachmentFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -328,16 +353,18 @@ func EditIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		return to.ErrorResult(fmt.Errorf("name is required"))
 	}
 
-	var att forgejo_sdk.Attachment
-	body := map[string]string{"name": name}
-	path := forgejo.APIPath("repos", owner, repo, "issues", int64(index), "assets", int64(aid))
-	if err := forgejo.DoJSON(ctx, http.MethodPatch, path, body, &att); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	att, err := port.EditIssueAttachment(ctx, owner, repo, int64(index), int64(aid), name)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit issue attachment err: %w", err))
 	}
 	return to.TextResult(att)
 }
 
-func DeleteIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteIssueAttachmentFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -349,8 +376,12 @@ func DeleteIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
-	path := forgejo.APIPath("repos", owner, repo, "issues", int64(index), "assets", int64(aid))
-	if err := forgejo.DoJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := port.DeleteIssueAttachment(ctx, owner, repo, int64(index), int64(aid)); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete issue attachment err: %w", err))
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
@@ -358,7 +389,7 @@ func DeleteIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 
 // --- Comment-scoped handlers ------------------------------------------------
 
-func ListCommentAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListCommentAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListCommentAttachmentsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -367,18 +398,15 @@ func ListCommentAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 		return to.ErrorResult(fmt.Errorf("comment_id: %w", err))
 	}
 
-	var out []*forgejo_sdk.Attachment
-	path := forgejo.APIPath("repos", owner, repo, "issues", "comments", int64(cid), "assets")
-	if err := forgejo.DoJSONList(ctx, http.MethodGet, path, &out); err != nil {
-		return to.ErrorResult(fmt.Errorf("list comment attachments err: %w", err))
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
 	}
-	if out == nil {
-		out = []*forgejo_sdk.Attachment{}
-	}
-	return to.TextResult(out)
+	out, err := port.ListCommentAttachments(ctx, owner, repo, int64(cid))
+	return listResult(out, err, "list comment attachments err")
 }
 
-func GetCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetCommentAttachmentFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -391,14 +419,18 @@ func GetCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
 
-	att, err := getCommentAttachment(ctx, owner, repo, int64(cid), int64(aid))
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	att, err := port.GetCommentAttachment(ctx, owner, repo, int64(cid), int64(aid))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get comment attachment err: %w", err))
 	}
 	return to.TextResult(att)
 }
 
-func DownloadCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DownloadCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DownloadCommentAttachmentFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -410,14 +442,19 @@ func DownloadCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
-	att, err := getCommentAttachment(ctx, owner, repo, int64(cid), int64(aid))
+
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	att, err := port.GetCommentAttachment(ctx, owner, repo, int64(cid), int64(aid))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("download comment attachment (metadata) err: %w", err))
 	}
-	return downloadResultFor(ctx, att)
+	return downloadResultFor(ctx, port, att)
 }
 
-func CreateCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateCommentAttachmentFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -433,18 +470,21 @@ func CreateCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*m
 	}
 	defer reader.Close()
 
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	uploadCtx, cancel := context.WithTimeout(ctx, attachmentUploadTimeout)
 	defer cancel()
 
-	var att forgejo_sdk.Attachment
-	path := forgejo.APIPath("repos", owner, repo, "issues", "comments", int64(cid), "assets")
-	if err := forgejo.DoMultipart(uploadCtx, http.MethodPost, path, multipartFieldName, filename, mimeType, reader, &att); err != nil {
+	att, err := port.CreateCommentAttachment(uploadCtx, owner, repo, int64(cid), forge.Upload{Filename: filename, MIMEType: mimeType, Content: reader})
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create comment attachment err: %w", wrapUploadTimeout(ctx, uploadCtx, err)))
 	}
 	return to.TextResult(att)
 }
 
-func EditCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) EditCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditCommentAttachmentFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -461,16 +501,18 @@ func EditCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return to.ErrorResult(fmt.Errorf("name is required"))
 	}
 
-	var att forgejo_sdk.Attachment
-	body := map[string]string{"name": name}
-	path := forgejo.APIPath("repos", owner, repo, "issues", "comments", int64(cid), "assets", int64(aid))
-	if err := forgejo.DoJSON(ctx, http.MethodPatch, path, body, &att); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	att, err := port.EditCommentAttachment(ctx, owner, repo, int64(cid), int64(aid), name)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit comment attachment err: %w", err))
 	}
 	return to.TextResult(att)
 }
 
-func DeleteCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteCommentAttachmentFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -482,8 +524,12 @@ func DeleteCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*m
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
-	path := forgejo.APIPath("repos", owner, repo, "issues", "comments", int64(cid), "assets", int64(aid))
-	if err := forgejo.DoJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := port.DeleteCommentAttachment(ctx, owner, repo, int64(cid), int64(aid)); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete comment attachment err: %w", err))
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
@@ -515,41 +561,23 @@ func wrapUploadTimeout(parent, uploadCtx context.Context, err error) error {
 
 // --- shared helpers ---------------------------------------------------------
 
-func getIssueAttachment(ctx context.Context, owner, repo string, index, aid int64) (*forgejo_sdk.Attachment, error) {
-	var att forgejo_sdk.Attachment
-	path := forgejo.APIPath("repos", owner, repo, "issues", index, "assets", aid)
-	if err := forgejo.DoJSON(ctx, http.MethodGet, path, nil, &att); err != nil {
-		return nil, err
-	}
-	return &att, nil
-}
-
-func getCommentAttachment(ctx context.Context, owner, repo string, cid, aid int64) (*forgejo_sdk.Attachment, error) {
-	var att forgejo_sdk.Attachment
-	path := forgejo.APIPath("repos", owner, repo, "issues", "comments", cid, "assets", aid)
-	if err := forgejo.DoJSON(ctx, http.MethodGet, path, nil, &att); err != nil {
-		return nil, err
-	}
-	return &att, nil
-}
-
 // downloadResultFor fetches inline bytes when the attachment is under the
 // inline cap; otherwise returns metadata + URL only and instructs the caller
 // to fetch via curl. Always includes browser_download_url.
-func downloadResultFor(ctx context.Context, att *forgejo_sdk.Attachment) (*mcp.CallToolResult, error) {
+func downloadResultFor(ctx context.Context, port forge.Attachments, att *forgejo_sdk.Attachment) (*mcp.CallToolResult, error) {
 	res := &downloadResult{Attachment: att}
 
-	if att.Size >= forgejo.MaxInlineDownloadBytes {
+	if att.Size >= forge.MaxInlineDownloadBytes {
 		res.Inline = false
-		res.Reason = fmt.Sprintf("size %d bytes >= inline cap %d; fetch browser_download_url with Authorization: token <TOKEN>", att.Size, forgejo.MaxInlineDownloadBytes)
+		res.Reason = fmt.Sprintf("size %d bytes >= inline cap %d; fetch browser_download_url with Authorization: token <TOKEN>", att.Size, forge.MaxInlineDownloadBytes)
 		return to.TextResult(res)
 	}
 
-	body, ct, err := forgejo.DoRaw(ctx, att.DownloadURL)
+	dl, err := port.DownloadAttachment(ctx, att.DownloadURL)
 	if err != nil {
 		// Defensive: if the size advertised was under cap but the actual bytes
 		// blow past it, treat that the same as "too big" rather than failing.
-		if errors.Is(err, forgejo.ErrPayloadTooLarge) {
+		if errors.Is(err, forge.ErrPayloadTooLarge) {
 			res.Inline = false
 			res.Reason = "body exceeded inline cap during fetch; fetch browser_download_url with Authorization: token <TOKEN>"
 			return to.TextResult(res)
@@ -557,11 +585,11 @@ func downloadResultFor(ctx context.Context, att *forgejo_sdk.Attachment) (*mcp.C
 		return to.ErrorResult(fmt.Errorf("download body err: %w", err))
 	}
 	res.Inline = true
-	res.BytesIncluded = int64(len(body))
+	res.BytesIncluded = int64(len(dl.Body))
 
 	uri := att.DownloadURL
-	mimeType := ct
-	encoded := base64.StdEncoding.EncodeToString(body)
+	mimeType := dl.ContentType
+	encoded := base64.StdEncoding.EncodeToString(dl.Body)
 
 	// NewToolResultResource gives us a CallToolResult containing both a
 	// text content (the metadata-as-JSON) and an embedded BlobResourceContents.

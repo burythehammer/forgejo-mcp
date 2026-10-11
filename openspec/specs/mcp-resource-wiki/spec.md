@@ -71,7 +71,7 @@ naming the `get_wiki_revisions` tool and the total count.
 
 A wiki page body can be arbitrarily large, so the resource SHALL NOT embed it unbounded.
 The `text/markdown` content sidecar SHALL be capped at `MaxInlineDownloadBytes` (the
-existing 1 MiB cap in `pkg/forgejo`). When the decoded body exceeds the cap, the sidecar
+1 MiB cap defined in `pkg/forge`). When the decoded body exceeds the cap, the sidecar
 SHALL be truncated at the cap boundary and SHALL carry a truncation marker that names the
 `get_wiki_page` tool (which exposes `start_line`/`end_line`) as the way to retrieve the
 remainder. No bytes SHALL be dropped silently. This satisfies `output-bounding.md`

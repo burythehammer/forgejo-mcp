@@ -11,6 +11,8 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -21,7 +23,7 @@ import (
 var toolDomains = map[string]string{}
 
 // registerToolsWithDomains registers all tools and builds the domain mapping.
-func registerToolsWithDomains(s *server.MCPServer, version string) {
+func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Factory) {
 	beforeNames := toolNames(s)
 
 	type domainReg struct {
@@ -29,22 +31,22 @@ func registerToolsWithDomains(s *server.MCPServer, version string) {
 		fn   func(*server.MCPServer)
 	}
 	domains := []domainReg{
-		{"user", operation.RegisterUserTool},
-		{"repo", operation.RegisterRepoTool},
-		{"issue", operation.RegisterIssueTool},
-		{"pull", operation.RegisterPullTool},
-		{"pull", operation.RegisterPullReviewTool},
-		{"search", operation.RegisterSearchTool},
+		{"user", func(s *server.MCPServer) { operation.RegisterUserTool(s, f) }},
+		{"repo", func(s *server.MCPServer) { operation.RegisterRepoTool(s, f) }},
+		{"issue", func(s *server.MCPServer) { operation.RegisterIssueTool(s, f) }},
+		{"pull", func(s *server.MCPServer) { operation.RegisterPullTool(s, f) }},
+		{"pull", func(s *server.MCPServer) { operation.RegisterPullReviewTool(s, f) }},
+		{"search", func(s *server.MCPServer) { operation.RegisterSearchTool(s, f) }},
 		{"version", func(s *server.MCPServer) { operation.RegisterVersionTool(s, version) }},
-		{"actions", operation.RegisterActionsTool},
-		{"org", operation.RegisterOrgTool},
-		{"packages", operation.RegisterPackagesTool},
-		{"tracking", operation.RegisterTrackingTool},
-		{"attachment", operation.RegisterAttachmentTool},
-		{"release", operation.RegisterReleaseTool},
-		{"branch-protection", operation.RegisterBranchProtectionTool},
-		{"webhook", operation.RegisterHookTool},
-		{"wiki", operation.RegisterWikiTool},
+		{"actions", func(s *server.MCPServer) { operation.RegisterActionsTool(s, f) }},
+		{"org", func(s *server.MCPServer) { operation.RegisterOrgTool(s, f) }},
+		{"packages", func(s *server.MCPServer) { operation.RegisterPackagesTool(s, f) }},
+		{"tracking", func(s *server.MCPServer) { operation.RegisterTrackingTool(s, f) }},
+		{"attachment", func(s *server.MCPServer) { operation.RegisterAttachmentTool(s, f) }},
+		{"release", func(s *server.MCPServer) { operation.RegisterReleaseTool(s, f) }},
+		{"branch-protection", func(s *server.MCPServer) { operation.RegisterBranchProtectionTool(s, f) }},
+		{"webhook", func(s *server.MCPServer) { operation.RegisterHookTool(s, f) }},
+		{"wiki", func(s *server.MCPServer) { operation.RegisterWikiTool(s, f) }},
 	}
 
 	for _, d := range domains {
@@ -89,7 +91,7 @@ func RunCLI(cfg config.Config, version string) {
 
 	// Build the MCPServer and register tools with domain tracking.
 	mcpSrv := server.NewMCPServer("Forgejo MCP Server", version, server.WithLogging())
-	registerToolsWithDomains(mcpSrv, version)
+	registerToolsWithDomains(mcpSrv, version, sdk.NewFactory(cfg.Forgejo, version))
 
 	switch c.Tool {
 	case "list":

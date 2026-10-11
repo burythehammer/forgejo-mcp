@@ -5,11 +5,10 @@ package repo
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -53,20 +52,20 @@ type repositoryView struct {
 	Topics []string `json:"topics"`
 }
 
-func loadRepo(ctx context.Context, owner, repo string) (*repositoryView, error) {
-	client, err := forgejo.Client(ctx)
+func (h handlers) loadRepo(ctx context.Context, owner, repo string) (*repositoryView, error) {
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, err
 	}
-	r, _, err := client.GetRepo(owner, repo)
+	r, err := f.GetRepo(ctx, owner, repo)
 	if err != nil {
 		return nil, fmt.Errorf("get repo: %w", err)
 	}
-	topics, resp, err := client.ListRepoTopics(owner, repo, forgejo_sdk.ListRepoTopicsOptions{
+	topics, err := f.ListRepoTopics(ctx, owner, repo, forgejo_sdk.ListRepoTopicsOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: maxRepoTopics},
 	})
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if forge.IsNotFound(err) {
 			topics = []string{}
 		} else {
 			return nil, fmt.Errorf("list repo topics: %w", err)
@@ -78,7 +77,7 @@ func loadRepo(ctx context.Context, owner, repo string) (*repositoryView, error) 
 	return &repositoryView{Repository: r, Topics: topics}, nil
 }
 
-func GetRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetRepoFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -87,14 +86,14 @@ func GetRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
 	}
 
-	r, err := loadRepo(ctx, owner, repo)
+	r, err := h.loadRepo(ctx, owner, repo)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.TextResult(r)
 }
 
-func EditRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) EditRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditRepoFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -167,11 +166,11 @@ func EditRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResu
 		return to.ErrorResult(fmt.Errorf("edit_repo: at least one setting field must be provided"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	r, _, err := client.EditRepo(owner, repo, opt)
+	r, err := f.EditRepo(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit repo: %w", err))
 	}

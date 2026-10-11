@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -16,12 +16,13 @@ import (
 )
 
 // RegisterIssueResources registers the issue and comment resource templates.
-func RegisterIssueResources(s *server.MCPServer) {
+func RegisterIssueResources(s *server.MCPServer, f forge.Factory) {
+	h := newHandlers(f)
 	resource.RegisterTemplate(
 		s,
 		"forgejo://repo/{owner}/{repo}/issue/{index}",
 		"Forgejo Issue",
-		issueResourceHandler,
+		h.issueResourceHandler,
 		mcp.WithTemplateDescription(
 			"Single issue metadata, rendered body, and bounded recent comments. "+
 				"URI: forgejo://repo/{owner}/{repo}/issue/{index}.",
@@ -32,7 +33,7 @@ func RegisterIssueResources(s *server.MCPServer) {
 		s,
 		"forgejo://repo/{owner}/{repo}/{kind}/{index}/comment/{id}",
 		"Forgejo Comment",
-		commentResourceHandler,
+		h.commentResourceHandler,
 		mcp.WithTemplateDescription(
 			"Single comment by id. kind ∈ {issue, pr}. "+
 				"PR comments use the same Forgejo issue-comment API. "+
@@ -81,7 +82,7 @@ func RegisterIssueResources(s *server.MCPServer) {
 		s,
 		"forgejo://repo/{owner}/{repo}/issues{?state,labels,page,limit}",
 		"Forgejo Issue List",
-		repoIssuesResourceHandler,
+		h.repoIssuesResourceHandler,
 		mcp.WithTemplateDescription(
 			"Bounded list of repository issues as rows — index, title, state, labels, "+
 				"assignees, milestone, comment count, timestamps — with no bodies. "+
@@ -107,7 +108,7 @@ func RegisterIssueResources(s *server.MCPServer) {
 		// what makes page/limit reachable at all.
 		"forgejo://repo/{owner}/{repo}/{kind}/{index}/comments{?page,limit}",
 		"Forgejo Comment Thread",
-		issueCommentsResourceHandler,
+		h.issueCommentsResourceHandler,
 		mcp.WithTemplateDescription(
 			"Bounded list of comments with FULL bodies (the single-issue resource "+
 				"excerpts them). kind ∈ {issue, pr}; PR comments use the same Forgejo "+
@@ -151,24 +152,21 @@ type issueResourcePayload struct {
 	ListTool       string       `json:"list_tool,omitempty"`
 }
 
-func issueResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) issueResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	params, err := resource.ParseIssue(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	iss, resp, err := client.GetIssue(params.Owner, params.Repo, params.Index)
+	iss, err := fg.GetIssue(ctx, params.Owner, params.Repo, params.Index)
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
 	// Request EmbeddedListCap+1 items so resource.Bounded can distinguish
@@ -176,7 +174,7 @@ func issueResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]m
 	// Forgejo's server default page size equals EmbeddedListCap (30), so
 	// leaving PageSize at zero silently caps responses at the cap and the
 	// >cap check in Bounded never fires.
-	comments, _, _ := client.ListIssueComments(params.Owner, params.Repo, params.Index, forgejo_sdk.ListIssueCommentOptions{
+	comments, _, _ := fg.ListIssueComments(ctx, params.Owner, params.Repo, params.Index, forgejo_sdk.ListIssueCommentOptions{
 		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
 	})
 
@@ -281,7 +279,7 @@ type commentResourcePayload struct {
 	HTMLURL   string `json:"html_url"`
 }
 
-func commentResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) commentResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	params, err := resource.ParseComment(uri)
 	if err != nil {
@@ -289,19 +287,16 @@ func commentResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
 	// Forgejo PR comments ARE issue comments under the same API; kind only
 	// affects display context, not the fetch path.
-	c, resp, err := client.GetIssueComment(params.Owner, params.Repo, params.ID)
+	c, err := fg.GetIssueComment(ctx, params.Owner, params.Repo, params.ID)
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
 	author := ""

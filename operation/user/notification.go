@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -73,7 +73,7 @@ var (
 	)
 )
 
-func CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ctx, _ = log.WithMCPContext(ctx, CheckNotificationsToolName)
 	start := time.Now()
 
@@ -124,18 +124,15 @@ func CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		opt.Before = t
 	}
 
-	client, err := forgejo.Client(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	notifications, resp, err := client.ListNotifications(opt)
+	notifications, err := fg.ListNotifications(ctx, opt)
 	duration := time.Since(start)
 
-	statusCode := 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-	}
-	forgejo.LogAPICall(ctx, "GET", "/notifications", duration, statusCode, err)
+	statusCode := apiStatus(err)
+	forge.LogAPICall(ctx, "GET", "/notifications", duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, CheckNotificationsToolName, duration, err)
@@ -147,7 +144,7 @@ func CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	return to.TextResult(notifications)
 }
 
-func GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ctx, _ = log.WithMCPContext(ctx, GetNotificationThreadToolName)
 	start := time.Now()
 	log.LogMCPToolStart(ctx, GetNotificationThreadToolName, req.GetArguments())
@@ -159,18 +156,15 @@ func GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	thread, resp, err := client.GetNotification(int64(id))
+	thread, err := fg.GetNotification(ctx, int64(id))
 	duration := time.Since(start)
 
-	statusCode := 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-	}
-	forgejo.LogAPICall(ctx, "GET", forgejo.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
+	statusCode := apiStatus(err)
+	forge.LogAPICall(ctx, "GET", forge.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, GetNotificationThreadToolName, duration, err)
@@ -181,7 +175,7 @@ func GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	return to.TextResult(thread)
 }
 
-func MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ctx, _ = log.WithMCPContext(ctx, MarkNotificationReadToolName)
 	start := time.Now()
 	log.LogMCPToolStart(ctx, MarkNotificationReadToolName, req.GetArguments())
@@ -193,18 +187,15 @@ func MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	thread, resp, err := client.ReadNotification(int64(id))
+	thread, err := fg.ReadNotification(ctx, int64(id))
 	duration := time.Since(start)
 
-	statusCode := 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-	}
-	forgejo.LogAPICall(ctx, "PATCH", forgejo.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
+	statusCode := apiStatus(err)
+	forge.LogAPICall(ctx, "PATCH", forge.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, MarkNotificationReadToolName, duration, err)
@@ -215,7 +206,7 @@ func MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	return to.TextResult(thread)
 }
 
-func MarkAllNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) MarkAllNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ctx, _ = log.WithMCPContext(ctx, MarkAllNotificationsReadToolName)
 	start := time.Now()
 	log.LogMCPToolStart(ctx, MarkAllNotificationsReadToolName, req.GetArguments())
@@ -230,18 +221,15 @@ func MarkAllNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*
 		opt.LastReadAt = t
 	}
 
-	client, err := forgejo.Client(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, resp, err := client.ReadNotifications(opt)
+	err = fg.ReadNotifications(ctx, opt)
 	duration := time.Since(start)
 
-	statusCode := 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-	}
-	forgejo.LogAPICall(ctx, "PUT", "/notifications", duration, statusCode, err)
+	statusCode := apiStatus(err)
+	forge.LogAPICall(ctx, "PUT", "/notifications", duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, MarkAllNotificationsReadToolName, duration, err)
@@ -252,7 +240,7 @@ func MarkAllNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*
 	return to.TextResult("All notifications marked as read")
 }
 
-func ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ctx, _ = log.WithMCPContext(ctx, ListRepoNotificationsToolName)
 	start := time.Now()
 	log.LogMCPToolStart(ctx, ListRepoNotificationsToolName, req.GetArguments())
@@ -309,18 +297,15 @@ func ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		opt.Before = t
 	}
 
-	client, err := forgejo.Client(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	notifications, resp, err := client.ListRepoNotifications(owner, repo, opt)
+	notifications, err := fg.ListRepoNotifications(ctx, owner, repo, opt)
 	duration := time.Since(start)
 
-	statusCode := 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-	}
-	forgejo.LogAPICall(ctx, "GET", forgejo.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
+	statusCode := apiStatus(err)
+	forge.LogAPICall(ctx, "GET", forge.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, ListRepoNotificationsToolName, duration, err)
@@ -331,7 +316,7 @@ func ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	return to.TextResult(notifications)
 }
 
-func MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ctx, _ = log.WithMCPContext(ctx, MarkRepoNotificationsReadToolName)
 	start := time.Now()
 	log.LogMCPToolStart(ctx, MarkRepoNotificationsReadToolName, req.GetArguments())
@@ -354,18 +339,15 @@ func MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (
 		opt.LastReadAt = t
 	}
 
-	client, err := forgejo.Client(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, resp, err := client.ReadRepoNotifications(owner, repo, opt)
+	err = fg.ReadRepoNotifications(ctx, owner, repo, opt)
 	duration := time.Since(start)
 
-	statusCode := 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-	}
-	forgejo.LogAPICall(ctx, "PUT", forgejo.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
+	statusCode := apiStatus(err)
+	forge.LogAPICall(ctx, "PUT", forge.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, MarkRepoNotificationsReadToolName, duration, err)

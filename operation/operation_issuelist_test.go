@@ -6,13 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"strconv"
-	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -32,71 +29,25 @@ import (
 // server refuses to route those URIs to them at all. That gap is the reason
 // these live at dispatch level.
 
-// issueListBackend serves the two endpoints the bounded list resources read,
-// honouring `page` and `limit` so a query-bearing URI has an observable effect.
-func issueListBackend(t *testing.T, totalIssues, totalComments int) {
+// seedIssueList fills o/r with issues, and issue 42 with comments, on a fresh
+// fake, and returns the factory serving it. Issues are 1..totalIssues; page and
+// limit have an observable effect because the fake paginates.
+func seedIssueList(t *testing.T, totalIssues, totalComments int) forge.Factory {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-		if page < 1 {
-			page = 1
+	f := fake.New()
+	f.AddRepo("o", "r")
+	ctx := context.Background()
+	for i := 1; i <= max(totalIssues, 42); i++ { // comments live on issue 42
+		if _, err := f.CreateIssue(ctx, "o", "r", forgejo_sdk.CreateIssueOption{Title: fmt.Sprintf("issue %d", i)}); err != nil {
+			t.Fatal(err)
 		}
-		size, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		if size < 1 {
-			size = 10
-		}
-		offset := (page - 1) * size
-
-		emit := func(total int, row func(i int) map[string]any) {
-			rows := make([]any, 0, size)
-			for i := offset + 1; i <= offset+size && i <= total; i++ {
-				rows = append(rows, row(i))
-			}
-			w.Header().Set("X-Total-Count", strconv.Itoa(total))
-			if offset+len(rows) < total {
-				w.Header().Set("Link", fmt.Sprintf(`<%s?page=%d&limit=%d>; rel="next"`, r.URL.Path, page+1, size))
-			}
-			_ = json.NewEncoder(w).Encode(rows)
-		}
-
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/comments"):
-			emit(totalComments, func(i int) map[string]any {
-				return map[string]any{
-					"id":         i,
-					"body":       fmt.Sprintf("comment %d", i),
-					"user":       map[string]any{"login": "carol"},
-					"created_at": "2026-08-03T09:00:00Z",
-					"updated_at": "2026-08-03T09:00:00Z",
-				}
-			})
-		case strings.HasSuffix(r.URL.Path, "/issues"):
-			emit(totalIssues, func(i int) map[string]any {
-				return map[string]any{
-					"id":         i,
-					"number":     i,
-					"title":      fmt.Sprintf("issue %d", i),
-					"body":       "a body that must never reach a list row",
-					"state":      "open",
-					"user":       map[string]any{"login": "alice"},
-					"created_at": "2026-08-01T10:00:00Z",
-					"updated_at": "2026-08-02T11:00:00Z",
-				}
-			})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(srv.Close)
-
-	forgejo.ConfigureForTesting(srv.URL, "test", "test")
-	c, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("building test client: %v", err)
 	}
-	forgejo.SetClientForTesting(c)
+	for i := 1; i <= totalComments; i++ {
+		if _, err := f.CreateIssueComment(ctx, "o", "r", 42, fmt.Sprintf("comment %d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return fake.Factory{Forgejo: f}
 }
 
 // readResource dispatches a real resources/read envelope and returns the JSON
@@ -140,9 +91,9 @@ func rowCount(t *testing.T, payload map[string]any, key string) int {
 }
 
 func TestResourceDispatchRoutesIssueListTemplate(t *testing.T) {
-	issueListBackend(t, 100, 69)
+	f := seedIssueList(t, 100, 69)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, f)
 
 	t.Run("bare URI", func(t *testing.T) {
 		payload := readResource(t, s, "forgejo://repo/o/r/issues")
@@ -177,19 +128,19 @@ func TestResourceDispatchRoutesIssueListTemplate(t *testing.T) {
 		if len(labels) != 2 || labels[1] != "triage" {
 			t.Fatalf("labels did not survive dispatch trimmed: %#v", payload["labels"])
 		}
-		// Page 2 at limit 5 must start after page 1's last row.
+		// Newest first: page 1 holds 100..96, so page 2 must start at 95.
 		rows, _ := payload["issues"].([]any)
 		first, _ := rows[0].(map[string]any)
-		if idx, _ := first["index"].(float64); int(idx) != 6 {
-			t.Fatalf("page 2 did not start at row 6, got %v", first["index"])
+		if idx, _ := first["index"].(float64); int(idx) != 95 {
+			t.Fatalf("page 2 did not start at row 95, got %v", first["index"])
 		}
 	})
 }
 
 func TestResourceDispatchRoutesCommentThreadTemplate(t *testing.T) {
-	issueListBackend(t, 100, 69)
+	f := seedIssueList(t, 100, 69)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, f)
 
 	t.Run("bare URI", func(t *testing.T) {
 		payload := readResource(t, s, "forgejo://repo/o/r/issue/42/comments")
@@ -209,7 +160,7 @@ func TestResourceDispatchRoutesCommentThreadTemplate(t *testing.T) {
 	})
 
 	t.Run("query-bearing URI on the pr kind", func(t *testing.T) {
-		payload := readResource(t, s, "forgejo://repo/o/r/pr/7/comments?limit=3")
+		payload := readResource(t, s, "forgejo://repo/o/r/pr/42/comments?limit=3")
 		if got := rowCount(t, payload, "comments"); got != 3 {
 			t.Fatalf("limit=3 did not take effect for kind=pr: got %d comments", got)
 		}
@@ -223,9 +174,9 @@ func TestResourceDispatchRoutesCommentThreadTemplate(t *testing.T) {
 // widening the match: adding {?…} must not turn the template into something
 // that swallows neighbouring paths.
 func TestResourceDispatchRejectsUnknownIssueListURI(t *testing.T) {
-	issueListBackend(t, 10, 10)
+	f := seedIssueList(t, 10, 10)
 	s := server.NewMCPServer("forgejo-mcp", "test")
-	RegisterCoreResources(s)
+	RegisterCoreResources(s, f)
 
 	for _, uri := range []string{
 		"forgejo://repo/o/r/issues/extra",

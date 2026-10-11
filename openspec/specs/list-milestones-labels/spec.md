@@ -31,7 +31,7 @@ The system SHALL expose a `list_repo_milestones` MCP tool that returns all miles
 ### Requirement: List repository labels
 The system SHALL expose a `list_repo_labels` MCP tool that returns labels usable on issues in a given repository. The tool SHALL accept `owner` and `repo` as required string parameters. The tool SHALL accept `page` (number, required, default 1, min 1) and `limit` (number, required, default 100, min 1) parameters for pagination. The tool SHALL accept an optional `include_org_labels` boolean parameter (default `true`).
 
-When `include_org_labels` is `true` and the `owner` corresponds to an organization, the tool SHALL also fetch `/orgs/{owner}/labels` via `pkg/forgejo.DoJSONList` and merge the returned labels into the response. Each label in the response SHALL carry a `scope` field of either `"repo"` or `"org"` so callers can disambiguate ID spaces. Each element SHALL contain at minimum `id` (numeric), `name` (string), `color` (string, hex), `description` (string), and `scope` (string).
+When `include_org_labels` is `true` and the `owner` corresponds to an organization, the tool SHALL also fetch `/orgs/{owner}/labels` through `ListOrgLabels` on the `forge.Labels` port and merge the returned labels into the response. Each label in the response SHALL carry a `scope` field of either `"repo"` or `"org"` so callers can disambiguate ID spaces. Each element SHALL contain at minimum `id` (numeric), `name` (string), `color` (string, hex), `description` (string), and `scope` (string).
 
 When `include_org_labels` is `false`, the tool SHALL return only repo-scoped labels, each tagged `scope: "repo"`.
 

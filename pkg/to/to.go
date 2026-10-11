@@ -35,7 +35,7 @@ func TextResult(v any) (*mcp.CallToolResult, error) {
 func SafeTextResult(v any) (*mcp.CallToolResult, error) {
 	// If v is a struct or complex type, try to convert it to a simple map
 	// This provides an extra layer of safety against SDK-specific types
-	var safeResult = v
+	safeResult := v
 
 	jsonStr := SafeJSONMarshal(safeResult)
 	return mcp.NewToolResultText(fmt.Sprintf(`{"Result":%s}`, jsonStr)), nil

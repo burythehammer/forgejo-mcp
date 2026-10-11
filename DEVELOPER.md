@@ -70,11 +70,58 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 | `operation/search/` | Search tools (users, repos, teams) |
 | `operation/user/` | User info tools |
 | `operation/version/` | Server version tool |
-| `pkg/forgejo/` | Singleton Forgejo SDK client wrapper |
+| `pkg/forge/` | The Forgejo port: per-domain interfaces and the `Factory` (no SDK client import) |
+| `pkg/forge/sdk/` | The one real adapter: `Factory` (credential policy, startup checks) and `Adapter` over the SDK and one raw-HTTP client; the only package that touches the SDK client or the raw transport |
+| `pkg/forge/fake/` | Stateful in-memory `forge.Forgejo` for handler tests |
+| `pkg/forge/forgetest/` | Contract suite run against the fake and the adapter, and the shared stub server |
 | `pkg/to/` | Response formatting helpers (`TextResult`, `ErrorResult`) |
 | `pkg/params/` | Shared parameter descriptions for tool definitions |
 | `pkg/config/` | Typed Config, `Load` and `Validate` |
 | `pkg/log/` | Structured logging utilities |
+
+## The Forgejo port and migrating a domain
+
+Every domain reaches Forgejo through a port. The pull domain
+(`operation/pull/`, `pkg/forge/pull.go`) is the reference; copy its shape. A
+domain has:
+
+1. **Port** (`pkg/forge/<domain>.go`). An interface named for what the tools
+   need, SDK types as plain data, `ctx` first. Server failures are
+   `*forge.StatusError` (use `forge.IsNotFound`); a decline that Forgejo reports
+   as a status rather than an error is a result field (see `forge.MergeResult`).
+   Embed the interface in `forge.Forgejo` (`pkg/forge/forge.go`).
+2. **Adapter** (`pkg/forge/sdk/<domain>.go`). Methods on `*Adapter`, a
+   one-line `var _ forge.<Domain> = (*Adapter)(nil)`, and every SDK call wrapped
+   in `statusErr(resp, err)`. Raw-HTTP workarounds go here too, with
+   `forge.APIPath`, through the adapter's single raw path (`a.rawJSON` /
+   `a.rawDo` / `a.raw.*`), which targets the adapter's own instance with the
+   request's own credential.
+3. **Fake** (`pkg/forge/fake/<domain>.go`). Methods on `*fake.Forgejo` with its
+   own state struct (and mutex) held in one new field on `fake.Forgejo`. It
+   must behave like Forgejo: round-trips, 404 for unknown things, pagination via
+   `page`. Add seeding helpers for what the port cannot write (the pull fake's
+   `AddRepo`, `SetPullRequestDiff`).
+4. **Contract cases** (`pkg/forge/forgetest/<domain>.go`, `RunXxx`). Behaviour
+   through the port only, never HTTP traffic. Add the seeding methods to
+   `Seeder`, then give the stub server the REST routes
+   (`forgetest/stub_<domain>.go`, a thin translation onto `Stub.Fake`) and call
+   `RunXxx` from `fake/contract_test.go` and `sdk/contract_test.go`. The stub
+   answers the SDK startup probe in one place, `forgetest.WriteVersion`.
+5. **Handlers take the factory.** `RegisterTool(s, f forge.Factory)` /
+   `RegisterResource(s, f)`, a `handlers{forge: f}` struct whose methods call
+   `h.forge.For(ctx)` per request (so each request gets its own credential), and
+   thread `f` through `operation/operation.go` and `cmd/cli.go`.
+6. **Handler tests on the fake** (`operation/<domain>/*_test.go`). Build a fresh
+   `fake.New()` per test, call the handler, assert on the tool result, and
+   `t.Parallel()`. No `flag.*`, no package-level Forgejo state, no `httptest`
+   server.
+
+The composition root (`operation.Run`, `cmd/cli.go`) builds one
+`sdk.NewFactory(cfg.Forgejo, version, ...)` from the typed Config and passes it
+into every `RegisterTool`/`Register...Resource`. The credential policy (does a
+request with no token of its own fall back to the operator's?) is a Factory
+option, chosen in `operation.newFactory`; `Factory.VerifyConnection(ctx)` is the
+startup gate `Run` calls before serving.
 
 ## Adding a New Tool
 
@@ -91,7 +138,7 @@ import (
     "context"
     "fmt"
 
-    "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+    "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
     "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/params"
     "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
     "github.com/mark3labs/mcp-go/mcp"
@@ -107,15 +154,22 @@ var MyTool = mcp.NewTool(
     mcp.WithNumber("limit", mcp.Description("Page size"), mcp.DefaultNumber(20)),
 )
 
+// handlers hold the factory so each call uses its own request's credential.
+type handlers struct{ forge forge.Factory }
+
 // Handler function
-func MyToolFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) MyToolFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
     // Extract parameters (numbers come as float64)
     owner, _ := req.Params.Arguments["owner"].(string)
     repo, _ := req.Params.Arguments["repo"].(string)
     limit, _ := req.Params.Arguments["limit"].(float64)
 
-    // Call Forgejo API
-    result, _, err := forgejo.Client().SomeMethod(owner, repo, int(limit))
+    // Call Forgejo through the port
+    f, err := h.forge.For(ctx)
+    if err != nil {
+        return to.ErrorResult(err)
+    }
+    result, err := f.SomeMethod(ctx, owner, repo, int(limit))
     if err != nil {
         return to.ErrorResult(fmt.Errorf("operation failed: %v", err))
     }
@@ -125,13 +179,18 @@ func MyToolFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult
 }
 ```
 
+`SomeMethod` is a method on the domain's port in `pkg/forge/`, implemented by
+the adapter in `pkg/forge/sdk/` and by the fake in `pkg/forge/fake/` (see
+"The Forgejo port and migrating a domain" above).
+
 ### Step 3: Register the Tool
 
 Add registration in the domain's file:
 
 ```go
-func RegisterTool(s *server.MCPServer) {
-    s.AddTool(MyTool, MyToolFn)
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+    h := handlers{forge: f}
+    s.AddTool(MyTool, h.MyToolFn)
 }
 ```
 
@@ -142,9 +201,9 @@ If you created a new domain, import and register it in `operation/operation.go`:
 ```go
 import "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mydomain"
 
-func RegisterTools(s *server.MCPServer) {
+func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
     // ... existing registrations
-    mydomain.RegisterTool(s)
+    mydomain.RegisterTool(s, f)
 }
 ```
 
