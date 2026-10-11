@@ -116,8 +116,8 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	RegisterOrgTool(s, f)
 	RegisterPackagesTool(s, f)
 	RegisterTrackingTool(s)
-	RegisterAttachmentTool(s)
-	RegisterReleaseTool(s)
+	RegisterAttachmentTool(s, f)
+	RegisterReleaseTool(s, f)
 	RegisterBranchProtectionTool(s, f)
 	RegisterHookTool(s, f)
 	RegisterWikiTool(s, f)
@@ -182,13 +182,13 @@ func RegisterTrackingTool(s *server.MCPServer) {
 	log.Debug("Registered time tracking tools")
 }
 
-func RegisterAttachmentTool(s *server.MCPServer) {
-	attachment.RegisterTool(s)
+func RegisterAttachmentTool(s *server.MCPServer, f forge.Factory) {
+	attachment.RegisterTool(s, f)
 	log.Debug("Registered attachment tools")
 }
 
-func RegisterReleaseTool(s *server.MCPServer) {
-	release.RegisterTool(s)
+func RegisterReleaseTool(s *server.MCPServer, f forge.Factory) {
+	release.RegisterTool(s, f)
 	log.Debug("Registered release tools")
 }
 

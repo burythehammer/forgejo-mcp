@@ -17,6 +17,8 @@ type Forgejo interface {
 	RepoFiles
 	Wiki
 	Packages
+	Releases
+	Attachments
 	Orgs
 	Users
 	BranchProtections

@@ -45,6 +45,8 @@ type Seeder interface {
 	AddCommitStatus(owner, repo, sha, statusContext string, state forgejo_sdk.StatusState, description string) error
 	AddPackageOwner(owner string)
 	AddPackage(owner string, v forge.PackageVersion, files ...forge.PackageFile) forge.PackageVersion
+	AddAttachmentIssue(owner, repo string, index int64)
+	AddAttachmentComment(owner, repo string, commentID int64)
 }
 
 // Repo is the repository every case works in.

@@ -9,9 +9,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -194,27 +194,32 @@ var (
 )
 
 // RegisterTool registers all 14 release tools with the MCP server.
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(ListReleasesTool, ListReleasesFn)
-	s.AddTool(GetReleaseByIDTool, GetReleaseByIDFn)
-	s.AddTool(GetReleaseByTagTool, GetReleaseByTagFn)
-	s.AddTool(GetLatestReleaseTool, GetLatestReleaseFn)
-	s.AddTool(CreateReleaseTool, CreateReleaseFn)
-	s.AddTool(EditReleaseTool, EditReleaseFn)
-	s.AddTool(DeleteReleaseTool, DeleteReleaseFn)
-	s.AddTool(DeleteReleaseByTagTool, DeleteReleaseByTagFn)
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(ListReleasesTool, h.ListReleasesFn)
+	s.AddTool(GetReleaseByIDTool, h.GetReleaseByIDFn)
+	s.AddTool(GetReleaseByTagTool, h.GetReleaseByTagFn)
+	s.AddTool(GetLatestReleaseTool, h.GetLatestReleaseFn)
+	s.AddTool(CreateReleaseTool, h.CreateReleaseFn)
+	s.AddTool(EditReleaseTool, h.EditReleaseFn)
+	s.AddTool(DeleteReleaseTool, h.DeleteReleaseFn)
+	s.AddTool(DeleteReleaseByTagTool, h.DeleteReleaseByTagFn)
 
-	s.AddTool(ListReleaseAttachmentsTool, ListReleaseAttachmentsFn)
-	s.AddTool(GetReleaseAttachmentTool, GetReleaseAttachmentFn)
-	s.AddTool(DownloadReleaseAttachmentTool, DownloadReleaseAttachmentFn)
-	s.AddTool(CreateReleaseAttachmentTool, CreateReleaseAttachmentFn)
-	s.AddTool(EditReleaseAttachmentTool, EditReleaseAttachmentFn)
-	s.AddTool(DeleteReleaseAttachmentTool, DeleteReleaseAttachmentFn)
+	s.AddTool(ListReleaseAttachmentsTool, h.ListReleaseAttachmentsFn)
+	s.AddTool(GetReleaseAttachmentTool, h.GetReleaseAttachmentFn)
+	s.AddTool(DownloadReleaseAttachmentTool, h.DownloadReleaseAttachmentFn)
+	s.AddTool(CreateReleaseAttachmentTool, h.CreateReleaseAttachmentFn)
+	s.AddTool(EditReleaseAttachmentTool, h.EditReleaseAttachmentFn)
+	s.AddTool(DeleteReleaseAttachmentTool, h.DeleteReleaseAttachmentFn)
 }
+
+// handlers serve the release tools. They hold the factory rather than a port so
+// each request gets the port for its own credential.
+type handlers struct{ forge forge.Factory }
 
 // --- Release tools ----------------------------------------------------------
 
-func ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListReleasesFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -243,11 +248,11 @@ func ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 			PageSize: int(limit),
 		},
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rels, _, err := client.ListReleases(owner, repo, opt)
+	rels, err := port.ListReleases(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list releases err: %w", err))
 	}
@@ -285,7 +290,7 @@ func filterReleasesByState(rels []*forgejo_sdk.Release, state string) []*forgejo
 	return out
 }
 
-func GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetReleaseByIDFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -294,18 +299,18 @@ func GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, _, err := client.GetRelease(owner, repo, int64(rid))
+	rel, err := port.GetRelease(ctx, owner, repo, int64(rid))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get release err: %w", err))
 	}
 	return to.TextResult(rel)
 }
 
-func GetReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetReleaseByTagFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -314,34 +319,34 @@ func GetReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	if tag == "" {
 		return to.ErrorResult(fmt.Errorf("tag is required"))
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, _, err := client.GetReleaseByTag(owner, repo, tag)
+	rel, err := port.GetReleaseByTag(ctx, owner, repo, tag)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get release by tag err: %w", err))
 	}
 	return to.TextResult(rel)
 }
 
-func GetLatestReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetLatestReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetLatestReleaseFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
 	repo, _ := args["repo"].(string)
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, _, err := client.GetLatestRelease(owner, repo)
+	rel, err := port.GetLatestRelease(ctx, owner, repo)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get latest release err: %w", err))
 	}
 	return to.TextResult(rel)
 }
 
-func CreateReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateReleaseFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -370,18 +375,18 @@ func CreateReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 		IsDraft:      draft,
 		IsPrerelease: prerelease,
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, _, err := client.CreateRelease(owner, repo, opt)
+	rel, err := port.CreateRelease(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create release err: %w", err))
 	}
 	return to.TextResult(rel)
 }
 
-func EditReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) EditReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditReleaseFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -411,18 +416,18 @@ func EditReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 		opt.IsPrerelease = &v
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rel, _, err := client.EditRelease(owner, repo, int64(rid), opt)
+	rel, err := port.EditRelease(ctx, owner, repo, int64(rid), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit release err: %w", err))
 	}
 	return to.TextResult(rel)
 }
 
-func DeleteReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteReleaseFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -431,17 +436,17 @@ func DeleteReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("release_id: %w", err))
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err = client.DeleteRelease(owner, repo, int64(rid)); err != nil {
+	if err = port.DeleteRelease(ctx, owner, repo, int64(rid)); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete release err: %w", err))
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
 }
 
-func DeleteReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteReleaseByTagFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -450,11 +455,11 @@ func DeleteReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	if tag == "" {
 		return to.ErrorResult(fmt.Errorf("tag is required"))
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err = client.DeleteReleaseByTag(owner, repo, tag); err != nil {
+	if err = port.DeleteReleaseByTag(ctx, owner, repo, tag); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete release by tag err: %w", err))
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
@@ -462,7 +467,7 @@ func DeleteReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 
 // --- Release attachment tools ----------------------------------------------
 
-func ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListReleaseAttachmentsFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -480,11 +485,11 @@ func ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 		limit = 20
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	all, _, err := client.ListReleaseAttachments(owner, repo, int64(rid))
+	all, err := port.ListReleaseAttachments(ctx, owner, repo, int64(rid))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list release attachments err: %w", err))
 	}
@@ -510,7 +515,7 @@ func sliceAttachments(all []*forgejo_sdk.Attachment, page, limit int) []*forgejo
 	return all[offset:end]
 }
 
-func GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetReleaseAttachmentFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -523,18 +528,18 @@ func GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	att, _, err := client.GetReleaseAttachment(owner, repo, int64(rid), int64(aid))
+	att, err := port.GetReleaseAttachment(ctx, owner, repo, int64(rid), int64(aid))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get release attachment err: %w", err))
 	}
 	return to.TextResult(att)
 }
 
-func DownloadReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DownloadReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DownloadReleaseAttachmentFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -547,18 +552,18 @@ func DownloadReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	att, _, err := client.GetReleaseAttachment(owner, repo, int64(rid), int64(aid))
+	att, err := port.GetReleaseAttachment(ctx, owner, repo, int64(rid), int64(aid))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("download release attachment (metadata) err: %w", err))
 	}
-	return downloadResultFor(ctx, att)
+	return downloadResultFor(ctx, port, att)
 }
 
-func CreateReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateReleaseAttachmentFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -574,15 +579,18 @@ func CreateReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*m
 	}
 	defer reader.Close()
 
-	var att forgejo_sdk.Attachment
-	path := forgejo.APIPath("repos", owner, repo, "releases", int64(rid), "assets")
-	if err := forgejo.DoMultipart(ctx, http.MethodPost, path, "attachment", filename, mimeType, reader, &att); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	att, err := port.CreateReleaseAttachment(ctx, owner, repo, int64(rid), forge.Upload{Filename: filename, MIMEType: mimeType, Content: reader})
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create release attachment err: %w", err))
 	}
-	return to.TextResult(&att)
+	return to.TextResult(att)
 }
 
-func EditReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) EditReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditReleaseAttachmentFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -599,18 +607,18 @@ func EditReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	if name == "" {
 		return to.ErrorResult(fmt.Errorf("name is required"))
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	att, _, err := client.EditReleaseAttachment(owner, repo, int64(rid), int64(aid), forgejo_sdk.EditAttachmentOptions{Name: name})
+	att, err := port.EditReleaseAttachment(ctx, owner, repo, int64(rid), int64(aid), name)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit release attachment err: %w", err))
 	}
 	return to.TextResult(att)
 }
 
-func DeleteReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteReleaseAttachmentFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -623,11 +631,11 @@ func DeleteReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*m
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("attachment_id: %w", err))
 	}
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err = client.DeleteReleaseAttachment(owner, repo, int64(rid), int64(aid)); err != nil {
+	if err = port.DeleteReleaseAttachment(ctx, owner, repo, int64(rid), int64(aid)); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete release attachment err: %w", err))
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
@@ -635,7 +643,7 @@ func DeleteReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*m
 
 // downloadResultFor mirrors operation/attachment.downloadResultFor: inline
 // bytes when under the cap; metadata + browser_download_url otherwise.
-func downloadResultFor(ctx context.Context, att *forgejo_sdk.Attachment) (*mcp.CallToolResult, error) {
+func downloadResultFor(ctx context.Context, port forge.Attachments, att *forgejo_sdk.Attachment) (*mcp.CallToolResult, error) {
 	res := &downloadResult{Attachment: att}
 
 	if att.Size >= forgejo.MaxInlineDownloadBytes {
@@ -644,9 +652,9 @@ func downloadResultFor(ctx context.Context, att *forgejo_sdk.Attachment) (*mcp.C
 		return to.TextResult(res)
 	}
 
-	body, ct, err := forgejo.DoRaw(ctx, att.DownloadURL)
+	dl, err := port.DownloadAttachment(ctx, att.DownloadURL)
 	if err != nil {
-		if errors.Is(err, forgejo.ErrPayloadTooLarge) {
+		if errors.Is(err, forge.ErrPayloadTooLarge) {
 			res.Inline = false
 			res.Reason = "body exceeded inline cap during fetch; fetch browser_download_url with Authorization: token <TOKEN>"
 			return to.TextResult(res)
@@ -654,12 +662,12 @@ func downloadResultFor(ctx context.Context, att *forgejo_sdk.Attachment) (*mcp.C
 		return to.ErrorResult(fmt.Errorf("download body err: %w", err))
 	}
 	res.Inline = true
-	res.BytesIncluded = int64(len(body))
+	res.BytesIncluded = int64(len(dl.Body))
 
 	textPart := to.SafeJSONMarshal(res)
 	return mcp.NewToolResultResource(textPart, mcp.BlobResourceContents{
 		URI:      att.DownloadURL,
-		MIMEType: ct,
-		Blob:     base64.StdEncoding.EncodeToString(body),
+		MIMEType: dl.ContentType,
+		Blob:     base64.StdEncoding.EncodeToString(dl.Body),
 	}), nil
 }
