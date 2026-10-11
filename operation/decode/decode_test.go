@@ -57,3 +57,40 @@ func TestArgsIgnoresUnknownAndAllowsNoArguments(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+type numbers struct {
+	ID    int64   `json:"id"`
+	Limit int     `json:"limit"`
+	Ratio float64 `json:"ratio"`
+}
+
+func TestArgsAcceptsStringEncodedNumbers(t *testing.T) {
+	t.Parallel()
+	var a numbers
+	if err := Args(req(map[string]any{"id": "7", "limit": " 20 ", "ratio": "1.5"}), &a); err != nil {
+		t.Fatal(err)
+	}
+	if a.ID != 7 || a.Limit != 20 || a.Ratio != 1.5 {
+		t.Fatalf("got %+v", a)
+	}
+}
+
+func TestArgsEmptyStringNumberLeavesFieldAlone(t *testing.T) {
+	t.Parallel()
+	a := numbers{ID: 9}
+	if err := Args(req(map[string]any{"id": ""}), &a); err != nil {
+		t.Fatal(err)
+	}
+	if a.ID != 9 {
+		t.Fatalf("got %+v", a)
+	}
+}
+
+func TestArgsRejectsNonNumericStringForNumber(t *testing.T) {
+	t.Parallel()
+	var a numbers
+	err := Args(req(map[string]any{"id": "abc"}), &a)
+	if err == nil || !strings.Contains(err.Error(), "id") {
+		t.Fatalf("want type error naming id, got %v", err)
+	}
+}
