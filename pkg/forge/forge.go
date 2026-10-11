@@ -16,6 +16,11 @@ type Forgejo interface {
 	Pulls
 	Releases
 	Attachments
+	Orgs
+	Users
+	BranchProtections
+	Hooks
+	RepoAdmin
 }
 
 // Factory hands out a Forgejo port per request.

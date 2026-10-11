@@ -67,7 +67,7 @@ func (a *Adapter) GetReleaseAttachment(_ context.Context, owner, repo string, re
 // CreateReleaseAttachment streams the upload over raw multipart HTTP: the
 // SDK's equivalent buffers the file and cannot set a content type.
 func (a *Adapter) CreateReleaseAttachment(ctx context.Context, owner, repo string, releaseID int64, up forge.Upload) (*forgejo_sdk.Attachment, error) {
-	return uploadAttachment(ctx, forgejo.APIPath("repos", owner, repo, "releases", releaseID, "assets"), up)
+	return a.uploadAttachment(ctx, forgejo.APIPath("repos", owner, repo, "releases", releaseID, "assets"), up)
 }
 
 func (a *Adapter) EditReleaseAttachment(_ context.Context, owner, repo string, releaseID, id int64, name string) (*forgejo_sdk.Attachment, error) {
@@ -82,9 +82,9 @@ func (a *Adapter) DeleteReleaseAttachment(_ context.Context, owner, repo string,
 
 // uploadAttachment POSTs up as multipart form data to path and decodes the
 // attachment Forgejo answers with.
-func uploadAttachment(ctx context.Context, path string, up forge.Upload) (*forgejo_sdk.Attachment, error) {
+func (a *Adapter) uploadAttachment(ctx context.Context, path string, up forge.Upload) (*forgejo_sdk.Attachment, error) {
 	var att forgejo_sdk.Attachment
-	if err := forgejo.DoMultipart(ctx, http.MethodPost, path, "attachment", up.Filename, up.MIMEType, up.Content, &att); err != nil {
+	if err := forgejo.DoMultipart(ctx, http.MethodPost, a.rawURL(path), "attachment", up.Filename, up.MIMEType, up.Content, &att); err != nil {
 		return nil, rawErr(err)
 	}
 	return &att, nil

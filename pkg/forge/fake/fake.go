@@ -36,9 +36,14 @@ type Forgejo struct {
 	// stub sets it to its own address. Empty means a placeholder host.
 	BaseURL string
 
-	pulls    pullState
 	releases releaseState
 	assets   assetState
+	pulls    pullState
+	orgs     orgState
+	users    userState
+	bps      bpState
+	hooks    hookState
+	admin    repoAdminState
 }
 
 var _ forge.Forgejo = (*Forgejo)(nil)

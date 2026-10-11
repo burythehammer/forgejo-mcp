@@ -86,13 +86,6 @@ func (f *Forgejo) baseURL() string {
 	return defaultBaseURL
 }
 
-func (f *Forgejo) repoExists(owner, repo string) bool {
-	f.pulls.mu.Lock()
-	defer f.pulls.mu.Unlock()
-	_, ok := f.pulls.repos[owner+"/"+repo]
-	return ok
-}
-
 // set returns the attachment set under key, or 404 naming what. Caller holds mu.
 func (s *assetState) set(key, what string) (*attachmentSet, error) {
 	set, ok := s.sets[key]

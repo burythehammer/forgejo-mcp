@@ -13,11 +13,6 @@ import (
 
 // RunReleases runs the release contract (releases and their assets) against
 // the implementation that newHarness builds, once per case.
-//
-// Cases run one after another, not in parallel: attachment uploads and
-// downloads travel over the raw-HTTP helpers, whose target is process-global
-// (forgejo.Configure), so two real adapters could not point at their own stubs
-// at once. The caller must not call t.Parallel either.
 func RunReleases(t *testing.T, newHarness func(t *testing.T) Harness) {
 	cases := []struct {
 		name string
@@ -200,7 +195,10 @@ func RunReleases(t *testing.T, newHarness func(t *testing.T) Harness) {
 		}},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) { tc.run(t, newHarness(t)) })
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.run(t, newHarness(t))
+		})
 	}
 }
 

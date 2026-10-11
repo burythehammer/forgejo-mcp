@@ -72,8 +72,7 @@ func attachmentScopes() []attachmentScope {
 }
 
 // RunAttachments runs the issue and comment attachment contract against the
-// implementation that newHarness builds, once per case. Like RunReleases it is
-// sequential, and the caller must not call t.Parallel.
+// implementation that newHarness builds, once per case.
 func RunAttachments(t *testing.T, newHarness func(t *testing.T) Harness) {
 	for _, sc := range attachmentScopes() {
 		cases := []struct {
@@ -141,11 +140,15 @@ func RunAttachments(t *testing.T, newHarness func(t *testing.T) Harness) {
 			}},
 		}
 		for _, tc := range cases {
-			t.Run(sc.name+"/"+tc.name, func(t *testing.T) { tc.run(t, newHarness(t)) })
+			t.Run(sc.name+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				tc.run(t, newHarness(t))
+			})
 		}
 	}
 
 	t.Run("download over the inline cap is refused", func(t *testing.T) {
+		t.Parallel()
 		h := newHarness(t)
 		sc := attachmentScopes()[0]
 		sc.seed(h)
