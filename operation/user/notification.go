@@ -4,15 +4,17 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	appuser "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/user"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -75,287 +77,175 @@ var (
 	)
 )
 
-func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, _ = log.WithMCPContext(ctx, CheckNotificationsToolName)
-	start := time.Now()
+// Argument structs, one per tool. `json` names the MCP argument and
+// `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps
+// them in agreement with the tool definitions. Numbers are float64 so the
+// forgiving decoder truncates them as the original handlers did. An id, owner
+// or repo is a pointer so that a missing or wrongly typed value reads as absent.
 
-	log.LogMCPToolStart(ctx, CheckNotificationsToolName, req.GetArguments())
+type checkArgs struct {
+	All    bool    `json:"all"`
+	Since  string  `json:"since"`
+	Before string  `json:"before"`
+	Page   float64 `json:"page"`
+	Limit  float64 `json:"limit"`
+}
 
-	// Parse arguments
-	all, ok := req.GetArguments()["all"].(bool)
-	if !ok {
-		all = false
-	}
-	sinceStr, _ := req.GetArguments()["since"].(string)
-	beforeStr, _ := req.GetArguments()["before"].(string)
-	page, _ := to.Float64(req.GetArguments()["page"])
+type repoCheckArgs struct {
+	Owner  *string `json:"owner" required:"true"`
+	Repo   *string `json:"repo" required:"true"`
+	All    bool    `json:"all"`
+	Since  string  `json:"since"`
+	Before string  `json:"before"`
+	Page   float64 `json:"page"`
+	Limit  float64 `json:"limit"`
+}
+
+type threadArgs struct {
+	ID *float64 `json:"id" required:"true"`
+}
+
+type markAllArgs struct {
+	LastReadAt string `json:"last_read_at"`
+}
+
+type repoMarkArgs struct {
+	Owner      *string `json:"owner" required:"true"`
+	Repo       *string `json:"repo" required:"true"`
+	LastReadAt string  `json:"last_read_at"`
+}
+
+// paging applies the tools' defaults to the page and limit arguments.
+func paging(page, limit float64) (int, int) {
 	if page == 0 {
 		page = 1
 	}
-	limit, _ := to.Float64(req.GetArguments()["limit"])
 	if limit == 0 {
 		limit = 20
 	}
+	return int(page), int(limit)
+}
 
-	opt := forgejo_sdk.ListNotificationOptions{
-		ListOptions: forgejo_sdk.ListOptions{
-			Page:     int(page),
-			PageSize: int(limit),
-		},
-	}
+// start begins a tool call: it attaches the tool's name to the context, logs
+// the call and decodes the arguments. A decode failure is returned as an error.
+func start[A any](ctx context.Context, req mcp.CallToolRequest, name string) (context.Context, time.Time, A, error) {
+	ctx, _ = log.WithMCPContext(ctx, name)
+	started := time.Now()
+	log.LogMCPToolStart(ctx, name, req.GetArguments())
+	var args A
+	err := decode.Lax(req, &args)
+	return ctx, started, args, err
+}
 
-	if !all {
-		opt.Status = []forgejo_sdk.NotifyStatus{forgejo_sdk.NotifyStatusUnread}
-	}
+// refuse logs and renders a request refused before Forgejo was called.
+func refuse(ctx context.Context, name string, started time.Time, err error) (*mcp.CallToolResult, error) {
+	log.LogMCPToolError(ctx, name, time.Since(started), err)
+	return to.ErrorResult(err)
+}
 
-	if sinceStr != "" {
-		t, err := time.Parse(time.RFC3339, sinceStr)
-		if err != nil {
-			log.LogMCPToolError(ctx, CheckNotificationsToolName, time.Since(start), err)
-			return to.ErrorResult(fmt.Errorf("invalid since time format (expected RFC3339): %w", err))
-		}
-		opt.Since = t
-	}
-
-	if beforeStr != "" {
-		t, err := time.Parse(time.RFC3339, beforeStr)
-		if err != nil {
-			log.LogMCPToolError(ctx, CheckNotificationsToolName, time.Since(start), err)
-			return to.ErrorResult(fmt.Errorf("invalid before time format (expected RFC3339): %w", err))
-		}
-		opt.Before = t
-	}
-
-	fg, err := h.forge.For(ctx)
+// finish logs and renders the outcome of a call that went through the use
+// cases: the result as JSON, or the error.
+func finish(ctx context.Context, name string, started time.Time, summary string, v any, err error) (*mcp.CallToolResult, error) {
 	if err != nil {
+		log.LogMCPToolError(ctx, name, time.Since(started), err)
 		return to.ErrorResult(err)
 	}
-	notifications, err := fg.ListNotifications(ctx, opt)
-	duration := time.Since(start)
+	log.LogMCPToolComplete(ctx, name, time.Since(started), summary)
+	return to.TextResult(v)
+}
 
-	statusCode := apiStatus(err)
-	forge.LogAPICall(ctx, "GET", "/notifications", duration, statusCode, err)
+func notificationsInput(all bool, since, before string, pageArg, limitArg float64) appuser.NotificationsInput {
+	page, limit := paging(pageArg, limitArg)
+	return appuser.NotificationsInput{All: all, Since: since, Before: before, Page: page, Limit: limit}
+}
 
+func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ctx, started, a, err := start[checkArgs](ctx, req, CheckNotificationsToolName)
 	if err != nil {
-		log.LogMCPToolError(ctx, CheckNotificationsToolName, duration, err)
-		return to.ErrorResult(fmt.Errorf("list notifications err: %w", err))
+		return refuse(ctx, CheckNotificationsToolName, started, err)
 	}
-
-	log.LogMCPToolComplete(ctx, CheckNotificationsToolName, duration, fmt.Sprintf("Retrieved %d notifications", len(notifications)))
-
-	return to.TextResult(notifications)
+	threads, err := h.service().Notifications(ctx, notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit))
+	logAPICall(ctx, "GET", "/notifications", started, err)
+	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", len(threads)), threads, err)
 }
 
 func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, _ = log.WithMCPContext(ctx, GetNotificationThreadToolName)
-	start := time.Now()
-	log.LogMCPToolStart(ctx, GetNotificationThreadToolName, req.GetArguments())
-
-	id, err := to.Float64(req.GetArguments()["id"])
+	ctx, started, a, err := start[threadArgs](ctx, req, GetNotificationThreadToolName)
 	if err != nil {
-		err := fmt.Errorf("id is required and must be a number")
-		log.LogMCPToolError(ctx, GetNotificationThreadToolName, time.Since(start), err)
-		return to.ErrorResult(err)
+		return refuse(ctx, GetNotificationThreadToolName, started, err)
 	}
-
-	fg, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
+	if a.ID == nil {
+		return refuse(ctx, GetNotificationThreadToolName, started, errIDRequired)
 	}
-	thread, err := fg.GetNotification(ctx, int64(id))
-	duration := time.Since(start)
-
-	statusCode := apiStatus(err)
-	forge.LogAPICall(ctx, "GET", forge.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
-
-	if err != nil {
-		log.LogMCPToolError(ctx, GetNotificationThreadToolName, duration, err)
-		return to.ErrorResult(fmt.Errorf("get notification thread err: %w", err))
-	}
-
-	log.LogMCPToolComplete(ctx, GetNotificationThreadToolName, duration, "Retrieved notification thread")
-	return to.TextResult(thread)
+	id := int64(*a.ID)
+	thread, err := h.service().Thread(ctx, id)
+	logAPICall(ctx, "GET", forge.APIPath("notifications", "threads", id), started, err)
+	return finish(ctx, GetNotificationThreadToolName, started, "Retrieved notification thread", thread, err)
 }
 
 func (h handlers) MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, _ = log.WithMCPContext(ctx, MarkNotificationReadToolName)
-	start := time.Now()
-	log.LogMCPToolStart(ctx, MarkNotificationReadToolName, req.GetArguments())
-
-	id, err := to.Float64(req.GetArguments()["id"])
+	ctx, started, a, err := start[threadArgs](ctx, req, MarkNotificationReadToolName)
 	if err != nil {
-		err := fmt.Errorf("id is required and must be a number")
-		log.LogMCPToolError(ctx, MarkNotificationReadToolName, time.Since(start), err)
-		return to.ErrorResult(err)
+		return refuse(ctx, MarkNotificationReadToolName, started, err)
 	}
-
-	fg, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
+	if a.ID == nil {
+		return refuse(ctx, MarkNotificationReadToolName, started, errIDRequired)
 	}
-	thread, err := fg.ReadNotification(ctx, int64(id))
-	duration := time.Since(start)
-
-	statusCode := apiStatus(err)
-	forge.LogAPICall(ctx, "PATCH", forge.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
-
-	if err != nil {
-		log.LogMCPToolError(ctx, MarkNotificationReadToolName, duration, err)
-		return to.ErrorResult(fmt.Errorf("mark notification read err: %w", err))
-	}
-
-	log.LogMCPToolComplete(ctx, MarkNotificationReadToolName, duration, "Marked notification as read")
-	return to.TextResult(thread)
+	id := int64(*a.ID)
+	thread, err := h.service().MarkRead(ctx, id)
+	logAPICall(ctx, "PATCH", forge.APIPath("notifications", "threads", id), started, err)
+	return finish(ctx, MarkNotificationReadToolName, started, "Marked notification as read", thread, err)
 }
 
 func (h handlers) MarkAllNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, _ = log.WithMCPContext(ctx, MarkAllNotificationsReadToolName)
-	start := time.Now()
-	log.LogMCPToolStart(ctx, MarkAllNotificationsReadToolName, req.GetArguments())
-
-	opt := forgejo_sdk.MarkNotificationOptions{}
-	if lastReadAtStr, ok := req.GetArguments()["last_read_at"].(string); ok && lastReadAtStr != "" {
-		t, err := time.Parse(time.RFC3339, lastReadAtStr)
-		if err != nil {
-			log.LogMCPToolError(ctx, MarkAllNotificationsReadToolName, time.Since(start), err)
-			return to.ErrorResult(fmt.Errorf("invalid last_read_at time format (expected RFC3339): %w", err))
-		}
-		opt.LastReadAt = t
-	}
-
-	fg, err := h.forge.For(ctx)
+	ctx, started, a, err := start[markAllArgs](ctx, req, MarkAllNotificationsReadToolName)
 	if err != nil {
-		return to.ErrorResult(err)
+		return refuse(ctx, MarkAllNotificationsReadToolName, started, err)
 	}
-	err = fg.ReadNotifications(ctx, opt)
-	duration := time.Since(start)
-
-	statusCode := apiStatus(err)
-	forge.LogAPICall(ctx, "PUT", "/notifications", duration, statusCode, err)
-
+	err = h.service().MarkAllRead(ctx, a.LastReadAt)
+	logAPICall(ctx, "PUT", "/notifications", started, err)
 	if err != nil {
-		log.LogMCPToolError(ctx, MarkAllNotificationsReadToolName, duration, err)
-		return to.ErrorResult(fmt.Errorf("mark all notifications read err: %w", err))
+		return finish(ctx, MarkAllNotificationsReadToolName, started, "", nil, err)
 	}
-
-	log.LogMCPToolComplete(ctx, MarkAllNotificationsReadToolName, duration, "Marked all notifications as read")
-	return to.TextResult("All notifications marked as read")
+	return finish(ctx, MarkAllNotificationsReadToolName, started, "Marked all notifications as read", "All notifications marked as read", nil)
 }
 
 func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, _ = log.WithMCPContext(ctx, ListRepoNotificationsToolName)
-	start := time.Now()
-	log.LogMCPToolStart(ctx, ListRepoNotificationsToolName, req.GetArguments())
-
-	owner, ok1 := req.GetArguments()["owner"].(string)
-	repo, ok2 := req.GetArguments()["repo"].(string)
-	if !ok1 || !ok2 {
-		err := fmt.Errorf("owner and repo are required")
-		log.LogMCPToolError(ctx, ListRepoNotificationsToolName, time.Since(start), err)
-		return to.ErrorResult(err)
-	}
-
-	all, ok := req.GetArguments()["all"].(bool)
-	if !ok {
-		all = false
-	}
-	sinceStr, _ := req.GetArguments()["since"].(string)
-	beforeStr, _ := req.GetArguments()["before"].(string)
-	page, _ := to.Float64(req.GetArguments()["page"])
-	if page == 0 {
-		page = 1
-	}
-	limit, _ := to.Float64(req.GetArguments()["limit"])
-	if limit == 0 {
-		limit = 20
-	}
-
-	opt := forgejo_sdk.ListNotificationOptions{
-		ListOptions: forgejo_sdk.ListOptions{
-			Page:     int(page),
-			PageSize: int(limit),
-		},
-	}
-
-	if !all {
-		opt.Status = []forgejo_sdk.NotifyStatus{forgejo_sdk.NotifyStatusUnread}
-	}
-
-	if sinceStr != "" {
-		t, err := time.Parse(time.RFC3339, sinceStr)
-		if err != nil {
-			log.LogMCPToolError(ctx, ListRepoNotificationsToolName, time.Since(start), err)
-			return to.ErrorResult(fmt.Errorf("invalid since time format (expected RFC3339): %w", err))
-		}
-		opt.Since = t
-	}
-
-	if beforeStr != "" {
-		t, err := time.Parse(time.RFC3339, beforeStr)
-		if err != nil {
-			log.LogMCPToolError(ctx, ListRepoNotificationsToolName, time.Since(start), err)
-			return to.ErrorResult(fmt.Errorf("invalid before time format (expected RFC3339): %w", err))
-		}
-		opt.Before = t
-	}
-
-	fg, err := h.forge.For(ctx)
+	ctx, started, a, err := start[repoCheckArgs](ctx, req, ListRepoNotificationsToolName)
 	if err != nil {
-		return to.ErrorResult(err)
+		return refuse(ctx, ListRepoNotificationsToolName, started, err)
 	}
-	notifications, err := fg.ListRepoNotifications(ctx, owner, repo, opt)
-	duration := time.Since(start)
-
-	statusCode := apiStatus(err)
-	forge.LogAPICall(ctx, "GET", forge.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
-
-	if err != nil {
-		log.LogMCPToolError(ctx, ListRepoNotificationsToolName, duration, err)
-		return to.ErrorResult(fmt.Errorf("list repo notifications err: %w", err))
+	if a.Owner == nil || a.Repo == nil {
+		return refuse(ctx, ListRepoNotificationsToolName, started, errOwnerRepo)
 	}
-
-	log.LogMCPToolComplete(ctx, ListRepoNotificationsToolName, duration, fmt.Sprintf("Retrieved %d notifications for repo %s/%s", len(notifications), owner, repo))
-	return to.TextResult(notifications)
+	owner, repo := *a.Owner, *a.Repo
+	threads, err := h.service().RepoNotifications(ctx, appuser.RepoNotificationsInput{
+		Owner: owner, Repo: repo, NotificationsInput: notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit),
+	})
+	logAPICall(ctx, "GET", forge.APIPath("repos", owner, repo, "notifications"), started, err)
+	return finish(ctx, ListRepoNotificationsToolName, started,
+		fmt.Sprintf("Retrieved %d notifications for repo %s/%s", len(threads), owner, repo), threads, err)
 }
 
 func (h handlers) MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, _ = log.WithMCPContext(ctx, MarkRepoNotificationsReadToolName)
-	start := time.Now()
-	log.LogMCPToolStart(ctx, MarkRepoNotificationsReadToolName, req.GetArguments())
-
-	owner, ok1 := req.GetArguments()["owner"].(string)
-	repo, ok2 := req.GetArguments()["repo"].(string)
-	if !ok1 || !ok2 {
-		err := fmt.Errorf("owner and repo are required")
-		log.LogMCPToolError(ctx, MarkRepoNotificationsReadToolName, time.Since(start), err)
-		return to.ErrorResult(err)
-	}
-
-	opt := forgejo_sdk.MarkNotificationOptions{}
-	if lastReadAtStr, ok := req.GetArguments()["last_read_at"].(string); ok && lastReadAtStr != "" {
-		t, err := time.Parse(time.RFC3339, lastReadAtStr)
-		if err != nil {
-			log.LogMCPToolError(ctx, MarkRepoNotificationsReadToolName, time.Since(start), err)
-			return to.ErrorResult(fmt.Errorf("invalid last_read_at time format (expected RFC3339): %w", err))
-		}
-		opt.LastReadAt = t
-	}
-
-	fg, err := h.forge.For(ctx)
+	ctx, started, a, err := start[repoMarkArgs](ctx, req, MarkRepoNotificationsReadToolName)
 	if err != nil {
-		return to.ErrorResult(err)
+		return refuse(ctx, MarkRepoNotificationsReadToolName, started, err)
 	}
-	err = fg.ReadRepoNotifications(ctx, owner, repo, opt)
-	duration := time.Since(start)
-
-	statusCode := apiStatus(err)
-	forge.LogAPICall(ctx, "PUT", forge.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
-
+	if a.Owner == nil || a.Repo == nil {
+		return refuse(ctx, MarkRepoNotificationsReadToolName, started, errOwnerRepo)
+	}
+	owner, repo := *a.Owner, *a.Repo
+	err = h.service().MarkRepoRead(ctx, owner, repo, a.LastReadAt)
+	logAPICall(ctx, "PUT", forge.APIPath("repos", owner, repo, "notifications"), started, err)
 	if err != nil {
-		log.LogMCPToolError(ctx, MarkRepoNotificationsReadToolName, duration, err)
-		return to.ErrorResult(fmt.Errorf("mark repo notifications read err: %w", err))
+		return finish(ctx, MarkRepoNotificationsReadToolName, started, "", nil, err)
 	}
-
-	log.LogMCPToolComplete(ctx, MarkRepoNotificationsReadToolName, duration, fmt.Sprintf("Marked all notifications for repo %s/%s as read", owner, repo))
-	return to.TextResult("Repo notifications marked as read")
+	return finish(ctx, MarkRepoNotificationsReadToolName, started,
+		fmt.Sprintf("Marked all notifications for repo %s/%s as read", owner, repo), "Repo notifications marked as read", nil)
 }
+
+var (
+	errIDRequired = errors.New("id is required and must be a number")
+	errOwnerRepo  = errors.New("owner and repo are required")
+)
