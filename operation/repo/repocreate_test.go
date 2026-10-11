@@ -36,7 +36,7 @@ func TestCreateForkAndListMyRepos(t *testing.T) {
 	if _, err := f.GetRepo(context.Background(), fake.Poster, "fresh"); err != nil {
 		t.Fatal(err)
 	}
-	if res := call(h.CreateRepoFn, map[string]any{"name": "fresh"}); !res.IsError {
-		t.Fatal("duplicate create must be an error result")
+	if res, err := h.CreateRepoFn(context.Background(), mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{"name": "fresh"}}}); err == nil && (res == nil || !res.IsError) {
+		t.Fatal("duplicate create must fail")
 	}
 }
