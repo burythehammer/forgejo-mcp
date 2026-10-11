@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List the files and directories at a given path in a repository. Use path=\"\" to list the repository root. Returns one level of entries at the specified path; for a full recursive file tree use get_repo_tree with recursive=true.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "path": {
+        "description": "Directory path within the repository (empty string lists the repository root)",
+        "type": "string"
+      },
+      "ref": {
+        "description": "Ref (branch/tag/commit)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "ref",
+      "path"
+    ],
+    "type": "object"
+  },
+  "name": "list_repo_contents"
+}

@@ -1,0 +1,3 @@
+ERROR: get file err: boom
+-- port calls --
+GetContents ["octo","hello","main","docs/a.txt"]

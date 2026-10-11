@@ -4,14 +4,13 @@ package repo
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -75,192 +74,154 @@ var (
 	)
 )
 
-func (h handlers) GetFileContentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetFileFn")
-	args := req.GetArguments()
-	owner, ok := args["owner"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("owner is required"))
-	}
-	repo, ok := args["repo"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("repo is required"))
-	}
-	ref, _ := args["ref"].(string)
-	filePath, ok := args["filePath"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("filePath is required"))
-	}
-	withMetadata, _ := args["with_metadata"].(bool)
+// Argument structs for the file tools. The json names are the MCP arguments;
+// mcptest.ArgsMatchSchema keeps them in agreement with the tool definitions.
 
-	if withMetadata {
-		port, err := h.forge.For(ctx)
-		if err != nil {
-			return to.ErrorResult(err)
-		}
-		content, err := port.GetContents(ctx, owner, repo, ref, filePath)
-		if err != nil {
-			return to.ErrorResult(fmt.Errorf("get file err: %w", err))
-		}
-		return to.TextResult(content)
-	}
-
-	// Default: plain text via GetFile (SDK /raw/ endpoint, no base64).
-	// GetFile returns []byte; binary files are returned as-is without detection.
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	rawBytes, err := port.GetFile(ctx, owner, repo, ref, filePath)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("get file err: %w", err))
-	}
-
-	startF, _ := to.Float64(args["start_line"])
-	endF, _ := to.Float64(args["end_line"])
-	if startF == 0 && endF == 0 {
-		return to.TextResult(string(rawBytes))
-	}
-
-	sliced, err := SliceLines(string(rawBytes), int(startF), int(endF))
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	return to.TextResult(sliced)
+type getFileContentArgs struct {
+	Owner        *string `json:"owner" required:"true"`
+	Repo         *string `json:"repo" required:"true"`
+	Ref          string  `json:"ref" required:"true"`
+	FilePath     *string `json:"filePath" required:"true"`
+	WithMetadata bool    `json:"with_metadata"`
+	StartLine    float64 `json:"start_line"`
+	EndLine      float64 `json:"end_line"`
 }
 
-// SliceLines returns the 1-indexed inclusive [start, end] line range
-// of content. start=0 means "from line 1"; end=0 means "to the last
-// line". Out-of-range values clamp; an inverted range after clamping
-// is reported as an error.
-func SliceLines(content string, start, end int) (string, error) {
-	lines := strings.Split(content, "\n")
-	count := len(lines)
+type createFileArgs struct {
+	Owner         string `json:"owner" required:"true"`
+	Repo          string `json:"repo" required:"true"`
+	FilePath      string `json:"filePath" required:"true"`
+	Message       string `json:"message" required:"true"`
+	BranchName    string `json:"branch_name" required:"true"`
+	NewBranchName string `json:"new_branch_name"`
+	// Content and ContentBase64 are read by selectRepositoryWriteContent from
+	// the raw arguments, which need their presence; they are declared so the
+	// struct matches the schema.
+	Content       *string `json:"content"`
+	ContentBase64 *string `json:"content_base64"`
+}
 
-	if start <= 0 {
-		start = 1
-	}
-	if end <= 0 {
-		end = count
-	}
-	if end > count {
-		end = count
-	}
-	if start > end {
-		return "", fmt.Errorf("start_line (%d) is after end_line (%d) for a file with %d lines", start, end, count)
-	}
+type updateFileArgs struct {
+	Owner         string `json:"owner" required:"true"`
+	Repo          string `json:"repo" required:"true"`
+	FilePath      string `json:"filePath" required:"true"`
+	Message       string `json:"message" required:"true"`
+	BranchName    string `json:"branch_name" required:"true"`
+	SHA           string `json:"sha" required:"true"`
+	NewBranchName string `json:"new_branch_name"`
+	// Content and ContentBase64 are read by selectRepositoryWriteContent from
+	// the raw arguments, which need their presence; they are declared so the
+	// struct matches the schema.
+	Content       *string `json:"content"`
+	ContentBase64 *string `json:"content_base64"`
+}
 
-	return strings.Join(lines[start-1:end], "\n"), nil
+type deleteFileArgs struct {
+	Owner         *string `json:"owner" required:"true"`
+	Repo          *string `json:"repo" required:"true"`
+	FilePath      *string `json:"filePath" required:"true"`
+	Message       string  `json:"message" required:"true"`
+	BranchName    string  `json:"branch_name" required:"true"`
+	SHA           *string `json:"sha" required:"true"`
+	NewBranchName string  `json:"new_branch_name"`
+}
+
+func (h handlers) GetFileContentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Debugf("Called GetFileFn")
+	var a getFileContentArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	owner, err := need("owner", a.Owner)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	repo, err := need("repo", a.Repo)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	filePath, err := need("filePath", a.FilePath)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	svc, err := h.gitService(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if a.WithMetadata {
+		return gitText(svc.GetFileMetadata(ctx, owner, repo, a.Ref, filePath))
+	}
+	return gitText(svc.GetFileText(ctx, owner, repo, a.Ref, filePath, apprepo.LineRange{Start: int(a.StartLine), End: int(a.EndLine)}))
 }
 
 func (h handlers) CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateFileFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	filePath, _ := args["filePath"].(string)
-	encodedContent, err := selectRepositoryWriteContent(args)
+	var a createFileArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	content, err := selectRepositoryWriteContent(req.GetArguments())
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	message, _ := args["message"].(string)
-	branchName, _ := args["branch_name"].(string)
-	newBranchName, ok := args["new_branch_name"].(string)
-	if !ok || newBranchName == "" {
-		newBranchName = ""
-	}
-	opt := forgejo_sdk.CreateFileOptions{
-		FileOptions: forgejo_sdk.FileOptions{
-			Message:       message,
-			BranchName:    branchName,
-			NewBranchName: newBranchName,
-		},
-		Content: encodedContent,
-	}
-	port, err := h.forge.For(ctx)
+	svc, err := h.gitService(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	fileResp, err := port.CreateFile(ctx, owner, repo, filePath, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("create file error: %w", err))
-	}
-	return to.TextResult(fileResp)
+	return gitText(svc.CreateFile(ctx, a.Owner, a.Repo, a.FilePath, apprepo.FileWriteInput{
+		Message: a.Message, Branch: a.BranchName, NewBranch: a.NewBranchName, ContentBase64: content,
+	}))
 }
 
 func (h handlers) UpdateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called UpdateFileFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	filePath, _ := args["filePath"].(string)
-	encodedContent, err := selectRepositoryWriteContent(args)
+	var a updateFileArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	content, err := selectRepositoryWriteContent(req.GetArguments())
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	message, _ := args["message"].(string)
-	branchName, _ := args["branch_name"].(string)
-	sha, _ := args["sha"].(string)
-	newBranchName, ok := args["new_branch_name"].(string)
-	if !ok || newBranchName == "" {
-		newBranchName = ""
-	}
-	opt := forgejo_sdk.UpdateFileOptions{
-		FileOptions: forgejo_sdk.FileOptions{
-			Message:       message,
-			BranchName:    branchName,
-			NewBranchName: newBranchName,
-		},
-		SHA:     sha,
-		Content: encodedContent,
-	}
-	port, err := h.forge.For(ctx)
+	svc, err := h.gitService(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	fileResp, err := port.UpdateFile(ctx, owner, repo, filePath, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("update file error: %w", err))
-	}
-	return to.TextResult(fileResp)
+	return gitText(svc.UpdateFile(ctx, a.Owner, a.Repo, a.FilePath, apprepo.FileWriteInput{
+		Message: a.Message, Branch: a.BranchName, NewBranch: a.NewBranchName, ContentBase64: content, SHA: a.SHA,
+	}))
 }
 
 func (h handlers) DeleteFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteFileFn")
-	owner, ok := req.GetArguments()["owner"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("owner is required"))
+	var a deleteFileArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	repo, ok := req.GetArguments()["repo"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("repo is required"))
-	}
-	filePath, ok := req.GetArguments()["filePath"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("filePath is required"))
-	}
-	message, _ := req.GetArguments()["message"].(string)
-	branchName, _ := req.GetArguments()["branch_name"].(string)
-	sha, ok := req.GetArguments()["sha"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("sha is required"))
-	}
-	newBranchName, _ := req.GetArguments()["new_branch_name"].(string)
-	opt := forgejo_sdk.DeleteFileOptions{
-		FileOptions: forgejo_sdk.FileOptions{
-			Message:       message,
-			BranchName:    branchName,
-			NewBranchName: newBranchName,
-		},
-		SHA: sha,
-	}
-	port, err := h.forge.For(ctx)
+	owner, err := need("owner", a.Owner)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = port.DeleteFile(ctx, owner, repo, filePath, opt)
+	repo, err := need("repo", a.Repo)
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("delete file err: %w", err))
+		return to.ErrorResult(err)
+	}
+	filePath, err := need("filePath", a.FilePath)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	sha, err := need("sha", a.SHA)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	svc, err := h.gitService(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := svc.DeleteFile(ctx, owner, repo, filePath, apprepo.FileDeleteInput{
+		Message: a.Message, Branch: a.BranchName, NewBranch: a.NewBranchName, SHA: sha,
+	}); err != nil {
+		return to.ErrorResult(err)
 	}
 	return to.TextResult("Delete file success")
 }

@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Replace all repository topics (comma-separated). The topics key is required; an empty string clears every topic. Names are lowercased. At most 25 topics, each matching ^[a-z0-9][-.a-z0-9]*$ and at most 35 characters.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "topics": {
+        "description": "Repository topics (comma-separated). Empty string clears all topics.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "topics"
+    ],
+    "type": "object"
+  },
+  "name": "set_repo_topics"
+}

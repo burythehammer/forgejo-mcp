@@ -1,0 +1,83 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Atomically create, update, and delete multiple repository files in one native Forgejo commit. The complete batch is validated before the write; create/update operations require exactly one of `content` or `content_base64`, and update/delete operations require the current file SHA. Existing single-file tools remain available.",
+  "inputSchema": {
+    "properties": {
+      "branch_name": {
+        "description": "Branch name",
+        "type": "string"
+      },
+      "files": {
+        "description": "File operations applied atomically in one Forgejo commit. Create/update require exactly one of plain-text `content` or strict standard Base64 `content_base64`; delete forbids both representations.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "description": "Plain-text content. Create/update require exactly one of content/content_base64; delete forbids both. An explicit empty string is valid content.",
+              "type": "string"
+            },
+            "content_base64": {
+              "description": "Strict RFC 4648 standard Base64 for the exact file bytes. Create/update require exactly one of content/content_base64; delete forbids both. An explicit empty string represents zero bytes.",
+              "type": "string"
+            },
+            "operation": {
+              "description": "Repository file operation.",
+              "enum": [
+                "create",
+                "update",
+                "delete"
+              ],
+              "type": "string"
+            },
+            "path": {
+              "description": "Repository-relative target path.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha": {
+              "description": "Current file SHA. Required for update/delete and omitted for create.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "operation",
+            "path"
+          ],
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "message": {
+        "description": "Commit message",
+        "type": "string"
+      },
+      "new_branch_name": {
+        "description": "New branch name",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "message",
+      "branch_name",
+      "files"
+    ],
+    "type": "object"
+  },
+  "name": "change_files"
+}

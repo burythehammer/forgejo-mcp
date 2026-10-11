@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete one topic from a repository.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "topic": {
+        "description": "Topic name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "topic"
+    ],
+    "type": "object"
+  },
+  "name": "delete_repo_topic"
+}

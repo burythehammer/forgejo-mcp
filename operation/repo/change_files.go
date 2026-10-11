@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -62,123 +62,121 @@ var ChangeFilesTool = mcp.NewTool(
 	),
 )
 
+// The batch is parsed from the raw arguments rather than decoded with
+// decode.Lax: the tool reports a wrongly typed or missing field with its own
+// message, and a Lax decode would turn those into a different error.
 func (h handlers) ChangeFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ChangeFilesFn")
 
-	owner, repo, options, err := parseChangeFilesArguments(req.GetArguments())
+	owner, repo, in, err := parseChangeFilesArguments(req.GetArguments())
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-
-	port, err := h.forge.For(ctx)
+	svc, err := h.gitService(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	response, err := port.ChangeFiles(ctx, owner, repo, options)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("change files error: %w", err))
-	}
-	return to.TextResult(response)
+	return gitText(svc.ChangeFiles(ctx, owner, repo, in))
 }
 
-func parseChangeFilesArguments(args map[string]any) (string, string, forge.ChangeFilesOptions, error) {
+func parseChangeFilesArguments(args map[string]any) (string, string, apprepo.ChangeFilesInput, error) {
 	owner, err := requiredNonBlankString(args, "owner")
 	if err != nil {
-		return "", "", forge.ChangeFilesOptions{}, err
+		return "", "", apprepo.ChangeFilesInput{}, err
 	}
 	repo, err := requiredNonBlankString(args, "repo")
 	if err != nil {
-		return "", "", forge.ChangeFilesOptions{}, err
+		return "", "", apprepo.ChangeFilesInput{}, err
 	}
 	message, err := requiredNonBlankString(args, "message")
 	if err != nil {
-		return "", "", forge.ChangeFilesOptions{}, err
+		return "", "", apprepo.ChangeFilesInput{}, err
 	}
 	branchName, err := requiredNonBlankString(args, "branch_name")
 	if err != nil {
-		return "", "", forge.ChangeFilesOptions{}, err
+		return "", "", apprepo.ChangeFilesInput{}, err
 	}
 
 	newBranchName := ""
 	if raw, ok := args["new_branch_name"]; ok {
 		value, ok := raw.(string)
 		if !ok {
-			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("new_branch_name must be a string")
+			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("new_branch_name must be a string")
 		}
 		newBranchName = value
 	}
 
 	rawFiles, ok := args["files"].([]any)
 	if !ok || len(rawFiles) == 0 {
-		return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files must contain at least one operation")
+		return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files must contain at least one operation")
 	}
 
-	operations := make([]forge.ChangeFileOperation, 0, len(rawFiles))
+	operations := make([]apprepo.ChangeFile, 0, len(rawFiles))
 	seenPaths := make(map[string]struct{}, len(rawFiles))
 	for index, raw := range rawFiles {
 		item, ok := raw.(map[string]any)
 		if !ok {
-			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d] must be an object", index)
+			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d] must be an object", index)
 		}
 
 		operation, err := requiredNonBlankString(item, "operation")
 		if err != nil {
-			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
 		path, err := requiredNonBlankString(item, "path")
 		if err != nil {
-			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
 		if _, duplicate := seenPaths[path]; duplicate {
-			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: duplicate target path %q", index, path)
+			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: duplicate target path %q", index, path)
 		}
 		seenPaths[path] = struct{}{}
 
 		sha, hasSHA, err := optionalString(item, "sha")
 		if err != nil {
-			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
 
-		entry := forge.ChangeFileOperation{Operation: operation, Path: path}
+		entry := apprepo.ChangeFile{Operation: operation, Path: path}
 		switch operation {
 		case "create":
 			if hasSHA {
-				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: sha must be omitted for create", index)
+				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: sha must be omitted for create", index)
 			}
 			encoded, err := selectRepositoryWriteContent(item)
 			if err != nil {
-				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
 			entry.Content = &encoded
 		case "update":
 			if !hasSHA || strings.TrimSpace(sha) == "" {
-				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: sha is required for update", index)
+				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: sha is required for update", index)
 			}
 			encoded, err := selectRepositoryWriteContent(item)
 			if err != nil {
-				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
 			entry.Content = &encoded
 			entry.SHA = sha
 		case "delete":
 			if err := rejectRepositoryWriteContent(item); err != nil {
-				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: %w", index, err)
+				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
 			if !hasSHA || strings.TrimSpace(sha) == "" {
-				return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: sha is required for delete", index)
+				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: sha is required for delete", index)
 			}
 			entry.SHA = sha
 		default:
-			return "", "", forge.ChangeFilesOptions{}, fmt.Errorf("files[%d]: unsupported operation %q", index, operation)
+			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: unsupported operation %q", index, operation)
 		}
 		operations = append(operations, entry)
 	}
 
-	return owner, repo, forge.ChangeFilesOptions{
-		BranchName:    branchName,
-		NewBranchName: newBranchName,
-		Message:       message,
-		Files:         operations,
+	return owner, repo, apprepo.ChangeFilesInput{
+		Branch:    branchName,
+		NewBranch: newBranchName,
+		Message:   message,
+		Files:     operations,
 	}, nil
 }
 
