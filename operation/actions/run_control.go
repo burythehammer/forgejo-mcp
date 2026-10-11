@@ -5,10 +5,8 @@ package actions
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -43,7 +41,7 @@ var (
 	)
 )
 
-func CancelWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CancelWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CancelWorkflowRunFn")
 	args := req.GetArguments()
 
@@ -56,14 +54,17 @@ func CancelWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		return to.ErrorResult(err)
 	}
 
-	path := forgejo.APIPath("repos", owner, repo, "actions", "runs", runID, "cancel")
-	if err := forgejo.DoJSON(ctx, http.MethodPost, path, nil, nil); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := port.CancelWorkflowRun(ctx, owner, repo, runID); err != nil {
 		return to.ErrorResult(fmt.Errorf("cancel workflow run: %w", err))
 	}
 	return to.TextResult(workflowRunControlResult{RunID: runID, Status: "cancelled"})
 }
 
-func DeleteWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteWorkflowRunFn")
 	args := req.GetArguments()
 
@@ -76,8 +77,11 @@ func DeleteWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		return to.ErrorResult(err)
 	}
 
-	path := forgejo.APIPath("repos", owner, repo, "actions", "runs", runID)
-	if err := forgejo.DoJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := port.DeleteWorkflowRun(ctx, owner, repo, runID); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete workflow run: %w", err))
 	}
 	return to.TextResult(workflowRunControlResult{RunID: runID, Status: "deleted"})

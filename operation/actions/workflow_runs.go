@@ -8,7 +8,6 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -43,7 +42,7 @@ var (
 	)
 )
 
-func ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListWorkflowRunsFn")
 
 	owner, ok := req.GetArguments()["owner"].(string)
@@ -84,11 +83,11 @@ func ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		HeadSHA:   headSHA,
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	resp, _, err := client.ListRepoActionRuns(owner, repo, opt)
+	resp, err := port.ListWorkflowRuns(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("failed to list workflow runs: %w", err))
 	}
@@ -118,7 +117,7 @@ func ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 	return to.TextResult(sb.String())
 }
 
-func GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetWorkflowRunFn")
 
 	owner, ok := req.GetArguments()["owner"].(string)
@@ -138,11 +137,11 @@ func GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 		return to.ErrorResult(errors.New("run_id must be a positive integer"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	run, _, err := client.GetRepoActionRun(owner, repo, runID)
+	run, err := port.GetWorkflowRun(ctx, owner, repo, runID)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("failed to get workflow run: %w", err))
 	}

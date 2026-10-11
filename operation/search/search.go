@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -49,13 +49,17 @@ var (
 	)
 )
 
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(SearchUsersTool, SearchUserFn)
-	s.AddTool(SearchOrgTeamsTool, SearchOrgTeamsFn)
-	s.AddTool(SearchReposTool, SearchReposFn)
+// handlers serve the search tools from the Forgejo port.
+type handlers struct{ forge forge.Factory }
+
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(SearchUsersTool, h.SearchUserFn)
+	s.AddTool(SearchOrgTeamsTool, h.SearchOrgTeamsFn)
+	s.AddTool(SearchReposTool, h.SearchReposFn)
 }
 
-func SearchUserFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) SearchUserFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called SearchUserFn")
 	keyword, _ := req.GetArguments()["keyword"].(string)
 	page, _ := to.Float64(req.GetArguments()["page"])
@@ -76,18 +80,18 @@ func SearchUserFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 	}
 
 	// Use the correct options type for searching
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	result, _, err := client.SearchUsers(opt)
+	result, err := port.SearchUsers(ctx, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("search user err: %w", err))
 	}
 	return to.TextResult(result)
 }
 
-func SearchOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) SearchOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// Create basic search teams options
 	log.Debugf("Called SearchOrgTeamsFn")
 	org, ok := req.GetArguments()["org"].(string)
@@ -105,7 +109,7 @@ func SearchOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 		limit = 100
 	}
 
-	opt := &forgejo_sdk.SearchTeamsOptions{
+	opt := forgejo_sdk.SearchTeamsOptions{
 		Query: keyword,
 		ListOptions: forgejo_sdk.ListOptions{
 			Page:     int(page),
@@ -114,18 +118,18 @@ func SearchOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 	}
 
 	// Use the proper options type for search
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	result, _, err := client.SearchOrgTeams(org, opt)
+	result, err := port.SearchOrgTeams(ctx, org, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("search org teams err: %w", err))
 	}
 	return to.TextResult(result)
 }
 
-func SearchReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) SearchReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called SearchReposFn")
 	keyword, _ := req.GetArguments()["keyword"].(string)
 	sort, _ := req.GetArguments()["sort"].(string)
@@ -151,11 +155,11 @@ func SearchReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	}
 
 	// Call search repos with proper options
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	result, _, err := client.SearchRepos(opt)
+	result, err := port.SearchRepos(ctx, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("search repos err: %w", err))
 	}

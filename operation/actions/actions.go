@@ -8,7 +8,7 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -32,25 +32,29 @@ var (
 	)
 )
 
-func RegisterTool(s *server.MCPServer) {
-	s.AddTool(DispatchWorkflowTool, DispatchWorkflowFn)
-	s.AddTool(ListWorkflowRunsTool, ListWorkflowRunsFn)
-	s.AddTool(GetWorkflowRunTool, GetWorkflowRunFn)
-	s.AddTool(ListActionRunJobsTool, ListActionRunJobsFn)
-	s.AddTool(GetActionJobLogsTool, GetActionJobLogsFn)
-	s.AddTool(CancelWorkflowRunTool, CancelWorkflowRunFn)
-	s.AddTool(DeleteWorkflowRunTool, DeleteWorkflowRunFn)
-	s.AddTool(ListActionRunArtifactsTool, ListActionRunArtifactsFn)
-	s.AddTool(GetActionArtifactTool, GetActionArtifactFn)
-	s.AddTool(ListRepoActionSecretsTool, ListRepoActionSecretsFn)
-	s.AddTool(CreateOrUpdateRepoActionSecretTool, CreateOrUpdateRepoActionSecretFn)
-	s.AddTool(DeleteRepoActionSecretTool, DeleteRepoActionSecretFn)
-	s.AddTool(ListOrgActionSecretsTool, ListOrgActionSecretsFn)
-	s.AddTool(CreateOrUpdateOrgActionSecretTool, CreateOrUpdateOrgActionSecretFn)
-	s.AddTool(DeleteOrgActionSecretTool, DeleteOrgActionSecretFn)
+// handlers serve the Actions tools from the Forgejo port.
+type handlers struct{ forge forge.Factory }
+
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(DispatchWorkflowTool, h.DispatchWorkflowFn)
+	s.AddTool(ListWorkflowRunsTool, h.ListWorkflowRunsFn)
+	s.AddTool(GetWorkflowRunTool, h.GetWorkflowRunFn)
+	s.AddTool(ListActionRunJobsTool, h.ListActionRunJobsFn)
+	s.AddTool(GetActionJobLogsTool, h.GetActionJobLogsFn)
+	s.AddTool(CancelWorkflowRunTool, h.CancelWorkflowRunFn)
+	s.AddTool(DeleteWorkflowRunTool, h.DeleteWorkflowRunFn)
+	s.AddTool(ListActionRunArtifactsTool, h.ListActionRunArtifactsFn)
+	s.AddTool(GetActionArtifactTool, h.GetActionArtifactFn)
+	s.AddTool(ListRepoActionSecretsTool, h.ListRepoActionSecretsFn)
+	s.AddTool(CreateOrUpdateRepoActionSecretTool, h.CreateOrUpdateRepoActionSecretFn)
+	s.AddTool(DeleteRepoActionSecretTool, h.DeleteRepoActionSecretFn)
+	s.AddTool(ListOrgActionSecretsTool, h.ListOrgActionSecretsFn)
+	s.AddTool(CreateOrUpdateOrgActionSecretTool, h.CreateOrUpdateOrgActionSecretFn)
+	s.AddTool(DeleteOrgActionSecretTool, h.DeleteOrgActionSecretFn)
 }
 
-func DispatchWorkflowFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DispatchWorkflowFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DispatchWorkflowFn")
 
 	owner, ok := req.GetArguments()["owner"].(string)
@@ -83,17 +87,16 @@ func DispatchWorkflowFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		Inputs: inputs,
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, _, err = client.DispatchRepoWorkflow(owner, repo, workflow, opt)
-	if err != nil {
+	if err := port.DispatchWorkflow(ctx, owner, repo, workflow, opt); err != nil {
 		return to.ErrorResult(fmt.Errorf("failed to dispatch workflow: %w", err))
 	}
 
-	result := fmt.Sprintf("Workflow dispatched successfully!\n  Workflow: %s\n  Ref: %s\n  URL: %s/%s/%s/actions",
-		workflow, ref, forgejo.GetBaseURL(), owner, repo)
+	result := fmt.Sprintf("Workflow dispatched successfully!\n  Workflow: %s\n  Ref: %s\n  URL: %s",
+		workflow, ref, port.ActionsURL(owner, repo))
 
 	return to.TextResult(result)
 }

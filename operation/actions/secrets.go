@@ -10,7 +10,6 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -150,7 +149,7 @@ func toSecretSummaries(secrets []*forgejo_sdk.Secret) []actionSecretSummary {
 	return summaries
 }
 
-func ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoActionSecretsFn")
 	args := req.GetArguments()
 
@@ -167,13 +166,11 @@ func ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	secrets, _, err := client.ListRepoActionSecret(owner, repo, forgejo_sdk.ListRepoActionSecretOption{
-		ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: limit},
-	})
+	secrets, err := port.ListRepoActionSecrets(ctx, owner, repo, forgejo_sdk.ListOptions{Page: page, PageSize: limit})
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list repo action secrets: %w", err))
 	}
@@ -189,7 +186,7 @@ func ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	})
 }
 
-func CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateOrUpdateRepoActionSecretFn")
 	args := req.GetArguments()
 
@@ -206,11 +203,11 @@ func CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.CallToolReque
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.CreateRepoActionSecret(owner, repo, forgejo_sdk.CreateSecretOption{Name: secretName, Data: data}); err != nil {
+	if err := port.SetRepoActionSecret(ctx, owner, repo, forgejo_sdk.CreateSecretOption{Name: secretName, Data: data}); err != nil {
 		return to.ErrorResult(fmt.Errorf("create or update repo action secret: %w", err))
 	}
 
@@ -222,7 +219,7 @@ func CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.CallToolReque
 	})
 }
 
-func DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteRepoActionSecretFn")
 	args := req.GetArguments()
 
@@ -235,11 +232,11 @@ func DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.DeleteRepoActionSecret(owner, repo, secretName); err != nil {
+	if err := port.DeleteRepoActionSecret(ctx, owner, repo, secretName); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete repo action secret: %w", err))
 	}
 
@@ -251,7 +248,7 @@ func DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 	})
 }
 
-func ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListOrgActionSecretsFn")
 	args := req.GetArguments()
 
@@ -268,13 +265,11 @@ func ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	secrets, _, err := client.ListOrgActionSecret(org, forgejo_sdk.ListOrgActionSecretOption{
-		ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: limit},
-	})
+	secrets, err := port.ListOrgActionSecrets(ctx, org, forgejo_sdk.ListOptions{Page: page, PageSize: limit})
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list org action secrets: %w", err))
 	}
@@ -289,7 +284,7 @@ func ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	})
 }
 
-func CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateOrUpdateOrgActionSecretFn")
 	args := req.GetArguments()
 
@@ -306,11 +301,11 @@ func CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.CallToolReques
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.CreateOrgActionSecret(org, forgejo_sdk.CreateSecretOption{Name: secretName, Data: data}); err != nil {
+	if err := port.SetOrgActionSecret(ctx, org, forgejo_sdk.CreateSecretOption{Name: secretName, Data: data}); err != nil {
 		return to.ErrorResult(fmt.Errorf("create or update org action secret: %w", err))
 	}
 
@@ -321,7 +316,7 @@ func CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.CallToolReques
 	})
 }
 
-func DeleteOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteOrgActionSecretFn")
 	args := req.GetArguments()
 
@@ -334,11 +329,11 @@ func DeleteOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.DeleteOrgActionSecret(org, secretName); err != nil {
+	if err := port.DeleteOrgActionSecret(ctx, org, secretName); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete org action secret: %w", err))
 	}
 

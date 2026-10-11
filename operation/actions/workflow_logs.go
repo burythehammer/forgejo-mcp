@@ -8,11 +8,10 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -29,28 +28,14 @@ const (
 	maxActionLogBytes      = 256 * 1024
 )
 
-type actionRunJob struct {
-	ID      int64    `json:"id"`
-	RunID   int64    `json:"run_id"`
-	Attempt int64    `json:"attempt"`
-	Handle  string   `json:"handle"`
-	RepoID  int64    `json:"repo_id"`
-	OwnerID int64    `json:"owner_id"`
-	Name    string   `json:"name"`
-	Needs   []string `json:"needs"`
-	RunsOn  []string `json:"runs_on"`
-	TaskID  int64    `json:"task_id"`
-	Status  string   `json:"status"`
-}
-
 type actionRunJobsResult struct {
-	RunID      int64          `json:"run_id"`
-	Jobs       []actionRunJob `json:"jobs"`
-	Page       int            `json:"page"`
-	Limit      int            `json:"limit"`
-	TotalCount int            `json:"total_count"`
-	HasNext    bool           `json:"has_next"`
-	NextPage   int            `json:"next_page,omitempty"`
+	RunID      int64                `json:"run_id"`
+	Jobs       []forge.ActionRunJob `json:"jobs"`
+	Page       int                  `json:"page"`
+	Limit      int                  `json:"limit"`
+	TotalCount int                  `json:"total_count"`
+	HasNext    bool                 `json:"has_next"`
+	NextPage   int                  `json:"next_page,omitempty"`
 }
 
 type actionJobLogResult struct {
@@ -93,7 +78,7 @@ var (
 	)
 )
 
-func ListActionRunJobsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListActionRunJobsFn")
 	args := req.GetArguments()
 
@@ -114,9 +99,12 @@ func ListActionRunJobsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		return to.ErrorResult(err)
 	}
 
-	path := forgejo.APIPath("repos", owner, repo, "actions", "runs", runID, "jobs")
-	allJobs := make([]actionRunJob, 0)
-	if err := forgejo.DoJSON(ctx, http.MethodGet, path, nil, &allJobs); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	allJobs, err := port.ListRunJobs(ctx, owner, repo, runID)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list action run jobs: %w", err))
 	}
 
@@ -143,7 +131,7 @@ func ListActionRunJobsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 	return to.SafeTextResult(result)
 }
 
-func GetActionJobLogsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetActionJobLogsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetActionJobLogsFn")
 	args := req.GetArguments()
 
@@ -176,13 +164,11 @@ func GetActionJobLogsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		byteRange = fmt.Sprintf("bytes=%d-%d", offset, offset+int64(maxBytes)-1)
 	}
 
-	path := forgejo.APIPath("repos", owner, repo, "actions", "jobs", jobID, "logs")
-	if attempt > 0 {
-		query := url.Values{}
-		query.Set("attempt", fmt.Sprintf("%d", attempt))
-		path += "?" + query.Encode()
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
 	}
-	resp, err := forgejo.DoAPIRaw(ctx, path, "text/plain", byteRange, int64(maxBytes))
+	resp, err := port.GetJobLog(ctx, owner, repo, jobID, attempt, byteRange, int64(maxBytes))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get action job logs: %w", err))
 	}
@@ -272,7 +258,7 @@ func boundedIntegerArg(args map[string]any, name string, defaultValue, minimum, 
 	return int(number), nil
 }
 
-func responseByteRange(resp *forgejo.RawAPIResponse) (int64, int64, int64, error) {
+func responseByteRange(resp *forge.JobLog) (int64, int64, int64, error) {
 	if resp.StatusCode == http.StatusPartialContent {
 		var start, end, total int64
 		if _, err := fmt.Sscanf(resp.ContentRange, "bytes %d-%d/%d", &start, &end, &total); err != nil {
