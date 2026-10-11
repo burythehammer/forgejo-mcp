@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create a pull request review with optional inline comments",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Review body/message",
+        "type": "string"
+      },
+      "comments": {
+        "description": "Inline comments as JSON array, e.g. [{\"path\":\"file.go\",\"body\":\"Fix this\",\"new_position\":10}]",
+        "type": "string"
+      },
+      "index": {
+        "description": "PR index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "Review state (APPROVED, REQUEST_CHANGES, COMMENT)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "state"
+    ],
+    "type": "object"
+  },
+  "name": "create_pull_review"
+}

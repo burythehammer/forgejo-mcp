@@ -1,0 +1,3 @@
+{"Result":"review dismissed successfully"}
+-- port calls --
+DismissPullReview ["octo","hello",7,21,{"message":"stale"}]

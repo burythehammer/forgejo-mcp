@@ -1,0 +1,8 @@
+diff --git a/cmd/main.go b/cmd/main.go
+--- a/cmd/main.go
++++ b/cmd/main.go
+@@ -1 +1,2 @@
+ package main
++import "fmt"
+-- port calls --
+GetPullRequestDiff ["octo","hello",7]

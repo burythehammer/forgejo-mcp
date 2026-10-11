@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Submit a pending pull request review",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Review body/message",
+        "type": "string"
+      },
+      "id": {
+        "description": "Review ID",
+        "type": "number"
+      },
+      "index": {
+        "description": "PR index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "Review state (APPROVED, REQUEST_CHANGES, COMMENT)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "id",
+      "state"
+    ],
+    "type": "object"
+  },
+  "name": "submit_pull_review"
+}
