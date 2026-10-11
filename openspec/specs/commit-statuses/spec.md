@@ -13,7 +13,7 @@ error and makes no request. Commit statuses are not Actions workflow runs.
 
 ### Requirement: List commit statuses for a SHA
 
-The `get_commit_statuses` tool SHALL accept required `owner`, `repo`, and `sha`, and optional `page` (default 1) and `limit` (default 30, maximum 50), call `Client.ListStatuses`, and return a JSON object with keys `sha`, `statuses`, `page`, `limit`, and `count`. `total_count` SHALL be populated from the upstream `X-Total-Count` header via `pkg/forgejo.TotalCountPtr` and SHALL be omitted when the header is absent or unparsable. Each status item SHALL use keys `context`, `state`, `target_url`, `description`, and `created_at`. The system SHALL NOT compute a combined aggregate state.
+The `get_commit_statuses` tool SHALL accept required `owner`, `repo`, and `sha`, and optional `page` (default 1) and `limit` (default 30, maximum 50), call `ListCommitStatuses` on the `forge.RepoFiles` port, and return a JSON object with keys `sha`, `statuses`, `page`, `limit`, and `count`. `total_count` SHALL be populated from the upstream `X-Total-Count` header via the `forge.RepoFiles` port (`CommitStatuses.TotalCount`) and SHALL be omitted when the header is absent or unparsable. Each status item SHALL use keys `context`, `state`, `target_url`, `description`, and `created_at`. The system SHALL NOT compute a combined aggregate state.
 
 #### Scenario: List returns a bounding envelope
 

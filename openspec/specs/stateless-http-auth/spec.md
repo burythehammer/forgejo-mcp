@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Enable per-request authentication for the HTTP and SSE transports by extracting a token from the `Authorization` header and constructing a request-scoped Forgejo client, while preserving the pre-existing global-token (singleton) behavior for the stdio transport. This allows a single server process to serve multiple distinct Forgejo identities concurrently without leaking credentials across requests.
+Enable per-request authentication for the HTTP and SSE transports by extracting a token from the `Authorization` header and binding a request-scoped Forgejo port to it through `forge.Factory`, while preserving the operator-token behavior for the stdio transport. This allows a single server process to serve multiple distinct Forgejo identities concurrently without leaking credentials across requests.
 
 ## Requirements
 
@@ -15,9 +15,9 @@ What the `Authorization` header means depends on `-auth-mode`.
 1. `token <X>` — Forgejo's native token scheme.
 2. `Bearer <X>` — OAuth2-style bearer transport.
 
-When a recognized scheme is present, the parsed token value SHALL be injected into the request `context.Context` via `forgejo.WithToken(ctx, token)`. The MCP handler invoked for that request receives the augmented context.
+When a recognized scheme is present, the parsed token value SHALL be injected into the request `context.Context` via `forge.WithToken(ctx, token)`. The MCP handler invoked for that request receives the augmented context.
 
-When the `Authorization` header is absent, empty, or carries an unrecognized scheme, the request `context.Context` SHALL NOT carry a token, and the request SHALL be refused with `401 Unauthorized` before it reaches an MCP handler — unless the operator has set `--allow-operator-token-fallback`, in which case the request is admitted and downstream code falls back to the global singleton client (see "Token-aware client factory" below).
+When the `Authorization` header is absent, empty, or carries an unrecognized scheme, the request `context.Context` SHALL NOT carry a token, and the request SHALL be refused with `401 Unauthorized` before it reaches an MCP handler — unless the operator has set `--allow-operator-token-fallback`, in which case the request is admitted and downstream code falls back to the operator's shared client (see "Token-aware client factory" below).
 
 The transport MUST NOT accept tokens without a scheme prefix; a header value that does not match one of the two named schemes SHALL be treated as if no header were present.
 
@@ -36,8 +36,8 @@ This check establishes only that a credential is present and carries a recognize
 
 - **WHEN** the server runs in `passthrough` mode
 - **AND** an HTTP request arrives with header `Authorization: token abc123`
-- **THEN** the system SHALL inject `abc123` into the request context via `forgejo.WithToken`
-- **AND** the MCP handler SHALL see that token via `forgejo.Client(ctx)`
+- **THEN** the system SHALL inject `abc123` into the request context via `forge.WithToken`
+- **AND** the MCP handler SHALL see that token via `Factory.For(ctx)`
 
 #### Scenario: Request with `Bearer` scheme injects the token
 
@@ -57,13 +57,13 @@ This check establishes only that a credential is present and carries a recognize
 - **WHEN** the server runs in `passthrough` mode with `--allow-operator-token-fallback`
 - **AND** an HTTP request arrives with no `Authorization` header
 - **THEN** the request context SHALL NOT carry a token
-- **AND** `forgejo.Client(ctx)` SHALL return the process-wide singleton initialized from the `--token` flag
+- **AND** `Factory.For(ctx)` SHALL return the operator's shared client, bound to the configured token
 
 #### Scenario: Bare token (no scheme) is rejected
 
 - **WHEN** an HTTP request arrives with header `Authorization: abc123` (no scheme prefix)
 - **THEN** the system SHALL treat the request as if no `Authorization` header were present
-- **AND** the request SHALL be refused or fall through to the global singleton client
+- **AND** the request SHALL be refused or fall through to the operator's shared client
   exactly as a request with no `Authorization` header would
 
 #### Scenario: Absent header on a network transport is refused
@@ -73,7 +73,7 @@ This check establishes only that a credential is present and carries a recognize
   header
 - **THEN** the request SHALL be refused with `401 Unauthorized` before it reaches an
   MCP handler
-- **AND** `forgejo.Client(ctx)` SHALL return `ErrNoRequestToken` if reached by any
+- **AND** `Factory.For(ctx)` SHALL return `forge.ErrNoRequestToken` if reached by any
   other path
 
 #### Scenario: Bare token (no scheme) is refused on a network transport
@@ -121,26 +121,26 @@ When the server is started with `--transport sse`, the SSE server SHALL apply th
 - **THEN** the request SHALL be refused with `401 Unauthorized` before it reaches an
   MCP handler
 
-### Requirement: Token-aware client factory selects ephemeral or singleton client
+### Requirement: Token-aware client factory selects request-bound or operator-bound port
 
-When the supplied `ctx` carries a non-empty token, `forgejo.Client(ctx)` SHALL return
+When the supplied `ctx` carries a non-empty token, `Factory.For(ctx)` SHALL return
 an ephemeral client bound to that token.
 
 When the supplied `ctx` carries no token, the outcome SHALL depend on the transport:
 
-- On `stdio`, and in `--cli` mode, `Client` SHALL return the process-wide singleton
+- On `stdio`, and in `--cli` mode, `Factory.For` SHALL return a port bound to the operator's shared client
   client initialised from the configured token. This is the behaviour the fallback was
   introduced for, and the trust boundary is the operating system's: the client
   launched this process.
-- On `sse` and `http`, `Client` SHALL return `ErrNoRequestToken` and no client, unless
+- On `sse` and `http`, `Client` SHALL return `forge.ErrNoRequestToken` and no client, unless
   the operator has set `--allow-operator-token-fallback`.
 
 In `resource-server` mode the context always carries the JWT this server minted for the
-request, so the factory takes the ephemeral path for every call. The singleton is never
+request, so the factory takes the ephemeral path for every call. The operator's shared client is never
 constructed: that mode refuses to start with an operator token or the fallback flag, so
 there is no credential for it to hold.
 
-The same rule SHALL apply to the raw-HTTP helper, which SHALL refuse rather than send
+The same rule SHALL apply to the raw-HTTP calls of the real adapter, which SHALL refuse rather than send
 the server's own credential. The decision SHALL live in one place shared by both, so a
 future call path cannot reach a fallback that skipped it.
 
@@ -153,21 +153,21 @@ so a request from the internet arrives on a loopback socket carrying a loopback
 
 #### Scenario: Context with token returns ephemeral client
 
-- **WHEN** `forgejo.Client(ctx)` is called with a context that carries `token=abc123`
-- **THEN** the system SHALL return a freshly constructed `*forgejo.Client` configured with `abc123`
-- **AND** the returned client SHALL NOT be the package singleton
+- **WHEN** `Factory.For(ctx)` is called with a context that carries `token=abc123`
+- **THEN** the system SHALL return a port backed by a freshly constructed SDK client configured with `abc123`
+- **AND** the returned client SHALL NOT be the operator's shared client
 
-#### Scenario: Context without token returns singleton
+#### Scenario: Context without token returns the operator-bound port
 
-- **WHEN** `forgejo.Client(ctx)` is called on `stdio`, or in `--cli` mode, with a context that carries no token
-- **THEN** the system SHALL return the package singleton constructed from `flag.Token`
+- **WHEN** `Factory.For(ctx)` is called on `stdio`, or in `--cli` mode, with a context that carries no token
+- **THEN** the system SHALL return a port bound to the operator's shared client, built from the configured token
 - **AND** consecutive calls SHALL return the same pointer
-- **AND** on `sse` or `http` without `--allow-operator-token-fallback` the same call SHALL instead return `ErrNoRequestToken` and no client
+- **AND** on `sse` or `http` without `--allow-operator-token-fallback` the same call SHALL instead return `forge.ErrNoRequestToken` and no client
 
 #### Scenario: Absent header on stdio falls through to the global client
 
 - **WHEN** the server runs on `stdio` and a request carries no token in its context
-- **THEN** `forgejo.Client(ctx)` SHALL return the process-wide singleton initialised
+- **THEN** `Factory.For(ctx)` SHALL return the operator's shared client, bound
   from the configured token
 
 #### Scenario: The operator opts back in
@@ -182,20 +182,20 @@ so a request from the internet arrives on a loopback socket carrying a loopback
 #### Scenario: Every Forgejo call in resource-server mode uses a minted token
 
 - **WHEN** the server runs in `resource-server` mode and an authenticated request invokes a tool
-- **THEN** every Forgejo call the handler makes, through the typed client and through the raw-HTTP helpers, SHALL use the JWT minted for that request
-- **AND** no call SHALL use the package singleton
+- **THEN** every Forgejo call the handler makes, through the typed client and through the adapter's raw HTTP, SHALL use the JWT minted for that request
+- **AND** no call SHALL use the operator's shared client
 
-### Requirement: Failed ephemeral construction MUST NOT fall through to the singleton
+### Requirement: Failed ephemeral construction MUST NOT fall through to the operator's shared client
 
-When `forgejo.Client(ctx)` is called with a context that carries a token, but the SDK call `forgejo.NewClient(...)` returns an error (e.g. the SDK's server-version probe fails on a network error, slow response, or HTTP 5xx from Forgejo), the function MUST NOT return the package singleton. Returning the singleton would silently authenticate the request as the startup `--token` identity instead of the requested per-request identity — a silent identity downgrade with privilege-escalation implications.
+When `Factory.For(ctx)` is called with a context that carries a token, but building the request's SDK client returns an error (e.g. the SDK's server-version probe fails on a network error, slow response, or HTTP 5xx from Forgejo), the function MUST NOT return a port backed by the operator's shared client. Doing so would silently authenticate the request as the operator's identity instead of the requested per-request identity — a silent identity downgrade with privilege-escalation implications.
 
-Instead, the function SHALL surface the failure to the caller. The implementation MAY accomplish this by changing the function signature to return `(*forgejo.Client, error)`, or by returning `nil` and logging an error at `Error` level. The chosen mechanism MUST cause the calling tool handler to fail the MCP request rather than silently process it under the wrong identity.
+Instead, `Factory.For` SHALL return the error to the caller, which MUST fail the MCP request rather than silently process it under the wrong identity.
 
 #### Scenario: Ephemeral construction failure surfaces an error
 
-- **WHEN** `forgejo.Client(ctx)` is called with `ctx` carrying token `abc123`
-- **AND** the underlying `forgejo.NewClient(...)` call returns an error
-- **THEN** the system SHALL NOT return the package singleton
+- **WHEN** `Factory.For(ctx)` is called with `ctx` carrying token `abc123`
+- **AND** building the SDK client returns an error
+- **THEN** the system SHALL NOT return a port backed by the operator's shared client
 - **AND** the system SHALL surface the error such that the calling tool handler fails the request
 
 #### Scenario: Ephemeral construction failure does NOT log the token
@@ -209,39 +209,39 @@ Two concurrent requests carrying distinct tokens `T_A` and `T_B` SHALL produce t
 
 #### Scenario: Two concurrent requests produce two distinct identities at Forgejo
 
-- **GIVEN** two goroutines, each obtaining a client via `forgejo.Client(ctx)` with distinct context tokens `T_A` and `T_B`
+- **GIVEN** two goroutines, each obtaining a client via `Factory.For(ctx)` with distinct context tokens `T_A` and `T_B`
 - **WHEN** each goroutine makes an outbound SDK call concurrently
 - **THEN** the request originating from goroutine A SHALL arrive at Forgejo carrying `Authorization: token T_A`
 - **AND** the request originating from goroutine B SHALL arrive carrying `Authorization: token T_B`
 
 ### Requirement: Raw HTTP path respects per-request token
 
-The raw-HTTP helpers in `pkg/forgejo/rawhttp.go` (`DoJSON`, `DoJSONList`, `DoAPIRaw`, `DoMultipart`, `DoRaw` and their variants) SHALL resolve the credential for an outbound call through the same function the token-aware client factory uses, and SHALL prefer the token carried in `ctx` over the global `flag.Token` value when setting the `Authorization` header.
+The raw-HTTP calls made by the real adapter (`pkg/forge/sdk`) SHALL carry the credential `Factory.For` resolved for the request, taken from the one function (`tokenFor`) that applies the policy, and SHALL NOT re-derive it. The token carried in `ctx` is preferred over the operator's configured token when setting the `Authorization` header.
 
-When no token is present in `ctx`, a helper SHALL fall back to `flag.Token` only where the token-aware client factory would. Otherwise it SHALL return `ErrNoRequestToken` without setting an `Authorization` header and without sending the request.
+When no token is present in `ctx`, the operator's configured token is used only where the policy allows. Otherwise `Factory.For` SHALL return `forge.ErrNoRequestToken` so no raw request is built or sent.
 
-Attachment tool handlers in `operation/attachment/` SHALL pass their request `ctx` into
-these helpers so per-request identity is honored for binary operations.
+Attachment tool handlers in `operation/attachment/` SHALL obtain their port from
+`Factory.For` with their request `ctx`, so per-request identity is honored for binary operations.
 
 #### Scenario: Attachment upload uses per-request token
 
 - **WHEN** an HTTP MCP request with `Authorization: token abc123` invokes `create_issue_attachment`
 - **THEN** the outbound HTTP POST to Forgejo's attachment endpoint SHALL carry `Authorization: token abc123` in its headers, not the global `--token` value
 
-#### Scenario: Raw HTTP helper refuses rather than sending the server's own credential
+#### Scenario: Raw HTTP refuses rather than sending the server's own credential
 
-- **WHEN** a raw-HTTP helper is called with a context that carries no token
+- **WHEN** a handler asks `Factory.For` for a port with a context that carries no token
 - **AND** the server runs on `sse` or `http` without `--allow-operator-token-fallback`
-- **THEN** the helper SHALL return `ErrNoRequestToken`
+- **THEN** `Factory.For` SHALL return `forge.ErrNoRequestToken`
 - **AND** no outbound request SHALL carry the configured token
 
 ### Requirement: Stdio transport preserves pre-existing global-token behavior
 
-When the server is started with `--transport stdio`, no `Authorization` extraction SHALL be performed. Tool handlers under stdio receive a context that carries no token; `forgejo.Client(ctx)` returns the package singleton initialized from `--token`. All pre-existing stdio behavior, including tests, SHALL remain valid.
+When the server is started with `--transport stdio`, no `Authorization` extraction SHALL be performed. Tool handlers under stdio receive a context that carries no token; `Factory.For(ctx)` returns the port bound to the operator's shared client, built from the configured token. All pre-existing stdio behavior, including tests, SHALL remain valid.
 
 #### Scenario: Stdio handler receives global-token client
 
 - **WHEN** the server is run with `--transport stdio --token xyz789`
-- **AND** a tool handler invokes `forgejo.Client(ctx)`
-- **THEN** the system SHALL return the package singleton client constructed from `xyz789`
+- **AND** a tool handler invokes `Factory.For(ctx)`
+- **THEN** the system SHALL return a port bound to the operator's shared client constructed from `xyz789`
 - **AND** consecutive calls within and across handlers SHALL return the same client pointer
