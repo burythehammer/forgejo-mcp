@@ -32,6 +32,9 @@
 
 set -eu
 
+# comm(1) needs byte-order sorting; other locales emit order warnings.
+export LC_ALL=C
+
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 

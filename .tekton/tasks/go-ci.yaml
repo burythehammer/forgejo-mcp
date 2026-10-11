@@ -90,6 +90,30 @@ spec:
         git config --global --add safe.directory "$(workspaces.source.path)"
         ./scripts/ci/check-readme-tool-coverage.sh
 
+    - name: spdx-headers
+      image: $(params.GO_IMAGE)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        git config --global --add safe.directory "$(workspaces.source.path)"
+        ./scripts/ci/check-spdx-headers.sh
+
+    - name: stale-names
+      image: $(params.GO_IMAGE)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        git config --global --add safe.directory "$(workspaces.source.path)"
+        ./scripts/ci/check-stale-names.sh
+
+    - name: conflict-markers
+      image: $(params.GO_IMAGE)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        git config --global --add safe.directory "$(workspaces.source.path)"
+        ./scripts/ci/check-conflict-markers.sh
+
     - name: mod-tidy-check
       image: $(params.GO_IMAGE)
       script: |
