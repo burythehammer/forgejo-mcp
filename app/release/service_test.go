@@ -22,7 +22,6 @@ type stubPort struct {
 	atts     []*model.Attachment
 	body     model.AttachmentBody
 	fetchErr error
-	created  string
 	fetched  int
 	gotTitle string
 }
