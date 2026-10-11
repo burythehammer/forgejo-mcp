@@ -1,386 +1,292 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package issue
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// issueRoutingHandler routes /issues/{index} and /issues/{index}/comments to
-// separate canned responses, plus /issues/comments/{id} for GetIssueComment.
-type issueRoutingHandler struct {
-	issueStatus    int
-	issueBody      interface{}
-	commentsStatus int
-	commentsBody   interface{}
-	commentStatus  int
-	commentBody    interface{}
-}
+type readFn func(context.Context, mcp.ReadResourceRequest) ([]mcp.ResourceContents, error)
 
-func (h *issueRoutingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	path := r.URL.Path
-	switch {
-	case strings.Contains(path, "/issues/comments/"):
-		w.WriteHeader(h.commentStatus)
-		if h.commentBody != nil {
-			json.NewEncoder(w).Encode(h.commentBody)
-		}
-	case strings.Contains(path, "/comments"):
-		w.WriteHeader(h.commentsStatus)
-		if h.commentsBody != nil {
-			json.NewEncoder(w).Encode(h.commentsBody)
-		}
-	case strings.Contains(path, "/issues/"):
-		w.WriteHeader(h.issueStatus)
-		if h.issueBody != nil {
-			json.NewEncoder(w).Encode(h.issueBody)
-		}
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func setupIssueMockServer(t *testing.T, h *issueRoutingHandler) *httptest.Server {
+func readURI(t *testing.T, fn readFn, uri string) []mcp.ResourceContents {
 	t.Helper()
-	srv := httptest.NewServer(h)
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
+	contents, err := fn(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: uri}})
 	if err != nil {
-		t.Fatalf("creating test client: %v", err)
+		t.Fatalf("read %s: %v", uri, err)
 	}
-	forgejo.SetClientForTesting(client)
-	return srv
+	return contents
 }
 
-func makeIssueResourceRequest(owner, repo string, index int) mcp.ReadResourceRequest {
-	return mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: fmt.Sprintf("forgejo://repo/%s/%s/issue/%d", owner, repo, index),
-		},
+func readJSON(t *testing.T, fn readFn, uri string, into any) {
+	t.Helper()
+	contents := readURI(t, fn, uri)
+	block := contents[0].(mcp.TextResourceContents)
+	if block.MIMEType != "application/json" {
+		t.Errorf("MIME = %q", block.MIMEType)
 	}
-}
-
-func makeCommentResourceRequest(owner, repo, kind string, index, id int) mcp.ReadResourceRequest {
-	return mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: fmt.Sprintf("forgejo://repo/%s/%s/%s/%d/comment/%d", owner, repo, kind, index, id),
-		},
+	if err := json.Unmarshal([]byte(block.Text), into); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, block.Text)
 	}
 }
 
-func fakeIssue() map[string]interface{} {
-	return map[string]interface{}{
-		"id":     1,
-		"number": 42,
-		"title":  "Fix the bug",
-		"body":   "There is a bug that needs fixing.",
-		"state":  "open",
-		"user": map[string]interface{}{
-			"login": "alice",
-		},
-		"labels":     []interface{}{},
-		"assignees":  []interface{}{},
-		"comments":   3,
-		"created_at": time.Now().Format(time.RFC3339),
-		"updated_at": time.Now().Format(time.RFC3339),
-	}
+func issueURI(index int64) string {
+	return fmt.Sprintf("forgejo://repo/%s/%s/issue/%d", testOwner, testRepo, index)
 }
 
-func fakeComments(n int) []map[string]interface{} {
-	result := make([]map[string]interface{}, n)
-	for i := range result {
-		result[i] = map[string]interface{}{
-			"id":         i + 1,
-			"body":       fmt.Sprintf("comment body %d", i+1),
-			"user":       map[string]interface{}{"login": "bob"},
-			"created_at": time.Now().Format(time.RFC3339),
-			"updated_at": time.Now().Format(time.RFC3339),
-		}
-	}
-	return result
-}
-
-func TestIssueResourceHandler_HappyPath(t *testing.T) {
-	h := &issueRoutingHandler{
-		issueStatus:    http.StatusOK,
-		issueBody:      fakeIssue(),
-		commentsStatus: http.StatusOK,
-		commentsBody:   fakeComments(3),
-	}
-	srv := setupIssueMockServer(t, h)
-	defer srv.Close()
-
-	req := makeIssueResourceRequest("goern", "forgejo-mcp", 42)
-	contents, err := issueResourceHandler(context.Background(), req)
+func TestIssueResource_HappyPath(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	due := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	ms := f.SeedMilestone(testOwner, testRepo, "v1")
+	bug := f.SeedIssueLabel(testOwner, testRepo, "bug")
+	iss, err := f.CreateIssue(context.Background(), testOwner, testRepo, forgejo_sdk.CreateIssueOption{
+		Title: "the title", Body: "the body", Ref: "refs/heads/dev", Assignees: []string{"bob"}, Milestone: ms, Labels: []int64{bug}, Deadline: &due,
+	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if len(contents) != 2 {
-		t.Fatalf("expected 2 content blocks (JSON + markdown), got %d", len(contents))
-	}
+	comment(t, f, iss.Index, strings.Repeat("x", 300))
 
-	jsonBlock := contents[0].(mcp.TextResourceContents)
-	if jsonBlock.MIMEType != "application/json" {
-		t.Errorf("first block MIME: got %q, want application/json", jsonBlock.MIMEType)
+	var p issueResourcePayload
+	readJSON(t, h.issueResourceHandler, issueURI(iss.Index), &p)
+	if p.Title != "the title" || p.State != "open" || p.Ref != "refs/heads/dev" || p.Milestone != "v1" || p.DueDate != "2030-01-02T03:04:05Z" {
+		t.Fatalf("payload %+v", p)
 	}
-	var payload issueResourcePayload
-	if err := json.Unmarshal([]byte(jsonBlock.Text), &payload); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+	if len(p.Labels) != 1 || p.Labels[0] != "bug" || len(p.Assignees) != 1 || p.Assignees[0] != "bob" {
+		t.Fatalf("labels/assignees %+v", p)
 	}
-	if payload.Title != "Fix the bug" {
-		t.Errorf("expected title='Fix the bug', got %q", payload.Title)
+	if p.CommentCount != 1 || len(p.RecentComments) != 1 || len(p.RecentComments[0].BodyExcerpt) >= 300 || p.Truncated {
+		t.Fatalf("comments %+v", p)
 	}
-	if payload.Truncated {
-		t.Error("expected truncated=false for 3 comments")
-	}
-
-	mdBlock := contents[1].(mcp.TextResourceContents)
-	if mdBlock.MIMEType != "text/markdown" {
-		t.Errorf("second block MIME: got %q, want text/markdown", mdBlock.MIMEType)
-	}
-	if !strings.Contains(mdBlock.Text, "Fix the bug") {
-		t.Errorf("markdown sidecar missing title, got %q", mdBlock.Text)
+	md := readURI(t, h.issueResourceHandler, issueURI(iss.Index))[1].(mcp.TextResourceContents)
+	if md.MIMEType != "text/markdown" || !strings.Contains(md.Text, "the body") {
+		t.Fatalf("sidecar %+v", md)
 	}
 }
 
-// TestIssueResourceHandler_DueDatePassesThrough covers daikon#93: the
-// forgejo://repo/{owner}/{repo}/issue/{index} resource template builds its
-// own issueResourcePayload (unlike get_issue_by_index/list_repo_issues,
-// which marshal the raw SDK struct), so due_date needed a dedicated field —
-// verified missing before this change, not assumed present.
-func TestIssueResourceHandler_DueDatePassesThrough(t *testing.T) {
-	issue := fakeIssue()
-	issue["due_date"] = "2026-08-20T23:59:59Z"
-	h := &issueRoutingHandler{
-		issueStatus:    http.StatusOK,
-		issueBody:      issue,
-		commentsStatus: http.StatusOK,
-		commentsBody:   fakeComments(0),
-	}
-	srv := setupIssueMockServer(t, h)
-	defer srv.Close()
-
-	req := makeIssueResourceRequest("goern", "forgejo-mcp", 42)
-	contents, err := issueResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	jsonBlock := contents[0].(mcp.TextResourceContents)
-	var payload issueResourcePayload
-	if err := json.Unmarshal([]byte(jsonBlock.Text), &payload); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
-	if payload.DueDate != "2026-08-20T23:59:59Z" {
-		t.Errorf("expected due_date=2026-08-20T23:59:59Z, got %q", payload.DueDate)
+func TestIssueResource_OmitsUnsetFields(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "plain")
+	block := readURI(t, h.issueResourceHandler, issueURI(idx))[0].(mcp.TextResourceContents)
+	if strings.Contains(block.Text, "due_date") || strings.Contains(block.Text, `"ref"`) {
+		t.Fatalf("unset fields leaked: %s", block.Text)
 	}
 }
 
-func TestIssueResourceHandler_NoDueDateOmitted(t *testing.T) {
-	h := &issueRoutingHandler{
-		issueStatus:    http.StatusOK,
-		issueBody:      fakeIssue(), // no due_date key
-		commentsStatus: http.StatusOK,
-		commentsBody:   fakeComments(0),
+func TestIssueResource_OverCapIsTruncated(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "busy")
+	for i := 0; i < resource.EmbeddedListCap+1; i++ {
+		comment(t, f, idx, fmt.Sprint("c", i))
 	}
-	srv := setupIssueMockServer(t, h)
-	defer srv.Close()
-
-	req := makeIssueResourceRequest("goern", "forgejo-mcp", 42)
-	contents, err := issueResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	jsonBlock := contents[0].(mcp.TextResourceContents)
-	if strings.Contains(jsonBlock.Text, "due_date") {
-		t.Errorf("expected due_date omitted when unset (omitempty), got %q", jsonBlock.Text)
+	var p issueResourcePayload
+	readJSON(t, h.issueResourceHandler, issueURI(idx), &p)
+	if !p.Truncated || p.ListTool != "list_issue_comments" || len(p.RecentComments) != resource.EmbeddedListCap {
+		t.Fatalf("truncated=%v tool=%q n=%d", p.Truncated, p.ListTool, len(p.RecentComments))
 	}
 }
 
-// TestIssueResourceHandler_RefPassesThrough: like due_date, the issue resource
-// builds its own payload rather than marshalling the SDK struct, so the issue
-// ref (the linked branch) needs a dedicated field to be visible at all.
-func TestIssueResourceHandler_RefPassesThrough(t *testing.T) {
-	issue := fakeIssue()
-	issue["ref"] = "feat/my-branch"
-	h := &issueRoutingHandler{
-		issueStatus:    http.StatusOK,
-		issueBody:      issue,
-		commentsStatus: http.StatusOK,
-		commentsBody:   fakeComments(0),
-	}
-	srv := setupIssueMockServer(t, h)
-	defer srv.Close()
-
-	req := makeIssueResourceRequest("goern", "forgejo-mcp", 42)
-	contents, err := issueResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	jsonBlock := contents[0].(mcp.TextResourceContents)
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(jsonBlock.Text), &payload); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
-	if payload["ref"] != "feat/my-branch" {
-		t.Errorf("expected ref=feat/my-branch, got %v", payload["ref"])
-	}
-}
-
-func TestIssueResourceHandler_NoRefOmitted(t *testing.T) {
-	h := &issueRoutingHandler{
-		issueStatus:    http.StatusOK,
-		issueBody:      fakeIssue(), // no ref key
-		commentsStatus: http.StatusOK,
-		commentsBody:   fakeComments(0),
-	}
-	srv := setupIssueMockServer(t, h)
-	defer srv.Close()
-
-	req := makeIssueResourceRequest("goern", "forgejo-mcp", 42)
-	contents, err := issueResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	jsonBlock := contents[0].(mcp.TextResourceContents)
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(jsonBlock.Text), &payload); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
-	if _, present := payload["ref"]; present {
-		t.Errorf("expected ref omitted when unset (omitempty), got %q", jsonBlock.Text)
-	}
-}
-
-func TestIssueResourceHandler_OverCap_Truncated(t *testing.T) {
-	// Use exactly EmbeddedListCap+1 items. In production, ListIssueComments is
-	// now called with PageSize=EmbeddedListCap+1, so the server can return up
-	// to cap+1 items when there are more than cap comments. The mock HTTP
-	// server does not enforce server-side pagination limits, so it returns all
-	// items we supply regardless of the PageSize query parameter — but the
-	// production fix ensures the server is asked for cap+1 and Bounded can
-	// correctly detect truncation.
-	capPlus1 := resource.EmbeddedListCap + 1
-	h := &issueRoutingHandler{
-		issueStatus:    http.StatusOK,
-		issueBody:      fakeIssue(),
-		commentsStatus: http.StatusOK,
-		commentsBody:   fakeComments(capPlus1),
-	}
-	srv := setupIssueMockServer(t, h)
-	defer srv.Close()
-
-	req := makeIssueResourceRequest("goern", "forgejo-mcp", 42)
-	contents, err := issueResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	var payload issueResourcePayload
-	json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &payload)
-	if !payload.Truncated {
-		t.Errorf("expected truncated=true for %d comments (EmbeddedListCap+1)", capPlus1)
-	}
-	if len(payload.RecentComments) != resource.EmbeddedListCap {
-		t.Errorf("expected %d recent comments, got %d", resource.EmbeddedListCap, len(payload.RecentComments))
-	}
-	if payload.ListTool != "list_issue_comments" {
-		t.Errorf("expected list_tool=list_issue_comments, got %q", payload.ListTool)
-	}
-}
-
-func TestIssueResourceHandler_404(t *testing.T) {
-	h := &issueRoutingHandler{
-		issueStatus: http.StatusNotFound,
-		issueBody:   map[string]string{"message": "not found"},
-	}
-	srv := setupIssueMockServer(t, h)
-	defer srv.Close()
-
-	req := makeIssueResourceRequest("goern", "forgejo-mcp", 99)
-	_, err := issueResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for 404")
-	}
-	var re *resource.ResourceError
-	if !errors.As(err, &re) {
-		t.Fatalf("expected *resource.ResourceError, got %T", err)
-	}
-	if re.Code != -32003 {
-		t.Errorf("expected -32003, got %d", re.Code)
-	}
-}
-
-func TestIssueResourceHandler_NonNumericIndex(t *testing.T) {
-	// non-numeric index is caught at parse time → -32602 (invalid params)
-	// via ErrInvalidParams sentinel wrapped at every parser error return path.
-	req := mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: "forgejo://repo/goern/forgejo-mcp/issue/abc",
-		},
-	}
-	_, err := issueResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for non-numeric index")
-	}
-	var re *resource.ResourceError
-	if errors.As(err, &re) {
-		if re.Code != -32602 {
-			t.Errorf("expected -32602 for non-numeric index, got %d", re.Code)
+func TestIssueResource_Errors(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	for _, uri := range []string{issueURI(99), "forgejo://repo/octo/hello/issue/abc"} {
+		if _, err := h.issueResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: uri}}); err == nil {
+			t.Errorf("%s: want an error", uri)
 		}
 	}
 }
 
-func TestCommentResourceHandler_UnknownKind(t *testing.T) {
-	req := mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: "forgejo://repo/goern/forgejo-mcp/wiki/1/comment/5",
-		},
+func TestCommentResource(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	id := comment(t, f, idx, "hello there")
+	var p commentResourcePayload
+	readJSON(t, h.commentResourceHandler, fmt.Sprintf("forgejo://repo/octo/hello/issue/%d/comment/%d", idx, id), &p)
+	if p.Body != "hello there" || p.Kind != "issue" || p.ID != id {
+		t.Fatalf("payload %+v", p)
 	}
-	_, err := commentResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for unknown kind")
-	}
-	var re *resource.ResourceError
-	if errors.As(err, &re) {
-		if re.Code != -32602 {
-			t.Errorf("expected -32602 for unknown kind, got %d", re.Code)
+	for _, uri := range []string{
+		fmt.Sprintf("forgejo://repo/octo/hello/widget/%d/comment/%d", idx, id),
+		fmt.Sprintf("forgejo://repo/octo/hello/issue/%d/comment/999", idx),
+	} {
+		if _, err := h.commentResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: uri}}); err == nil {
+			t.Errorf("%s: want an error", uri)
 		}
 	}
 }
 
-func TestCommentResourceHandler_NotFound(t *testing.T) {
-	h := &issueRoutingHandler{
-		commentStatus: http.StatusNotFound,
-		commentBody:   map[string]string{"message": "comment not found"},
-	}
-	srv := setupIssueMockServer(t, h)
-	defer srv.Close()
+func listURI(query string) string {
+	return fmt.Sprintf("forgejo://repo/%s/%s/issues%s", testOwner, testRepo, query)
+}
 
-	req := makeCommentResourceRequest("goern", "forgejo-mcp", "issue", 42, 999)
-	_, err := commentResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for 404 comment")
+func TestRepoIssuesResource_RowsAndFilters(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	a := openIssue(t, f, "alpha")
+	b := openIssue(t, f, "beta")
+	bug := f.SeedIssueLabel(testOwner, testRepo, "Kind/Bug")
+	if err := f.ReplaceIssueLabels(context.Background(), testOwner, testRepo, b, []int64{bug}); err != nil {
+		t.Fatal(err)
 	}
-	var re *resource.ResourceError
-	if !errors.As(err, &re) {
-		t.Fatalf("expected *resource.ResourceError, got %T", err)
+	closed := forgejo_sdk.StateClosed
+	if _, err := f.EditIssue(context.Background(), testOwner, testRepo, a, forgejo_sdk.EditIssueOption{State: &closed}); err != nil {
+		t.Fatal(err)
 	}
-	if re.Code != -32003 {
-		t.Errorf("expected -32003, got %d", re.Code)
+
+	var p issuesListPayload
+	readJSON(t, h.repoIssuesResourceHandler, listURI(""), &p)
+	if p.State != "open" || len(p.Issues) != 1 || p.Issues[0].Index != b || p.Truncated {
+		t.Fatalf("default: %+v", p)
+	}
+	if block := readURI(t, h.repoIssuesResourceHandler, listURI(""))[0].(mcp.TextResourceContents); strings.Contains(block.Text, "body of") {
+		t.Fatalf("rows must carry no bodies: %s", block.Text)
+	}
+	p = issuesListPayload{}
+	readJSON(t, h.repoIssuesResourceHandler, listURI("?state=all"), &p)
+	if len(p.Issues) != 2 {
+		t.Fatalf("all: %+v", p)
+	}
+	p = issuesListPayload{}
+	readJSON(t, h.repoIssuesResourceHandler, listURI("?state=all&labels=Kind%2FBug"), &p)
+	if len(p.Issues) != 1 || p.Issues[0].Index != b || len(p.Issues[0].Labels) != 1 {
+		t.Fatalf("labels: %+v", p)
+	}
+	p = issuesListPayload{}
+	readJSON(t, h.repoIssuesResourceHandler, listURI("?state=bogus"), &p)
+	if p.State != "open" {
+		t.Fatalf("unknown state falls back to open: %q", p.State)
+	}
+}
+
+func TestRepoIssuesResource_PagesCoverEveryRow(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	const total, limit = 7, 3
+	for i := 0; i < total; i++ {
+		openIssue(t, f, fmt.Sprint("i", i))
+	}
+	seen := map[int64]bool{}
+	for page := 1; page <= 3; page++ {
+		var p issuesListPayload
+		readJSON(t, h.repoIssuesResourceHandler, listURI(fmt.Sprintf("?page=%d&limit=%d", page, limit)), &p)
+		for _, r := range p.Issues {
+			if seen[r.Index] {
+				t.Fatalf("issue %d on two pages", r.Index)
+			}
+			seen[r.Index] = true
+		}
+		wantMore := page < 3
+		if p.Truncated != wantMore {
+			t.Fatalf("page %d truncated=%v, want %v (%+v)", page, p.Truncated, wantMore, p)
+		}
+		if wantMore && (p.ListTool != "list_repo_issues" || p.Sentinel == "") {
+			t.Fatalf("page %d sentinel missing: %+v", page, p)
+		}
+	}
+	if len(seen) != total {
+		t.Fatalf("saw %d of %d rows", len(seen), total)
+	}
+}
+
+func TestRepoIssuesResource_Errors(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	if _, err := h.repoIssuesResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/octo/missing/issues"}}); err == nil {
+		t.Fatal("unknown repo should error")
+	}
+	if _, err := h.repoIssuesResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://bogus"}}); err == nil {
+		t.Fatal("bad URI should error")
+	}
+}
+
+func commentsURI(kind string, index int64, query string) string {
+	return fmt.Sprintf("forgejo://repo/%s/%s/%s/%d/comments%s", testOwner, testRepo, kind, index, query)
+}
+
+func TestIssueCommentsResource_FullBodiesAndPaging(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	long := strings.Repeat("y", 500)
+	comment(t, f, idx, long)
+	for i := 1; i < 5; i++ {
+		comment(t, f, idx, fmt.Sprint("c", i))
+	}
+	var p commentsListPayload
+	readJSON(t, h.issueCommentsResourceHandler, commentsURI("issue", idx, "?limit=2"), &p)
+	if len(p.Comments) != 2 || p.Comments[0].Body != long || !p.Truncated || p.ListTool != "list_issue_comments" {
+		t.Fatalf("page 1: %+v", p)
+	}
+	p = commentsListPayload{}
+	readJSON(t, h.issueCommentsResourceHandler, commentsURI("issue", idx, "?limit=2&page=3"), &p)
+	if len(p.Comments) != 1 || p.Comments[0].Body != "c4" || p.Truncated {
+		t.Fatalf("page 3: %+v", p)
+	}
+	p = commentsListPayload{}
+	readJSON(t, h.issueCommentsResourceHandler, commentsURI("issue", idx, "?limit=2&page=9"), &p)
+	if len(p.Comments) != 0 || p.Truncated {
+		t.Fatalf("past the end: %+v", p)
+	}
+}
+
+func TestIssueCommentsResource_Errors(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	for _, uri := range []string{commentsURI("widget", idx, ""), "forgejo://repo/octo/hello/issue/abc/comments"} {
+		if _, err := h.issueCommentsResourceHandler(context.Background(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: uri}}); err == nil {
+			t.Errorf("%s: want an error", uri)
+		}
+	}
+}
+
+// boundsIgnoring is a port whose comment list does what Forgejo's real
+// endpoint does: it hands back the whole thread whatever page and limit are
+// asked for, and reports the thread's size in X-Total-Count.
+type boundsIgnoring struct{ *fake.Forgejo }
+
+func (b boundsIgnoring) ListIssueComments(ctx context.Context, owner, repo string, index int64, opt forgejo_sdk.ListIssueCommentOptions) ([]*forgejo_sdk.Comment, forge.PageInfo, error) {
+	return b.Forgejo.ListIssueComments(ctx, owner, repo, index, forgejo_sdk.ListIssueCommentOptions{ListOptions: forgejo_sdk.ListOptions{Page: -1}})
+}
+
+func TestIssueCommentsResource_ServerIgnoringBoundsIsPagedByTheHandler(t *testing.T) {
+	t.Parallel()
+	f := fake.New()
+	f.AddRepo(testOwner, testRepo)
+	idx := openIssue(t, f, "t")
+	for i := 0; i < 7; i++ {
+		comment(t, f, idx, fmt.Sprint("c", i))
+	}
+	h := withPort(boundsIgnoring{f})
+
+	var p commentsListPayload
+	readJSON(t, h.issueCommentsResourceHandler, commentsURI("pr", idx, "?limit=3&page=2"), &p)
+	if len(p.Comments) != 3 || p.Comments[0].Body != "c3" || !p.Truncated {
+		t.Fatalf("page 2: %+v", p)
+	}
+	p = commentsListPayload{}
+	readJSON(t, h.issueCommentsResourceHandler, commentsURI("pr", idx, "?limit=3&page=3"), &p)
+	if len(p.Comments) != 1 || p.Comments[0].Body != "c6" || p.Truncated {
+		t.Fatalf("page 3: %+v", p)
+	}
+	p = commentsListPayload{}
+	readJSON(t, h.issueCommentsResourceHandler, commentsURI("pr", idx, "?limit=3&page=4"), &p)
+	if len(p.Comments) != 0 {
+		t.Fatalf("past the end: %+v", p)
 	}
 }

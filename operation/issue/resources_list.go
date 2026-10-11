@@ -6,13 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -23,45 +22,13 @@ import (
 // across every issue-domain resource.
 const resourceTimeFormat = "2006-01-02T15:04:05Z07:00"
 
-// hasMore reports whether the server said another page exists. The SDK parses
-// the response's `Link: …; rel="next"` header into Response.NextPage, so this
-// is upstream's own answer rather than an inference from how many rows arrived
-// — which is what lets these resources page without over-fetching.
-func hasMore(resp *forgejo_sdk.Response) bool {
-	return resp != nil && resp.NextPage != 0
-}
-
-// totalCount reads Forgejo's X-Total-Count header, the authoritative number of
-// rows matching the query. Returns 0 when the header is absent or unparseable,
-// which the sentinel renders as "total unknown" rather than guessing.
-func totalCount(resp *forgejo_sdk.Response) int {
-	if resp == nil || resp.Response == nil {
-		return 0
+// mapErr maps a port failure to the resource error, carrying the HTTP status
+// into the message when Forgejo answered with one.
+func mapErr(uri string, err error) error {
+	if code := forge.StatusCode(err); code != 0 {
+		return resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
 	}
-	return headerTotalCount(resp.Header)
-}
-
-// headerHasMore is hasMore for the raw-HTTP path, which has no SDK Response to
-// parse the Link header for it. Same question, same answer: did the server
-// advertise a next page.
-func headerHasMore(h http.Header) bool {
-	for _, link := range h.Values("Link") {
-		// A single Link value may carry several comma-separated relations,
-		// so this is a substring test rather than a parse. Forgejo quotes
-		// the rel; tolerate the unquoted form too.
-		if strings.Contains(link, `rel="next"`) || strings.Contains(link, "rel=next") {
-			return true
-		}
-	}
-	return false
-}
-
-// headerTotalCount is totalCount for a bare http.Header. Delegates to the
-// shared pkg/forgejo.TotalCount parser so there is one X-Total-Count reader
-// in the codebase, not several.
-func headerTotalCount(h http.Header) int {
-	n, _ := forgejo.TotalCount(h)
-	return n
+	return resource.MapForgejoError(uri, err)
 }
 
 // ---- repo issues list ----
@@ -106,7 +73,7 @@ type issuesListPayload struct {
 // index/title/labels is ~5 KB, while the same query as full issue objects is two
 // orders of magnitude larger. This resource is the row-shaped answer; callers open
 // the per-issue resource for anything they actually want to read.
-func repoIssuesResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) repoIssuesResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseIssues(uri)
 	if err != nil {
@@ -116,7 +83,7 @@ func repoIssuesResourceHandler(ctx context.Context, req mcp.ReadResourceRequest)
 	page, limit := pageLimit(req)
 	state, labels := issuesQuery(req)
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
@@ -138,12 +105,9 @@ func repoIssuesResourceHandler(ctx context.Context, req mcp.ReadResourceRequest)
 		opt.Labels = labels
 	}
 
-	rawIssues, resp, err := client.ListRepoIssues(p.Owner, p.Repo, opt)
+	rawIssues, info, err := client.ListRepoIssues(ctx, p.Owner, p.Repo, forge.ListIssuesOptions{ListIssueOption: opt})
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
 	items := make([]string, len(rawIssues))
@@ -151,8 +115,8 @@ func repoIssuesResourceHandler(ctx context.Context, req mcp.ReadResourceRequest)
 		items[i] = strconv.FormatInt(iss.Index, 10)
 	}
 	bounded := resource.Bounded(items, limit, ListRepoIssuesToolName)
-	if hasMore(resp) {
-		bounded = bounded.WithMoreRemaining(totalCount(resp))
+	if info.HasNext {
+		bounded = bounded.WithMoreRemaining(info.TotalCount)
 	}
 
 	refs := make([]issueRef, 0, len(bounded.Items))
@@ -290,7 +254,7 @@ type commentsListPayload struct {
 // issue resource or one resource read per comment id. This is the paged middle:
 // full bodies, client-controlled bound, and the same truncation sentinel every
 // other embedded list uses.
-func issueCommentsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) issueCommentsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseIssueComments(uri)
 	if err != nil {
@@ -299,7 +263,7 @@ func issueCommentsResourceHandler(ctx context.Context, req mcp.ReadResourceReque
 
 	page, limit := pageLimit(req)
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
@@ -309,14 +273,11 @@ func issueCommentsResourceHandler(ctx context.Context, req mcp.ReadResourceReque
 	//
 	// PR comments use the same issue-comment API, exactly as the single-comment
 	// resource does — the index is the shared issue/PR index.
-	rawComments, resp, err := client.ListIssueComments(p.Owner, p.Repo, p.Index, forgejo_sdk.ListIssueCommentOptions{
+	rawComments, info, err := client.ListIssueComments(ctx, p.Owner, p.Repo, p.Index, forgejo_sdk.ListIssueCommentOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: limit},
 	})
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
 	// Forgejo's issue-comments endpoint ignores page and limit: it returns the
@@ -346,7 +307,7 @@ func issueCommentsResourceHandler(ctx context.Context, req mcp.ReadResourceReque
 	// the offset. On page 1 the offset is 0 and the slice is a no-op either way.
 	window := rawComments
 	offset := 0
-	total := totalCount(resp)
+	total := info.TotalCount
 	serverIgnoredBounds := len(rawComments) > limit || (total > 0 && len(rawComments) == total)
 	if serverIgnoredBounds {
 		offset = min((page-1)*limit, len(rawComments))
@@ -364,7 +325,7 @@ func issueCommentsResourceHandler(ctx context.Context, req mcp.ReadResourceReque
 		if offset+len(window) < len(rawComments) {
 			bounded = bounded.WithMoreRemaining(len(rawComments))
 		}
-	case hasMore(resp):
+	case info.HasNext:
 		bounded = bounded.WithMoreRemaining(total)
 	}
 

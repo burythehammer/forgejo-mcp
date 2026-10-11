@@ -544,8 +544,10 @@ func (f *Forgejo) CreateIssueComment(_ context.Context, owner, repo string, inde
 	}
 	r.nextComment++
 	now := f.Now()
-	c := &forgejo_sdk.Comment{ID: r.nextComment, Poster: user(Poster), Body: body, Created: now, Updated: now,
-		HTMLURL: fmt.Sprintf("/%s/%s/issues/%d#issuecomment-%d", owner, repo, index, r.nextComment)}
+	c := &forgejo_sdk.Comment{
+		ID: r.nextComment, Poster: user(Poster), Body: body, Created: now, Updated: now,
+		HTMLURL: fmt.Sprintf("/%s/%s/issues/%d#issuecomment-%d", owner, repo, index, r.nextComment),
+	}
 	rec.comments = append(rec.comments, c)
 	rec.issue.Comments = len(rec.comments)
 	rec.issue.Updated = now

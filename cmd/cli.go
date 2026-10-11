@@ -33,7 +33,7 @@ func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Facto
 	domains := []domainReg{
 		{"user", operation.RegisterUserTool},
 		{"repo", operation.RegisterRepoTool},
-		{"issue", operation.RegisterIssueTool},
+		{"issue", func(s *server.MCPServer) { operation.RegisterIssueTool(s, f) }},
 		{"pull", func(s *server.MCPServer) { operation.RegisterPullTool(s, f) }},
 		{"pull", func(s *server.MCPServer) { operation.RegisterPullReviewTool(s, f) }},
 		{"search", operation.RegisterSearchTool},
