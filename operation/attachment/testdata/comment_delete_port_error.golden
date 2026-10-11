@@ -1,0 +1,3 @@
+ERROR: delete comment attachment err: boom
+-- port calls --
+DeleteCommentAttachment ["octo","hello",9,7]

@@ -1,0 +1,3 @@
+{"Result":{"status":"deleted"}}
+-- port calls --
+DeleteCommentAttachment ["octo","hello",9,7]

@@ -1,0 +1,4 @@
+ERROR: download body err: boom
+-- port calls --
+GetReleaseAttachment ["octo","hello",3,7]
+DownloadAttachment ["https://f.example/dl/7"]

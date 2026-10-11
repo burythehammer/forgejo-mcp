@@ -1,0 +1,52 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create a release. If the tag does not yet exist, pass target_commitish so Forgejo creates the tag.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Content body",
+        "type": "string"
+      },
+      "draft": {
+        "description": "Whether the release is a draft",
+        "type": "boolean"
+      },
+      "name": {
+        "description": "Title",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "prerelease": {
+        "description": "Whether the release is a prerelease",
+        "type": "boolean"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "tag_name": {
+        "description": "Tag name for the release (created if it does not exist)",
+        "type": "string"
+      },
+      "target_commitish": {
+        "description": "Branch or commit SHA the tag points at (only used when the tag does not yet exist)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "tag_name"
+    ],
+    "type": "object"
+  },
+  "name": "create_release"
+}

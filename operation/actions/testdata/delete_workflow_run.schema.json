@@ -1,0 +1,33 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete a completed workflow run (succeeded, failed, or cancelled). The run is removed, its job logs become unreadable, and Forgejo marks that run's artifacts deleted (storage reclaimed later). A live run is an API error (never mapped to success). No preflight GET. Same Actions write as dispatch_workflow; a read-only token returns 403.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "run_id": {
+        "description": "Run ID",
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_workflow_run"
+}

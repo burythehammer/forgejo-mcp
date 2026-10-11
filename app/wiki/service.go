@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/lines"
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 )
 
 // defaultLimit is the page size when the caller gives none.
@@ -119,7 +119,7 @@ func (s *Service) Get(ctx context.Context, r GetRequest) (model.WikiPageView, er
 			to = *r.EndLine
 		}
 		start, end = int(from), int(to)
-		content, err = lines.Slice(content, start, end)
+		content, err = apprepo.SliceLines(content, start, end)
 		if err != nil {
 			return model.WikiPageView{}, err
 		}

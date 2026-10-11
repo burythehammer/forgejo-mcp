@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List artifacts of a workflow run. Server-paged: page (default 1) and limit (default 30, maximum 50) are sent as query parameters, optional name filters by artifact name. Returns {run_id, artifacts, page, limit, count} and total_count when Forgejo sets X-Total-Count. A missing run is an error, not an empty list. Metadata only — does not download zips.",
+  "inputSchema": {
+    "properties": {
+      "limit": {
+        "default": 30,
+        "description": "Page size",
+        "maximum": 50,
+        "minimum": 1,
+        "type": "number"
+      },
+      "name": {
+        "description": "Filter by artifact name",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "run_id": {
+        "description": "Run ID",
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ],
+    "type": "object"
+  },
+  "name": "list_action_run_artifacts"
+}

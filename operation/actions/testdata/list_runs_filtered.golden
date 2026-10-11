@@ -1,0 +1,3 @@
+{"Result":"Workflow Runs for octo/hello (total: 2):\n\n#5 - one\n  Status: success | Event: push | SHA: 0123456 | Duration: 769h1m1s\n  Started: 2026-01-02 03:04:05\n  URL: https://f.example/octo/hello/actions/runs/5\n\n#5 - two\n  Status: success | Event: push | SHA: 0123456 | Duration: 769h1m1s\n  Started: 2026-01-02 03:04:05\n  URL: https://f.example/octo/hello/actions/runs/5\n\n"}
+-- port calls --
+ListWorkflowRuns ["octo","hello",{"Page":2,"PageSize":5,"event":"push","status":"success","run_number":2,"head_sha":"0123456789abcdef0123456789abcdef01234567"}]

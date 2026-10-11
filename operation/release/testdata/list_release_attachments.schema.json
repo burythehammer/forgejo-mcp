@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List attachments on a release. The Forgejo API does not paginate this endpoint server-side, so the response is fetched in full and then sliced client-side; large attachment sets are still fully transferred from Forgejo before slicing.",
+  "inputSchema": {
+    "properties": {
+      "limit": {
+        "default": 20,
+        "description": "Page size",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
+      },
+      "release_id": {
+        "description": "Release ID",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "release_id"
+    ],
+    "type": "object"
+  },
+  "name": "list_release_attachments"
+}

@@ -1,0 +1,3 @@
+ERROR: create release attachment err: boom
+-- port calls --
+CreateReleaseAttachment ["octo","hello",3,"a.txt","","hi"]

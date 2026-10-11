@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get the Git tree of a repository. With recursive=true, returns the complete file tree in a single response (subject to the server's tree-endpoint size cap); use this when you need all paths at once. With recursive=false (default), returns only the top-level entries of the tree.",
+  "inputSchema": {
+    "properties": {
+      "limit": {
+        "default": 1000,
+        "description": "Page size",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "recursive": {
+        "description": "Return the complete file tree in one response (subject to server cap); default false returns top-level entries only",
+        "type": "boolean"
+      },
+      "ref": {
+        "description": "Ref (branch/tag/commit)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "ref",
+      "page",
+      "limit"
+    ],
+    "type": "object"
+  },
+  "name": "get_repo_tree"
+}

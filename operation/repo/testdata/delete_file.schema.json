@@ -1,0 +1,51 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete file",
+  "inputSchema": {
+    "properties": {
+      "branch_name": {
+        "description": "Branch name",
+        "type": "string"
+      },
+      "filePath": {
+        "description": "File path",
+        "type": "string"
+      },
+      "message": {
+        "description": "Commit message",
+        "type": "string"
+      },
+      "new_branch_name": {
+        "description": "New branch name",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sha": {
+        "description": "SHA",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "filePath",
+      "message",
+      "branch_name",
+      "sha"
+    ],
+    "type": "object"
+  },
+  "name": "delete_file"
+}

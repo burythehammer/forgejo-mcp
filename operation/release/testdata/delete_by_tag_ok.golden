@@ -1,0 +1,3 @@
+{"Result":{"status":"deleted"}}
+-- port calls --
+DeleteReleaseByTag ["octo","hello","v1"]

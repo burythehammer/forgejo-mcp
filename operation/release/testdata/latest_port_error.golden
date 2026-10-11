@@ -1,0 +1,3 @@
+ERROR: get latest release err: boom
+-- port calls --
+GetLatestRelease ["octo","hello"]

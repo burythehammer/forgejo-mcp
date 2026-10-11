@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Read a bounded byte range from a Forgejo v16+ workflow job's plaintext log. Omitting offset returns the tail. Continue backward with previous_offset and previous_max_bytes, or forward with next_offset.",
+  "inputSchema": {
+    "properties": {
+      "attempt": {
+        "description": "1-based job attempt; omit for the latest attempt",
+        "minimum": 1,
+        "type": "number"
+      },
+      "job_id": {
+        "description": "Workflow job ID",
+        "minimum": 1,
+        "type": "number"
+      },
+      "max_bytes": {
+        "default": 32768,
+        "description": "Maximum log bytes to return (default 32768, maximum 262144)",
+        "maximum": 262144,
+        "minimum": 1,
+        "type": "number"
+      },
+      "offset": {
+        "description": "0-based byte offset; omit to return the tail of the log",
+        "minimum": 0,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "job_id"
+    ],
+    "type": "object"
+  },
+  "name": "get_action_job_logs"
+}

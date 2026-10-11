@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
@@ -177,7 +178,7 @@ func TestListRepoTopicsFn_Envelope(t *testing.T) {
 	h, f := adminFixture(t)
 	_ = f.SetRepoTopics(context.Background(), adminOwner, adminRepoName, []string{"go", "mcp"})
 	var envelope struct {
-		Result listRepoTopicsResult `json:"Result"`
+		Result model.TopicPage `json:"Result"`
 	}
 	if err := json.Unmarshal([]byte(adminOK(t, h.ListRepoTopicsFn, nil)), &envelope); err != nil {
 		t.Fatal(err)
@@ -193,7 +194,7 @@ func TestListRepoTopicsFn_Paginates(t *testing.T) {
 	h, f := adminFixture(t)
 	_ = f.SetRepoTopics(context.Background(), adminOwner, adminRepoName, []string{"a", "b", "c"})
 	var envelope struct {
-		Result listRepoTopicsResult `json:"Result"`
+		Result model.TopicPage `json:"Result"`
 	}
 	if err := json.Unmarshal([]byte(adminOK(t, h.ListRepoTopicsFn, map[string]any{"page": 2, "limit": 2})), &envelope); err != nil {
 		t.Fatal(err)

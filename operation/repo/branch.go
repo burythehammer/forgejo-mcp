@@ -4,13 +4,13 @@ package repo
 
 import (
 	"context"
-	"fmt"
 
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -48,84 +48,82 @@ var (
 	)
 )
 
+// Argument structs for the branch tools. The json names are the MCP arguments;
+// mcptest.ArgsMatchSchema keeps them in agreement with the tool definitions.
+
+type createBranchArgs struct {
+	Owner     *string `json:"owner" required:"true"`
+	Repo      *string `json:"repo" required:"true"`
+	Branch    *string `json:"branch" required:"true"`
+	OldBranch string  `json:"old_branch" required:"true"`
+}
+
+type deleteBranchArgs struct {
+	Owner  string `json:"owner" required:"true"`
+	Repo   string `json:"repo" required:"true"`
+	Branch string `json:"branch" required:"true"`
+}
+
+type listBranchesArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Page  float64 `json:"page" required:"true"`
+	Limit float64 `json:"limit" required:"true"`
+}
+
 func (h handlers) CreateBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateBranchFn")
-	owner, ok := req.GetArguments()["owner"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("owner is required"))
+	var a createBranchArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	repo, ok := req.GetArguments()["repo"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("repo is required"))
-	}
-	branch, ok := req.GetArguments()["branch"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("branch is required"))
-	}
-	oldBranch, _ := req.GetArguments()["old_branch"].(string)
-
-	f, err := h.forge.For(ctx)
+	owner, err := need("owner", a.Owner)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, err = f.CreateBranch(ctx, owner, repo, forgejo_sdk.CreateBranchOption{
-		BranchName:    branch,
-		OldBranchName: oldBranch,
-	})
+	repo, err := need("repo", a.Repo)
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("create branch error: %w", err))
+		return to.ErrorResult(err)
 	}
-
+	branch, err := need("branch", a.Branch)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	svc, err := h.gitService(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := svc.CreateBranch(ctx, owner, repo, apprepo.CreateBranchInput{Branch: branch, OldBranch: a.OldBranch}); err != nil {
+		return to.ErrorResult(err)
+	}
 	return mcp.NewToolResultText("Branch Created"), nil
 }
 
 func (h handlers) DeleteBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteBranchFn")
-	owner, _ := req.GetArguments()["owner"].(string)
-	repo, _ := req.GetArguments()["repo"].(string)
-	branch, _ := req.GetArguments()["branch"].(string)
-
-	f, err := h.forge.For(ctx)
+	var a deleteBranchArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	svc, err := h.gitService(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	success, err := f.DeleteBranch(ctx, owner, repo, branch)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("delete branch err: %w", err))
-	}
-	if !success {
-		return to.ErrorResult(fmt.Errorf("failed to delete branch (status not 204)"))
+	if err := svc.DeleteBranch(ctx, a.Owner, a.Repo, a.Branch); err != nil {
+		return to.ErrorResult(err)
 	}
 	return to.TextResult("Delete Branch Success")
 }
 
 func (h handlers) ListBranchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListBranchesFn")
-	owner, _ := req.GetArguments()["owner"].(string)
-	repo, _ := req.GetArguments()["repo"].(string)
-	page, _ := to.Float64(req.GetArguments()["page"])
-	if page == 0 {
-		page = 1
+	var a listBranchesArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	limit, _ := to.Float64(req.GetArguments()["limit"])
-	if limit == 0 {
-		limit = 100
-	}
-
-	opt := forgejo_sdk.ListRepoBranchesOptions{
-		ListOptions: forgejo_sdk.ListOptions{
-			Page:     int(page),
-			PageSize: int(limit),
-		},
-	}
-
-	f, err := h.forge.For(ctx)
+	svc, err := h.gitService(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	branches, err := f.ListBranches(ctx, owner, repo, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list branches err: %w", err))
-	}
-	return to.TextResult(branches)
+	return gitText(svc.ListBranches(ctx, a.Owner, a.Repo, apprepo.GitPage{Page: int(orDefault(a.Page, 1)), Limit: int(orDefault(a.Limit, 100))}))
 }
