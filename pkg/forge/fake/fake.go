@@ -35,6 +35,11 @@ type Forgejo struct {
 	pulls    pullState
 	wiki     wikiState
 	packages packageState
+	orgs     orgState
+	users    userState
+	bps      bpState
+	hooks    hookState
+	admin    repoAdminState
 }
 
 var _ forge.Forgejo = (*Forgejo)(nil)

@@ -18,21 +18,12 @@ import (
 // Adapter is the real forge.Forgejo, bound to one credential.
 type Adapter struct {
 	client *forgejo_sdk.Client
-	raw    *forgejo.RawTarget
+	// rawBase is the Forgejo URL raw-HTTP methods call; empty means the
+	// configured one (see WithRawBaseURL).
+	rawBase string
 }
 
 var _ forge.Forgejo = (*Adapter)(nil)
-
-// Option configures an Adapter.
-type Option func(*Adapter)
-
-// WithRawHTTP binds the adapter's raw-HTTP calls (the endpoints the SDK lacks
-// or cannot express) to a Forgejo instance and credential. Without it those
-// methods fail; the factory always supplies it, and the contract tests point it
-// at the stub server.
-func WithRawHTTP(baseURL, token, userAgent string) Option {
-	return func(a *Adapter) { a.raw = &forgejo.RawTarget{BaseURL: baseURL, Token: token, UserAgent: userAgent} }
-}
 
 // NewAdapter binds an adapter to an already-built SDK client. The factory uses
 // it for every request; the contract tests use it to point the adapter at a
@@ -40,13 +31,7 @@ func WithRawHTTP(baseURL, token, userAgent string) Option {
 //
 // Each domain's methods live in their own file in this package (pull.go, ...),
 // all on *Adapter.
-func NewAdapter(c *forgejo_sdk.Client, opts ...Option) *Adapter {
-	a := &Adapter{client: c}
-	for _, o := range opts {
-		o(a)
-	}
-	return a
-}
+func NewAdapter(c *forgejo_sdk.Client) *Adapter { return &Adapter{client: c} }
 
 // statusErr wraps an SDK failure with the HTTP status Forgejo answered with,
 // when there was one. The message is the SDK's, unchanged. ctx is not passed
@@ -82,9 +67,5 @@ func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 	if err != nil {
 		return nil, err
 	}
-	token, err := forgejo.TokenForRequest(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return NewAdapter(c, WithRawHTTP(forgejo.GetBaseURL(), token, forgejo.UserAgent())), nil
+	return NewAdapter(c).WithRawBaseURL(f.cfg.URL), nil
 }

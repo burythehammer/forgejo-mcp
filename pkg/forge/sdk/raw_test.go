@@ -45,34 +45,7 @@ func serve(t *testing.T, h http.HandlerFunc) *httptest.Server {
 func rawAdapter(t *testing.T, srv *httptest.Server) *Adapter {
 	t.Helper()
 	c := sdkClient(t, srv.URL)
-	return NewAdapter(c, WithRawHTTP(srv.URL, "raw-token", "raw-agent"))
-}
-
-func TestRawCallsWithoutBindingFail(t *testing.T) {
-	t.Parallel()
-	srv := serve(t, func(http.ResponseWriter, *http.Request) { t.Error("no request expected") })
-	_, err := NewAdapter(sdkClient(t, srv.URL)).GetWikiPage(context.Background(), "o", "r", "Home")
-	if err == nil {
-		t.Fatal("want an error without a raw-HTTP binding")
-	}
-}
-
-func TestRawCallsCarryTheBoundCredential(t *testing.T) {
-	t.Parallel()
-	var mu sync.Mutex
-	var got []string
-	srv := serve(t, func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		got = append(got, r.Header.Get("Authorization")+" "+r.Header.Get("User-Agent"))
-		mu.Unlock()
-		_, _ = w.Write([]byte(`[]`))
-	})
-	if _, err := rawAdapter(t, srv).ListPackages(context.Background(), "o", forge.ListPackagesOptions{Page: 1, Limit: 1}); err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0] != "token raw-token raw-agent" {
-		t.Fatalf("saw %q", got)
-	}
+	return NewAdapter(c).WithRawBaseURL(srv.URL)
 }
 
 func TestListWikiPagesTotalCountHeader(t *testing.T) {

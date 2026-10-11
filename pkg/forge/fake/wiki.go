@@ -79,14 +79,6 @@ func (f *Forgejo) wikiPages(owner, repo string) (map[string]*wikiRecord, error) 
 	return f.wiki.wikis[k], nil
 }
 
-// repoExists reports whether AddRepo made owner/repo exist.
-func (f *Forgejo) repoExists(owner, repo string) bool {
-	f.pulls.mu.Lock()
-	defer f.pulls.mu.Unlock()
-	_, ok := f.pulls.repos[owner+"/"+repo]
-	return ok
-}
-
 func (f *Forgejo) ListWikiPages(_ context.Context, owner, repo string, page, limit int) (forge.WikiPageList, error) {
 	f.wiki.mu.Lock()
 	defer f.wiki.mu.Unlock()

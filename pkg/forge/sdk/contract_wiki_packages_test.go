@@ -13,7 +13,7 @@ import (
 func stubHarness(t *testing.T) forgetest.Harness {
 	stub := forgetest.NewStub(t)
 	return forgetest.Harness{
-		Port: NewAdapter(stub.NewClient(t), WithRawHTTP(stub.URL, "stub-token", "contract-test")),
+		Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL),
 		Seed: stub.Fake,
 	}
 }

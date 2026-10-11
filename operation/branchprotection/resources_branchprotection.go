@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -31,12 +31,13 @@ type bpCollectionPayload struct {
 
 // RegisterResource registers the branch protection collection and single-rule
 // resource templates on the MCP server.
-func RegisterResource(s *server.MCPServer) {
+func RegisterResource(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
 	resource.RegisterTemplate(
 		s,
 		branchProtectionsResourceURITemplate,
 		"Forgejo Branch Protections",
-		branchProtectionsResourceHandler,
+		h.branchProtectionsResourceHandler,
 		mcp.WithTemplateDescription(
 			"Branch protection rules for a Forgejo repository. "+
 				"URI: forgejo://repo/{owner}/{repo}/branch_protections. "+
@@ -50,7 +51,7 @@ func RegisterResource(s *server.MCPServer) {
 		s,
 		branchProtectionResourceURITemplate,
 		"Forgejo Branch Protection",
-		branchProtectionResourceHandler,
+		h.branchProtectionResourceHandler,
 		mcp.WithTemplateDescription(
 			"A single branch protection rule for a Forgejo repository. "+
 				"URI: forgejo://repo/{owner}/{repo}/branch_protection/{rule} — rule is the rule name. "+
@@ -65,27 +66,33 @@ func RegisterResource(s *server.MCPServer) {
 	log.Debug("Registered branch protection resource templates")
 }
 
-func branchProtectionsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+// mapErr maps a port failure to a resource error, keeping the HTTP status in
+// the message so the mapping can tell forbidden from not found.
+func mapErr(uri string, err error) error {
+	if code := forge.StatusCode(err); code != 0 {
+		return resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
+	}
+	return resource.MapForgejoError(uri, err)
+}
+
+func (h handlers) branchProtectionsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseBranchProtections(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
 	// Request EmbeddedListCap+1 so Bounded can distinguish "at cap" from "over cap".
-	bps, resp, err := client.ListBranchProtections(p.Owner, p.Repo, forgejo_sdk.ListBranchProtectionsOptions{
+	bps, err := port.ListBranchProtections(ctx, p.Owner, p.Repo, forgejo_sdk.ListBranchProtectionsOptions{
 		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
 	})
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
 	names := make([]string, len(bps))
@@ -119,24 +126,21 @@ func branchProtectionsResourceHandler(ctx context.Context, req mcp.ReadResourceR
 	}, nil
 }
 
-func branchProtectionResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) branchProtectionResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseBranchProtection(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	bp, resp, err := client.GetBranchProtection(p.Owner, p.Repo, p.Rule)
+	bp, err := port.GetBranchProtection(ctx, p.Owner, p.Repo, p.Rule)
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
 	jsonBytes, err := json.Marshal(bp)

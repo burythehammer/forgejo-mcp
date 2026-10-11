@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -96,14 +96,19 @@ var (
 )
 
 // RegisterTools registers all repository webhook tools on the MCP server.
-func RegisterTools(s *server.MCPServer) {
-	s.AddTool(ListRepoHooksTool, ListRepoHooksFn)
-	s.AddTool(GetRepoHookTool, GetRepoHookFn)
-	s.AddTool(CreateRepoHookTool, CreateRepoHookFn)
-	s.AddTool(EditRepoHookTool, EditRepoHookFn)
-	s.AddTool(DeleteRepoHookTool, DeleteRepoHookFn)
-	s.AddTool(TestRepoHookTool, TestRepoHookFn)
+func RegisterTools(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(ListRepoHooksTool, h.ListRepoHooksFn)
+	s.AddTool(GetRepoHookTool, h.GetRepoHookFn)
+	s.AddTool(CreateRepoHookTool, h.CreateRepoHookFn)
+	s.AddTool(EditRepoHookTool, h.EditRepoHookFn)
+	s.AddTool(DeleteRepoHookTool, h.DeleteRepoHookFn)
+	s.AddTool(TestRepoHookTool, h.TestRepoHookFn)
 }
+
+// handlers serve the webhook tools and resources. They hold the factory rather
+// than a port so each call is bound to the credential of its own request.
+type handlers struct{ forge forge.Factory }
 
 // hookPayload is the safe MCP response — Config.secret is never included.
 // D3: explicit allowlist of config keys copied individually from Hook.Config.
@@ -141,7 +146,7 @@ type listRepoHooksResult struct {
 	Hooks      []hookPayload `json:"hooks"`
 }
 
-func ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoHooksFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -158,34 +163,30 @@ func ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 		limit = 30
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	hooks, resp, err := client.ListRepoHooks(owner, repo, forgejo_sdk.ListHooksOptions{
+	list, err := port.ListRepoHooks(ctx, owner, repo, forgejo_sdk.ListHooksOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: int(page), PageSize: int(limit)},
 	})
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list repo hooks: %w", err))
 	}
-	payloads := make([]hookPayload, len(hooks))
-	for i, h := range hooks {
-		payloads[i] = safeHook(h)
-	}
-	var totalCount *int
-	if resp != nil {
-		totalCount = forgejo.TotalCountPtr(resp.Header)
+	payloads := make([]hookPayload, len(list.Hooks))
+	for i, hk := range list.Hooks {
+		payloads[i] = safeHook(hk)
 	}
 	return to.TextResult(listRepoHooksResult{
 		Page:       int(page),
 		Limit:      int(limit),
 		Count:      len(payloads),
-		TotalCount: totalCount,
+		TotalCount: list.TotalCount,
 		Hooks:      payloads,
 	})
 }
 
-func GetRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) GetRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetRepoHookFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -195,18 +196,18 @@ func GetRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 		return to.ErrorResult(fmt.Errorf("owner, repo and id are required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	h, _, err := client.GetRepoHook(owner, repo, int64(idF))
+	hk, err := port.GetRepoHook(ctx, owner, repo, int64(idF))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get repo hook: %w", err))
 	}
-	return to.TextResult(safeHook(h))
+	return to.TextResult(safeHook(hk))
 }
 
-func CreateRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateRepoHookFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -249,18 +250,18 @@ func CreateRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 		opt.Active = v
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	h, _, err := client.CreateRepoHook(owner, repo, opt)
+	hk, err := port.CreateRepoHook(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create repo hook: %w", err))
 	}
-	return to.TextResult(safeHook(h))
+	return to.TextResult(safeHook(hk))
 }
 
-func EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called EditRepoHookFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -271,11 +272,11 @@ func EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 	}
 
 	// Fetch existing hook to merge config (PATCH semantics for config map).
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	existing, _, err := client.GetRepoHook(owner, repo, int64(idF))
+	existing, err := port.GetRepoHook(ctx, owner, repo, int64(idF))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get repo hook for edit: %w", err))
 	}
@@ -307,23 +308,22 @@ func EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		opt.Active = ptr.To(v)
 	}
 
-	resp, err := client.EditRepoHook(owner, repo, int64(idF), opt)
-	if err != nil {
-		if resp != nil {
-			return to.ErrorResult(fmt.Errorf("edit repo hook %d %s", resp.StatusCode, err.Error()))
+	if err := port.EditRepoHook(ctx, owner, repo, int64(idF), opt); err != nil {
+		if code := forge.StatusCode(err); code != 0 {
+			return to.ErrorResult(fmt.Errorf("edit repo hook %d %s", code, err.Error()))
 		}
 		return to.ErrorResult(fmt.Errorf("edit repo hook: %w", err))
 	}
 
 	// Re-fetch to return the updated state.
-	h, _, err := client.GetRepoHook(owner, repo, int64(idF))
+	hk, err := port.GetRepoHook(ctx, owner, repo, int64(idF))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get repo hook after edit: %w", err))
 	}
-	return to.TextResult(safeHook(h))
+	return to.TextResult(safeHook(hk))
 }
 
-func DeleteRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteRepoHookFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -333,17 +333,17 @@ func DeleteRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 		return to.ErrorResult(fmt.Errorf("owner, repo and id are required"))
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.DeleteRepoHook(owner, repo, int64(idF)); err != nil {
+	if err := port.DeleteRepoHook(ctx, owner, repo, int64(idF)); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete repo hook: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("Deleted webhook %d on %s/%s", int64(idF), owner, repo))
 }
 
-func TestRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) TestRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called TestRepoHookFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -353,9 +353,11 @@ func TestRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		return to.ErrorResult(fmt.Errorf("owner, repo and id are required"))
 	}
 
-	// TestRepoHook is not in SDK v3; call the API directly (POST /repos/{owner}/{repo}/hooks/{id}/tests).
-	path := forgejo.APIPath("repos", owner, repo, "hooks", int64(idF), "tests")
-	if err := forgejo.DoJSON(ctx, "POST", path, nil, nil); err != nil {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := port.TestRepoHook(ctx, owner, repo, int64(idF)); err != nil {
 		return to.ErrorResult(fmt.Errorf("test repo hook: %w", err))
 	}
 	return to.TextResult(map[string]bool{"triggered": true})
