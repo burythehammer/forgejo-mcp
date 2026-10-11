@@ -149,7 +149,7 @@ type goldenCase struct {
 	credErr error
 }
 
-func fail(s *stubTracking) { s.fail = errors.New("boom") }
+func failPort(s *stubTracking) { s.fail = errors.New("boom") }
 
 var goldenCases = []goldenCase{
 	// list_issue_tracked_times
@@ -162,17 +162,17 @@ var goldenCases = []goldenCase{
 	{name: "issue_times_non_string_since", tool: ListIssueTrackedTimesToolName, args: map[string]any{"index": float64(7), "since": float64(5)}},
 	{name: "issue_times_bad_since_no_credential", tool: ListIssueTrackedTimesToolName, args: map[string]any{"index": float64(7), "since": "yesterday"}, credErr: errors.New("no credential")},
 	{name: "issue_times_no_credential", tool: ListIssueTrackedTimesToolName, args: map[string]any{"index": float64(7)}, credErr: errors.New("no credential")},
-	{name: "issue_times_port_error", tool: ListIssueTrackedTimesToolName, args: map[string]any{"index": float64(7)}, stub: fail},
+	{name: "issue_times_port_error", tool: ListIssueTrackedTimesToolName, args: map[string]any{"index": float64(7)}, stub: failPort},
 
 	// list_repo_tracked_times
 	{name: "repo_times_defaults", tool: ListRepoTrackedTimesToolName},
 	{name: "repo_times_filtered", tool: ListRepoTrackedTimesToolName, args: map[string]any{"since": "2026-01-01T00:00:00Z", "user": "octo", "page": float64(3), "limit": float64(9)}},
 	{name: "repo_times_bad_before", tool: ListRepoTrackedTimesToolName, args: map[string]any{"before": "soon"}},
-	{name: "repo_times_port_error", tool: ListRepoTrackedTimesToolName, stub: fail},
+	{name: "repo_times_port_error", tool: ListRepoTrackedTimesToolName, stub: failPort},
 
 	// list_my_tracked_times
 	{name: "my_times_ok", tool: ListMyTrackedTimesToolName},
-	{name: "my_times_port_error", tool: ListMyTrackedTimesToolName, stub: fail},
+	{name: "my_times_port_error", tool: ListMyTrackedTimesToolName, stub: failPort},
 	{name: "my_times_no_credential", tool: ListMyTrackedTimesToolName, credErr: errors.New("no credential")},
 
 	// add_issue_time
@@ -192,24 +192,24 @@ var goldenCases = []goldenCase{
 	{name: "add_time_zero_duration", tool: AddIssueTimeToolName, args: map[string]any{"index": float64(7), "duration": "0s"}},
 	{name: "add_time_bad_created_at", tool: AddIssueTimeToolName, args: map[string]any{"index": float64(7), "seconds": float64(5), "created_at": "tomorrow"}},
 	{name: "add_time_bad_created_at_no_credential", tool: AddIssueTimeToolName, args: map[string]any{"index": float64(7), "seconds": float64(5), "created_at": "tomorrow"}, credErr: errors.New("no credential")},
-	{name: "add_time_port_error", tool: AddIssueTimeToolName, args: map[string]any{"index": float64(7), "seconds": float64(5)}, stub: fail},
+	{name: "add_time_port_error", tool: AddIssueTimeToolName, args: map[string]any{"index": float64(7), "seconds": float64(5)}, stub: failPort},
 
 	// reset_issue_time, delete_issue_time_entry
 	{name: "reset_time_ok", tool: ResetIssueTimeToolName, args: map[string]any{"index": float64(7)}},
-	{name: "reset_time_port_error", tool: ResetIssueTimeToolName, args: map[string]any{"index": float64(7)}, stub: fail},
+	{name: "reset_time_port_error", tool: ResetIssueTimeToolName, args: map[string]any{"index": float64(7)}, stub: failPort},
 	{name: "delete_time_entry_ok", tool: DeleteIssueTimeEntryToolName, args: map[string]any{"index": float64(7), "time_id": float64(5)}},
 	{name: "delete_time_entry_string_id", tool: DeleteIssueTimeEntryToolName, args: map[string]any{"index": float64(7), "time_id": "5"}},
-	{name: "delete_time_entry_port_error", tool: DeleteIssueTimeEntryToolName, args: map[string]any{"index": float64(7), "time_id": float64(5)}, stub: fail},
+	{name: "delete_time_entry_port_error", tool: DeleteIssueTimeEntryToolName, args: map[string]any{"index": float64(7), "time_id": float64(5)}, stub: failPort},
 
 	// stopwatches
 	{name: "start_stopwatch_ok", tool: StartIssueStopwatchToolName, args: map[string]any{"index": float64(7)}},
-	{name: "start_stopwatch_port_error", tool: StartIssueStopwatchToolName, args: map[string]any{"index": float64(7)}, stub: fail},
+	{name: "start_stopwatch_port_error", tool: StartIssueStopwatchToolName, args: map[string]any{"index": float64(7)}, stub: failPort},
 	{name: "stop_stopwatch_ok", tool: StopIssueStopwatchToolName, args: map[string]any{"index": float64(7)}},
-	{name: "stop_stopwatch_port_error", tool: StopIssueStopwatchToolName, args: map[string]any{"index": float64(7)}, stub: fail},
+	{name: "stop_stopwatch_port_error", tool: StopIssueStopwatchToolName, args: map[string]any{"index": float64(7)}, stub: failPort},
 	{name: "cancel_stopwatch_ok", tool: CancelIssueStopwatchToolName, args: map[string]any{"index": float64(7)}},
-	{name: "cancel_stopwatch_port_error", tool: CancelIssueStopwatchToolName, args: map[string]any{"index": float64(7)}, stub: fail},
+	{name: "cancel_stopwatch_port_error", tool: CancelIssueStopwatchToolName, args: map[string]any{"index": float64(7)}, stub: failPort},
 	{name: "my_stopwatches_ok", tool: ListMyStopwatchesToolName},
-	{name: "my_stopwatches_port_error", tool: ListMyStopwatchesToolName, stub: fail},
+	{name: "my_stopwatches_port_error", tool: ListMyStopwatchesToolName, stub: failPort},
 }
 
 func TestGolden(t *testing.T) {
