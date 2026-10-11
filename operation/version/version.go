@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 
+	appversion "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/version"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -30,10 +32,14 @@ func RegisterTool(s *server.MCPServer, version string) {
 func GetForgejoMCPServerVersionFn(version string) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		log.Debugf("Called GetForgejoMCPServerVersionFn")
-		v := version
-		if v == "" {
-			v = "dev"
+		var args Args
+		if err := decode.Args(req, &args); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
-		return to.TextResult(fmt.Sprintf("Forgejo MCP Server version: %v", v))
+		res := appversion.Run(version)
+		return to.TextResult(fmt.Sprintf("Forgejo MCP Server version: %v", res.Version))
 	}
 }
+
+// Args is the version tool's argument struct. It takes none.
+type Args struct{}
