@@ -4,11 +4,9 @@ package actions
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"time"
+	"math"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -28,32 +26,8 @@ const (
 	maxActionSecretsLimit     = 50
 )
 
-// actionSecretSummary intentionally has no Data field. Forgejo never returns
-// a secret's value over the API, but omitting the field here too means a
-// future upstream change (or a bug in the SDK) can't leak one through this
-// tool by accident.
-type actionSecretSummary struct {
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at,omitempty"`
-}
-
-type listRepoActionSecretsResult struct {
-	Owner   string                `json:"owner"`
-	Repo    string                `json:"repo"`
-	Secrets []actionSecretSummary `json:"secrets"`
-	Page    int                   `json:"page"`
-	Limit   int                   `json:"limit"`
-	Count   int                   `json:"count"`
-}
-
-type listOrgActionSecretsResult struct {
-	Org     string                `json:"org"`
-	Secrets []actionSecretSummary `json:"secrets"`
-	Page    int                   `json:"page"`
-	Limit   int                   `json:"limit"`
-	Count   int                   `json:"count"`
-}
-
+// actionSecretMutationResult is the output of the create and delete tools. It
+// carries no value: Forgejo never echoes a secret back.
 type actionSecretMutationResult struct {
 	Status     string `json:"status"`
 	Owner      string `json:"owner,omitempty"`
@@ -113,51 +87,15 @@ var (
 	)
 )
 
-func requiredOrg(args map[string]any) (string, error) {
-	org, ok := args["org"].(string)
-	if !ok || org == "" {
-		return "", errors.New("org is required")
-	}
-	return org, nil
-}
-
-func requiredSecretName(args map[string]any) (string, error) {
-	name, ok := args["secret_name"].(string)
-	if !ok || name == "" {
-		return "", errors.New("secret_name is required")
-	}
-	return name, nil
-}
-
-func requiredSecretData(args map[string]any) (string, error) {
-	data, ok := args["data"].(string)
-	if !ok || data == "" {
-		return "", errors.New("data is required")
-	}
-	return data, nil
-}
-
-func toSecretSummaries(secrets []*forgejo_sdk.Secret) []actionSecretSummary {
-	summaries := make([]actionSecretSummary, 0, len(secrets))
-	for _, s := range secrets {
-		summary := actionSecretSummary{Name: s.Name}
-		if !s.Created.IsZero() {
-			summary.CreatedAt = s.Created.Format(time.RFC3339)
-		}
-		summaries = append(summaries, summary)
-	}
-	return summaries
-}
-
 func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoActionSecretsFn")
-	args := req.GetArguments()
 
+	args := req.GetArguments()
 	owner, repo, err := requiredRepo(args)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntegerArg(args, "page", 1, 1, 1<<31-1)
+	page, err := boundedIntegerArg(args, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -166,30 +104,21 @@ func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolR
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	secrets, err := port.ListRepoActionSecrets(ctx, owner, repo, forgejo_sdk.ListOptions{Page: page, PageSize: limit})
+	out, err := svc.ListRepoSecrets(ctx, owner, repo, app.Paging{Page: page, Limit: limit})
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list repo action secrets: %w", err))
+		return to.ErrorResult(err)
 	}
-
-	summaries := toSecretSummaries(secrets)
-	return to.SafeTextResult(listRepoActionSecretsResult{
-		Owner:   owner,
-		Repo:    repo,
-		Secrets: summaries,
-		Page:    page,
-		Limit:   limit,
-		Count:   len(summaries),
-	})
+	return to.SafeTextResult(out)
 }
 
 func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateOrUpdateRepoActionSecretFn")
-	args := req.GetArguments()
 
+	args := req.GetArguments()
 	owner, repo, err := requiredRepo(args)
 	if err != nil {
 		return to.ErrorResult(err)
@@ -203,14 +132,13 @@ func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := port.SetRepoActionSecret(ctx, owner, repo, forgejo_sdk.CreateSecretOption{Name: secretName, Data: data}); err != nil {
-		return to.ErrorResult(fmt.Errorf("create or update repo action secret: %w", err))
+	if err := svc.SetRepoSecret(ctx, owner, repo, secretName, data); err != nil {
+		return to.ErrorResult(err)
 	}
-
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "created_or_updated",
 		Owner:      owner,
@@ -221,8 +149,8 @@ func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.
 
 func (h handlers) DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteRepoActionSecretFn")
-	args := req.GetArguments()
 
+	args := req.GetArguments()
 	owner, repo, err := requiredRepo(args)
 	if err != nil {
 		return to.ErrorResult(err)
@@ -232,14 +160,13 @@ func (h handlers) DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallTool
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := port.DeleteRepoActionSecret(ctx, owner, repo, secretName); err != nil {
-		return to.ErrorResult(fmt.Errorf("delete repo action secret: %w", err))
+	if err := svc.DeleteRepoSecret(ctx, owner, repo, secretName); err != nil {
+		return to.ErrorResult(err)
 	}
-
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "deleted",
 		Owner:      owner,
@@ -250,13 +177,13 @@ func (h handlers) DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallTool
 
 func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListOrgActionSecretsFn")
-	args := req.GetArguments()
 
+	args := req.GetArguments()
 	org, err := requiredOrg(args)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntegerArg(args, "page", 1, 1, 1<<31-1)
+	page, err := boundedIntegerArg(args, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -265,29 +192,21 @@ func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRe
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	secrets, err := port.ListOrgActionSecrets(ctx, org, forgejo_sdk.ListOptions{Page: page, PageSize: limit})
+	out, err := svc.ListOrgSecrets(ctx, org, app.Paging{Page: page, Limit: limit})
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list org action secrets: %w", err))
+		return to.ErrorResult(err)
 	}
-
-	summaries := toSecretSummaries(secrets)
-	return to.SafeTextResult(listOrgActionSecretsResult{
-		Org:     org,
-		Secrets: summaries,
-		Page:    page,
-		Limit:   limit,
-		Count:   len(summaries),
-	})
+	return to.SafeTextResult(out)
 }
 
 func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateOrUpdateOrgActionSecretFn")
-	args := req.GetArguments()
 
+	args := req.GetArguments()
 	org, err := requiredOrg(args)
 	if err != nil {
 		return to.ErrorResult(err)
@@ -301,14 +220,13 @@ func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.C
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := port.SetOrgActionSecret(ctx, org, forgejo_sdk.CreateSecretOption{Name: secretName, Data: data}); err != nil {
-		return to.ErrorResult(fmt.Errorf("create or update org action secret: %w", err))
+	if err := svc.SetOrgSecret(ctx, org, secretName, data); err != nil {
+		return to.ErrorResult(err)
 	}
-
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "created_or_updated",
 		Org:        org,
@@ -318,8 +236,8 @@ func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.C
 
 func (h handlers) DeleteOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteOrgActionSecretFn")
-	args := req.GetArguments()
 
+	args := req.GetArguments()
 	org, err := requiredOrg(args)
 	if err != nil {
 		return to.ErrorResult(err)
@@ -329,14 +247,13 @@ func (h handlers) DeleteOrgActionSecretFn(ctx context.Context, req mcp.CallToolR
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := port.DeleteOrgActionSecret(ctx, org, secretName); err != nil {
-		return to.ErrorResult(fmt.Errorf("delete org action secret: %w", err))
+	if err := svc.DeleteOrgSecret(ctx, org, secretName); err != nil {
+		return to.ErrorResult(err)
 	}
-
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "deleted",
 		Org:        org,

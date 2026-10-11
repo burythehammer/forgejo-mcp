@@ -3,6 +3,7 @@
 package actions
 
 import (
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestListActionRunArtifactsFn_ServerPagedEnvelope(t *testing.T) {
 	h, f := newFixture(t)
 	runID := runWithArtifacts(t, f, "dist", "logs", "dist", "other")
 
-	got := decode[listActionRunArtifactsResult](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{
+	got := decode[model.ArtifactPage](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{
 		"run_id": float64(runID), "page": 2.0, "limit": 1.0, "name": "dist",
 	}))
 
@@ -49,7 +50,7 @@ func TestListActionRunArtifactsFn_EmptyPageIsAnEmptyList(t *testing.T) {
 	runID := runWithArtifacts(t, f)
 
 	out := call(t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": float64(runID)}))
-	got := decode[listActionRunArtifactsResult](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": float64(runID)}))
+	got := decode[model.ArtifactPage](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": float64(runID)}))
 
 	if got.Count != 0 || got.Artifacts == nil {
 		t.Fatalf("empty page: %+v", got)

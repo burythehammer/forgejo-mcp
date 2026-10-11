@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
@@ -32,7 +32,10 @@ var DispatchWorkflowTool = mcp.NewTool(
 	mcp.WithString("inputs", mcp.Description(params.Inputs)),
 )
 
-// handlers serve the Actions tools from the Forgejo port.
+// handlers serve the Actions tools. They hold the factory rather than a port
+// so each call is bound to the credential of its own request. Each handler is
+// the MCP adapter of one use case in app/actions: check the arguments, run the
+// use case, render the result.
 type handlers struct{ forge forge.Factory }
 
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
@@ -82,21 +85,17 @@ func (h handlers) DispatchWorkflowFn(ctx context.Context, req mcp.CallToolReques
 		}
 	}
 
-	opt := forgejo_sdk.DispatchWorkflowOption{
-		Ref:    ref,
-		Inputs: inputs,
-	}
-
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := port.DispatchWorkflow(ctx, owner, repo, workflow, opt); err != nil {
-		return to.ErrorResult(fmt.Errorf("failed to dispatch workflow: %w", err))
+	url, err := svc.Dispatch(ctx, owner, repo, workflow, app.DispatchInput{Ref: ref, Inputs: inputs})
+	if err != nil {
+		return to.ErrorResult(err)
 	}
 
 	result := fmt.Sprintf("Workflow dispatched successfully!\n  Workflow: %s\n  Ref: %s\n  URL: %s",
-		workflow, ref, port.ActionsURL(owner, repo))
+		workflow, ref, url)
 
 	return to.TextResult(result)
 }

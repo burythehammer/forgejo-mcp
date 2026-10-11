@@ -4,11 +4,10 @@ package actions
 
 import (
 	"context"
-	"fmt"
 	"math"
 
+	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -22,15 +21,6 @@ const (
 	defaultActionArtifactsLimit = 30
 	maxActionArtifactsLimit     = 50
 )
-
-type listActionRunArtifactsResult struct {
-	RunID      int64                  `json:"run_id"`
-	Artifacts  []forge.ActionArtifact `json:"artifacts"`
-	Page       int                    `json:"page"`
-	Limit      int                    `json:"limit"`
-	Count      int                    `json:"count"`
-	TotalCount *int                   `json:"total_count,omitempty"`
-}
 
 var (
 	ListActionRunArtifactsTool = mcp.NewTool(
@@ -54,9 +44,7 @@ var (
 )
 
 func (h handlers) ListActionRunArtifactsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListActionRunArtifactsFn")
 	args := req.GetArguments()
-
 	owner, repo, err := requiredRepo(args)
 	if err != nil {
 		return to.ErrorResult(err)
@@ -75,29 +63,24 @@ func (h handlers) ListActionRunArtifactsFn(ctx context.Context, req mcp.CallTool
 	}
 	name, _ := args["name"].(string)
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	list, err := port.ListRunArtifacts(ctx, owner, repo, runID, forge.ArtifactListOptions{Page: page, Limit: limit, Name: name})
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list action run artifacts: %w", err))
-	}
-
-	return to.TextResult(listActionRunArtifactsResult{
-		RunID:      runID,
-		Artifacts:  list.Artifacts,
-		Page:       page,
-		Limit:      limit,
-		Count:      len(list.Artifacts),
-		TotalCount: list.TotalCount,
+	list, err := svc.ListArtifacts(ctx, owner, repo, runID, app.ArtifactQuery{
+		Paging: app.Paging{Page: page, Limit: limit},
+		Name:   name,
 	})
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	return to.TextResult(list)
 }
 
 func (h handlers) GetActionArtifactFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetActionArtifactFn")
-	args := req.GetArguments()
 
+	args := req.GetArguments()
 	owner, repo, err := requiredRepo(args)
 	if err != nil {
 		return to.ErrorResult(err)
@@ -107,13 +90,13 @@ func (h handlers) GetActionArtifactFn(ctx context.Context, req mcp.CallToolReque
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	artifact, err := port.GetArtifact(ctx, owner, repo, artifactID)
+	artifact, err := svc.GetArtifact(ctx, owner, repo, artifactID)
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("get action artifact: %w", err))
+		return to.ErrorResult(err)
 	}
 	return to.TextResult(artifact)
 }

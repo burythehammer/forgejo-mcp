@@ -233,7 +233,9 @@ var goldenCases = []goldenCase{
 			s.logResp = &forge.JobLog{Body: []byte("whole\n"), ContentType: "text/plain", ContentLength: 6, StatusCode: 200}
 		}},
 	{name: "log_empty", tool: GetActionJobLogsToolName, args: map[string]any{"job_id": float64(3)},
-		stub: func(s *stubActions) { s.logResp = &forge.JobLog{ContentType: "text/plain", ContentLength: 0, StatusCode: 200} }},
+		stub: func(s *stubActions) {
+			s.logResp = &forge.JobLog{ContentType: "text/plain", ContentLength: 0, StatusCode: 200}
+		}},
 	{name: "log_bad_content_range", tool: GetActionJobLogsToolName, args: map[string]any{"job_id": float64(3)},
 		stub: func(s *stubActions) {
 			s.logResp = &forge.JobLog{Body: []byte("x"), ContentRange: "garbage", StatusCode: 206}
