@@ -4,9 +4,11 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"math"
 
 	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
@@ -29,28 +31,37 @@ var ListPackagesTool = mcp.NewTool(
 // validation comes before the credential lookup, as it always has.
 func (h handlers) ListPackagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPackagesFn")
-	args := req.GetArguments()
-
-	owner, err := requiredOwner(args)
+	var a listPackagesArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if a.Owner == "" {
+		return to.ErrorResult(errors.New("owner is required"))
+	}
+	page, limit, err := pageAndLimit(a.Page, a.Limit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	limit, err := to.BoundedInt(args, "limit", defaultPackagesLimit, 1, maxPackagesLimit)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	packageType, _ := args["type"].(string)
-	q, _ := args["q"].(string)
 
 	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 	return render(apppkg.New(packagesadapter.New(port)).List(ctx, apppkg.ListRequest{
-		Owner: owner, Type: packageType, Query: q, Page: page, Limit: limit,
+		Owner: a.Owner, Type: a.Type, Query: a.Q, Page: page, Limit: limit,
 	}))
+}
+
+// pageAndLimit reads the paging arguments as the tools always have: page
+// defaults to 1 and limit to 30, and each must be a whole number in range.
+func pageAndLimit(page, limit decode.Arg) (int, int, error) {
+	p, err := page.Int("page", 1, 1, math.MaxInt32)
+	if err != nil {
+		return 0, 0, err
+	}
+	l, err := limit.Int("limit", defaultPackagesLimit, 1, maxPackagesLimit)
+	if err != nil {
+		return 0, 0, err
+	}
+	return p, l, nil
 }

@@ -4,9 +4,9 @@ package packages
 
 import (
 	"context"
-	"math"
 
 	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
@@ -29,17 +29,15 @@ var ListPackageFilesTool = mcp.NewTool(
 // ListPackageFilesFn validates the arguments, then runs the files use case.
 func (h handlers) ListPackageFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPackageFilesFn")
-	args := req.GetArguments()
-
-	owner, packageType, name, version, err := requiredPackageCoords(args)
+	var a listPackageFilesArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	c, err := packageArgs{Owner: a.Owner, Type: a.Type, Name: a.Name, Version: a.Version}.coords()
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	limit, err := to.BoundedInt(args, "limit", defaultPackagesLimit, 1, maxPackagesLimit)
+	page, limit, err := pageAndLimit(a.Page, a.Limit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -49,7 +47,7 @@ func (h handlers) ListPackageFilesFn(ctx context.Context, req mcp.CallToolReques
 		return to.ErrorResult(err)
 	}
 	return render(apppkg.New(packagesadapter.New(port)).ListFiles(ctx, apppkg.ListFilesRequest{
-		Coords: apppkg.Coords{Owner: owner, Type: packageType, Name: name, Version: version},
+		Coords: c,
 		Page:   page,
 		Limit:  limit,
 	}))

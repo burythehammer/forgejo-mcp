@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
@@ -61,6 +62,35 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 // so each request gets its own credential.
 type handlers struct{ forge forge.Factory }
 
+// Argument structs, one per tool. `json` names the MCP argument and
+// `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps
+// them in agreement with the tool definitions. A page or limit is a decode.Arg,
+// because a wrongly typed one is an error rather than the default.
+
+type packageArgs struct {
+	Owner   string `json:"owner" required:"true"`
+	Type    string `json:"type" required:"true"`
+	Name    string `json:"name" required:"true"`
+	Version string `json:"version" required:"true"`
+}
+
+type listPackagesArgs struct {
+	Owner string     `json:"owner" required:"true"`
+	Type  string     `json:"type"`
+	Q     string     `json:"q"`
+	Page  decode.Arg `json:"page" schema:"number"`
+	Limit decode.Arg `json:"limit" schema:"number"`
+}
+
+type listPackageFilesArgs struct {
+	Owner   string     `json:"owner" required:"true"`
+	Type    string     `json:"type" required:"true"`
+	Name    string     `json:"name" required:"true"`
+	Version string     `json:"version" required:"true"`
+	Page    decode.Arg `json:"page" schema:"number"`
+	Limit   decode.Arg `json:"limit" schema:"number"`
+}
+
 // render sends a use case's result, or its error, to the client as JSON.
 func render(v any, err error) (*mcp.CallToolResult, error) {
 	if err != nil {
@@ -69,12 +99,32 @@ func render(v any, err error) (*mcp.CallToolResult, error) {
 	return to.TextResult(v)
 }
 
+// coords checks the coordinates in the order the tools always have: owner,
+// type, name, version. An empty value is a missing one.
+func (a packageArgs) coords() (apppkg.Coords, error) {
+	if a.Owner == "" {
+		return apppkg.Coords{}, errors.New("owner is required")
+	}
+	if a.Type == "" {
+		return apppkg.Coords{}, errors.New("type is required")
+	}
+	if a.Name == "" {
+		return apppkg.Coords{}, errors.New("name is required")
+	}
+	if a.Version == "" {
+		return apppkg.Coords{}, errors.New("version is required")
+	}
+	return apppkg.Coords{Owner: a.Owner, Type: a.Type, Name: a.Name, Version: a.Version}, nil
+}
+
 // GetPackageFn validates the coordinates, then runs the get use case.
 func (h handlers) GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetPackageFn")
-	args := req.GetArguments()
-
-	owner, packageType, name, version, err := requiredPackageCoords(args)
+	var a packageArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	c, err := a.coords()
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -83,17 +133,17 @@ func (h handlers) GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*m
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return render(apppkg.New(packagesadapter.New(port)).Get(ctx, apppkg.Coords{
-		Owner: owner, Type: packageType, Name: name, Version: version,
-	}))
+	return render(apppkg.New(packagesadapter.New(port)).Get(ctx, c))
 }
 
 // DeletePackageFn validates the coordinates, then runs the delete use case.
 func (h handlers) DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeletePackageFn")
-	args := req.GetArguments()
-
-	owner, packageType, name, version, err := requiredPackageCoords(args)
+	var a packageArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	c, err := a.coords()
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -102,35 +152,5 @@ func (h handlers) DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) 
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return render(apppkg.New(packagesadapter.New(port)).Delete(ctx, apppkg.Coords{
-		Owner: owner, Type: packageType, Name: name, Version: version,
-	}))
-}
-
-func requiredOwner(args map[string]any) (string, error) {
-	owner, ok := args["owner"].(string)
-	if !ok || owner == "" {
-		return "", errors.New("owner is required")
-	}
-	return owner, nil
-}
-
-func requiredPackageCoords(args map[string]any) (owner, packageType, name, version string, err error) {
-	owner, err = requiredOwner(args)
-	if err != nil {
-		return "", "", "", "", err
-	}
-	packageType, _ = args["type"].(string)
-	if packageType == "" {
-		return "", "", "", "", errors.New("type is required")
-	}
-	name, _ = args["name"].(string)
-	if name == "" {
-		return "", "", "", "", errors.New("name is required")
-	}
-	version, _ = args["version"].(string)
-	if version == "" {
-		return "", "", "", "", errors.New("version is required")
-	}
-	return owner, packageType, name, version, nil
+	return render(apppkg.New(packagesadapter.New(port)).Delete(ctx, c))
 }
