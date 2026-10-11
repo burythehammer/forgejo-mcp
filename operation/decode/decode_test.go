@@ -82,11 +82,25 @@ type numbers struct {
 func TestArgsAcceptsStringEncodedNumbers(t *testing.T) {
 	t.Parallel()
 	var a numbers
-	if err := Args(req(map[string]any{"id": "7", "limit": " 20 ", "ratio": "1.5"}), &a); err != nil {
+	if err := Args(req(map[string]any{"id": "7", "limit": "20", "ratio": "1.5"}), &a); err != nil {
 		t.Fatal(err)
 	}
 	if a.ID != 7 || a.Limit != 20 || a.Ratio != 1.5 {
 		t.Fatalf("got %+v", a)
+	}
+}
+
+// Whitespace around a numeric string is not a number, as pkg/to.Float64 has
+// always read it: " 20 " is a wrong type, not 20.
+func TestArgsRejectsWhitespaceAroundStringNumber(t *testing.T) {
+	t.Parallel()
+	var a numbers
+	err := Args(req(map[string]any{"limit": " 20 "}), &a)
+	if err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("want type error naming limit, got %v", err)
+	}
+	if a.Limit != 0 {
+		t.Fatalf("a wrongly typed field must stay zero, got %+v", a)
 	}
 }
 
