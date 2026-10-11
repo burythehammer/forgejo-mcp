@@ -65,6 +65,8 @@ func New() *Forgejo {
 type Factory struct {
 	Forgejo forge.Forgejo
 	Err     error
+	// Version is what ProbeServerVersion reports; empty means "16.0.0".
+	Version string
 }
 
 var _ forge.Factory = Factory{}
@@ -75,6 +77,20 @@ func (f Factory) For(context.Context) (forge.Forgejo, error) {
 		return nil, f.Err
 	}
 	return f.Forgejo, nil
+}
+
+// VerifyConnection implements forge.Factory; the fake is always reachable.
+func (Factory) VerifyConnection(context.Context) error { return nil }
+
+// HealthCheck implements forge.Factory.
+func (Factory) HealthCheck(context.Context) error { return nil }
+
+// ProbeServerVersion implements forge.Factory.
+func (f Factory) ProbeServerVersion(context.Context) (string, error) {
+	if f.Version == "" {
+		return "16.0.0", nil
+	}
+	return f.Version, nil
 }
 
 // defaultPageSize mirrors Forgejo's server default when a request names none.

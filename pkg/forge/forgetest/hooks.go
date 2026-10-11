@@ -5,8 +5,6 @@ package forgetest
 import (
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
-
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
@@ -88,8 +86,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		}},
 		{"a test delivery of a known hook succeeds, of an unknown one is not found", func(t *testing.T, h Harness) {
 			created := newHook(t, h, "https://example.test/a")
-			// The raw-HTTP path carries the request's credential in ctx.
-			tctx := forgejo.WithToken(ctx, "stub-token")
+			tctx := ctx
 			must(t, h.Port.TestRepoHook(tctx, Owner, Repo, created.ID))
 			wantNotFound(t, h.Port.TestRepoHook(tctx, Owner, Repo, 99))
 		}},

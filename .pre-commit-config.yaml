@@ -31,7 +31,7 @@ repos:
         name: check raw-HTTP API path escaping
         description: >-
           Reject API paths built with fmt.Sprintf instead of
-          forgejo.APIPath(), which escapes every segment. Mirrors the
+          forge.APIPath(), which escapes every segment. Mirrors the
           api-path-escaping step in .tekton/tasks/go-ci.yaml.
         entry: scripts/ci/check-api-path-escaping.sh
         language: script

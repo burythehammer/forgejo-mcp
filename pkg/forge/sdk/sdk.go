@@ -1,37 +1,48 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Package sdk is the real Forgejo adapter: it satisfies forge.Forgejo with the
-// Forgejo SDK and, as domains migrate, the raw-HTTP workarounds behind one
-// type, so callers cannot tell which transport serves a given method.
+// Forgejo SDK and, for the endpoints the SDK lacks, one raw-HTTP client, behind
+// one type, so callers cannot tell which transport serves a given method. It is
+// also the only package that knows the SDK client, the raw transport and the
+// credential policy.
 package sdk
 
 import (
 	"context"
+	"net/http"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
-// Adapter is the real forge.Forgejo, bound to one credential.
+// Adapter is the real forge.Forgejo, bound to one credential and one instance.
 type Adapter struct {
-	client *forgejo_sdk.Client
-	// rawBase is the Forgejo URL raw-HTTP methods call; empty means the
-	// configured one (see WithRawBaseURL).
-	rawBase string
+	client   *forgejo_sdk.Client
+	raw      *rawClient // the one raw-HTTP path, same instance and credential
+	settings *settings
 }
 
 var _ forge.Forgejo = (*Adapter)(nil)
 
-// NewAdapter binds an adapter to an already-built SDK client. The factory uses
-// it for every request; the contract tests use it to point the adapter at a
-// stub server.
+// NewAdapter binds an adapter to an already-built SDK client. The factory
+// builds its adapters directly; the contract tests use this to point one at a
+// stub server (see WithRawBaseURL for the raw-HTTP half).
 //
 // Each domain's methods live in their own file in this package (pull.go, ...),
 // all on *Adapter.
-func NewAdapter(c *forgejo_sdk.Client) *Adapter { return &Adapter{client: c} }
+func NewAdapter(c *forgejo_sdk.Client) *Adapter {
+	return &Adapter{client: c, raw: newRawClient("", "", ""), settings: &settings{}}
+}
+
+// WithRawBaseURL returns a copy of the adapter whose raw-HTTP methods (the ones
+// the SDK has no call for) talk to the Forgejo at url. The factory sets it from
+// Config; contract tests point it at the stub.
+func (a *Adapter) WithRawBaseURL(url string) *Adapter {
+	c := *a
+	c.raw = a.raw.withBase(url)
+	return &c
+}
 
 // statusErr wraps an SDK failure with the HTTP status Forgejo answered with,
 // when there was one. The message is the SDK's, unchanged. ctx is not passed
@@ -44,28 +55,15 @@ func statusErr(resp *forgejo_sdk.Response, err error) error {
 	return &forge.StatusError{StatusCode: resp.StatusCode, Err: err}
 }
 
-// Factory is the real forge.Factory.
-//
-// The credential policy itself still lives in pkg/forgejo (credential.go),
-// unchanged; For reaches it through the existing client construction, so a
-// request is refused or served exactly as forgejo.Client(ctx) would.
-type Factory struct {
-	cfg config.Forgejo
+// rawJSON performs a JSON request for the endpoints the SDK lacks, against the
+// adapter's instance with the adapter's credential. Paths are built with
+// forge.APIPath so every segment is escaped. A server failure comes back as
+// *forge.StatusError, with the message unchanged.
+func (a *Adapter) rawJSON(ctx context.Context, method, path string, body, out any) (http.Header, error) {
+	return a.raw.doJSONWithHeader(ctx, method, path, body, out)
 }
 
-var _ forge.Factory = (*Factory)(nil)
-
-// NewFactory builds the factory for the Forgejo instance cfg describes.
-func NewFactory(cfg config.Forgejo) *Factory { return &Factory{cfg: cfg} }
-
-// BaseURL is the Forgejo instance the factory serves.
-func (f *Factory) BaseURL() string { return f.cfg.URL }
-
-// For implements forge.Factory.
-func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
-	c, err := forgejo.Client(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return NewAdapter(c).WithRawBaseURL(f.cfg.URL), nil
+// rawDo is rawJSON for callers that do not need the response headers.
+func (a *Adapter) rawDo(ctx context.Context, method, path string, body, out any) error {
+	return a.raw.doJSON(ctx, method, path, body, out)
 }

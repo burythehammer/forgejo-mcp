@@ -6,53 +6,29 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
 var _ forge.Attachments = (*Adapter)(nil)
 
-// rawErr gives a failure from the raw-HTTP helpers the same shape as the SDK's:
-// a *forge.StatusError carrying the HTTP status, with the message unchanged.
-// rawURL points an API path at the adapter's raw base URL, when it has one (see
-// WithRawBaseURL).
-func (a *Adapter) rawURL(path string) string {
-	if a.rawBase == "" {
-		return path
-	}
-	return strings.TrimRight(a.rawBase, "/") + "/api/v1" + path
-}
-
-func rawErr(err error) error {
-	if err == nil {
-		return nil
-	}
-	var he *forgejo.HTTPError
-	if errors.As(err, &he) {
-		return &forge.StatusError{StatusCode: he.StatusCode, Err: err}
-	}
-	return err
-}
-
 // The SDK has no issue or comment attachment endpoints, so these go over raw
 // HTTP.
 
 func issueAssets(owner, repo string, index int64, rest ...any) string {
-	return forgejo.APIPath(append([]any{"repos", owner, repo, "issues", index, "assets"}, rest...)...)
+	return forge.APIPath(append([]any{"repos", owner, repo, "issues", index, "assets"}, rest...)...)
 }
 
 func commentAssets(owner, repo string, commentID int64, rest ...any) string {
-	return forgejo.APIPath(append([]any{"repos", owner, repo, "issues", "comments", commentID, "assets"}, rest...)...)
+	return forge.APIPath(append([]any{"repos", owner, repo, "issues", "comments", commentID, "assets"}, rest...)...)
 }
 
 func (a *Adapter) listAttachments(ctx context.Context, path string) ([]*forgejo_sdk.Attachment, error) {
 	var out []*forgejo_sdk.Attachment
-	if err := forgejo.DoJSON(ctx, http.MethodGet, a.rawURL(path), nil, &out); err != nil {
-		return nil, rawErr(err)
+	if err := a.rawDo(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
 	}
 	if out == nil {
 		out = []*forgejo_sdk.Attachment{}
@@ -62,22 +38,22 @@ func (a *Adapter) listAttachments(ctx context.Context, path string) ([]*forgejo_
 
 func (a *Adapter) getAttachment(ctx context.Context, path string) (*forgejo_sdk.Attachment, error) {
 	var att forgejo_sdk.Attachment
-	if err := forgejo.DoJSON(ctx, http.MethodGet, a.rawURL(path), nil, &att); err != nil {
-		return nil, rawErr(err)
+	if err := a.rawDo(ctx, http.MethodGet, path, nil, &att); err != nil {
+		return nil, err
 	}
 	return &att, nil
 }
 
 func (a *Adapter) renameAttachment(ctx context.Context, path, name string) (*forgejo_sdk.Attachment, error) {
 	var att forgejo_sdk.Attachment
-	if err := forgejo.DoJSON(ctx, http.MethodPatch, a.rawURL(path), map[string]string{"name": name}, &att); err != nil {
-		return nil, rawErr(err)
+	if err := a.rawDo(ctx, http.MethodPatch, path, map[string]string{"name": name}, &att); err != nil {
+		return nil, err
 	}
 	return &att, nil
 }
 
 func (a *Adapter) deleteAttachment(ctx context.Context, path string) error {
-	return rawErr(forgejo.DoJSON(ctx, http.MethodDelete, a.rawURL(path), nil, nil))
+	return a.rawDo(ctx, http.MethodDelete, path, nil, nil)
 }
 
 func (a *Adapter) ListIssueAttachments(ctx context.Context, owner, repo string, index int64) ([]*forgejo_sdk.Attachment, error) {
@@ -123,12 +99,12 @@ func (a *Adapter) DeleteCommentAttachment(ctx context.Context, owner, repo strin
 // DownloadAttachment reads the attachment's bytes with the request's
 // credential, up to the inline cap.
 func (a *Adapter) DownloadAttachment(ctx context.Context, downloadURL string) (forge.Download, error) {
-	body, ct, err := forgejo.DoRaw(ctx, downloadURL)
-	if errors.Is(err, forgejo.ErrPayloadTooLarge) {
+	body, ct, err := a.raw.doRaw(ctx, downloadURL)
+	if errors.Is(err, forge.ErrPayloadTooLarge) {
 		return forge.Download{}, forge.ErrPayloadTooLarge
 	}
 	if err != nil {
-		return forge.Download{}, rawErr(err)
+		return forge.Download{}, err
 	}
 	return forge.Download{Body: body, ContentType: ct}, nil
 }

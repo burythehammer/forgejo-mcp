@@ -10,28 +10,14 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
 var _ forge.Actions = (*Adapter)(nil)
 
-// rawPath makes an API path absolute against this adapter's instance, when it
-// has one (see WithRawBaseURL).
-func (a *Adapter) rawPath(path string) string {
-	if a.rawBase == "" {
-		return path
-	}
-	return strings.TrimRight(a.rawBase, "/") + "/api/v1" + path
-}
-
 func (a *Adapter) ActionsURL(owner, repo string) string {
-	base := a.rawBase
-	if base == "" {
-		base = forgejo.GetBaseURL()
-	}
-	return strings.TrimRight(base, "/") + "/" + owner + "/" + repo + "/actions"
+	return strings.TrimRight(a.raw.base, "/") + "/" + owner + "/" + repo + "/actions"
 }
 
 func (a *Adapter) DispatchWorkflow(_ context.Context, owner, repo, workflow string, opt forgejo_sdk.DispatchWorkflowOption) error {
@@ -50,20 +36,20 @@ func (a *Adapter) GetWorkflowRun(_ context.Context, owner, repo string, runID in
 }
 
 func (a *Adapter) CancelWorkflowRun(ctx context.Context, owner, repo string, runID int64) error {
-	path := a.rawPath(forgejo.APIPath("repos", owner, repo, "actions", "runs", runID, "cancel"))
-	return rawErr(forgejo.DoJSON(ctx, http.MethodPost, path, nil, nil))
+	path := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "cancel")
+	return a.rawDo(ctx, http.MethodPost, path, nil, nil)
 }
 
 func (a *Adapter) DeleteWorkflowRun(ctx context.Context, owner, repo string, runID int64) error {
-	path := a.rawPath(forgejo.APIPath("repos", owner, repo, "actions", "runs", runID))
-	return rawErr(forgejo.DoJSON(ctx, http.MethodDelete, path, nil, nil))
+	path := forge.APIPath("repos", owner, repo, "actions", "runs", runID)
+	return a.rawDo(ctx, http.MethodDelete, path, nil, nil)
 }
 
 func (a *Adapter) ListRunJobs(ctx context.Context, owner, repo string, runID int64) ([]forge.ActionRunJob, error) {
-	path := a.rawPath(forgejo.APIPath("repos", owner, repo, "actions", "runs", runID, "jobs"))
+	path := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "jobs")
 	jobs := make([]forge.ActionRunJob, 0)
-	if err := forgejo.DoJSON(ctx, http.MethodGet, path, nil, &jobs); err != nil {
-		return nil, rawErr(err)
+	if err := a.rawDo(ctx, http.MethodGet, path, nil, &jobs); err != nil {
+		return nil, err
 	}
 	if jobs == nil {
 		jobs = []forge.ActionRunJob{}
@@ -72,15 +58,15 @@ func (a *Adapter) ListRunJobs(ctx context.Context, owner, repo string, runID int
 }
 
 func (a *Adapter) GetJobLog(ctx context.Context, owner, repo string, jobID, attempt int64, byteRange string, maxBytes int64) (*forge.JobLog, error) {
-	path := a.rawPath(forgejo.APIPath("repos", owner, repo, "actions", "jobs", jobID, "logs"))
+	path := forge.APIPath("repos", owner, repo, "actions", "jobs", jobID, "logs")
 	if attempt > 0 {
 		query := url.Values{}
 		query.Set("attempt", strconv.FormatInt(attempt, 10))
 		path += "?" + query.Encode()
 	}
-	raw, err := forgejo.DoAPIRaw(ctx, path, "text/plain", byteRange, maxBytes)
+	raw, err := a.raw.doAPIRaw(ctx, path, "text/plain", byteRange, maxBytes)
 	if err != nil {
-		return nil, rawErr(err)
+		return nil, err
 	}
 	return &forge.JobLog{
 		Body:          raw.Body,
@@ -98,25 +84,25 @@ func (a *Adapter) ListRunArtifacts(ctx context.Context, owner, repo string, runI
 	if opt.Name != "" {
 		query.Set("name", opt.Name)
 	}
-	path := a.rawPath(forgejo.APIPath("repos", owner, repo, "actions", "runs", runID, "artifacts")) + "?" + query.Encode()
+	path := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "artifacts") + "?" + query.Encode()
 
 	artifacts := make([]forge.ActionArtifact, 0)
-	header, err := forgejo.DoJSONWithHeader(ctx, http.MethodGet, path, nil, &artifacts)
+	header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &artifacts)
 	if err != nil {
-		return forge.ArtifactList{}, rawErr(err)
+		return forge.ArtifactList{}, err
 	}
 	// A JSON null body unmarshals onto a nil slice and overwrites the make above.
 	if artifacts == nil {
 		artifacts = []forge.ActionArtifact{}
 	}
-	return forge.ArtifactList{Artifacts: artifacts, TotalCount: forgejo.TotalCountPtr(header)}, nil
+	return forge.ArtifactList{Artifacts: artifacts, TotalCount: totalCountPtr(header)}, nil
 }
 
 func (a *Adapter) GetArtifact(ctx context.Context, owner, repo string, artifactID int64) (*forge.ActionArtifact, error) {
-	path := a.rawPath(forgejo.APIPath("repos", owner, repo, "actions", "artifacts", artifactID))
+	path := forge.APIPath("repos", owner, repo, "actions", "artifacts", artifactID)
 	var artifact forge.ActionArtifact
-	if err := forgejo.DoJSON(ctx, http.MethodGet, path, nil, &artifact); err != nil {
-		return nil, rawErr(err)
+	if err := a.rawDo(ctx, http.MethodGet, path, nil, &artifact); err != nil {
+		return nil, err
 	}
 	return &artifact, nil
 }

@@ -13,7 +13,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/forgetest"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -117,6 +116,7 @@ func TestPackagePathsAreEscaped(t *testing.T) {
 }
 
 func TestRawCallsFollowTheFactoryCredential(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	var auth []string
 	srv := serve(t, func(w http.ResponseWriter, r *http.Request) {
@@ -126,18 +126,10 @@ func TestRawCallsFollowTheFactoryCredential(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	})
 	cfg := config.Forgejo{URL: srv.URL, Token: config.NewSecret(operatorValue)}
-	forgejo.Configure(cfg, "test")
-	forgejo.ResetClientForTesting()
-	prev := forgejo.RequireRequestToken()
-	forgejo.SetRequireRequestToken(false)
-	t.Cleanup(func() {
-		forgejo.SetRequireRequestToken(prev)
-		forgejo.ResetClientForTesting()
-	})
 
-	f := NewFactory(cfg)
+	f := NewFactory(cfg, "test")
 	for _, ctx := range []context.Context{
-		forgejo.WithToken(context.Background(), requestValue),
+		forge.WithToken(context.Background(), requestValue),
 		context.Background(),
 	} {
 		port, err := f.For(ctx)

@@ -39,4 +39,15 @@ type Factory interface {
 	// the operator's, where the policy allows that. When it does not, For
 	// returns the policy's error.
 	For(ctx context.Context) (Forgejo, error)
+
+	// VerifyConnection checks, once at startup, that the configured instance
+	// answers, using the operator's own credential (the check needs only
+	// /version). It is the composition root's gate before serving.
+	VerifyConnection(ctx context.Context) error
+	// HealthCheck is the same probe, quieter, for liveness checks.
+	HealthCheck(ctx context.Context) error
+	// ProbeServerVersion asks the instance for its version without sending any
+	// credential, and records it so later clients skip their own version
+	// request.
+	ProbeServerVersion(ctx context.Context) (string, error)
 }

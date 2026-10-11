@@ -17,8 +17,11 @@ func TestLoadCLIArguments(t *testing.T) {
 	}{
 		{"list defaults to text", []string{"--cli", "list"}, CLI{Tool: "list", Output: "text"}},
 		{"tool defaults to json", []string{"--cli", "get_issue_by_index"}, CLI{Tool: "get_issue_by_index", Output: "json"}},
-		{"args and output", []string{"--cli", "get_issue_by_index", "--args", `{"a":1}`, "--output=text"},
-			CLI{Tool: "get_issue_by_index", Args: `{"a":1}`, Output: "text"}},
+		{
+			"args and output",
+			[]string{"--cli", "get_issue_by_index", "--args", `{"a":1}`, "--output=text"},
+			CLI{Tool: "get_issue_by_index", Args: `{"a":1}`, Output: "text"},
+		},
 		{"help", []string{"--cli", "get_issue_by_index", "--help"}, CLI{Tool: "get_issue_by_index", Output: "json", Help: true}},
 		{"flags before --cli are ignored", []string{"-debug", "--cli", "list"}, CLI{Tool: "list", Output: "text"}},
 		{"no command", []string{"--cli"}, CLI{}},

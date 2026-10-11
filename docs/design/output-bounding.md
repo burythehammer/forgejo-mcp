@@ -81,8 +81,8 @@ list/search API endpoints, carrying the total number of matching rows across
 every page (distinct from `count`, which is the row count on the current page
 alone). Tools whose envelope already carries `page`/`limit`/`has_next` SHOULD
 also surface this as a `total_count` field, parsed with the shared
-`pkg/forgejo.TotalCount` / `TotalCountPtr` helpers rather than a bespoke
-per-tool copy. When the header is absent or unparsable, OMIT the key — never
+the adapter's X-Total-Count helper (`pkg/forge/sdk/pagination.go`) rather than
+a bespoke per-tool copy; the port hands the tool a `TotalCount *int`. When the header is absent or unparsable, OMIT the key — never
 emit `total_count: 0`, which reads as "confirmed zero rows" rather than
 "unknown." Today this covers `search_issues`, `list_repo_hooks`,
 `list_wiki_pages`, and `get_wiki_revisions`.

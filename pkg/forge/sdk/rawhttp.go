@@ -1,4 +1,6 @@
-package forgejo
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package sdk
 
 import (
 	"bytes"
@@ -12,24 +14,21 @@ import (
 	"net/textproto"
 	"strings"
 	"time"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 )
 
-// MaxInlineDownloadBytes caps inline base64 attachment payloads.
-// Files at or above this size return metadata only; the caller is expected
-// to fetch browser_download_url directly with the same auth token.
-// See docs/plans/issue-attachments.md and Codeberg issue #106.
-const MaxInlineDownloadBytes = 1 * 1024 * 1024
-
-// Error sentinels callers can match with errors.Is.
+// Error sentinels the raw failures wrap, matchable with errors.Is.
 var (
-	ErrUnauthorized    = errors.New("unauthorized")
-	ErrNotFound        = errors.New("not found")
-	ErrPayloadTooLarge = errors.New("payload exceeds inline cap")
+	errUnauthorized = errors.New("unauthorized")
+	errNotFound     = errors.New("not found")
 )
 
-// HTTPError carries the response status and a sanitised body snippet.
-// It wraps one of the sentinels above when the status maps to one.
-type HTTPError struct {
+// httpError carries the response status and a sanitised body snippet.
+// It wraps one of the sentinels above when the status maps to one. Every
+// failure leaves the raw client inside a *forge.StatusError that wraps it, so a
+// caller sees the same shape as for an SDK failure and the message is unchanged.
+type httpError struct {
 	StatusCode int
 	Status     string
 	Body       string
@@ -38,9 +37,9 @@ type HTTPError struct {
 	wrapped    error
 }
 
-// RawAPIResponse contains a bounded response body and the headers needed to
+// rawResponse contains a bounded response body and the headers needed to
 // resume ranged API reads.
-type RawAPIResponse struct {
+type rawResponse struct {
 	Body          []byte
 	ContentType   string
 	ContentRange  string
@@ -48,26 +47,51 @@ type RawAPIResponse struct {
 	StatusCode    int
 }
 
-func (e *HTTPError) Error() string {
+func (e *httpError) Error() string {
 	return fmt.Sprintf("%s %s: %s: %s", e.Method, e.URL, e.Status, e.Body)
 }
 
-func (e *HTTPError) Unwrap() error { return e.wrapped }
+func (e *httpError) Unwrap() error { return e.wrapped }
 
-// rawHTTPClient is package-level so tests can swap timeouts; a single
-// shared client lets keep-alives work across tool calls.
-var rawHTTPClient = &http.Client{Timeout: 60 * time.Second}
+// rawClient is the one raw-HTTP path, for the endpoints the SDK lacks. It is
+// bound to one instance and one credential, both fixed when the adapter is
+// built, so there is no package-level target and adapters never share state.
+type rawClient struct {
+	base  string // Forgejo URL, without /api/v1
+	token string // the request's credential, as the factory resolved it
+	ua    string
+	hc    *http.Client
+}
+
+const defaultUserAgent = "forgejo-mcp/"
+
+// sharedHTTPClient is shared so keep-alives work across tool calls.
+var sharedHTTPClient = &http.Client{Timeout: 60 * time.Second}
+
+func newRawClient(base, token, ua string) *rawClient {
+	if ua == "" {
+		ua = defaultUserAgent
+	}
+	return &rawClient{base: base, token: token, ua: ua, hc: sharedHTTPClient}
+}
+
+// withBase is a copy of the client aimed at another instance.
+func (r *rawClient) withBase(base string) *rawClient {
+	c := *r
+	c.base = base
+	return &c
+}
 
 // resolveURL turns a path or absolute URL into an absolute URL string.
 // API paths (e.g. "/repos/x/y/issues/1/assets") are prefixed with
 // the Forgejo URL + "/api/v1". Absolute URLs are returned verbatim.
-func resolveURL(pathOrURL string) (string, error) {
+func (r *rawClient) resolveURL(pathOrURL string) (string, error) {
 	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
 		return pathOrURL, nil
 	}
-	base := strings.TrimRight(baseURL(), "/")
+	base := strings.TrimRight(r.base, "/")
 	if base == "" {
-		return "", fmt.Errorf("Forgejo URL is empty; raw-HTTP helper needs a configured base URL")
+		return "", errors.New("the Forgejo URL is empty; the raw-HTTP client needs a configured base URL")
 	}
 	if !strings.HasPrefix(pathOrURL, "/") {
 		pathOrURL = "/" + pathOrURL
@@ -79,13 +103,13 @@ func resolveURL(pathOrURL string) (string, error) {
 // resolveSameOriginURL is like resolveURL but for asset/download URLs that
 // live outside the /api/v1 prefix (e.g. /attachments/{uuid}). Absolute URLs
 // pass through; relative URLs hang off the Forgejo URL with no /api/v1.
-func resolveSameOriginURL(pathOrURL string) (string, error) {
+func (r *rawClient) resolveSameOriginURL(pathOrURL string) (string, error) {
 	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
 		return pathOrURL, nil
 	}
-	base := strings.TrimRight(baseURL(), "/")
+	base := strings.TrimRight(r.base, "/")
 	if base == "" {
-		return "", fmt.Errorf("Forgejo URL is empty; raw-HTTP helper needs a configured base URL")
+		return "", errors.New("the Forgejo URL is empty; the raw-HTTP client needs a configured base URL")
 	}
 	if !strings.HasPrefix(pathOrURL, "/") {
 		pathOrURL = "/" + pathOrURL
@@ -93,32 +117,26 @@ func resolveSameOriginURL(pathOrURL string) (string, error) {
 	return base + pathOrURL, nil
 }
 
-func setCommonHeaders(ctx context.Context, req *http.Request) error {
-	token, err := tokenForRequest(ctx)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("User-Agent", userAgent())
+func (r *rawClient) setCommonHeaders(req *http.Request) {
+	req.Header.Set("Authorization", "token "+r.token)
+	req.Header.Set("User-Agent", r.ua)
 	req.Header.Set("Accept", "application/json")
-	return nil
 }
 
-// doRequest sends req, returns the response, mapping common HTTP errors to
-// the sentinels above. Caller owns response body close.
-func doRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+// doRequest sends req and returns the response. Caller owns response body close.
+func (r *rawClient) doRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
 	start := time.Now()
-	resp, err := rawHTTPClient.Do(req)
+	resp, err := r.hc.Do(req)
 	duration := time.Since(start)
 	endpoint := req.URL.Path
 	if req.URL.RawQuery != "" {
 		endpoint += "?" + req.URL.RawQuery
 	}
 	if err != nil {
-		LogAPICall(ctx, req.Method, endpoint, duration, 0, err)
+		forge.LogAPICall(ctx, req.Method, endpoint, duration, 0, err)
 		return nil, fmt.Errorf("%s %s: %w", req.Method, req.URL.String(), err)
 	}
-	LogAPICall(ctx, req.Method, endpoint, duration, resp.StatusCode, nil)
+	forge.LogAPICall(ctx, req.Method, endpoint, duration, resp.StatusCode, nil)
 	return resp, nil
 }
 
@@ -130,53 +148,46 @@ func readBodySnippet(r io.Reader) string {
 	return string(buf[:n])
 }
 
-// httpErrorFromResponse builds an HTTPError mapping status to a sentinel.
-func httpErrorFromResponse(req *http.Request, resp *http.Response) *HTTPError {
-	body := readBodySnippet(resp.Body)
-	e := &HTTPError{
+// httpErrorFromResponse builds the failure for a non-2xx response: a
+// *forge.StatusError carrying the status, wrapping an *httpError that maps
+// 401/403/404 to the sentinels.
+func httpErrorFromResponse(req *http.Request, resp *http.Response) error {
+	e := &httpError{
 		StatusCode: resp.StatusCode,
 		Status:     resp.Status,
-		Body:       body,
+		Body:       readBodySnippet(resp.Body),
 		Method:     req.Method,
 		URL:        req.URL.String(),
 	}
 	switch resp.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		e.wrapped = ErrUnauthorized
+		e.wrapped = errUnauthorized
 	case http.StatusNotFound:
-		e.wrapped = ErrNotFound
+		e.wrapped = errNotFound
 	}
-	return e
+	return &forge.StatusError{StatusCode: resp.StatusCode, Err: e}
 }
 
-// DoJSON performs an authenticated JSON request. Encodes body as JSON if
+// doJSON performs an authenticated JSON request. Encodes body as JSON if
 // non-nil; decodes 2xx response into out if non-nil. 204 responses are
-// always success-with-no-body. 4xx/5xx return *HTTPError.
+// always success-with-no-body. 4xx/5xx return a *forge.StatusError.
 //
 // For list endpoints where a 404 should mean "empty list" (Forgejo's habit
-// when the parent entity has no children), use DoJSONList instead.
-func DoJSON(ctx context.Context, method, pathOrURL string, body, out any) error {
-	_, err := DoJSONWithHeader(ctx, method, pathOrURL, body, out)
+// when the parent entity has no children), use doJSONList instead.
+func (r *rawClient) doJSON(ctx context.Context, method, pathOrURL string, body, out any) error {
+	_, err := r.doJSONWithHeader(ctx, method, pathOrURL, body, out)
 	return err
 }
 
-// DoJSONWithHeader is DoJSON plus the response headers. 4xx/5xx remain
-// errors, including 404 — unlike DoJSONList, a missing parent is not
-// rewritten as an empty list. Paged list endpoints that must distinguish
-// "no such run" from "run with zero children" use this and read
-// X-Total-Count / Link from the returned header.
-func DoJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out any) (http.Header, error) {
-	return doJSONWithHeader(ctx, method, pathOrURL, body, out)
-}
-
-// doJSONWithHeader is DoJSON's body, additionally returning the response
-// headers. Paged list endpoints need them: Forgejo reports the total in
-// X-Total-Count and "another page exists" in Link … rel="next", and a bounded
-// resource that must not over-fetch has no other way to detect truncation.
-// The header is returned even on error when a response was received, so a
-// caller mapping a 404 to "empty list" still sees whatever the server said.
-func doJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out any) (http.Header, error) {
-	full, err := resolveURL(pathOrURL)
+// doJSONWithHeader is doJSON plus the response headers. 4xx/5xx remain
+// errors, including 404 -- unlike doJSONList, a missing parent is not
+// rewritten as an empty list. Paged list endpoints need the headers: Forgejo
+// reports the total in X-Total-Count and "another page exists" in
+// Link ... rel="next", and a bounded resource that must not over-fetch has no
+// other way to detect truncation. The header is returned even on error when a
+// response was received.
+func (r *rawClient) doJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out any) (http.Header, error) {
+	full, err := r.resolveURL(pathOrURL)
 	if err != nil {
 		return nil, err
 	}
@@ -192,13 +203,11 @@ func doJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out a
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	if err := setCommonHeaders(ctx, req); err != nil {
-		return nil, err
-	}
+	r.setCommonHeaders(req)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := doRequest(ctx, req)
+	resp, err := r.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -217,33 +226,31 @@ func doJSONWithHeader(ctx context.Context, method, pathOrURL string, body, out a
 	return resp.Header, nil
 }
 
-// DoJSONList is like DoJSON but treats 404 as "empty list" (no error,
+// doJSONList is like doJSON but treats 404 as "empty list" (no error,
 // out left at its zero value).
-func DoJSONList(ctx context.Context, method, pathOrURL string, out any) error {
-	_, err := DoJSONListWithHeader(ctx, method, pathOrURL, out)
+func (r *rawClient) doJSONList(ctx context.Context, method, pathOrURL string, out any) error {
+	_, err := r.doJSONListWithHeader(ctx, method, pathOrURL, out)
 	return err
 }
 
-// DoJSONListWithHeader is DoJSONList plus the response headers, for paged list
-// endpoints that must read X-Total-Count / Link to bound their output without
-// over-fetching. On the 404-means-empty path the headers are still returned.
-func DoJSONListWithHeader(ctx context.Context, method, pathOrURL string, out any) (http.Header, error) {
-	header, err := doJSONWithHeader(ctx, method, pathOrURL, nil, out)
-	var he *HTTPError
-	if errors.As(err, &he) && he.StatusCode == http.StatusNotFound {
+// doJSONListWithHeader is doJSONList plus the response headers. On the
+// 404-means-empty path the headers are still returned.
+func (r *rawClient) doJSONListWithHeader(ctx context.Context, method, pathOrURL string, out any) (http.Header, error) {
+	header, err := r.doJSONWithHeader(ctx, method, pathOrURL, nil, out)
+	if forge.IsNotFound(err) {
 		return header, nil
 	}
 	return header, err
 }
 
-// DoAPIRaw performs an authenticated GET against an API path and reads at most
+// doAPIRaw performs an authenticated GET against an API path and reads at most
 // maxBytes. The optional byteRange value is sent as the HTTP Range header.
 // Callers must use response range metadata to make bounded reads resumable.
-func DoAPIRaw(ctx context.Context, pathOrURL, accept, byteRange string, maxBytes int64) (*RawAPIResponse, error) {
+func (r *rawClient) doAPIRaw(ctx context.Context, pathOrURL, accept, byteRange string, maxBytes int64) (*rawResponse, error) {
 	if maxBytes <= 0 {
 		return nil, fmt.Errorf("maxBytes must be positive")
 	}
-	full, err := resolveURL(pathOrURL)
+	full, err := r.resolveURL(pathOrURL)
 	if err != nil {
 		return nil, err
 	}
@@ -251,9 +258,7 @@ func DoAPIRaw(ctx context.Context, pathOrURL, accept, byteRange string, maxBytes
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	if err := setCommonHeaders(ctx, req); err != nil {
-		return nil, err
-	}
+	r.setCommonHeaders(req)
 	if accept != "" {
 		req.Header.Set("Accept", accept)
 	}
@@ -261,7 +266,7 @@ func DoAPIRaw(ctx context.Context, pathOrURL, accept, byteRange string, maxBytes
 		req.Header.Set("Range", byteRange)
 	}
 
-	resp, err := doRequest(ctx, req)
+	resp, err := r.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -277,10 +282,10 @@ func DoAPIRaw(ctx context.Context, pathOrURL, accept, byteRange string, maxBytes
 		return nil, fmt.Errorf("read body: %w", err)
 	}
 	if int64(len(body)) > maxBytes {
-		return nil, ErrPayloadTooLarge
+		return nil, forge.ErrPayloadTooLarge
 	}
 
-	return &RawAPIResponse{
+	return &rawResponse{
 		Body:          body,
 		ContentType:   resp.Header.Get("Content-Type"),
 		ContentRange:  resp.Header.Get("Content-Range"),
@@ -292,10 +297,10 @@ func DoAPIRaw(ctx context.Context, pathOrURL, accept, byteRange string, maxBytes
 // quoteEscaper mirrors mime/multipart's internal escaper for filenames.
 var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
 
-// DoMultipart uploads a single file part via multipart/form-data and
+// doMultipart uploads a single file part via multipart/form-data and
 // decodes the JSON response into out (if non-nil).
-func DoMultipart(ctx context.Context, method, pathOrURL, fieldName, filename, mimeType string, r io.Reader, out any) error {
-	full, err := resolveURL(pathOrURL)
+func (r *rawClient) doMultipart(ctx context.Context, method, pathOrURL, fieldName, filename, mimeType string, body io.Reader, out any) error {
+	full, err := r.resolveURL(pathOrURL)
 	if err != nil {
 		return err
 	}
@@ -310,13 +315,11 @@ func DoMultipart(ctx context.Context, method, pathOrURL, fieldName, filename, mi
 		_ = pipeWriter.Close()
 		return fmt.Errorf("build request: %w", err)
 	}
-	go writeMultipart(pipeWriter, multipartWriter, fieldName, filename, mimeType, r)
+	go writeMultipart(pipeWriter, multipartWriter, fieldName, filename, mimeType, body)
 
-	if err := setCommonHeaders(ctx, req); err != nil {
-		return err
-	}
+	r.setCommonHeaders(req)
 	req.Header.Set("Content-Type", contentType)
-	resp, err := doRequest(ctx, req)
+	resp, err := r.doRequest(ctx, req)
 	_ = pipeReader.Close()
 	if err != nil {
 		return err
@@ -359,12 +362,12 @@ func writeMultipart(pipeWriter *io.PipeWriter, multipartWriter *multipart.Writer
 	_ = pipeWriter.Close()
 }
 
-// DoRaw fetches bytes from a URL (absolute or relative-to-the-Forgejo-URL with no
-// /api/v1 prefix), adding the configured auth header. Caps the response at
-// MaxInlineDownloadBytes; ErrPayloadTooLarge is returned if the body would
-// exceed the cap. Returns body bytes + content type.
-func DoRaw(ctx context.Context, pathOrURL string) ([]byte, string, error) {
-	full, err := resolveSameOriginURL(pathOrURL)
+// doRaw fetches bytes from a URL (absolute or relative-to-the-Forgejo-URL with no
+// /api/v1 prefix), adding the credential. Caps the response at
+// forge.MaxInlineDownloadBytes; forge.ErrPayloadTooLarge is returned if the
+// body would exceed the cap. Returns body bytes + content type.
+func (r *rawClient) doRaw(ctx context.Context, pathOrURL string) ([]byte, string, error) {
+	full, err := r.resolveSameOriginURL(pathOrURL)
 	if err != nil {
 		return nil, "", err
 	}
@@ -372,12 +375,9 @@ func DoRaw(ctx context.Context, pathOrURL string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("build request: %w", err)
 	}
-	if err := setCommonHeaders(ctx, req); err != nil {
-		return nil, "", err
-	}
-	// Don't constrain Accept here — the asset endpoint is binary.
+	r.setCommonHeaders(req)
 
-	resp, err := doRequest(ctx, req)
+	resp, err := r.doRequest(ctx, req)
 	if err != nil {
 		return nil, "", err
 	}
@@ -388,14 +388,13 @@ func DoRaw(ctx context.Context, pathOrURL string) ([]byte, string, error) {
 	}
 
 	// Read up to cap+1 to detect overflow.
-	limited := io.LimitReader(resp.Body, MaxInlineDownloadBytes+1)
+	limited := io.LimitReader(resp.Body, forge.MaxInlineDownloadBytes+1)
 	buf, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, "", fmt.Errorf("read body: %w", err)
 	}
-	if int64(len(buf)) > MaxInlineDownloadBytes {
-		return nil, "", ErrPayloadTooLarge
+	if int64(len(buf)) > forge.MaxInlineDownloadBytes {
+		return nil, "", forge.ErrPayloadTooLarge
 	}
-	ct := resp.Header.Get("Content-Type")
-	return buf, ct, nil
+	return buf, resp.Header.Get("Content-Type"), nil
 }

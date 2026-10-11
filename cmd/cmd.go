@@ -11,7 +11,6 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 )
 
@@ -48,7 +47,6 @@ func Execute(version string) {
 			log.StringField("migration_help", "Please update your configuration to use "+w.Preferred),
 		)
 	}
-	forgejo.Configure(cfg.Forgejo, version)
 
 	// Sync flushes buffered logs at exit; its error (e.g. syncing stderr) is
 	// not actionable here.

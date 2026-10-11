@@ -15,7 +15,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -142,7 +141,7 @@ func TestWikiResourceMapsCredentialRefusal(t *testing.T) {
 func TestWikiResourceTruncatesMarkdownAtUTF8Boundary(t *testing.T) {
 	t.Parallel()
 	const marker = "\n\n[truncated: use get_wiki_page with start_line/end_line to retrieve the remainder.]"
-	keep := forgejo.MaxInlineDownloadBytes - len(marker)
+	keep := forge.MaxInlineDownloadBytes - len(marker)
 	// Put the nominal byte boundary in the middle of a multi-byte rune.
 	content := strings.Repeat("a", keep-1) + "€" + strings.Repeat("z", len(marker)+10)
 	h, f := newFixture(t)
@@ -155,7 +154,7 @@ func TestWikiResourceTruncatesMarkdownAtUTF8Boundary(t *testing.T) {
 	if !utf8.ValidString(markdown) {
 		t.Fatal("truncated markdown is not valid UTF-8")
 	}
-	if len(markdown) > forgejo.MaxInlineDownloadBytes || !strings.Contains(markdown, "[truncated:") {
+	if len(markdown) > forge.MaxInlineDownloadBytes || !strings.Contains(markdown, "[truncated:") {
 		t.Fatalf("unexpected truncated markdown length=%d", len(markdown))
 	}
 	if !strings.Contains(markdown, GetWikiPageToolName) {

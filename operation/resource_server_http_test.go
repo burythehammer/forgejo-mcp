@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
-
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
@@ -46,7 +44,6 @@ type rsEnv struct {
 // raw-HTTP helper, exactly as tool handlers do.
 func startResourceServer(t *testing.T) *rsEnv {
 	t.Helper()
-	restoreRequestTokenPolicy(t)
 	app := resourceServerConfig()
 	env := &rsEnv{reached: make(chan error, 8)}
 	env.fixture = newFixture(t, &app, "16.0.3", mustP256(t), "")
@@ -58,7 +55,8 @@ func startResourceServer(t *testing.T) *rsEnv {
 	if err := app.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
-	rs, err := prepareResourceServer(context.Background(), app)
+	factory := newFactory(app, "test")
+	rs, err := prepareResourceServer(context.Background(), app, factory)
 	if err != nil {
 		t.Fatalf("prepareResourceServer: %v", err)
 	}
@@ -66,13 +64,12 @@ func startResourceServer(t *testing.T) *rsEnv {
 
 	probe := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := requestTokenContextFunc(app)(r.Context(), r)
-		client, err := forgejo.Client(ctx)
+		port, err := factory.For(ctx)
 		if err == nil {
-			_, _, err = client.GetMyUserInfo()
+			_, err = port.GetMyUserInfo(ctx) // the typed SDK path
 		}
 		if err == nil {
-			var user map[string]any
-			err = forgejo.DoJSON(ctx, http.MethodGet, "/user", nil, &user)
+			_, _, err = port.ListOrgLabels(ctx, "synapse", 1, 30) // the raw-HTTP path
 		}
 		env.reached <- err
 		w.WriteHeader(http.StatusNoContent)
@@ -83,7 +80,6 @@ func startResourceServer(t *testing.T) *rsEnv {
 	}
 
 	cfg := resolveTransportConfig(app)
-	forgejo.SetRequireRequestToken(cfg.requireAuth)
 	ln := mustListenLoopback(t)
 	srv := newMCPHTTPServer(handler, cfg)
 	go func() { _ = srv.Serve(ln) }()
@@ -185,7 +181,7 @@ func TestProtectedResourceMetadataIsPublishedWithoutAuthentication(t *testing.T)
 func TestScopesSupportedIsOmittedWhenNotConfigured(t *testing.T) {
 	app := resourceServerConfig()
 	newFixture(t, &app, "16.0.3", mustP256(t), "")
-	rs, err := prepareResourceServer(context.Background(), app)
+	rs, err := prepareResourceServer(context.Background(), app, newFactory(app, "test"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -388,15 +384,18 @@ func TestAToolCallReachesForgejoWithTheMintedTokenOnly(t *testing.T) {
 		if strings.Contains(req, inbound) {
 			t.Fatalf("Forgejo received the inbound token: %q", req)
 		}
-		if strings.HasPrefix(req, "/api/v1/user ") {
-			userCalls = append(userCalls, strings.TrimPrefix(req, "/api/v1/user "))
+		// The typed SDK path (/user) and the raw-HTTP path (org labels).
+		for _, prefix := range []string{"/api/v1/user ", "/api/v1/orgs/synapse/labels "} {
+			if strings.HasPrefix(req, prefix) {
+				userCalls = append(userCalls, strings.TrimPrefix(req, prefix))
+			}
 		}
 		if strings.HasPrefix(req, "/api/v1/version ") && req != "/api/v1/version " {
 			t.Fatalf("a version request carried a credential: %q", req)
 		}
 	}
 	if len(userCalls) != 2 {
-		t.Fatalf("Forgejo saw %d user requests, want 2 (typed client and raw helper): %v", len(userCalls), env.fixture.requests())
+		t.Fatalf("Forgejo saw %d user requests, want 2 (SDK path and raw-HTTP path): %v", len(userCalls), env.fixture.requests())
 	}
 	if userCalls[0] != userCalls[1] {
 		t.Fatalf("the two client paths used different credentials: %q vs %q", userCalls[0], userCalls[1])

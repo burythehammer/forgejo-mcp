@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 )
 
 var _ forge.Packages = (*Adapter)(nil)
@@ -50,7 +49,7 @@ func (a *Adapter) ListPackages(ctx context.Context, owner string, opt forge.List
 	if opt.Query != "" {
 		query.Set("q", opt.Query)
 	}
-	path := forgejo.APIPath("packages", owner) + "?" + query.Encode()
+	path := forge.APIPath("packages", owner) + "?" + query.Encode()
 
 	var rows []packageVersionJSON
 	header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &rows)
@@ -70,7 +69,7 @@ func (a *Adapter) ListPackages(ctx context.Context, owner string, opt forge.List
 
 func (a *Adapter) GetPackage(ctx context.Context, owner, packageType, name, version string) (*forge.PackageVersion, error) {
 	var src packageVersionJSON
-	if _, err := a.rawJSON(ctx, http.MethodGet, forgejo.APIPath("packages", owner, packageType, name, version), nil, &src); err != nil {
+	if _, err := a.rawJSON(ctx, http.MethodGet, forge.APIPath("packages", owner, packageType, name, version), nil, &src); err != nil {
 		return nil, err
 	}
 	v := src.port()
@@ -78,7 +77,7 @@ func (a *Adapter) GetPackage(ctx context.Context, owner, packageType, name, vers
 }
 
 func (a *Adapter) DeletePackage(ctx context.Context, owner, packageType, name, version string) error {
-	_, err := a.rawJSON(ctx, http.MethodDelete, forgejo.APIPath("packages", owner, packageType, name, version), nil, nil)
+	_, err := a.rawJSON(ctx, http.MethodDelete, forge.APIPath("packages", owner, packageType, name, version), nil, nil)
 	return err
 }
 
@@ -89,7 +88,7 @@ func (a *Adapter) ListPackageFiles(ctx context.Context, owner, packageType, name
 		Size   int64  `json:"size"`
 		SHA256 string `json:"sha256"`
 	}
-	if _, err := a.rawJSON(ctx, http.MethodGet, forgejo.APIPath("packages", owner, packageType, name, version, "files"), nil, &rows); err != nil {
+	if _, err := a.rawJSON(ctx, http.MethodGet, forge.APIPath("packages", owner, packageType, name, version, "files"), nil, &rows); err != nil {
 		return nil, err
 	}
 	files := make([]forge.PackageFile, 0, len(rows))

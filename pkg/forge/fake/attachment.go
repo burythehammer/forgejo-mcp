@@ -13,7 +13,6 @@ import (
 	"sync"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -263,7 +262,7 @@ func (f *Forgejo) DeleteCommentAttachment(_ context.Context, owner, repo string,
 // by its download URL, refusing a body over the inline cap.
 func (f *Forgejo) DownloadAttachment(_ context.Context, downloadURL string) (forge.Download, error) {
 	d, err := f.AttachmentContent(downloadURL)
-	if err == nil && int64(len(d.Body)) > forgejo.MaxInlineDownloadBytes {
+	if err == nil && int64(len(d.Body)) > forge.MaxInlineDownloadBytes {
 		return forge.Download{}, forge.ErrPayloadTooLarge
 	}
 	return d, err

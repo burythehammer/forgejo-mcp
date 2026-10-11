@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/jwtissuer"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs"
@@ -32,7 +32,7 @@ type resourceServer struct {
 // prepareResourceServer runs the startup checks that need I/O, in order: load
 // the keys, read Forgejo's version, and read the identity provider's metadata
 // and keys. It fails on the first problem, before anything is bound.
-func prepareResourceServer(ctx context.Context, cfg config.Config) (*resourceServer, error) {
+func prepareResourceServer(ctx context.Context, cfg config.Config, factory forge.Factory) (*resourceServer, error) {
 	a := cfg.Auth
 	signing, err := jwtissuer.LoadSigningKey(a.ForgejoJWTSigningKeyFile)
 	if err != nil {
@@ -51,11 +51,11 @@ func prepareResourceServer(ctx context.Context, cfg config.Config) (*resourceSer
 		return nil, fmt.Errorf("refusing to start: -forgejo-jwt-issuer: %w", err)
 	}
 
-	version, err := forgejo.ProbeServerVersion(ctx)
+	version, err := factory.ProbeServerVersion(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("refusing to start: cannot read the Forgejo version: %w", err)
 	}
-	major, err := forgejo.MajorVersion(version)
+	major, err := forge.MajorVersion(version)
 	if err != nil {
 		return nil, fmt.Errorf("refusing to start: %w", err)
 	}
@@ -63,7 +63,6 @@ func prepareResourceServer(ctx context.Context, cfg config.Config) (*resourceSer
 		return nil, fmt.Errorf("refusing to start: -auth-mode resource-server requires Forgejo %d.0 or newer, but %s reports %s",
 			minForgejoMajorForResourceServer, log.SanitizeURL(cfg.Forgejo.URL), version)
 	}
-	forgejo.SetServerVersion(version)
 
 	metadata, err := oauthrs.DiscoverProvider(ctx, nil, a.AuthorizationServer)
 	if err != nil {

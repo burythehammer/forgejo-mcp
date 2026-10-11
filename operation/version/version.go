@@ -15,11 +15,9 @@ const (
 	GetForgejoMCPServerVersion = "get_forgejo_mcp_server_version"
 )
 
-var (
-	GetForgejoMCPServerVersionTool = mcp.NewTool(
-		GetForgejoMCPServerVersion,
-		mcp.WithDescription("Get MCP server version"),
-	)
+var GetForgejoMCPServerVersionTool = mcp.NewTool(
+	GetForgejoMCPServerVersion,
+	mcp.WithDescription("Get MCP server version"),
 )
 
 // RegisterTool registers the version tool, which reports version.

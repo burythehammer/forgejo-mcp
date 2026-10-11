@@ -5,9 +5,7 @@ package sdk
 import (
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/forgetest"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 )
 
 // The real adapter, against the shared stub server, must meet the same
@@ -53,14 +51,11 @@ func TestUsersContract(t *testing.T) {
 	forgetest.RunUsers(t, harness)
 }
 
-// ChangeFiles goes over the package-level raw-HTTP target, so these cases point
-// it at their stub and run one at a time (not parallel).
 func TestRepoFilesContract(t *testing.T) {
+	t.Parallel()
 	forgetest.RunRepoFiles(t, func(t *testing.T) forgetest.Harness {
 		stub := forgetest.NewStub(t)
-		forgejo.Configure(config.Forgejo{URL: stub.URL, Token: config.NewSecret("stub-token")}, "test")
-		t.Cleanup(func() { forgejo.Configure(config.Forgejo{}, "test") })
-		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)), Seed: stub.Fake}
+		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
 	})
 }
 

@@ -91,7 +91,7 @@ func RunCLI(cfg config.Config, version string) {
 
 	// Build the MCPServer and register tools with domain tracking.
 	mcpSrv := server.NewMCPServer("Forgejo MCP Server", version, server.WithLogging())
-	registerToolsWithDomains(mcpSrv, version, sdk.NewFactory(cfg.Forgejo))
+	registerToolsWithDomains(mcpSrv, version, sdk.NewFactory(cfg.Forgejo, version))
 
 	switch c.Tool {
 	case "list":
