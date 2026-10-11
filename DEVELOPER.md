@@ -180,6 +180,10 @@ in `app/issue`. Per domain:
      struct field, nil when absent or wrongly typed. `decode.Lax` zeroes a
      field whose value fails to decode, so a wrong type reads as absent.
      `mcptest.ArgsMatchSchema` dereferences pointer fields.
+   - **Numbers as a string.** `decode.Lax` reads a numeric string (`"7"`) as
+     the number, for a plain or a pointer field. A handler that asserted
+     `float64` and ignored a string tags the field `exact:"true"`, so the
+     string reads as absent (the wiki paging and line arguments).
    - **Raw checks for a few numbers.** The dependency tools' index arguments
      were always type-checked (a missing one was an error), which a zero value
      cannot express. Those are read with `to.Float64` from the raw arguments in
