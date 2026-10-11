@@ -1,0 +1,3 @@
+{"Result":"Delete time entry success"}
+-- port calls --
+DeleteIssueTimeEntry ["octo","hello",7,5]

@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete a single tracked time entry by its ID",
+  "inputSchema": {
+    "properties": {
+      "index": {
+        "description": "Issue or pull request index (Forgejo shares index namespace between the two)",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "time_id": {
+        "description": "Tracked time entry ID",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "time_id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_issue_time_entry"
+}

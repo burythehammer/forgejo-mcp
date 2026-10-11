@@ -1,0 +1,3 @@
+ERROR: delete time entry err: boom
+-- port calls --
+DeleteIssueTimeEntry ["octo","hello",7,5]
