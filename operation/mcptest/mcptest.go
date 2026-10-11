@@ -75,7 +75,12 @@ func ArgsMatchSchema(t *testing.T, tool mcp.Tool, args any) {
 		if name == "" || name == "-" {
 			continue
 		}
-		fields[name] = schemaType(f.Type)
+		// A field kept raw (any) names its schema type with a schema tag.
+		typ := schemaType(f.Type)
+		if s := f.Tag.Get("schema"); s != "" {
+			typ = s
+		}
+		fields[name] = typ
 		if f.Tag.Get("required") == "true" {
 			required = append(required, name)
 		}

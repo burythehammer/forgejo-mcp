@@ -80,22 +80,26 @@ type listDependenciesArgs struct {
 	Limit float64 `json:"limit"`
 }
 
+// The numbers and the cross-repository names below are kept raw (any), not
+// typed: the handlers have always refused a malformed one with an error naming
+// it, which a typed field would silently zero under decode.Lax. The schema tags
+// tell mcptest.ArgsMatchSchema what the tool's schema says each one is.
 type addDependencyArgs struct {
-	Owner          string  `json:"owner" required:"true"`
-	Repo           string  `json:"repo" required:"true"`
-	Index          float64 `json:"index" required:"true"`
-	DependsOnIndex float64 `json:"depends_on_index" required:"true"`
-	DependsOnOwner string  `json:"depends_on_owner"`
-	DependsOnRepo  string  `json:"depends_on_repo"`
+	Owner          string `json:"owner" required:"true"`
+	Repo           string `json:"repo" required:"true"`
+	Index          any    `json:"index" required:"true" schema:"number"`
+	DependsOnIndex any    `json:"depends_on_index" required:"true" schema:"number"`
+	DependsOnOwner any    `json:"depends_on_owner" schema:"string"`
+	DependsOnRepo  any    `json:"depends_on_repo" schema:"string"`
 }
 
 type removeDependencyArgs struct {
-	Owner           string  `json:"owner" required:"true"`
-	Repo            string  `json:"repo" required:"true"`
-	Index           float64 `json:"index" required:"true"`
-	DependencyIndex float64 `json:"dependency_index" required:"true"`
-	DependencyOwner string  `json:"dependency_owner"`
-	DependencyRepo  string  `json:"dependency_repo"`
+	Owner           string `json:"owner" required:"true"`
+	Repo            string `json:"repo" required:"true"`
+	Index           any    `json:"index" required:"true" schema:"number"`
+	DependencyIndex any    `json:"dependency_index" required:"true" schema:"number"`
+	DependencyOwner any    `json:"dependency_owner" schema:"string"`
+	DependencyRepo  any    `json:"dependency_repo" schema:"string"`
 }
 
 func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -112,23 +116,17 @@ func (h handlers) ListIssueDependentsFn(ctx context.Context, req mcp.CallToolReq
 	})
 }
 
-// The number and repository arguments of the dependency tools are read from
-// the raw call, as they always were: a missing or malformed index is an error
-// naming it, and a cross-repository name of the wrong type is refused rather
-// than read as "the target's own repository".
-
 func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "AddIssueDependencyFn", func(ctx context.Context, s *apppissue.Service, a addDependencyArgs) (*mcp.CallToolResult, error) {
-		args := req.GetArguments()
-		index, err := numberArg(args, "index")
+		index, err := numberArg(a.Index, "index")
 		if err != nil {
 			return fail(err)
 		}
-		dependsOn, err := numberArg(args, "depends_on_index")
+		dependsOn, err := numberArg(a.DependsOnIndex, "depends_on_index")
 		if err != nil {
 			return fail(err)
 		}
-		depOwner, depRepo, err := crossRepoArgs(args, "depends_on_owner", "depends_on_repo", a.Owner, a.Repo)
+		depOwner, depRepo, err := crossRepoArgs(a.DependsOnOwner, "depends_on_owner", a.DependsOnRepo, "depends_on_repo", a.Owner, a.Repo)
 		if err != nil {
 			return fail(err)
 		}
@@ -144,16 +142,15 @@ func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequ
 
 func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "RemoveIssueDependencyFn", func(ctx context.Context, s *apppissue.Service, a removeDependencyArgs) (*mcp.CallToolResult, error) {
-		args := req.GetArguments()
-		index, err := numberArg(args, "index")
+		index, err := numberArg(a.Index, "index")
 		if err != nil {
 			return fail(err)
 		}
-		dependencyIndex, err := numberArg(args, "dependency_index")
+		dependencyIndex, err := numberArg(a.DependencyIndex, "dependency_index")
 		if err != nil {
 			return fail(err)
 		}
-		depOwner, depRepo, err := crossRepoArgs(args, "dependency_owner", "dependency_repo", a.Owner, a.Repo)
+		depOwner, depRepo, err := crossRepoArgs(a.DependencyOwner, "dependency_owner", a.DependencyRepo, "dependency_repo", a.Owner, a.Repo)
 		if err != nil {
 			return fail(err)
 		}
@@ -169,8 +166,8 @@ func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolR
 
 // numberArg reads a required number argument. A missing or malformed one is an
 // error that names it.
-func numberArg(args map[string]any, key string) (float64, error) {
-	v, err := to.Float64(args[key])
+func numberArg(raw any, key string) (float64, error) {
+	v, err := to.Float64(raw)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}
@@ -185,24 +182,22 @@ func numberArg(args map[string]any, key string) (float64, error) {
 // but a value of the wrong type is an error. Collapsing the two would write a
 // SAME-repo dependency for a caller that asked for a different one and report
 // success, which is worse than refusing.
-func crossRepoArgs(args map[string]any, ownerKey, repoKey, defaultOwner, defaultRepo string) (string, string, error) {
-	depOwner, err := optionalString(args, ownerKey, defaultOwner)
+func crossRepoArgs(ownerRaw any, ownerKey string, repoRaw any, repoKey string, defaultOwner, defaultRepo string) (string, string, error) {
+	depOwner, err := optionalString(ownerRaw, ownerKey, defaultOwner)
 	if err != nil {
 		return "", "", err
 	}
-	depRepo, err := optionalString(args, repoKey, defaultRepo)
+	depRepo, err := optionalString(repoRaw, repoKey, defaultRepo)
 	if err != nil {
 		return "", "", err
 	}
 	return depOwner, depRepo, nil
 }
 
-// optionalString returns the string under key, fallback when it is absent, nil
-// or empty, and an error naming the argument when it is present but not a
-// string.
-func optionalString(args map[string]any, key, fallback string) (string, error) {
-	raw, present := args[key]
-	if !present || raw == nil {
+// optionalString returns raw as a string, fallback when it is absent, nil or
+// empty, and an error naming the argument when it is present but not a string.
+func optionalString(raw any, key, fallback string) (string, error) {
+	if raw == nil {
 		return fallback, nil
 	}
 	s, ok := raw.(string)
