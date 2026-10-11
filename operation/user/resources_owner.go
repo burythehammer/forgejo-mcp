@@ -56,12 +56,12 @@ func (h handlers) ownerResourceHandler(ctx context.Context, req mcp.ReadResource
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	u, userErr := client.GetUserInfo(ctx, params.Owner)
+	u, userErr := fg.GetUserInfo(ctx, params.Owner)
 
 	var payload ownerResourcePayload
 
@@ -85,7 +85,7 @@ func (h handlers) ownerResourceHandler(ctx context.Context, req mcp.ReadResource
 		}
 
 		// fall back to org
-		org, orgErr := client.GetOrg(ctx, params.Owner)
+		org, orgErr := fg.GetOrg(ctx, params.Owner)
 		if orgErr != nil {
 			// Both user and org are "not found" → explicit -32003 with a clear message.
 			// This also guards the SDK edge where userErr==nil (u==nil, err==nil).

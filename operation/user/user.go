@@ -55,11 +55,11 @@ func (h handlers) GetUserInfoFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 	log.LogMCPToolStart(ctx, GetMyUserInfoToolName, map[string]interface{}{})
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	user, err := client.GetMyUserInfo(ctx)
+	user, err := fg.GetMyUserInfo(ctx)
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)

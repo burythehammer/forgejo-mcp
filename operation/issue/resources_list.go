@@ -83,7 +83,7 @@ func (h handlers) repoIssuesResourceHandler(ctx context.Context, req mcp.ReadRes
 	page, limit := pageLimit(req)
 	state, labels := issuesQuery(req)
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
@@ -105,7 +105,7 @@ func (h handlers) repoIssuesResourceHandler(ctx context.Context, req mcp.ReadRes
 		opt.Labels = labels
 	}
 
-	rawIssues, info, err := client.ListRepoIssues(ctx, p.Owner, p.Repo, forge.ListIssuesOptions{ListIssueOption: opt})
+	rawIssues, info, err := fg.ListRepoIssues(ctx, p.Owner, p.Repo, forge.ListIssuesOptions{ListIssueOption: opt})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
@@ -263,7 +263,7 @@ func (h handlers) issueCommentsResourceHandler(ctx context.Context, req mcp.Read
 
 	page, limit := pageLimit(req)
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
@@ -273,7 +273,7 @@ func (h handlers) issueCommentsResourceHandler(ctx context.Context, req mcp.Read
 	//
 	// PR comments use the same issue-comment API, exactly as the single-comment
 	// resource does — the index is the shared issue/PR index.
-	rawComments, info, err := client.ListIssueComments(ctx, p.Owner, p.Repo, p.Index, forgejo_sdk.ListIssueCommentOptions{
+	rawComments, info, err := fg.ListIssueComments(ctx, p.Owner, p.Repo, p.Index, forgejo_sdk.ListIssueCommentOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: limit},
 	})
 	if err != nil {

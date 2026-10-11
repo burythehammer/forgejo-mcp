@@ -159,12 +159,12 @@ func (h handlers) issueResourceHandler(ctx context.Context, req mcp.ReadResource
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	iss, err := client.GetIssue(ctx, params.Owner, params.Repo, params.Index)
+	iss, err := fg.GetIssue(ctx, params.Owner, params.Repo, params.Index)
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
@@ -174,7 +174,7 @@ func (h handlers) issueResourceHandler(ctx context.Context, req mcp.ReadResource
 	// Forgejo's server default page size equals EmbeddedListCap (30), so
 	// leaving PageSize at zero silently caps responses at the cap and the
 	// >cap check in Bounded never fires.
-	comments, _, _ := client.ListIssueComments(ctx, params.Owner, params.Repo, params.Index, forgejo_sdk.ListIssueCommentOptions{
+	comments, _, _ := fg.ListIssueComments(ctx, params.Owner, params.Repo, params.Index, forgejo_sdk.ListIssueCommentOptions{
 		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
 	})
 
@@ -287,14 +287,14 @@ func (h handlers) commentResourceHandler(ctx context.Context, req mcp.ReadResour
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
 	// Forgejo PR comments ARE issue comments under the same API; kind only
 	// affects display context, not the fetch path.
-	c, err := client.GetIssueComment(ctx, params.Owner, params.Repo, params.ID)
+	c, err := fg.GetIssueComment(ctx, params.Owner, params.Repo, params.ID)
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}

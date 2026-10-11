@@ -91,11 +91,11 @@ func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolR
 	index, _ := to.Float64(req.GetArguments()["index"])
 	page, limit := parsePageLimit(req.GetArguments())
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	issues, err := client.ListIssueDependencies(ctx, owner, repo, int64(index), page, limit)
+	issues, err := fg.ListIssueDependencies(ctx, owner, repo, int64(index), page, limit)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list issue dependencies err: %w", err))
 	}
@@ -109,11 +109,11 @@ func (h handlers) ListIssueDependentsFn(ctx context.Context, req mcp.CallToolReq
 	index, _ := to.Float64(req.GetArguments()["index"])
 	page, limit := parsePageLimit(req.GetArguments())
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	issues, err := client.ListIssueDependents(ctx, owner, repo, int64(index), page, limit)
+	issues, err := fg.ListIssueDependents(ctx, owner, repo, int64(index), page, limit)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list issue dependents err: %w", err))
 	}
@@ -205,12 +205,12 @@ func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequ
 		return to.ErrorResult(fmt.Errorf("an issue cannot depend on itself"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 	dep := forge.IssueRef{Owner: depOwner, Repo: depRepo, Index: int64(dependsOn)}
-	if err := client.AddIssueDependency(ctx, owner, repo, int64(index), dep); err != nil {
+	if err := fg.AddIssueDependency(ctx, owner, repo, int64(index), dep); err != nil {
 		return to.ErrorResult(fmt.Errorf("add issue dependency err: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("Issue #%d now depends on %s/%s#%d", int64(index), depOwner, depRepo, int64(dependsOn)))
@@ -233,12 +233,12 @@ func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolR
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 	dep := forge.IssueRef{Owner: depOwner, Repo: depRepo, Index: int64(dependencyIndex)}
-	if err := client.RemoveIssueDependency(ctx, owner, repo, int64(index), dep); err != nil {
+	if err := fg.RemoveIssueDependency(ctx, owner, repo, int64(index), dep); err != nil {
 		return to.ErrorResult(fmt.Errorf("remove issue dependency err: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("Removed dependency on %s/%s#%d from issue #%d", depOwner, depRepo, int64(dependencyIndex), int64(index)))

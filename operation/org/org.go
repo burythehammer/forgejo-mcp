@@ -130,11 +130,11 @@ func (h handlers) CreateOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 		opt.Visibility = forgejo_sdk.VisibleType(v)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	org, err := client.CreateOrg(ctx, opt)
+	org, err := fg.CreateOrg(ctx, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create org err: %w", err))
 	}
@@ -148,11 +148,11 @@ func (h handlers) GetOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		return to.ErrorResult(errors.New("organization name is required"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	org, err := client.GetOrg(ctx, orgName)
+	org, err := fg.GetOrg(ctx, orgName)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get org err: %w", err))
 	}
@@ -176,11 +176,11 @@ func (h handlers) ListMyOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*m
 			PageSize: int(limit),
 		},
 	}
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	orgs, err := client.ListMyOrgs(ctx, opt)
+	orgs, err := fg.ListMyOrgs(ctx, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list my orgs err: %w", err))
 	}
@@ -208,11 +208,11 @@ func (h handlers) ListUserOrgsFn(ctx context.Context, req mcp.CallToolRequest) (
 			PageSize: int(limit),
 		},
 	}
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	orgs, err := client.ListUserOrgs(ctx, user, opt)
+	orgs, err := fg.ListUserOrgs(ctx, user, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list user orgs err: %w", err))
 	}
@@ -243,17 +243,17 @@ func (h handlers) EditOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		opt.Visibility = forgejo_sdk.VisibleType(v)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.EditOrg(ctx, orgName, opt)
+	err = fg.EditOrg(ctx, orgName, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit org err: %w", err))
 	}
 
 	// Fetch updated org to return
-	org, err := client.GetOrg(ctx, orgName)
+	org, err := fg.GetOrg(ctx, orgName)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get updated org err: %w", err))
 	}
@@ -267,11 +267,11 @@ func (h handlers) DeleteOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 		return to.ErrorResult(errors.New("organization name is required"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.DeleteOrg(ctx, orgName)
+	err = fg.DeleteOrg(ctx, orgName)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("delete org err: %w", err))
 	}

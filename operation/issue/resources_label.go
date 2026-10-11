@@ -86,12 +86,12 @@ func (h handlers) repoLabelResourceHandler(ctx context.Context, req mcp.ReadReso
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	label, err := client.GetRepoLabel(ctx, p.Owner, p.Repo, p.ID)
+	label, err := fg.GetRepoLabel(ctx, p.Owner, p.Repo, p.ID)
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
@@ -134,7 +134,7 @@ func (h handlers) repoLabelsResourceHandler(ctx context.Context, req mcp.ReadRes
 
 	page, limit := pageLimit(req)
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
@@ -145,7 +145,7 @@ func (h handlers) repoLabelsResourceHandler(ctx context.Context, req mcp.ReadRes
 	// page N showed — and that row is returned by no page the client can ask
 	// for. The probe and the page cannot share PageSize. "More exists" comes
 	// from the response's Link header instead.
-	rawLabels, info, err := client.ListRepoLabels(ctx, p.Owner, p.Repo, forgejo_sdk.ListLabelsOptions{
+	rawLabels, info, err := fg.ListRepoLabels(ctx, p.Owner, p.Repo, forgejo_sdk.ListLabelsOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: limit},
 	})
 	if err != nil {
@@ -217,11 +217,11 @@ func (h handlers) orgLabelsResourceHandler(ctx context.Context, req mcp.ReadReso
 
 	// PageSize == limit, for the paging reason spelled out in
 	// repoLabelsResourceHandler above.
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
-	rawLabels, info, err := listOrgLabels(ctx, client, p.Org, page, limit)
+	rawLabels, info, err := listOrgLabels(ctx, fg, p.Org, page, limit)
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}

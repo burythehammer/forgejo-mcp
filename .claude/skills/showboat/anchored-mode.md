@@ -80,7 +80,7 @@ evidence is not a plain shell capture:
 | Kind | When to use | Example |
 |------|-------------|---------|
 | `showboat-cli` | Captured `forgejo-mcp` CLI command + stdout. Default for observable behaviors. | `$ forgejo-mcp --help` + output |
-| `test-invocation` | Single targeted test command + its output. Use when the scenario maps 1:1 to a test function. | `$ go test ./pkg/forgejo/ -run TestClient_AuthorizationHeader -v` |
+| `test-invocation` | Single targeted test command + its output. Use when the scenario maps 1:1 to a test function. | `$ go test ./pkg/forge/ -run TestClient_AuthorizationHeader -v` |
 | `unit-test-output` | Captured output of a multi-test run; include a comment naming which test(s) inside prove the scenario. Use when 1:1 mapping is too expensive. | `$ go test ./...` + note: "see `TestExtractToken/bare_token_rejected` assertion" |
 | `external-artifact` | Link to a file or run elsewhere in the repo (e.g. fixture, CI run URL). | `See demos/multi-tenant-http.md` |
 

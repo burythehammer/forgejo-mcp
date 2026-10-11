@@ -64,11 +64,11 @@ func (h handlers) ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest)
 			PageSize: int(limit),
 		},
 	}
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	members, err := client.ListOrgMembers(ctx, orgName, opt)
+	members, err := fg.ListOrgMembers(ctx, orgName, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list org members err: %w", err))
 	}
@@ -86,11 +86,11 @@ func (h handlers) CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequ
 		return to.ErrorResult(errors.New("username is required"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	isMember, err := client.CheckOrgMembership(ctx, orgName, user)
+	isMember, err := fg.CheckOrgMembership(ctx, orgName, user)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("check org membership err: %w", err))
 	}
@@ -112,11 +112,11 @@ func (h handlers) RemoveOrgMemberFn(ctx context.Context, req mcp.CallToolRequest
 		return to.ErrorResult(errors.New("username is required"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.RemoveOrgMember(ctx, orgName, user)
+	err = fg.RemoveOrgMember(ctx, orgName, user)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("remove org member err: %w", err))
 	}

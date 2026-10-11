@@ -45,7 +45,7 @@ func labelsArgDescription(lead string) string {
 // labels; 401/403 surface as an error rather than silently narrowing the
 // catalogue, since resolution failures here are reported to the caller as
 // "unknown label".
-func listAssignableLabels(ctx context.Context, client forge.Labels, owner, repo string) ([]ScopedLabel, error) {
+func listAssignableLabels(ctx context.Context, fg forge.Labels, owner, repo string) ([]ScopedLabel, error) {
 	catalog := []ScopedLabel{}
 
 	for page := 1; ; page++ {
@@ -55,7 +55,7 @@ func listAssignableLabels(ctx context.Context, client forge.Labels, owner, repo 
 				owner, repo, maxLabelCatalogPages*labelCatalogPageSize,
 			)
 		}
-		repoLabels, _, lerr := client.ListRepoLabels(ctx, owner, repo, forgejo_sdk.ListLabelsOptions{
+		repoLabels, _, lerr := fg.ListRepoLabels(ctx, owner, repo, forgejo_sdk.ListLabelsOptions{
 			ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: labelCatalogPageSize},
 		})
 		if lerr != nil {
@@ -76,7 +76,7 @@ func listAssignableLabels(ctx context.Context, client forge.Labels, owner, repo 
 				owner, maxLabelCatalogPages*labelCatalogPageSize,
 			)
 		}
-		orgLabels, _, oerr := listOrgLabels(ctx, client, owner, page, labelCatalogPageSize)
+		orgLabels, _, oerr := listOrgLabels(ctx, fg, owner, page, labelCatalogPageSize)
 		if oerr != nil {
 			return nil, fmt.Errorf("list org labels err: %w", oerr)
 		}
@@ -109,11 +109,11 @@ func (h handlers) resolveIssueLabelIDs(ctx context.Context, owner, repo, csv str
 		return nil, fmt.Errorf("labels names nothing: pass at least one label name or numeric ID")
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := listAssignableLabels(ctx, client, owner, repo)
+	catalog, err := listAssignableLabels(ctx, fg, owner, repo)
 	if err != nil {
 		return nil, err
 	}
