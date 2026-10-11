@@ -81,6 +81,22 @@ func TestGetRoundTripsContentAndCutsLines(t *testing.T) {
 	}
 }
 
+func TestGetCountsLinesTheSameForCRLFAndLF(t *testing.T) {
+	t.Parallel()
+	s := newService(t)
+	create(t, s, "Crlf", "a\r\nb\r\n")
+	create(t, s, "Lf", "a\nb\n")
+	for _, name := range []string{"Crlf", "Lf"} {
+		got, err := s.Get(context.Background(), appwiki.GetRequest{Owner: owner, Repo: repo, PageName: name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.TotalLines != 3 {
+			t.Fatalf("%s: total lines %d, want 3", name, got.TotalLines)
+		}
+	}
+}
+
 func TestGetInvertedRangeIsReportedRaw(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
