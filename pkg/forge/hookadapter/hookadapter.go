@@ -10,11 +10,11 @@ package hookadapter
 
 import (
 	"context"
-	"encoding/json"
 
 	apphook "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/hook"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -26,20 +26,6 @@ type adapter struct{ p forge.Hooks }
 
 var _ apphook.Port = adapter{}
 
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any, err error) (T, error) {
-	var to T
-	if err != nil {
-		return to, err
-	}
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
-
 func (a adapter) ListRepoHooks(ctx context.Context, owner, repo string, p apphook.Paging) (model.HookList, error) {
 	list, err := a.p.ListRepoHooks(ctx, owner, repo, forgejo_sdk.ListHooksOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: p.Page, PageSize: p.Limit},
@@ -47,13 +33,13 @@ func (a adapter) ListRepoHooks(ctx context.Context, owner, repo string, p apphoo
 	if err != nil {
 		return model.HookList{}, err
 	}
-	hooks, err := convert[[]*model.Hook](list.Hooks, nil)
+	hooks, err := bridge.Convert[[]*model.Hook](list.Hooks, nil)
 	return model.HookList{Hooks: hooks, TotalCount: list.TotalCount}, err
 }
 
 func (a adapter) GetRepoHook(ctx context.Context, owner, repo string, id int64) (*model.Hook, error) {
 	hk, err := a.p.GetRepoHook(ctx, owner, repo, id)
-	return convert[*model.Hook](hk, err)
+	return bridge.Convert[*model.Hook](hk, err)
 }
 
 func (a adapter) CreateRepoHook(ctx context.Context, owner, repo string, in apphook.CreateInput) (*model.Hook, error) {
@@ -64,7 +50,7 @@ func (a adapter) CreateRepoHook(ctx context.Context, owner, repo string, in apph
 		BranchFilter: in.BranchFilter,
 		Active:       in.Active,
 	})
-	return convert[*model.Hook](hk, err)
+	return bridge.Convert[*model.Hook](hk, err)
 }
 
 func (a adapter) EditRepoHook(ctx context.Context, owner, repo string, id int64, in apphook.EditInput) error {

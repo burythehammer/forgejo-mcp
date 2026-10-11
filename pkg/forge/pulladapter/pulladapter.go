@@ -10,11 +10,11 @@ package pulladapter
 
 import (
 	"context"
-	"encoding/json"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apppull "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/pull"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -27,27 +27,13 @@ type adapter struct{ p forge.Pulls }
 
 var _ apppull.Port = adapter{}
 
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any, err error) (T, error) {
-	var to T
-	if err != nil {
-		return to, err
-	}
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
-
 func listOptions(p apppull.Paging) forgejo_sdk.ListOptions {
 	return forgejo_sdk.ListOptions{Page: p.Page, PageSize: p.Limit}
 }
 
 func (a adapter) GetPullRequest(ctx context.Context, owner, repo string, index int64) (*model.PullRequest, error) {
 	pr, err := a.p.GetPullRequest(ctx, owner, repo, index)
-	return convert[*model.PullRequest](pr, err)
+	return bridge.Convert[*model.PullRequest](pr, err)
 }
 
 func (a adapter) ListPullRequests(ctx context.Context, owner, repo string, q apppull.ListQuery) ([]*model.PullRequest, error) {
@@ -57,14 +43,14 @@ func (a adapter) ListPullRequests(ctx context.Context, owner, repo string, q app
 		Sort:        q.Sort,
 		Milestone:   q.Milestone,
 	})
-	return convert[[]*model.PullRequest](prs, err)
+	return bridge.Convert[[]*model.PullRequest](prs, err)
 }
 
 func (a adapter) CreatePullRequest(ctx context.Context, owner, repo string, in apppull.CreateInput) (*model.PullRequest, error) {
 	pr, err := a.p.CreatePullRequest(ctx, owner, repo, forgejo_sdk.CreatePullRequestOption{
 		Head: in.Head, Base: in.Base, Title: in.Title, Body: in.Body,
 	})
-	return convert[*model.PullRequest](pr, err)
+	return bridge.Convert[*model.PullRequest](pr, err)
 }
 
 func (a adapter) EditPullRequest(ctx context.Context, owner, repo string, index int64, in apppull.EditInput) (*model.PullRequest, error) {
@@ -73,7 +59,7 @@ func (a adapter) EditPullRequest(ctx context.Context, owner, repo string, index 
 		opt.Body = ptr.To(*in.Body)
 	}
 	pr, err := a.p.EditPullRequest(ctx, owner, repo, index, opt)
-	return convert[*model.PullRequest](pr, err)
+	return bridge.Convert[*model.PullRequest](pr, err)
 }
 
 func (a adapter) MergePullRequest(ctx context.Context, owner, repo string, index int64, in apppull.MergeInput) (apppull.MergeOutcome, error) {
@@ -95,22 +81,22 @@ func (a adapter) GetPullRequestDiff(ctx context.Context, owner, repo string, ind
 
 func (a adapter) ListPullRequestFiles(ctx context.Context, owner, repo string, index int64, p apppull.Paging) ([]*model.ChangedFile, error) {
 	files, err := a.p.ListPullRequestFiles(ctx, owner, repo, index, forgejo_sdk.ListPullRequestFilesOptions{ListOptions: listOptions(p)})
-	return convert[[]*model.ChangedFile](files, err)
+	return bridge.Convert[[]*model.ChangedFile](files, err)
 }
 
 func (a adapter) ListPullReviews(ctx context.Context, owner, repo string, index int64, p apppull.Paging) ([]*model.PullReview, error) {
 	reviews, err := a.p.ListPullReviews(ctx, owner, repo, index, forgejo_sdk.ListPullReviewsOptions{ListOptions: listOptions(p)})
-	return convert[[]*model.PullReview](reviews, err)
+	return bridge.Convert[[]*model.PullReview](reviews, err)
 }
 
 func (a adapter) GetPullReview(ctx context.Context, owner, repo string, index, id int64) (*model.PullReview, error) {
 	review, err := a.p.GetPullReview(ctx, owner, repo, index, id)
-	return convert[*model.PullReview](review, err)
+	return bridge.Convert[*model.PullReview](review, err)
 }
 
 func (a adapter) ListPullReviewComments(ctx context.Context, owner, repo string, index, id int64) ([]*model.PullReviewComment, error) {
 	comments, err := a.p.ListPullReviewComments(ctx, owner, repo, index, id)
-	return convert[[]*model.PullReviewComment](comments, err)
+	return bridge.Convert[[]*model.PullReviewComment](comments, err)
 }
 
 func (a adapter) CreatePullReview(ctx context.Context, owner, repo string, index int64, in apppull.CreateReviewInput) (*model.PullReview, error) {
@@ -121,14 +107,14 @@ func (a adapter) CreatePullReview(ctx context.Context, owner, repo string, index
 		})
 	}
 	review, err := a.p.CreatePullReview(ctx, owner, repo, index, opt)
-	return convert[*model.PullReview](review, err)
+	return bridge.Convert[*model.PullReview](review, err)
 }
 
 func (a adapter) SubmitPullReview(ctx context.Context, owner, repo string, index, id int64, in apppull.SubmitReviewInput) (*model.PullReview, error) {
 	review, err := a.p.SubmitPullReview(ctx, owner, repo, index, id, forgejo_sdk.SubmitPullReviewOptions{
 		State: forgejo_sdk.ReviewStateType(in.State), Body: in.Body,
 	})
-	return convert[*model.PullReview](review, err)
+	return bridge.Convert[*model.PullReview](review, err)
 }
 
 func (a adapter) DismissPullReview(ctx context.Context, owner, repo string, index, id int64, message string) error {

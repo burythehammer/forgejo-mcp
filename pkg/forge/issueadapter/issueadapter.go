@@ -11,11 +11,11 @@ package issueadapter
 
 import (
 	"context"
-	"encoding/json"
 
 	appissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -36,27 +36,13 @@ type adapter struct{ s Source }
 
 var _ appissue.Port = adapter{}
 
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any, err error) (T, error) {
-	var to T
-	if err != nil {
-		return to, err
-	}
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
-
 func listOptions(p appissue.Paging) forgejo_sdk.ListOptions {
 	return forgejo_sdk.ListOptions{Page: p.Page, PageSize: p.Limit}
 }
 
 func (a adapter) GetIssue(ctx context.Context, owner, repo string, index int64) (*model.Issue, error) {
 	issue, err := a.s.GetIssue(ctx, owner, repo, index)
-	return convert[*model.Issue](issue, err)
+	return bridge.Convert[*model.Issue](issue, err)
 }
 
 func (a adapter) ListIssues(ctx context.Context, owner, repo string, q appissue.IssueList) ([]*model.Issue, error) {
@@ -71,7 +57,7 @@ func (a adapter) ListIssues(ctx context.Context, owner, repo string, q appissue.
 		// The adapter carries sort to Forgejo (the SDK cannot), see forge.ListIssuesOptions.
 		Sort: q.Sort,
 	})
-	return convert[[]*model.Issue](issues, err)
+	return bridge.Convert[[]*model.Issue](issues, err)
 }
 
 func (a adapter) SearchIssues(ctx context.Context, q appissue.SearchQuery) ([]*model.Issue, appissue.Total, error) {
@@ -87,7 +73,7 @@ func (a adapter) SearchIssues(ctx context.Context, q appissue.SearchQuery) ([]*m
 		MentionedBy: q.MentionedBy,
 		ListOptions: listOptions(q.Paging),
 	})
-	out, cerr := convert[[]*model.Issue](issues, err)
+	out, cerr := bridge.Convert[[]*model.Issue](issues, err)
 	return out, appissue.Total{Count: info.TotalCount, Known: info.TotalKnown}, cerr
 }
 
@@ -104,7 +90,7 @@ func (a adapter) CreateIssue(ctx context.Context, owner, repo string, in appissu
 		Milestone: in.Milestone,
 		Labels:    in.Labels,
 	})
-	return convert[*model.Issue](issue, err)
+	return bridge.Convert[*model.Issue](issue, err)
 }
 
 func (a adapter) EditIssue(ctx context.Context, owner, repo string, index int64, in appissue.IssueEdit) (*model.Issue, error) {
@@ -121,7 +107,7 @@ func (a adapter) EditIssue(ctx context.Context, owner, repo string, index int64,
 		opt.State = ptr.To(forgejo_sdk.StateType(*in.State))
 	}
 	issue, err := a.s.EditIssue(ctx, owner, repo, index, opt)
-	return convert[*model.Issue](issue, err)
+	return bridge.Convert[*model.Issue](issue, err)
 }
 
 func (a adapter) ReplaceIssueLabels(ctx context.Context, owner, repo string, index int64, labelIDs []int64) error {
@@ -146,22 +132,22 @@ func (a adapter) ListIssueComments(ctx context.Context, owner, repo string, inde
 		Since:       c.Since,
 		Before:      c.Before,
 	})
-	return convert[[]*model.Comment](comments, err)
+	return bridge.Convert[[]*model.Comment](comments, err)
 }
 
 func (a adapter) GetIssueComment(ctx context.Context, owner, repo string, id int64) (*model.Comment, error) {
 	comment, err := a.s.GetIssueComment(ctx, owner, repo, id)
-	return convert[*model.Comment](comment, err)
+	return bridge.Convert[*model.Comment](comment, err)
 }
 
 func (a adapter) CreateIssueComment(ctx context.Context, owner, repo string, index int64, body string) (*model.Comment, error) {
 	comment, err := a.s.CreateIssueComment(ctx, owner, repo, index, body)
-	return convert[*model.Comment](comment, err)
+	return bridge.Convert[*model.Comment](comment, err)
 }
 
 func (a adapter) EditIssueComment(ctx context.Context, owner, repo string, id int64, body string) (*model.Comment, error) {
 	comment, err := a.s.EditIssueComment(ctx, owner, repo, id, body)
-	return convert[*model.Comment](comment, err)
+	return bridge.Convert[*model.Comment](comment, err)
 }
 
 func (a adapter) DeleteIssueComment(ctx context.Context, owner, repo string, id int64) error {
@@ -173,27 +159,27 @@ func (a adapter) ListRepoMilestones(ctx context.Context, owner, repo string, m a
 		ListOptions: listOptions(m.Paging),
 		State:       forgejo_sdk.StateType(m.State),
 	})
-	return convert[[]*model.Milestone](milestones, err)
+	return bridge.Convert[[]*model.Milestone](milestones, err)
 }
 
 func (a adapter) ListRepoLabels(ctx context.Context, owner, repo string, p appissue.Paging) ([]*model.Label, error) {
 	labels, _, err := a.s.ListRepoLabels(ctx, owner, repo, forgejo_sdk.ListLabelsOptions{ListOptions: listOptions(p)})
-	return convert[[]*model.Label](labels, err)
+	return bridge.Convert[[]*model.Label](labels, err)
 }
 
 func (a adapter) GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*model.Label, error) {
 	label, err := a.s.GetRepoLabel(ctx, owner, repo, id)
-	return convert[*model.Label](label, err)
+	return bridge.Convert[*model.Label](label, err)
 }
 
 func (a adapter) CreateRepoLabel(ctx context.Context, owner, repo string, in appissue.LabelNew) (*model.Label, error) {
 	label, err := a.s.CreateRepoLabel(ctx, owner, repo, labelNew(in))
-	return convert[*model.Label](label, err)
+	return bridge.Convert[*model.Label](label, err)
 }
 
 func (a adapter) EditRepoLabel(ctx context.Context, owner, repo string, id int64, in appissue.LabelEdit) (*model.Label, error) {
 	label, err := a.s.EditRepoLabel(ctx, owner, repo, id, labelEdit(in))
-	return convert[*model.Label](label, err)
+	return bridge.Convert[*model.Label](label, err)
 }
 
 func (a adapter) DeleteRepoLabel(ctx context.Context, owner, repo string, id int64) error {
@@ -206,22 +192,22 @@ func (a adapter) DeleteRepoLabel(ctx context.Context, owner, repo string, id int
 
 func (a adapter) ListOrgLabels(ctx context.Context, org string, p appissue.Paging) ([]*model.Label, error) {
 	labels, _, err := a.s.ListOrgLabels(ctx, org, p.Page, p.Limit)
-	return convert[[]*model.Label](labels, err)
+	return bridge.Convert[[]*model.Label](labels, err)
 }
 
 func (a adapter) GetOrgLabel(ctx context.Context, org string, id int64) (*model.Label, error) {
 	label, err := a.s.GetOrgLabel(ctx, org, id)
-	return convert[*model.Label](label, err)
+	return bridge.Convert[*model.Label](label, err)
 }
 
 func (a adapter) CreateOrgLabel(ctx context.Context, org string, in appissue.LabelNew) (*model.Label, error) {
 	label, err := a.s.CreateOrgLabel(ctx, org, labelNew(in))
-	return convert[*model.Label](label, err)
+	return bridge.Convert[*model.Label](label, err)
 }
 
 func (a adapter) EditOrgLabel(ctx context.Context, org string, id int64, in appissue.LabelEdit) (*model.Label, error) {
 	label, err := a.s.EditOrgLabel(ctx, org, id, labelEdit(in))
-	return convert[*model.Label](label, err)
+	return bridge.Convert[*model.Label](label, err)
 }
 
 func (a adapter) DeleteOrgLabel(ctx context.Context, org string, id int64) error {
@@ -248,12 +234,12 @@ func (a adapter) CountIssuesLabelled(ctx context.Context, owner, repo, label str
 
 func (a adapter) ListIssueDependencies(ctx context.Context, owner, repo string, index int64, p appissue.Paging) ([]*model.Issue, error) {
 	issues, err := a.s.ListIssueDependencies(ctx, owner, repo, index, p.Page, p.Limit)
-	return convert[[]*model.Issue](issues, err)
+	return bridge.Convert[[]*model.Issue](issues, err)
 }
 
 func (a adapter) ListIssueDependents(ctx context.Context, owner, repo string, index int64, p appissue.Paging) ([]*model.Issue, error) {
 	issues, err := a.s.ListIssueDependents(ctx, owner, repo, index, p.Page, p.Limit)
-	return convert[[]*model.Issue](issues, err)
+	return bridge.Convert[[]*model.Issue](issues, err)
 }
 
 func (a adapter) AddIssueDependency(ctx context.Context, owner, repo string, index int64, dep appissue.Target) error {

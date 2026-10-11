@@ -11,11 +11,11 @@ package branchprotectionadapter
 
 import (
 	"context"
-	"encoding/json"
 
 	appbp "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/branchprotection"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -26,20 +26,6 @@ func New(p forge.BranchProtections) appbp.Port { return adapter{p: p} }
 type adapter struct{ p forge.BranchProtections }
 
 var _ appbp.Port = adapter{}
-
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any, err error) (T, error) {
-	var to T
-	if err != nil {
-		return to, err
-	}
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
 
 // deref returns the value a set pointer holds, or nil when it is unset.
 func deref[T any](p *T) T {
@@ -54,12 +40,12 @@ func (a adapter) ListBranchProtections(ctx context.Context, owner, repo string, 
 	bps, err := a.p.ListBranchProtections(ctx, owner, repo, forgejo_sdk.ListBranchProtectionsOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: p.Page, PageSize: p.Limit},
 	})
-	return convert[[]*model.BranchProtection](bps, err)
+	return bridge.Convert[[]*model.BranchProtection](bps, err)
 }
 
 func (a adapter) GetBranchProtection(ctx context.Context, owner, repo, rule string) (*model.BranchProtection, error) {
 	bp, err := a.p.GetBranchProtection(ctx, owner, repo, rule)
-	return convert[*model.BranchProtection](bp, err)
+	return bridge.Convert[*model.BranchProtection](bp, err)
 }
 
 func (a adapter) CreateBranchProtection(ctx context.Context, owner, repo string, in appbp.CreateInput) (*model.BranchProtection, error) {
@@ -74,7 +60,7 @@ func (a adapter) CreateBranchProtection(ctx context.Context, owner, repo string,
 		RequireSignedCommits:  in.RequireSignedCommits,
 		DismissStaleApprovals: in.DismissStaleApprovals,
 	})
-	return convert[*model.BranchProtection](bp, err)
+	return bridge.Convert[*model.BranchProtection](bp, err)
 }
 
 func (a adapter) EditBranchProtection(ctx context.Context, owner, repo, rule string, in appbp.EditInput) (*model.BranchProtection, error) {
@@ -93,7 +79,7 @@ func (a adapter) EditBranchProtection(ctx context.Context, owner, repo, rule str
 		DismissStaleApprovals:       in.DismissStaleApprovals,
 		RequireSignedCommits:        in.RequireSignedCommits,
 	})
-	return convert[*model.BranchProtection](bp, err)
+	return bridge.Convert[*model.BranchProtection](bp, err)
 }
 
 func (a adapter) DeleteBranchProtection(ctx context.Context, owner, repo, rule string) error {

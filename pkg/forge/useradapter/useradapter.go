@@ -10,11 +10,11 @@ package useradapter
 
 import (
 	"context"
-	"encoding/json"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	appuser "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/user"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -25,20 +25,6 @@ func New(u forge.Users) appuser.Port { return adapter{u: u} }
 type adapter struct{ u forge.Users }
 
 var _ appuser.Port = adapter{}
-
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any, err error) (T, error) {
-	var to T
-	if err != nil {
-		return to, err
-	}
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
 
 func listOptions(q appuser.NotificationQuery) forgejo_sdk.ListNotificationOptions {
 	opt := forgejo_sdk.ListNotificationOptions{
@@ -58,27 +44,27 @@ func markOptions(in appuser.ReadQuery) forgejo_sdk.MarkNotificationOptions {
 
 func (a adapter) GetMyUserInfo(ctx context.Context) (*model.User, error) {
 	u, err := a.u.GetMyUserInfo(ctx)
-	return convert[*model.User](u, err)
+	return bridge.Convert[*model.User](u, err)
 }
 
 func (a adapter) ListNotifications(ctx context.Context, q appuser.NotificationQuery) ([]*model.NotificationThread, error) {
 	threads, err := a.u.ListNotifications(ctx, listOptions(q))
-	return convert[[]*model.NotificationThread](threads, err)
+	return bridge.Convert[[]*model.NotificationThread](threads, err)
 }
 
 func (a adapter) ListRepoNotifications(ctx context.Context, owner, repo string, q appuser.NotificationQuery) ([]*model.NotificationThread, error) {
 	threads, err := a.u.ListRepoNotifications(ctx, owner, repo, listOptions(q))
-	return convert[[]*model.NotificationThread](threads, err)
+	return bridge.Convert[[]*model.NotificationThread](threads, err)
 }
 
 func (a adapter) GetNotification(ctx context.Context, id int64) (*model.NotificationThread, error) {
 	t, err := a.u.GetNotification(ctx, id)
-	return convert[*model.NotificationThread](t, err)
+	return bridge.Convert[*model.NotificationThread](t, err)
 }
 
 func (a adapter) ReadNotification(ctx context.Context, id int64) (*model.NotificationThread, error) {
 	t, err := a.u.ReadNotification(ctx, id)
-	return convert[*model.NotificationThread](t, err)
+	return bridge.Convert[*model.NotificationThread](t, err)
 }
 
 func (a adapter) ReadNotifications(ctx context.Context, in appuser.ReadQuery) error {

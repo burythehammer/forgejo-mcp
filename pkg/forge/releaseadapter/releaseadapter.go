@@ -9,13 +9,13 @@ package releaseadapter
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apprelease "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/release"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -32,49 +32,26 @@ type adapter struct {
 
 var _ apprelease.Port = adapter{}
 
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any) (T, error) {
-	var to T
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
-
 func (a adapter) ListReleases(ctx context.Context, owner, repo string, p apprelease.Paging) ([]*model.Release, error) {
 	rels, err := a.rel.ListReleases(ctx, owner, repo, forgejo_sdk.ListReleasesOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: p.Page, PageSize: p.Limit},
 	})
-	if err != nil {
-		return nil, err
-	}
-	return convert[[]*model.Release](rels)
+	return bridge.Convert[[]*model.Release](rels, err)
 }
 
 func (a adapter) GetRelease(ctx context.Context, owner, repo string, id int64) (model.Release, error) {
 	r, err := a.rel.GetRelease(ctx, owner, repo, id)
-	if err != nil {
-		return model.Release{}, err
-	}
-	return convert[model.Release](r)
+	return bridge.Convert[model.Release](r, err)
 }
 
 func (a adapter) GetReleaseByTag(ctx context.Context, owner, repo, tag string) (model.Release, error) {
 	r, err := a.rel.GetReleaseByTag(ctx, owner, repo, tag)
-	if err != nil {
-		return model.Release{}, err
-	}
-	return convert[model.Release](r)
+	return bridge.Convert[model.Release](r, err)
 }
 
 func (a adapter) GetLatestRelease(ctx context.Context, owner, repo string) (model.Release, error) {
 	r, err := a.rel.GetLatestRelease(ctx, owner, repo)
-	if err != nil {
-		return model.Release{}, err
-	}
-	return convert[model.Release](r)
+	return bridge.Convert[model.Release](r, err)
 }
 
 func (a adapter) CreateRelease(ctx context.Context, owner, repo string, in apprelease.CreateInput) (model.Release, error) {
@@ -82,10 +59,7 @@ func (a adapter) CreateRelease(ctx context.Context, owner, repo string, in appre
 		TagName: in.TagName, Target: in.Target, Title: in.Title, Note: in.Note,
 		IsDraft: in.IsDraft, IsPrerelease: in.IsPrerelease,
 	})
-	if err != nil {
-		return model.Release{}, err
-	}
-	return convert[model.Release](r)
+	return bridge.Convert[model.Release](r, err)
 }
 
 func (a adapter) EditRelease(ctx context.Context, owner, repo string, id int64, in apprelease.EditInput) (model.Release, error) {
@@ -93,10 +67,7 @@ func (a adapter) EditRelease(ctx context.Context, owner, repo string, id int64, 
 		TagName: in.TagName, Target: in.Target, Title: in.Title, Note: in.Note,
 		IsDraft: in.IsDraft, IsPrerelease: in.IsPrerelease,
 	})
-	if err != nil {
-		return model.Release{}, err
-	}
-	return convert[model.Release](r)
+	return bridge.Convert[model.Release](r, err)
 }
 
 func (a adapter) DeleteRelease(ctx context.Context, owner, repo string, id int64) error {
@@ -109,34 +80,22 @@ func (a adapter) DeleteReleaseByTag(ctx context.Context, owner, repo, tag string
 
 func (a adapter) ListAttachments(ctx context.Context, owner, repo string, releaseID int64) ([]*model.Attachment, error) {
 	all, err := a.rel.ListReleaseAttachments(ctx, owner, repo, releaseID)
-	if err != nil {
-		return nil, err
-	}
-	return convert[[]*model.Attachment](all)
+	return bridge.Convert[[]*model.Attachment](all, err)
 }
 
 func (a adapter) GetAttachment(ctx context.Context, owner, repo string, releaseID, id int64) (model.Attachment, error) {
 	x, err := a.rel.GetReleaseAttachment(ctx, owner, repo, releaseID, id)
-	if err != nil {
-		return model.Attachment{}, err
-	}
-	return convert[model.Attachment](x)
+	return bridge.Convert[model.Attachment](x, err)
 }
 
 func (a adapter) CreateAttachment(ctx context.Context, owner, repo string, releaseID int64, up apprelease.Upload) (model.Attachment, error) {
 	x, err := a.rel.CreateReleaseAttachment(ctx, owner, repo, releaseID, forge.Upload{Filename: up.Filename, MIMEType: up.MIMEType, Content: up.Content})
-	if err != nil {
-		return model.Attachment{}, err
-	}
-	return convert[model.Attachment](x)
+	return bridge.Convert[model.Attachment](x, err)
 }
 
 func (a adapter) EditAttachment(ctx context.Context, owner, repo string, releaseID, id int64, name string) (model.Attachment, error) {
 	x, err := a.rel.EditReleaseAttachment(ctx, owner, repo, releaseID, id, name)
-	if err != nil {
-		return model.Attachment{}, err
-	}
-	return convert[model.Attachment](x)
+	return bridge.Convert[model.Attachment](x, err)
 }
 
 func (a adapter) DeleteAttachment(ctx context.Context, owner, repo string, releaseID, id int64) error {

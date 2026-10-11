@@ -11,11 +11,11 @@ package repogitadapter
 
 import (
 	"context"
-	"encoding/json"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -34,20 +34,6 @@ type adapter struct{ p Ports }
 
 var _ apprepo.GitPort = adapter{}
 
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any, err error) (T, error) {
-	var to T
-	if err != nil {
-		return to, err
-	}
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
-
 func listOptions(p apprepo.GitPage) forgejo_sdk.ListOptions {
 	return forgejo_sdk.ListOptions{Page: p.Page, PageSize: p.Limit}
 }
@@ -58,7 +44,7 @@ func fileOptions(message, branch, newBranch string) forgejo_sdk.FileOptions {
 
 func (a adapter) ListBranches(ctx context.Context, owner, repo string, p apprepo.GitPage) ([]*model.Branch, error) {
 	bs, err := a.p.ListBranches(ctx, owner, repo, forgejo_sdk.ListRepoBranchesOptions{ListOptions: listOptions(p)})
-	return convert[[]*model.Branch](bs, err)
+	return bridge.Convert[[]*model.Branch](bs, err)
 }
 
 func (a adapter) CreateBranch(ctx context.Context, owner, repo string, in apprepo.CreateBranchInput) error {
@@ -72,17 +58,17 @@ func (a adapter) DeleteBranch(ctx context.Context, owner, repo, branch string) (
 
 func (a adapter) ListCommits(ctx context.Context, owner, repo string, q apprepo.ListCommitsInput) ([]*model.Commit, error) {
 	cs, err := a.p.ListCommits(ctx, owner, repo, forgejo_sdk.ListCommitOptions{Path: q.Path, SHA: q.SHA, ListOptions: listOptions(q.Page)})
-	return convert[[]*model.Commit](cs, err)
+	return bridge.Convert[[]*model.Commit](cs, err)
 }
 
 func (a adapter) ListContents(ctx context.Context, owner, repo, ref, path string) ([]*model.ContentsResponse, error) {
 	cs, err := a.p.ListContents(ctx, owner, repo, ref, path)
-	return convert[[]*model.ContentsResponse](cs, err)
+	return bridge.Convert[[]*model.ContentsResponse](cs, err)
 }
 
 func (a adapter) GetTree(ctx context.Context, owner, repo, ref string, q apprepo.TreeInput) (*model.GitTreeResponse, error) {
 	t, err := a.p.GetTree(ctx, owner, repo, ref, forgejo_sdk.GetTreesOptions{Recursive: q.Recursive, ListOptions: listOptions(q.Page)})
-	return convert[*model.GitTreeResponse](t, err)
+	return bridge.Convert[*model.GitTreeResponse](t, err)
 }
 
 func (a adapter) GetFile(ctx context.Context, owner, repo, ref, path string) ([]byte, error) {
@@ -91,7 +77,7 @@ func (a adapter) GetFile(ctx context.Context, owner, repo, ref, path string) ([]
 
 func (a adapter) GetContents(ctx context.Context, owner, repo, ref, path string) (*model.ContentsResponse, error) {
 	c, err := a.p.GetContents(ctx, owner, repo, ref, path)
-	return convert[*model.ContentsResponse](c, err)
+	return bridge.Convert[*model.ContentsResponse](c, err)
 }
 
 func (a adapter) CreateFile(ctx context.Context, owner, repo, path string, in apprepo.FileWriteInput) (*model.FileResponse, error) {
@@ -99,7 +85,7 @@ func (a adapter) CreateFile(ctx context.Context, owner, repo, path string, in ap
 		FileOptions: fileOptions(in.Message, in.Branch, in.NewBranch),
 		Content:     in.ContentBase64,
 	})
-	return convert[*model.FileResponse](f, err)
+	return bridge.Convert[*model.FileResponse](f, err)
 }
 
 func (a adapter) UpdateFile(ctx context.Context, owner, repo, path string, in apprepo.FileWriteInput) (*model.FileResponse, error) {
@@ -108,7 +94,7 @@ func (a adapter) UpdateFile(ctx context.Context, owner, repo, path string, in ap
 		SHA:         in.SHA,
 		Content:     in.ContentBase64,
 	})
-	return convert[*model.FileResponse](f, err)
+	return bridge.Convert[*model.FileResponse](f, err)
 }
 
 func (a adapter) DeleteFile(ctx context.Context, owner, repo, path string, in apprepo.FileDeleteInput) error {

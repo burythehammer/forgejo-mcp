@@ -10,11 +10,11 @@ package orgadapter
 
 import (
 	"context"
-	"encoding/json"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apporg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/org"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -26,20 +26,6 @@ type adapter struct{ o forge.Orgs }
 
 var _ apporg.Port = adapter{}
 
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any, err error) (T, error) {
-	var to T
-	if err != nil {
-		return to, err
-	}
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
-
 func listOptions(p apporg.Paging) forgejo_sdk.ListOptions {
 	return forgejo_sdk.ListOptions{Page: p.Page, PageSize: p.Limit}
 }
@@ -49,12 +35,12 @@ func (a adapter) CreateOrg(ctx context.Context, in apporg.CreateOrgInput) (*mode
 		Name: in.Name, FullName: in.FullName, Description: in.Description,
 		Website: in.Website, Location: in.Location, Visibility: forgejo_sdk.VisibleType(in.Visibility),
 	})
-	return convert[*model.Organization](org, err)
+	return bridge.Convert[*model.Organization](org, err)
 }
 
 func (a adapter) GetOrg(ctx context.Context, org string) (*model.Organization, error) {
 	o, err := a.o.GetOrg(ctx, org)
-	return convert[*model.Organization](o, err)
+	return bridge.Convert[*model.Organization](o, err)
 }
 
 func (a adapter) EditOrg(ctx context.Context, org string, in apporg.EditOrgInput) error {
@@ -70,17 +56,17 @@ func (a adapter) DeleteOrg(ctx context.Context, org string) error {
 
 func (a adapter) ListMyOrgs(ctx context.Context, p apporg.Paging) ([]*model.Organization, error) {
 	orgs, err := a.o.ListMyOrgs(ctx, forgejo_sdk.ListOrgsOptions{ListOptions: listOptions(p)})
-	return convert[[]*model.Organization](orgs, err)
+	return bridge.Convert[[]*model.Organization](orgs, err)
 }
 
 func (a adapter) ListUserOrgs(ctx context.Context, user string, p apporg.Paging) ([]*model.Organization, error) {
 	orgs, err := a.o.ListUserOrgs(ctx, user, forgejo_sdk.ListOrgsOptions{ListOptions: listOptions(p)})
-	return convert[[]*model.Organization](orgs, err)
+	return bridge.Convert[[]*model.Organization](orgs, err)
 }
 
 func (a adapter) ListOrgMembers(ctx context.Context, org string, p apporg.Paging) ([]*model.User, error) {
 	members, err := a.o.ListOrgMembers(ctx, org, forgejo_sdk.ListOrgMembershipOption{ListOptions: listOptions(p)})
-	return convert[[]*model.User](members, err)
+	return bridge.Convert[[]*model.User](members, err)
 }
 
 func (a adapter) CheckOrgMembership(ctx context.Context, org, user string) (bool, error) {
@@ -93,7 +79,7 @@ func (a adapter) RemoveOrgMember(ctx context.Context, org, user string) error {
 
 func (a adapter) ListOrgTeams(ctx context.Context, org string, p apporg.Paging) ([]*model.Team, error) {
 	teams, err := a.o.ListOrgTeams(ctx, org, forgejo_sdk.ListTeamsOptions{ListOptions: listOptions(p)})
-	return convert[[]*model.Team](teams, err)
+	return bridge.Convert[[]*model.Team](teams, err)
 }
 
 func (a adapter) CreateTeam(ctx context.Context, org string, in apporg.CreateTeamInput) (*model.Team, error) {
@@ -104,7 +90,7 @@ func (a adapter) CreateTeam(ctx context.Context, org string, in apporg.CreateTea
 		CanCreateOrgRepo:        in.CanCreateOrgRepo,
 		IncludesAllRepositories: in.IncludesAllRepositories,
 	})
-	return convert[*model.Team](team, err)
+	return bridge.Convert[*model.Team](team, err)
 }
 
 func (a adapter) AddTeamMember(ctx context.Context, teamID int64, user string) error {

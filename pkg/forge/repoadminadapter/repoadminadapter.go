@@ -11,12 +11,12 @@ package repoadminadapter
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -34,20 +34,6 @@ func New(s Source) apprepo.AdminPort { return adapter{s: s} }
 type adapter struct{ s Source }
 
 var _ apprepo.AdminPort = adapter{}
-
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any, err error) (T, error) {
-	var to T
-	if err != nil {
-		return to, err
-	}
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
 
 func listOptions(p apprepo.AdminPaging) forgejo_sdk.ListOptions {
 	return forgejo_sdk.ListOptions{Page: p.Page, PageSize: p.Limit}
@@ -75,7 +61,7 @@ func (a adapter) CreateRepo(ctx context.Context, owner string, in apprepo.NewRep
 	} else {
 		r, err = a.s.CreateRepo(ctx, opt)
 	}
-	return convert[*model.Repository](r, err)
+	return bridge.Convert[*model.Repository](r, err)
 }
 
 func (a adapter) ForkRepo(ctx context.Context, owner, repo string, in apprepo.ForkOptions) error {
@@ -88,12 +74,12 @@ func (a adapter) ForkRepo(ctx context.Context, owner, repo string, in apprepo.Fo
 
 func (a adapter) ListMyRepos(ctx context.Context, p apprepo.AdminPaging) ([]*model.Repository, error) {
 	repos, err := a.s.ListMyRepos(ctx, forgejo_sdk.ListReposOptions{ListOptions: listOptions(p)})
-	return convert[[]*model.Repository](repos, err)
+	return bridge.Convert[[]*model.Repository](repos, err)
 }
 
 func (a adapter) GetRepo(ctx context.Context, owner, repo string) (*model.Repository, error) {
 	r, err := a.s.GetRepo(ctx, owner, repo)
-	return convert[*model.Repository](r, err)
+	return bridge.Convert[*model.Repository](r, err)
 }
 
 func (a adapter) EditRepo(ctx context.Context, owner, repo string, in apprepo.RepoEdit) (*model.Repository, error) {
@@ -113,7 +99,7 @@ func (a adapter) EditRepo(ctx context.Context, owner, repo string, in apprepo.Re
 		HasPackages:     in.HasPackages,
 		HasActions:      in.HasActions,
 	})
-	return convert[*model.Repository](r, err)
+	return bridge.Convert[*model.Repository](r, err)
 }
 
 func (a adapter) ListRepoTopics(ctx context.Context, owner, repo string, p apprepo.AdminPaging) ([]string, error) {

@@ -8,13 +8,13 @@ package attachmentadapter
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/attachment"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -25,17 +25,6 @@ func New(p forge.Attachments) attachment.Port { return adapter{p: p} }
 type adapter struct{ p forge.Attachments }
 
 var _ attachment.Port = adapter{}
-
-// convert maps an SDK value onto its repo-owned twin through JSON.
-func convert[T any](from any) (T, error) {
-	var to T
-	b, err := json.Marshal(from)
-	if err != nil {
-		return to, err
-	}
-	err = json.Unmarshal(b, &to)
-	return to, err
-}
 
 func (a adapter) List(ctx context.Context, owner, repo string, s attachment.Scope, parent int64) ([]*model.Attachment, error) {
 	var (
@@ -50,10 +39,7 @@ func (a adapter) List(ctx context.Context, owner, repo string, s attachment.Scop
 	if forge.IsNotFound(err) {
 		return nil, attachment.ErrNotFound
 	}
-	if err != nil {
-		return nil, err
-	}
-	return convert[[]*model.Attachment](out)
+	return bridge.Convert[[]*model.Attachment](out, err)
 }
 
 func (a adapter) Get(ctx context.Context, owner, repo string, s attachment.Scope, parent, id int64) (model.Attachment, error) {
@@ -66,10 +52,7 @@ func (a adapter) Get(ctx context.Context, owner, repo string, s attachment.Scope
 	} else {
 		x, err = a.p.GetIssueAttachment(ctx, owner, repo, parent, id)
 	}
-	if err != nil {
-		return model.Attachment{}, err
-	}
-	return convert[model.Attachment](x)
+	return bridge.Convert[model.Attachment](x, err)
 }
 
 func (a adapter) Create(ctx context.Context, owner, repo string, s attachment.Scope, parent int64, up attachment.Upload) (model.Attachment, error) {
@@ -83,10 +66,7 @@ func (a adapter) Create(ctx context.Context, owner, repo string, s attachment.Sc
 	} else {
 		x, err = a.p.CreateIssueAttachment(ctx, owner, repo, parent, f)
 	}
-	if err != nil {
-		return model.Attachment{}, err
-	}
-	return convert[model.Attachment](x)
+	return bridge.Convert[model.Attachment](x, err)
 }
 
 func (a adapter) Edit(ctx context.Context, owner, repo string, s attachment.Scope, parent, id int64, name string) (model.Attachment, error) {
@@ -99,10 +79,7 @@ func (a adapter) Edit(ctx context.Context, owner, repo string, s attachment.Scop
 	} else {
 		x, err = a.p.EditIssueAttachment(ctx, owner, repo, parent, id, name)
 	}
-	if err != nil {
-		return model.Attachment{}, err
-	}
-	return convert[model.Attachment](x)
+	return bridge.Convert[model.Attachment](x, err)
 }
 
 func (a adapter) Delete(ctx context.Context, owner, repo string, s attachment.Scope, parent, id int64) error {
