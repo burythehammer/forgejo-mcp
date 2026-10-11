@@ -1,0 +1,3 @@
+{"Result":"Repository 'octo-org/hello' removed from team 5"}
+-- port calls --
+RemoveTeamRepository [5,"octo-org","hello"]

@@ -1,0 +1,27 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Check if a user is a member of an organization",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "user": {
+        "description": "Username",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "user"
+    ],
+    "type": "object"
+  },
+  "name": "check_org_membership"
+}

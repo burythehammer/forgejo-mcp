@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create an organization",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "Description",
+        "type": "string"
+      },
+      "full_name": {
+        "description": "Display name",
+        "type": "string"
+      },
+      "location": {
+        "description": "Location",
+        "type": "string"
+      },
+      "name": {
+        "description": "Organization username",
+        "type": "string"
+      },
+      "visibility": {
+        "description": "Visibility: public, limited, or private",
+        "type": "string"
+      },
+      "website": {
+        "description": "Website URL",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "create_org"
+}

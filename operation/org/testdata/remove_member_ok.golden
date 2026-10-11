@@ -1,0 +1,3 @@
+{"Result":"User 'bob' removed from organization 'octo-org'"}
+-- port calls --
+RemoveOrgMember ["octo-org","bob"]
