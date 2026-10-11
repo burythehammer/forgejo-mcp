@@ -212,95 +212,133 @@ in `app/issue`. Per domain:
 
 ## Adding a New Tool
 
-### Step 1: Create or Modify a Domain File
+A tool is two parts and a bridge (ADR 0003): a use case that knows nothing
+about MCP, and an MCP adapter that decodes the request, calls the use case and
+renders the result. The pull domain (`app/pull`, `operation/pull`,
+`pkg/forge/pulladapter`) is the reference; copy its shape.
 
-Tools are organized by domain in `operation/{domain}/`. Create a new file or add to an existing one.
+| Part | Where | Knows about |
+|------|-------|-------------|
+| Use case | `app/<domain>/` (`service.go`, `port.go`, `errors.go`) | Typed input, its own `Port`, repo-owned results. No mcp-go, no Forgejo SDK |
+| Bridge | `pkg/forge/<domain>adapter/` | Converts the use case's `Port` to `forge.<Domain>` (SDK types) and the SDK results back to `app/model` |
+| MCP adapter | `operation/<domain>/` | The `mcp.NewTool` definition, the argument struct, decoding, rendering |
 
-### Step 2: Define the Tool
+`app/**` must not import mcp-go or the Forgejo SDK. `scripts/ci/check-app-boundary.sh`
+fails the build on such an import.
+
+### Step 1: Write the use case
+
+Put the logic in `app/<domain>/service.go`. Defaults and validation live here,
+so the CLI and the tests get the same behaviour as MCP:
 
 ```go
-package mydomain
+// app/mydomain/service.go
+type ListInput struct {
+	Owner, Repo string
+	Limit       int
+}
 
-import (
-    "context"
-    "fmt"
-
-    "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-    "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/params"
-    "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
-    "github.com/mark3labs/mcp-go/mcp"
-    "github.com/mark3labs/mcp-go/server"
-)
-
-// Tool definition
-var MyTool = mcp.NewTool(
-    "my_tool_name",
-    mcp.WithDescription("What this tool does"),
-    mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
-    mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-    mcp.WithNumber("limit", mcp.Description("Page size"), mcp.DefaultNumber(20)),
-)
-
-// handlers hold the factory so each call uses its own request's credential.
-type handlers struct{ forge forge.Factory }
-
-// Handler function
-func (h handlers) MyToolFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-    // Extract parameters (numbers come as float64)
-    owner, _ := req.Params.Arguments["owner"].(string)
-    repo, _ := req.Params.Arguments["repo"].(string)
-    limit, _ := req.Params.Arguments["limit"].(float64)
-
-    // Call Forgejo through the port
-    f, err := h.forge.For(ctx)
-    if err != nil {
-        return to.ErrorResult(err)
-    }
-    result, err := f.SomeMethod(ctx, owner, repo, int(limit))
-    if err != nil {
-        return to.ErrorResult(fmt.Errorf("operation failed: %v", err))
-    }
-
-    // Return formatted result
-    return to.TextResult(result)
+func (s *Service) List(ctx context.Context, in ListInput) ([]model.Thing, error) {
+	// defaults, validation, then s.port calls
 }
 ```
 
-`SomeMethod` is a method on the domain's port in `pkg/forge/`, implemented by
-the adapter in `pkg/forge/sdk/` and by the fake in `pkg/forge/fake/` (see
-"The Forgejo port and migrating a domain" above).
+Results are types from `app/model`; add wire-shaped types for a new domain in
+`app/model/<domain>.go`. Failures the caller can act on are typed errors in
+`errors.go`. A new Forgejo call needs a method on the use case's `Port`, a
+method in `pkg/forge/<domain>adapter`, and (if the port itself is new) the
+steps in "The Forgejo port and migrating a domain" above.
 
-### Step 3: Register the Tool
+### Step 2: Write the MCP adapter
 
-Add registration in the domain's file:
+```go
+// operation/mydomain/handlers.go
+type listArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Limit float64 `json:"limit"`
+}
+
+var ListThingsTool = mcp.NewTool(
+	"list_things",
+	mcp.WithDescription("List the things in a repository"),
+	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
+	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
+	mcp.WithNumber("limit", mcp.Description("Page size"), mcp.DefaultNumber(20)),
+)
+
+func (h handlers) ListThingsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return run(ctx, h, req, "ListThingsFn", func(ctx context.Context, s *appmydomain.Service, a listArgs) (*mcp.CallToolResult, error) {
+		return render(s.List(ctx, appmydomain.ListInput{Owner: a.Owner, Repo: a.Repo, Limit: int(a.Limit)}))
+	})
+}
+```
+
+`run`, `render` and `fail` are the per-domain helpers in `operation/pull/handlers.go`:
+`run` decodes the arguments, calls `h.forge.For(ctx)` for this request's
+credential and builds the use case over the bridge; `render` sends the result
+with `to.TextResult` and any error through `to.ErrorResult`.
+
+Argument struct rules:
+
+- `json:"name"` is the MCP argument name. The tag, not the field name, is what
+  the decoder reads.
+- Numbers are `float64`. A JSON number arrives as a float64, and converting
+  with `int(...)` or `int64(...)` in the closure keeps the old truncation.
+- `required:"true"` marks a required argument. `decode.Lax` never rejects a
+  request: a missing or wrongly typed argument leaves its field at the zero
+  value, which is what the hand-written handlers saw. `mcptest.ArgsMatchSchema`
+  checks the tags against the tool's schema.
+- Use a pointer field (`*string`, `*float64`) only where "given but empty"
+  differs from "not given". A wrongly typed value reads as absent.
+- A numeric string (`"7"`) is read for a plain number field and for a pointer
+  field tagged `numeric:"string"`. Tag a number `exact:"true"` to refuse it, to
+  match a handler that asserted `float64` strictly. Copy the old handler's rule.
+- For a new tool with no legacy behaviour to keep, use `decode.Args` instead of
+  `decode.Lax`: it rejects a missing required argument or a wrong type in one
+  error.
+
+### Step 3: Register the tool
 
 ```go
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
-    h := handlers{forge: f}
-    s.AddTool(MyTool, h.MyToolFn)
+	h := handlers{forge: f}
+	s.AddTool(ListThingsTool, h.ListThingsFn)
 }
 ```
 
-### Step 4: Wire Up New Domains
+If the domain is new, call its `RegisterTool` from `operation/operation.go`.
 
-If you created a new domain, import and register it in `operation/operation.go`:
+### Step 4: Pin it with tests
 
-```go
-import "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mydomain"
+- `mcptest.SchemaSnapshot(t, ListThingsTool)` pins the name, description and
+  input schema in `testdata/`.
+- `mcptest.Golden(t, name, output)` pins the rendered output and error text for
+  each case, through a stub port (see `operation/pull/golden_test.go`).
+- `mcptest.ArgsMatchSchema(t, ListThingsTool, listArgs{})` checks the argument
+  struct against the schema.
+- `go test ./operation/mydomain -update` writes the golden and snapshot files.
+  Review the diff, then run the tests without `-update`.
+- Use-case tests live in `app/<domain>/service_test.go`, in an external test
+  package over the in-memory fake through the bridge.
+- Keep one `httptest` smoke test per domain through the real SDK adapter
+  (`forgetest.NewStub`).
+- New tests call `t.Parallel()`. Retire an old handler test only where a new
+  use-case or golden test covers the same behaviour.
 
-func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
-    // ... existing registrations
-    mydomain.RegisterTool(s, f)
-}
-```
+Before opening a PR, run `make build`, `go vet ./...`, `go test ./...` and every
+`scripts/ci/*.sh` check.
 
 ## Key Patterns
 
 ### Parameter Handling
 
-Migrated domains (`version`, `pull`) decode arguments into a per-tool struct
-with `decode.Args`; see "Splitting a domain into MCP adapters and use cases".
-Not-yet-migrated tools still read the argument map directly:
+Tools that have been split (see "Splitting a domain..." and "Adding a New Tool")
+decode their arguments into a per-tool struct with `decode.Lax`. The handlers
+still reading the argument map directly are in `operation/release`,
+`operation/actions`, `operation/attachment`, `operation/packages`,
+`operation/repo` (`file.go`, `change_files.go`), `operation/issue`
+(`dependency.go`) and `operation/user` (`notification.go`). In those:
 
 - String parameters: `value, _ := req.Params.Arguments["param"].(string)`
 - Number parameters: `value, _ := req.Params.Arguments["num"].(float64)` (always float64)
