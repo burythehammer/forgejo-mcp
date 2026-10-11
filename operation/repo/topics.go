@@ -10,7 +10,6 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -109,7 +108,7 @@ func splitTopics(s string) ([]string, error) {
 	return out, nil
 }
 
-func ListRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoTopicsFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -126,11 +125,11 @@ func ListRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 		limit = 100
 	}
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	topics, _, err := client.ListRepoTopics(owner, repo, forgejo_sdk.ListRepoTopicsOptions{
+	topics, err := f.ListRepoTopics(ctx, owner, repo, forgejo_sdk.ListRepoTopicsOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: int(page), PageSize: int(limit)},
 	})
 	if err != nil {
@@ -147,7 +146,7 @@ func ListRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 	})
 }
 
-func SetRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) SetRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called SetRepoTopicsFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -164,17 +163,17 @@ func SetRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.SetRepoTopics(owner, repo, topics); err != nil {
+	if err := f.SetRepoTopics(ctx, owner, repo, topics); err != nil {
 		return to.ErrorResult(fmt.Errorf("set repo topics: %w", err))
 	}
 	return to.TextResult(map[string]any{"topics": topics})
 }
 
-func AddRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) AddRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called AddRepoTopicFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -188,17 +187,17 @@ func AddRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.AddRepoTopic(owner, repo, name); err != nil {
+	if err := f.AddRepoTopic(ctx, owner, repo, name); err != nil {
 		return to.ErrorResult(fmt.Errorf("add repo topic: %w", err))
 	}
 	return to.TextResult(map[string]string{"topic": name, "status": "added"})
 }
 
-func DeleteRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteRepoTopicFn")
 	args := req.GetArguments()
 	owner, _ := args["owner"].(string)
@@ -212,11 +211,11 @@ func DeleteRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 		return to.ErrorResult(err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if _, err := client.DeleteRepoTopic(owner, repo, name); err != nil {
+	if err := f.DeleteRepoTopic(ctx, owner, repo, name); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete repo topic: %w", err))
 	}
 	return to.TextResult(map[string]string{"topic": name, "status": "deleted"})

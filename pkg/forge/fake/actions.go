@@ -75,15 +75,6 @@ func (s *actionsState) run(owner, repo string, runID int64) (*runRecord, error) 
 	return nil, notFound("workflow run")
 }
 
-// repoExists reports whether AddRepo made owner/repo. Callers must not hold
-// the actions lock, as the repository set belongs to the pull state.
-func (f *Forgejo) repoExists(owner, repo string) bool {
-	f.pulls.mu.Lock()
-	defer f.pulls.mu.Unlock()
-	_, ok := f.pulls.repos[owner+"/"+repo]
-	return ok
-}
-
 // AddActionsOrg makes an organization exist for its action secrets.
 func (f *Forgejo) AddActionsOrg(org string) {
 	f.actions.mu.Lock()

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -47,7 +46,7 @@ var (
 	)
 )
 
-func CreateBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) CreateBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateBranchFn")
 	owner, ok := req.GetArguments()["owner"].(string)
 	if !ok {
@@ -63,11 +62,11 @@ func CreateBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 	}
 	oldBranch, _ := req.GetArguments()["old_branch"].(string)
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	_, _, err = client.CreateBranch(owner, repo, forgejo_sdk.CreateBranchOption{
+	_, err = f.CreateBranch(ctx, owner, repo, forgejo_sdk.CreateBranchOption{
 		BranchName:    branch,
 		OldBranchName: oldBranch,
 	})
@@ -78,17 +77,17 @@ func CreateBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 	return mcp.NewToolResultText("Branch Created"), nil
 }
 
-func DeleteBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) DeleteBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteBranchFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
 	branch, _ := req.GetArguments()["branch"].(string)
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	success, _, err := client.DeleteRepoBranch(owner, repo, branch)
+	success, err := f.DeleteBranch(ctx, owner, repo, branch)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("delete branch err: %w", err))
 	}
@@ -98,7 +97,7 @@ func DeleteBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 	return to.TextResult("Delete Branch Success")
 }
 
-func ListBranchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListBranchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListBranchesFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -118,11 +117,11 @@ func ListBranchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		},
 	}
 
-	client, err := forgejo.Client(ctx)
+	f, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	branches, _, err := client.ListRepoBranches(owner, repo, opt)
+	branches, err := f.ListBranches(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list branches err: %w", err))
 	}

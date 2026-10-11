@@ -33,6 +33,11 @@ type Forgejo struct {
 	Now func() time.Time
 
 	pulls    pullState
+	orgs     orgState
+	users    userState
+	bps      bpState
+	hooks    hookState
+	admin    repoAdminState
 	actions  actionsState
 	tracking trackingState
 	search   searchState

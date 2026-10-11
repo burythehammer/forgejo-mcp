@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -33,12 +33,13 @@ type hooksCollectionPayload struct {
 
 // RegisterResources registers the webhook collection and single-hook
 // resource templates on the MCP server.
-func RegisterResources(s *server.MCPServer) {
+func RegisterResources(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
 	resource.RegisterTemplate(
 		s,
 		hooksResourceURITemplate,
 		"Forgejo Repository Webhooks",
-		hooksResourceHandler,
+		h.hooksResourceHandler,
 		mcp.WithTemplateDescription(
 			"Webhooks for a Forgejo repository. "+
 				"URI: forgejo://repo/{owner}/{repo}/hooks. "+
@@ -52,7 +53,7 @@ func RegisterResources(s *server.MCPServer) {
 		s,
 		hookResourceURITemplate,
 		"Forgejo Repository Webhook",
-		hookResourceHandler,
+		h.hookResourceHandler,
 		mcp.WithTemplateDescription(
 			"A single repository webhook for a Forgejo repository. "+
 				"URI: forgejo://repo/{owner}/{repo}/hook/{id} — id is the numeric webhook ID. "+
@@ -63,28 +64,35 @@ func RegisterResources(s *server.MCPServer) {
 	log.Debug("Registered hook resource templates")
 }
 
-func hooksResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+// mapErr maps a port failure to a resource error, keeping the HTTP status in
+// the message so the mapping can tell forbidden from not found.
+func mapErr(uri string, err error) error {
+	if code := forge.StatusCode(err); code != 0 {
+		return resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
+	}
+	return resource.MapForgejoError(uri, err)
+}
+
+func (h handlers) hooksResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseHooks(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
 	// Request EmbeddedListCap+1 so Bounded can distinguish "at cap" from "over cap".
-	hooks, resp, err := client.ListRepoHooks(p.Owner, p.Repo, forgejo_sdk.ListHooksOptions{
+	list, err := port.ListRepoHooks(ctx, p.Owner, p.Repo, forgejo_sdk.ListHooksOptions{
 		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
 	})
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
+	hooks := list.Hooks
 
 	ids := make([]string, len(hooks))
 	for i, h := range hooks {
@@ -122,27 +130,24 @@ func hooksResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]m
 	}, nil
 }
 
-func hookResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) hookResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseHook(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	h, resp, err := client.GetRepoHook(p.Owner, p.Repo, p.ID)
+	hk, err := port.GetRepoHook(ctx, p.Owner, p.Repo, p.ID)
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
-	jsonBytes, err := json.Marshal(safeHook(h))
+	jsonBytes, err := json.Marshal(safeHook(hk))
 	if err != nil {
 		return nil, fmt.Errorf("marshal hook payload: %w", err)
 	}

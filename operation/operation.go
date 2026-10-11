@@ -105,21 +105,21 @@ func newStreamableHTTPHandler(s *server.MCPServer, cfg config.Config) http.Handl
 func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	log.Info("Registering MCP tools")
 
-	RegisterUserTool(s)
-	RegisterRepoTool(s)
+	RegisterUserTool(s, f)
+	RegisterRepoTool(s, f)
 	RegisterIssueTool(s)
 	RegisterPullTool(s, f)
 	RegisterPullReviewTool(s, f)
 	RegisterSearchTool(s, f)
 	RegisterVersionTool(s, version)
 	RegisterActionsTool(s, f)
-	RegisterOrgTool(s)
+	RegisterOrgTool(s, f)
 	RegisterPackagesTool(s)
 	RegisterTrackingTool(s, f)
 	RegisterAttachmentTool(s)
 	RegisterReleaseTool(s)
-	RegisterBranchProtectionTool(s)
-	RegisterHookTool(s)
+	RegisterBranchProtectionTool(s, f)
+	RegisterHookTool(s, f)
 	RegisterWikiTool(s)
 
 	log.Info("All MCP tools registered successfully")
@@ -127,13 +127,13 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 
 // Per-domain registration functions exposed for CLI domain grouping.
 
-func RegisterUserTool(s *server.MCPServer) {
-	user.RegisterTool(s)
+func RegisterUserTool(s *server.MCPServer, f forge.Factory) {
+	user.RegisterTool(s, f)
 	log.Debug("Registered user tools")
 }
 
-func RegisterRepoTool(s *server.MCPServer) {
-	repo.RegisterTool(s)
+func RegisterRepoTool(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterTool(s, f)
 	log.Debug("Registered repository tools")
 }
 
@@ -167,8 +167,8 @@ func RegisterActionsTool(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered actions tools")
 }
 
-func RegisterOrgTool(s *server.MCPServer) {
-	org.RegisterTool(s)
+func RegisterOrgTool(s *server.MCPServer, f forge.Factory) {
+	org.RegisterTool(s, f)
 	log.Debug("Registered org tools")
 }
 
@@ -192,13 +192,13 @@ func RegisterReleaseTool(s *server.MCPServer) {
 	log.Debug("Registered release tools")
 }
 
-func RegisterBranchProtectionTool(s *server.MCPServer) {
-	branchprotection.RegisterTool(s)
+func RegisterBranchProtectionTool(s *server.MCPServer, f forge.Factory) {
+	branchprotection.RegisterTool(s, f)
 	log.Debug("Registered branch protection tools")
 }
 
-func RegisterHookTool(s *server.MCPServer) {
-	hook.RegisterTools(s)
+func RegisterHookTool(s *server.MCPServer, f forge.Factory) {
+	hook.RegisterTools(s, f)
 	log.Debug("Registered webhook tools")
 }
 
@@ -329,12 +329,12 @@ func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
 	RegisterCommitResource(s)
 	RegisterIssueResources(s)
 	RegisterLabelResources(s)
-	RegisterOwnerResource(s)
+	RegisterOwnerResource(s, f)
 	RegisterPullResources(s, f)
-	RegisterRepoResource(s)
+	RegisterRepoResource(s, f)
 	RegisterStatusResource(s)
-	RegisterBranchProtectionResources(s)
-	RegisterHookResources(s)
+	RegisterBranchProtectionResources(s, f)
+	RegisterHookResources(s, f)
 	RegisterWikiResource(s)
 	log.Debug("Registered core resource templates")
 }
@@ -349,13 +349,13 @@ func RegisterLabelResources(s *server.MCPServer) {
 	log.Debug("Registered label resource templates")
 }
 
-func RegisterBranchProtectionResources(s *server.MCPServer) {
-	branchprotection.RegisterResource(s)
+func RegisterBranchProtectionResources(s *server.MCPServer, f forge.Factory) {
+	branchprotection.RegisterResource(s, f)
 	log.Debug("Registered branch protection resource templates")
 }
 
-func RegisterHookResources(s *server.MCPServer) {
-	hook.RegisterResources(s)
+func RegisterHookResources(s *server.MCPServer, f forge.Factory) {
+	hook.RegisterResources(s, f)
 	log.Debug("Registered webhook resource templates")
 }
 
@@ -374,13 +374,13 @@ func RegisterCommitResource(s *server.MCPServer) {
 	log.Debug("Registered commit resource template")
 }
 
-func RegisterOwnerResource(s *server.MCPServer) {
-	user.RegisterOwnerResource(s)
+func RegisterOwnerResource(s *server.MCPServer, f forge.Factory) {
+	user.RegisterOwnerResource(s, f)
 	log.Debug("Registered owner resource template")
 }
 
-func RegisterRepoResource(s *server.MCPServer) {
-	repo.RegisterRepoResource(s)
+func RegisterRepoResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterRepoResource(s, f)
 	log.Debug("Registered repo resource template")
 }
 
