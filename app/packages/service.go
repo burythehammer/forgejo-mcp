@@ -81,7 +81,7 @@ func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.List
 	}
 	allFiles := make([]model.PackageFileView, 0, len(listed))
 	for _, file := range listed {
-		allFiles = append(allFiles, model.PackageFileView{ID: file.ID, Name: file.Name, Size: file.Size, SHA256: file.SHA256})
+		allFiles = append(allFiles, model.PackageFileView(file))
 	}
 
 	start64 := int64(r.Page-1) * int64(r.Limit)
@@ -102,13 +102,5 @@ func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.List
 }
 
 func view(src model.PackageVersion) model.PackageView {
-	return model.PackageView{
-		ID:         src.ID,
-		Type:       src.Type,
-		Name:       src.Name,
-		Version:    src.Version,
-		HTMLURL:    src.HTMLURL,
-		CreatedAt:  src.CreatedAt,
-		Repository: src.Repository,
-	}
+	return model.PackageView(src)
 }

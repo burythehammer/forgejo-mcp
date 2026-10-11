@@ -3,89 +3,94 @@
 package actions
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"math"
-
-	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/actionsadapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
+	"strconv"
 )
 
-// useCases returns the Actions use cases over the request's Forgejo port. It
-// is called after the arguments are checked, as the handlers always did.
-func useCases(ctx context.Context, h handlers) (*app.Service, error) {
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return nil, err
+// Each tool decodes its arguments with decode.Lax into a struct beside its
+// handler. Strings decode as strings. Numbers are typed any, not float64: the
+// tools' error texts depend on how a number was given. An absent or empty
+// value is "is required" (or the default), a wrongly typed one is "must be a
+// positive integer" (or an error for a bounded number), and a string holding a
+// number is read as that number. Decoding into float64 would collapse those
+// cases, so the helpers below read them, and mcptest.ArgsMatchSchema is told
+// the schema type with a schema tag.
+
+// number reads a numeric argument: a JSON number, or a string holding one, as
+// some MCP clients send numbers as strings. ok is false for anything else.
+func number(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case string:
+		f, err := strconv.ParseFloat(n, 64)
+		return f, err == nil
 	}
-	return app.New(actionsadapter.New(port)), nil
+	return 0, false
 }
 
-// The helpers below read raw MCP arguments. They are the adapter's share of
-// the work: the messages are the tools' own, and a missing or mistyped value
-// is an error here, before the use case runs.
+// absent reports whether a numeric argument counts as not given.
+func absent(v any) bool { return v == nil || v == "" }
 
-func requiredRepo(args map[string]any) (string, string, error) {
-	owner, ok := args["owner"].(string)
-	if !ok || owner == "" {
-		return "", "", errors.New("owner is required")
+// required returns the error for a string argument that is missing or empty.
+func required(name, value string) error {
+	if value == "" {
+		return fmt.Errorf("%s is required", name)
 	}
-	repo, ok := args["repo"].(string)
-	if !ok || repo == "" {
-		return "", "", errors.New("repo is required")
-	}
-	return owner, repo, nil
+	return nil
 }
 
-func requiredOrg(args map[string]any) (string, error) {
-	org, ok := args["org"].(string)
-	if !ok || org == "" {
-		return "", errors.New("org is required")
+// requiredRepo checks owner, then repo, the order the tools always used.
+func requiredRepo(owner, repo string) error {
+	if err := required("owner", owner); err != nil {
+		return err
 	}
-	return org, nil
+	return required("repo", repo)
 }
 
-func requiredSecretName(args map[string]any) (string, error) {
-	name, ok := args["secret_name"].(string)
-	if !ok || name == "" {
-		return "", errors.New("secret_name is required")
-	}
-	return name, nil
-}
-
-func requiredSecretData(args map[string]any) (string, error) {
-	data, ok := args["data"].(string)
-	if !ok || data == "" {
-		return "", errors.New("data is required")
-	}
-	return data, nil
-}
-
-func positiveIntegerArg(args map[string]any, name string, required bool) (int64, error) {
-	value, exists := args[name]
-	if !exists || value == nil || value == "" {
-		if required {
+// positiveIntegerArg reads a positive whole number. An absent value is an error
+// only when required.
+func positiveIntegerArg(v any, name string, isRequired bool) (int64, error) {
+	if absent(v) {
+		if isRequired {
 			return 0, fmt.Errorf("%s is required", name)
 		}
 		return 0, nil
 	}
-	number, err := to.Float64(value)
-	if err != nil || number <= 0 || math.Trunc(number) != number || number >= float64(math.MaxInt64) {
+	n, ok := number(v)
+	if !ok || n <= 0 || math.Trunc(n) != n || n >= float64(math.MaxInt64) {
 		return 0, fmt.Errorf("%s must be a positive integer", name)
 	}
-	return int64(number), nil
+	return int64(n), nil
 }
 
-func optionalNonNegativeIntegerArg(args map[string]any, name string) (int64, bool, error) {
-	value, exists := args[name]
-	if !exists || value == nil || value == "" {
+// optionalNonNegativeIntegerArg reads a non-negative whole number and reports
+// whether one was given.
+func optionalNonNegativeIntegerArg(v any, name string) (int64, bool, error) {
+	if absent(v) {
 		return 0, false, nil
 	}
-	number, err := to.Float64(value)
-	if err != nil || number < 0 || math.Trunc(number) != number || number >= float64(math.MaxInt64) {
+	n, ok := number(v)
+	if !ok || n < 0 || math.Trunc(n) != n || n >= float64(math.MaxInt64) {
 		return 0, false, fmt.Errorf("%s must be a non-negative integer", name)
 	}
-	return int64(number), true, nil
+	return int64(n), true, nil
+}
+
+// boundedIntArg reads a whole number within [minimum, maximum]. An absent value
+// takes defaultValue.
+func boundedIntArg(v any, name string, defaultValue, minimum, maximum int) (int, error) {
+	if absent(v) {
+		return defaultValue, nil
+	}
+	n, ok := number(v)
+	if !ok || math.Trunc(n) != n || n < float64(minimum) || n > float64(maximum) {
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, minimum, maximum)
+	}
+	return int(n), nil
 }

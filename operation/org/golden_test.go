@@ -172,7 +172,7 @@ type goldenCase struct {
 	credErr error
 }
 
-var boom = errors.New("boom")
+var errBoom = errors.New("boom")
 
 var goldenCases = []goldenCase{
 	// create_org
@@ -182,12 +182,12 @@ var goldenCases = []goldenCase{
 	{name: "create_org_missing_name", tool: CreateOrgToolName, args: map[string]any{"name": nil}},
 	{name: "create_org_wrong_type_name", tool: CreateOrgToolName, args: map[string]any{"name": float64(3)}},
 	{name: "create_org_missing_name_no_credential", tool: CreateOrgToolName, args: map[string]any{"name": nil}, credErr: errors.New("no credential")},
-	{name: "create_org_port_error", tool: CreateOrgToolName, args: map[string]any{"name": "octo-org"}, fails: map[string]error{"CreateOrg": boom}},
+	{name: "create_org_port_error", tool: CreateOrgToolName, args: map[string]any{"name": "octo-org"}, fails: map[string]error{"CreateOrg": errBoom}},
 
 	// get_org
 	{name: "get_org_ok", tool: GetOrgToolName, args: map[string]any{"org": "octo-org"}},
 	{name: "get_org_missing", tool: GetOrgToolName, args: map[string]any{"org": nil}},
-	{name: "get_org_port_error", tool: GetOrgToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"GetOrg": boom}},
+	{name: "get_org_port_error", tool: GetOrgToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"GetOrg": errBoom}},
 
 	// list_my_orgs
 	{name: "my_orgs_defaults", tool: ListMyOrgsToolName},
@@ -196,52 +196,52 @@ var goldenCases = []goldenCase{
 	// The original handler took these only as JSON numbers; a string is absent.
 	{name: "my_orgs_string_paging", tool: ListMyOrgsToolName, args: map[string]any{"page": "2", "limit": "5"}},
 	{name: "my_orgs_fractional_paging", tool: ListMyOrgsToolName, args: map[string]any{"page": 2.9, "limit": 5.5}},
-	{name: "my_orgs_port_error", tool: ListMyOrgsToolName, fails: map[string]error{"ListMyOrgs": boom}},
+	{name: "my_orgs_port_error", tool: ListMyOrgsToolName, fails: map[string]error{"ListMyOrgs": errBoom}},
 
 	// list_user_orgs
 	{name: "user_orgs_ok", tool: ListUserOrgsToolName, args: map[string]any{"user": "octo", "page": float64(3), "limit": float64(4)}},
 	{name: "user_orgs_defaults", tool: ListUserOrgsToolName, args: map[string]any{"user": "octo"}},
 	{name: "user_orgs_missing_user", tool: ListUserOrgsToolName, args: map[string]any{"user": nil}},
 	{name: "user_orgs_string_limit", tool: ListUserOrgsToolName, args: map[string]any{"user": "octo", "limit": "4"}},
-	{name: "user_orgs_port_error", tool: ListUserOrgsToolName, args: map[string]any{"user": "octo"}, fails: map[string]error{"ListUserOrgs": boom}},
+	{name: "user_orgs_port_error", tool: ListUserOrgsToolName, args: map[string]any{"user": "octo"}, fails: map[string]error{"ListUserOrgs": errBoom}},
 
 	// edit_org
 	{name: "edit_org_full", tool: EditOrgToolName, args: map[string]any{"org": "octo-org", "full_name": "New", "description": "d", "website": "w", "location": "l", "visibility": "limited"}},
 	{name: "edit_org_only_org", tool: EditOrgToolName, args: map[string]any{"org": "octo-org"}},
 	{name: "edit_org_missing_org", tool: EditOrgToolName, args: map[string]any{"org": nil}},
-	{name: "edit_org_edit_error", tool: EditOrgToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"EditOrg": boom}},
-	{name: "edit_org_refetch_error", tool: EditOrgToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"GetOrg": boom}},
+	{name: "edit_org_edit_error", tool: EditOrgToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"EditOrg": errBoom}},
+	{name: "edit_org_refetch_error", tool: EditOrgToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"GetOrg": errBoom}},
 
 	// delete_org
 	{name: "delete_org_ok", tool: DeleteOrgToolName, args: map[string]any{"org": "octo-org"}},
 	{name: "delete_org_missing", tool: DeleteOrgToolName, args: map[string]any{"org": nil}},
-	{name: "delete_org_port_error", tool: DeleteOrgToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"DeleteOrg": boom}},
+	{name: "delete_org_port_error", tool: DeleteOrgToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"DeleteOrg": errBoom}},
 
 	// list_org_members
 	{name: "members_defaults", tool: ListOrgMembersToolName, args: map[string]any{"org": "octo-org"}},
 	{name: "members_paged", tool: ListOrgMembersToolName, args: map[string]any{"org": "octo-org", "page": float64(2), "limit": float64(10)}},
 	{name: "members_missing_org", tool: ListOrgMembersToolName, args: map[string]any{"org": nil}},
 	{name: "members_string_page", tool: ListOrgMembersToolName, args: map[string]any{"org": "octo-org", "page": "2"}},
-	{name: "members_port_error", tool: ListOrgMembersToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"ListOrgMembers": boom}},
+	{name: "members_port_error", tool: ListOrgMembersToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"ListOrgMembers": errBoom}},
 
 	// check_org_membership
 	{name: "membership_member", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "octo-org", "user": "octo"}},
 	{name: "membership_not_member", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "octo-org", "user": "bob"}},
 	{name: "membership_missing_org", tool: CheckOrgMembershipToolName, args: map[string]any{"org": nil, "user": "bob"}},
 	{name: "membership_missing_user", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "octo-org", "user": nil}},
-	{name: "membership_port_error", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "octo-org", "user": "bob"}, fails: map[string]error{"CheckOrgMembership": boom}},
+	{name: "membership_port_error", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "octo-org", "user": "bob"}, fails: map[string]error{"CheckOrgMembership": errBoom}},
 
 	// remove_org_member
 	{name: "remove_member_ok", tool: RemoveOrgMemberToolName, args: map[string]any{"org": "octo-org", "user": "bob"}},
 	{name: "remove_member_missing_org", tool: RemoveOrgMemberToolName, args: map[string]any{"org": nil, "user": "bob"}},
 	{name: "remove_member_missing_user", tool: RemoveOrgMemberToolName, args: map[string]any{"org": "octo-org", "user": nil}},
-	{name: "remove_member_port_error", tool: RemoveOrgMemberToolName, args: map[string]any{"org": "octo-org", "user": "bob"}, fails: map[string]error{"RemoveOrgMember": boom}},
+	{name: "remove_member_port_error", tool: RemoveOrgMemberToolName, args: map[string]any{"org": "octo-org", "user": "bob"}, fails: map[string]error{"RemoveOrgMember": errBoom}},
 
 	// list_org_teams
 	{name: "teams_defaults", tool: ListOrgTeamsToolName, args: map[string]any{"org": "octo-org"}},
 	{name: "teams_paged", tool: ListOrgTeamsToolName, args: map[string]any{"org": "octo-org", "page": float64(3), "limit": float64(7)}},
 	{name: "teams_missing_org", tool: ListOrgTeamsToolName, args: map[string]any{"org": nil}},
-	{name: "teams_port_error", tool: ListOrgTeamsToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"ListOrgTeams": boom}},
+	{name: "teams_port_error", tool: ListOrgTeamsToolName, args: map[string]any{"org": "octo-org"}, fails: map[string]error{"ListOrgTeams": errBoom}},
 
 	// create_org_team
 	{name: "create_team_full", tool: CreateOrgTeamToolName, args: map[string]any{"org": "octo-org", "name": "core", "description": "d", "permission": "admin", "can_create_org_repo": true, "includes_all_repositories": true}},
@@ -250,7 +250,7 @@ var goldenCases = []goldenCase{
 	{name: "create_team_wrong_type_flags", tool: CreateOrgTeamToolName, args: map[string]any{"org": "octo-org", "name": "core", "can_create_org_repo": "yes", "includes_all_repositories": float64(1)}},
 	{name: "create_team_missing_org", tool: CreateOrgTeamToolName, args: map[string]any{"org": nil, "name": "core"}},
 	{name: "create_team_missing_name", tool: CreateOrgTeamToolName, args: map[string]any{"org": "octo-org", "name": nil}},
-	{name: "create_team_port_error", tool: CreateOrgTeamToolName, args: map[string]any{"org": "octo-org", "name": "core"}, fails: map[string]error{"CreateTeam": boom}},
+	{name: "create_team_port_error", tool: CreateOrgTeamToolName, args: map[string]any{"org": "octo-org", "name": "core"}, fails: map[string]error{"CreateTeam": errBoom}},
 
 	// add_team_member and remove_team_member
 	{name: "add_member_ok", tool: AddTeamMemberToolName, args: map[string]any{"team_id": float64(5), "user": "bob"}},
@@ -258,20 +258,20 @@ var goldenCases = []goldenCase{
 	{name: "add_member_string_team", tool: AddTeamMemberToolName, args: map[string]any{"team_id": "5", "user": "bob"}},
 	{name: "add_member_missing_team", tool: AddTeamMemberToolName, args: map[string]any{"team_id": nil, "user": "bob"}},
 	{name: "add_member_missing_user", tool: AddTeamMemberToolName, args: map[string]any{"team_id": float64(5), "user": nil}},
-	{name: "add_member_port_error", tool: AddTeamMemberToolName, args: map[string]any{"team_id": float64(5), "user": "bob"}, fails: map[string]error{"AddTeamMember": boom}},
+	{name: "add_member_port_error", tool: AddTeamMemberToolName, args: map[string]any{"team_id": float64(5), "user": "bob"}, fails: map[string]error{"AddTeamMember": errBoom}},
 	{name: "remove_member_team_ok", tool: RemoveTeamMemberToolName, args: map[string]any{"team_id": float64(5), "user": "bob"}},
 	{name: "remove_member_team_missing_team", tool: RemoveTeamMemberToolName, args: map[string]any{"team_id": nil, "user": "bob"}},
-	{name: "remove_member_team_port_error", tool: RemoveTeamMemberToolName, args: map[string]any{"team_id": float64(5), "user": "bob"}, fails: map[string]error{"RemoveTeamMember": boom}},
+	{name: "remove_member_team_port_error", tool: RemoveTeamMemberToolName, args: map[string]any{"team_id": float64(5), "user": "bob"}, fails: map[string]error{"RemoveTeamMember": errBoom}},
 
 	// add_team_repo and remove_team_repo
 	{name: "add_team_repo_ok", tool: AddTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": "octo-org", "repo": "hello"}},
 	{name: "add_team_repo_missing_team", tool: AddTeamRepoToolName, args: map[string]any{"team_id": nil, "org": "octo-org", "repo": "hello"}},
 	{name: "add_team_repo_missing_org", tool: AddTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": nil, "repo": "hello"}},
 	{name: "add_team_repo_missing_repo", tool: AddTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": "octo-org", "repo": nil}},
-	{name: "add_team_repo_port_error", tool: AddTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": "octo-org", "repo": "hello"}, fails: map[string]error{"AddTeamRepository": boom}},
+	{name: "add_team_repo_port_error", tool: AddTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": "octo-org", "repo": "hello"}, fails: map[string]error{"AddTeamRepository": errBoom}},
 	{name: "remove_team_repo_ok", tool: RemoveTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": "octo-org", "repo": "hello"}},
 	{name: "remove_team_repo_missing_repo", tool: RemoveTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": "octo-org", "repo": nil}},
-	{name: "remove_team_repo_port_error", tool: RemoveTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": "octo-org", "repo": "hello"}, fails: map[string]error{"RemoveTeamRepository": boom}},
+	{name: "remove_team_repo_port_error", tool: RemoveTeamRepoToolName, args: map[string]any{"team_id": float64(5), "org": "octo-org", "repo": "hello"}, fails: map[string]error{"RemoveTeamRepository": errBoom}},
 }
 
 func TestGolden(t *testing.T) {

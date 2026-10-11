@@ -5,7 +5,7 @@ Status: accepted
 
 ## Context
 
-Tool handlers reach Forgejo through the package-level `forgejo.Client(ctx)` singleton, mixing the Forgejo SDK and raw HTTP calls. Handlers cannot be tested without a live or stubbed HTTP server, and the SDK leaks into every domain. The restructure (spec #7) puts a Forgejo port between the application and Forgejo, in the hexagonal style: the application depends on an interface it owns, and the real Forgejo adapter and an in-memory fake both implement it.
+Tool functions reach Forgejo through the package-level `forgejo.Client(ctx)` singleton, mixing the Forgejo SDK and raw HTTP calls. Tool functions cannot be tested without a live or stubbed HTTP server, and the SDK leaks into every domain. The restructure (spec #7) puts a Forgejo port between the application and Forgejo, in the hexagonal style: the application depends on an interface it owns, and the real Forgejo adapter and an in-memory fake both implement it.
 
 ## Decision
 
@@ -18,7 +18,7 @@ Tool handlers reach Forgejo through the package-level `forgejo.Client(ctx)` sing
 - **One wide interface.** A single `Forgejo` interface with every method. Rejected: every fake and every consumer would depend on all of it, so unrelated domains would change together and merge conflicts would concentrate in one file.
 - **Per-use-case interfaces.** One small interface per tool or use case. Rejected: it multiplies interfaces and fakes (over a hundred tools), duplicates method sets across them, and gains little over domain-sized ports.
 - **Domain types at the port now.** Translate to repo-owned types immediately. Rejected for now: it doubles the size of the restructure and pre-empts the decision #8 exists to make; SDK types at the port keep the move mechanical, and can be replaced later behind the same port.
-- **Leave the SDK visible to handlers.** Keep calling the SDK and raw HTTP directly. Rejected: it is the coupling the port exists to remove, and it makes a stateful fake impossible.
+- **Leave the SDK visible to tool functions.** Keep calling the SDK and raw HTTP directly. Rejected: it is the coupling the port exists to remove, and it makes a stateful fake impossible.
 
 ## Consequences
 

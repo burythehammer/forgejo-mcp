@@ -38,12 +38,12 @@ func TestListActionRunJobsFn_PaginatesJobs(t *testing.T) {
 		}
 	}
 
-	last := decode[model.JobPage](t, h.ListActionRunJobsFn, repoArgs(map[string]any{"run_id": float64(run.ID), "page": 2.0, "limit": 2.0}))
+	last := resultOf[model.JobPage](t, h.ListActionRunJobsFn, repoArgs(map[string]any{"run_id": float64(run.ID), "page": 2.0, "limit": 2.0}))
 	if last.TotalCount != 3 || len(last.Jobs) != 1 || last.Jobs[0].Name != "build" || last.HasNext || last.NextPage != 0 {
 		t.Fatalf("unexpected last page: %+v", last)
 	}
 
-	first := decode[model.JobPage](t, h.ListActionRunJobsFn, repoArgs(map[string]any{"run_id": float64(run.ID), "page": 1.0, "limit": 2.0}))
+	first := resultOf[model.JobPage](t, h.ListActionRunJobsFn, repoArgs(map[string]any{"run_id": float64(run.ID), "page": 1.0, "limit": 2.0}))
 	if !first.HasNext || first.NextPage != 2 || len(first.Jobs) != 2 {
 		t.Fatalf("unexpected continuation metadata: %+v", first)
 	}
@@ -65,7 +65,7 @@ func TestGetActionJobLogsFn_DefaultsToTail(t *testing.T) {
 	h, f := newFixture(t)
 	job := runWithJob(t, f, strings.Repeat("a", 68)+strings.Repeat("x", 32))
 
-	got := decode[model.JobLogPage](t, h.GetActionJobLogsFn, repoArgs(map[string]any{"job_id": float64(job.ID), "attempt": 1.0, "max_bytes": 32.0}))
+	got := resultOf[model.JobLogPage](t, h.GetActionJobLogsFn, repoArgs(map[string]any{"job_id": float64(job.ID), "attempt": 1.0, "max_bytes": 32.0}))
 
 	if got.Content != strings.Repeat("x", 32) || got.StartByte != 68 || got.EndByte != 99 || got.TotalBytes != 100 {
 		t.Fatalf("unexpected window: %+v", got)
@@ -83,7 +83,7 @@ func TestGetActionJobLogsFn_OffsetProvidesNextChunk(t *testing.T) {
 	h, f := newFixture(t)
 	job := runWithJob(t, f, "0123456789error0123456789012345")
 
-	got := decode[model.JobLogPage](t, h.GetActionJobLogsFn, repoArgs(map[string]any{"job_id": float64(job.ID), "offset": 10.0, "max_bytes": 5.0}))
+	got := resultOf[model.JobLogPage](t, h.GetActionJobLogsFn, repoArgs(map[string]any{"job_id": float64(job.ID), "offset": 10.0, "max_bytes": 5.0}))
 
 	if got.Content != "error" || got.NextOffset == nil || *got.NextOffset != 15 {
 		t.Fatalf("unexpected result: %+v", got)
@@ -98,7 +98,7 @@ func TestGetActionJobLogsFn_BoundsShortPreviousChunkWithoutOverlap(t *testing.T)
 	h, f := newFixture(t)
 	job := runWithJob(t, f, strings.Repeat("x", 37))
 
-	got := decode[model.JobLogPage](t, h.GetActionJobLogsFn, repoArgs(map[string]any{"job_id": float64(job.ID), "max_bytes": 32.0}))
+	got := resultOf[model.JobLogPage](t, h.GetActionJobLogsFn, repoArgs(map[string]any{"job_id": float64(job.ID), "max_bytes": 32.0}))
 
 	if got.PreviousOffset == nil || *got.PreviousOffset != 0 || got.PreviousMaxBytes == nil || *got.PreviousMaxBytes != 5 {
 		t.Fatalf("previous chunk would overlap current content: %+v", got)
@@ -110,7 +110,7 @@ func TestGetActionJobLogsFn_HandlesEmptyLog(t *testing.T) {
 	h, f := newFixture(t)
 	job := runWithJob(t, f, "")
 
-	got := decode[model.JobLogPage](t, h.GetActionJobLogsFn, repoArgs(map[string]any{"job_id": float64(job.ID)}))
+	got := resultOf[model.JobLogPage](t, h.GetActionJobLogsFn, repoArgs(map[string]any{"job_id": float64(job.ID)}))
 
 	if got.Content != "" || got.StartByte != 0 || got.EndByte != -1 || got.TotalBytes != 0 {
 		t.Fatalf("unexpected empty log metadata: %+v", got)
