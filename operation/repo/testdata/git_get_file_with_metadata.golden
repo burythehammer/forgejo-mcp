@@ -1,0 +1,3 @@
+{"Result":{"name":"a.txt","path":"docs/a.txt","sha":"0123456789abcdef0123456789abcdef01234567","type":"file","size":6,"encoding":"base64","content":"aGVsbG8K","target":null,"url":"https://f.example/api/docs/a.txt","html_url":"https://f.example/docs/a.txt","git_url":"https://f.example/git/docs/a.txt","download_url":"https://f.example/raw/docs/a.txt","submodule_git_url":null,"_links":null}}
+-- port calls --
+GetContents ["octo","hello","main","docs/a.txt"]

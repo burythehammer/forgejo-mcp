@@ -1,0 +1,3 @@
+{"Result":{"job_id":3,"content":"","content_type":"text/plain","content_range":"","start_byte":0,"end_byte":-1,"total_bytes":0,"bytes_returned":0,"truncated_before":false,"truncated_after":false}}
+-- port calls --
+GetJobLog ["octo","hello",3,0,"bytes=-32768",32768]

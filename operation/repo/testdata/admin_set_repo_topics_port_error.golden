@@ -1,0 +1,3 @@
+ERROR: set repo topics: boom
+-- port calls --
+SetRepoTopics ["octo","hello",["go"]]

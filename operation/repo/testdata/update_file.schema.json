@@ -1,0 +1,59 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Update file. Supply exactly one of `content` (plain text) or `content_base64` (strict standard Base64 representing exact bytes).",
+  "inputSchema": {
+    "properties": {
+      "branch_name": {
+        "description": "Branch name",
+        "type": "string"
+      },
+      "content": {
+        "description": "Plain-text content. Exactly one of content/content_base64 is required; an explicit empty string is valid.",
+        "type": "string"
+      },
+      "content_base64": {
+        "description": "Strict RFC 4648 standard Base64 for the exact file bytes. Exactly one of content/content_base64 is required; an explicit empty string represents zero bytes.",
+        "type": "string"
+      },
+      "filePath": {
+        "description": "File path",
+        "type": "string"
+      },
+      "message": {
+        "description": "Commit message",
+        "type": "string"
+      },
+      "new_branch_name": {
+        "description": "New branch name",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sha": {
+        "description": "SHA",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "filePath",
+      "message",
+      "branch_name",
+      "sha"
+    ],
+    "type": "object"
+  },
+  "name": "update_file"
+}

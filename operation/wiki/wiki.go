@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -191,7 +191,7 @@ func (h handlers) GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*
 	endValue, hasEnd := args["end_line"].(float64)
 	if hasStart || hasEnd {
 		start, end = int(startValue), int(endValue)
-		content, err = repo.SliceLines(content, start, end)
+		content, err = apprepo.SliceLines(content, start, end)
 		if err != nil {
 			return to.ErrorResult(err)
 		}

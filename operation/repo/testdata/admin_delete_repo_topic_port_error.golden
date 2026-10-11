@@ -1,0 +1,3 @@
+ERROR: delete repo topic: boom
+-- port calls --
+DeleteRepoTopic ["octo","hello","ci"]

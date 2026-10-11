@@ -4,13 +4,13 @@ package repo
 
 import (
 	"context"
-	"fmt"
 
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -41,68 +41,70 @@ var (
 	)
 )
 
+// listRepoContentsArgs are the arguments of list_repo_contents. Owner, repo and
+// ref are checked for presence as the tool always has; ref itself is not.
+type listRepoContentsArgs struct {
+	Owner *string `json:"owner" required:"true"`
+	Repo  *string `json:"repo" required:"true"`
+	Ref   string  `json:"ref" required:"true"`
+	Path  string  `json:"path" required:"true"`
+}
+
+// getRepoTreeArgs are the arguments of get_repo_tree.
+type getRepoTreeArgs struct {
+	Owner     *string `json:"owner" required:"true"`
+	Repo      *string `json:"repo" required:"true"`
+	Ref       *string `json:"ref" required:"true"`
+	Recursive bool    `json:"recursive"`
+	Page      float64 `json:"page" required:"true"`
+	Limit     float64 `json:"limit" required:"true"`
+}
+
 func (h handlers) ListRepoContentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoContentsFn")
-	owner, ok := req.GetArguments()["owner"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("owner is required"))
+	var a listRepoContentsArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	repo, ok := req.GetArguments()["repo"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("repo is required"))
-	}
-	ref, _ := req.GetArguments()["ref"].(string)
-	path, _ := req.GetArguments()["path"].(string)
-
-	port, err := h.forge.For(ctx)
+	owner, err := need("owner", a.Owner)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	contents, err := port.ListContents(ctx, owner, repo, ref, path)
+	repo, err := need("repo", a.Repo)
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list repo contents err: %w", err))
+		return to.ErrorResult(err)
 	}
-	return to.TextResult(contents)
+	svc, err := h.gitService(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	return gitText(svc.ListContents(ctx, owner, repo, a.Ref, a.Path))
 }
 
 func (h handlers) GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetRepoTreeFn")
-	owner, ok := req.GetArguments()["owner"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("owner is required"))
+	var a getRepoTreeArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	repo, ok := req.GetArguments()["repo"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("repo is required"))
-	}
-	ref, ok := req.GetArguments()["ref"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("ref is required"))
-	}
-	recursive, _ := req.GetArguments()["recursive"].(bool)
-	page, _ := to.Float64(req.GetArguments()["page"])
-	if page == 0 {
-		page = 1
-	}
-	limit, _ := to.Float64(req.GetArguments()["limit"])
-	if limit == 0 {
-		limit = 1000
-	}
-
-	opt := forgejo_sdk.GetTreesOptions{
-		Recursive: recursive,
-		ListOptions: forgejo_sdk.ListOptions{
-			Page:     int(page),
-			PageSize: int(limit),
-		},
-	}
-	port, err := h.forge.For(ctx)
+	owner, err := need("owner", a.Owner)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	tree, err := port.GetTree(ctx, owner, repo, ref, opt)
+	repo, err := need("repo", a.Repo)
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("get repo tree err: %w", err))
+		return to.ErrorResult(err)
 	}
-	return to.TextResult(tree)
+	ref, err := need("ref", a.Ref)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	svc, err := h.gitService(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	return gitText(svc.GetTree(ctx, owner, repo, ref, apprepo.TreeInput{
+		Recursive: a.Recursive,
+		Page:      apprepo.GitPage{Page: int(orDefault(a.Page, 1)), Limit: int(orDefault(a.Limit, 1000))},
+	}))
 }
