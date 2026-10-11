@@ -5,9 +5,9 @@ package repo
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/lines"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -134,23 +134,7 @@ func (h handlers) GetFileContentFn(ctx context.Context, req mcp.CallToolRequest)
 // line". Out-of-range values clamp; an inverted range after clamping
 // is reported as an error.
 func SliceLines(content string, start, end int) (string, error) {
-	lines := strings.Split(content, "\n")
-	count := len(lines)
-
-	if start <= 0 {
-		start = 1
-	}
-	if end <= 0 {
-		end = count
-	}
-	if end > count {
-		end = count
-	}
-	if start > end {
-		return "", fmt.Errorf("start_line (%d) is after end_line (%d) for a file with %d lines", start, end, count)
-	}
-
-	return strings.Join(lines[start-1:end], "\n"), nil
+	return lines.Slice(content, start, end)
 }
 
 func (h handlers) CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
