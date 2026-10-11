@@ -87,3 +87,11 @@ func TestSearchContract(t *testing.T) {
 		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
 	})
 }
+
+func TestIssuesContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunIssues(t, func(t *testing.T) forgetest.Harness {
+		stub := forgetest.NewStub(t)
+		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
+	})
+}

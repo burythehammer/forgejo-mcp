@@ -32,6 +32,11 @@ type Stub struct {
 	*httptest.Server
 	// Fake holds the stub's state.
 	Fake *fake.Forgejo
+
+	// assets serves the issue and comment attachment routes by method. The
+	// issue routes that have two path segments match before the attachment
+	// catch-all does, so they hand anything they do not know to these.
+	assets map[string]http.HandlerFunc
 }
 
 // NewStub starts a stub server, closed when the test ends.
@@ -54,6 +59,7 @@ func NewStub(t testing.TB) *Stub {
 	s.mountBranchProtections(mux)
 	s.mountHooks(mux)
 	s.mountRepoAdmin(mux)
+	s.mountIssues(mux)
 	s.Server = httptest.NewServer(mux)
 	s.Fake.BaseURL = s.URL
 	t.Cleanup(s.Close)

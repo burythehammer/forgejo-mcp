@@ -27,6 +27,7 @@ type Forgejo interface {
 	Actions
 	Tracking
 	Search
+	Issues
 }
 
 // Factory hands out a Forgejo port per request.

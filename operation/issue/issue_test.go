@@ -1,2042 +1,447 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package issue
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
+	"errors"
 	"strings"
 	"testing"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"time"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
-type recordedReq struct {
-	method  string
-	path    string
-	query   string
-	rawBody []byte
+// unmarshalResult decodes a tool's text, which pkg/to wraps as {"Result": ...}.
+func unmarshalResult(text string, into any) error {
+	var wrapped struct{ Result json.RawMessage }
+	if err := json.Unmarshal([]byte(text), &wrapped); err != nil {
+		return err
+	}
+	return json.Unmarshal(wrapped.Result, into)
 }
 
-func newPatchBackend(t *testing.T, respBody string) (*httptest.Server, *[]recordedReq) {
+func decodeIssue(t *testing.T, text string) forgejo_sdk.Issue {
 	t.Helper()
-	records := make([]recordedReq, 0, 2)
-	// Serve the SDK's startup version probe so NewClient succeeds.
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"11.0.0+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{
-			method:  r.Method,
-			path:    r.URL.Path,
-			query:   r.URL.RawQuery,
-			rawBody: body,
-		})
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(respBody))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
+	var iss forgejo_sdk.Issue
+	if err := unmarshalResult(text, &iss); err != nil {
+		t.Fatalf("not an issue: %v\n%s", err, text)
+	}
+	return iss
+}
 
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
+func assigneeNames(iss forgejo_sdk.Issue) []string {
+	out := []string{}
+	for _, a := range iss.Assignees {
+		out = append(out, a.UserName)
+	}
+	return out
+}
+
+func TestGetIssueByIndex(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "hello")
+	iss := decodeIssue(t, call(t, h.GetIssueByIndexFn, map[string]any{"index": float64(idx)}))
+	if iss.Title != "hello" || iss.Index != idx {
+		t.Fatalf("got %+v", iss)
+	}
+	if msg := callErr(t, h.GetIssueByIndexFn, map[string]any{"index": float64(99)}); !strings.Contains(msg, "get issue err") {
+		t.Fatalf("error = %q", msg)
+	}
+}
+
+func TestGetIssueByIndex_ReturnsRefAndDueDate(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	due := time.Date(2030, 5, 6, 0, 0, 0, 0, time.UTC)
+	iss, err := f.CreateIssue(context.Background(), testOwner, testRepo, forgejo_sdk.CreateIssueOption{Title: "t", Ref: "refs/heads/dev", Deadline: &due})
 	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
+		t.Fatal(err)
 	}
-	forgejo.SetClientForTesting(c)
-	return srv, &records
+	got := decodeIssue(t, call(t, h.GetIssueByIndexFn, map[string]any{"index": float64(iss.Index)}))
+	if got.Ref != "refs/heads/dev" || got.Deadline == nil || !got.Deadline.Equal(due) {
+		t.Fatalf("ref=%q deadline=%v", got.Ref, got.Deadline)
+	}
 }
 
-func makeReq(args map[string]any) mcp.CallToolRequest {
-	return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
-}
-
-func TestUpdateIssue_AssigneeSingular(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner":    "goern",
-		"repo":     "forgejo-mcp",
-		"index":    float64(42),
-		"assignee": "goern",
+func TestCreateIssue(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	ms := f.SeedMilestone(testOwner, testRepo, "v1")
+	iss := decodeIssue(t, call(t, h.CreateIssueFn, map[string]any{
+		"title": "new", "body": "b", "ref": "refs/heads/x", "assignees": "alice, bob", "milestone": "1",
 	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
+	if iss.Title != "new" || iss.Body != "b" || iss.Ref != "refs/heads/x" {
+		t.Fatalf("got %+v", iss)
 	}
-
-	if len(*records) == 0 {
-		t.Fatal("expected at least one HTTP request to backend")
+	if got := assigneeNames(iss); len(got) != 2 || got[0] != "alice" || got[1] != "bob" {
+		t.Fatalf("assignees %v", got)
 	}
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodPatch {
-		t.Fatalf("expected PATCH, got %s", last.method)
-	}
-	if !strings.Contains(last.path, "/issues/42") {
-		t.Fatalf("unexpected path: %s", last.path)
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	assignees, ok := payload["assignees"].([]any)
-	if !ok {
-		t.Fatalf("assignees field missing or wrong type: %T %v", payload["assignees"], payload["assignees"])
-	}
-	if len(assignees) != 1 || assignees[0] != "goern" {
-		t.Fatalf("expected assignees=[goern], got %v", assignees)
+	if iss.Milestone == nil || iss.Milestone.ID != ms {
+		t.Fatalf("milestone %+v", iss.Milestone)
 	}
 }
 
-func TestUpdateIssue_AssigneesCSV(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner":     "goern",
-		"repo":      "forgejo-mcp",
-		"index":     float64(42),
-		"assignees": "alice, bob ,carol",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
-	}
-
-	last := (*records)[len(*records)-1]
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	assignees, _ := payload["assignees"].([]any)
-	want := []string{"alice", "bob", "carol"}
-	if len(assignees) != len(want) {
-		t.Fatalf("len mismatch: got %v want %v", assignees, want)
-	}
-	for i, v := range want {
-		if assignees[i] != v {
-			t.Fatalf("assignees[%d]: got %v want %s", i, assignees[i], v)
+func TestCreateIssue_LabelNamesBecomeIDs(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	bug := f.SeedIssueLabel(testOwner, testRepo, "bug")
+	h.resolveLabelIDs = func(_ context.Context, _, _, csv string) ([]int64, error) {
+		if csv != "bug" {
+			t.Errorf("resolver got %q", csv)
 		}
+		return []int64{bug}, nil
+	}
+	iss := decodeIssue(t, call(t, h.CreateIssueFn, map[string]any{"title": "t", "labels": "bug"}))
+	if len(iss.Labels) != 1 || iss.Labels[0].Name != "bug" {
+		t.Fatalf("labels %+v", iss.Labels)
 	}
 }
 
-func TestUpdateIssue_AssigneesEmptyClears(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner":     "goern",
-		"repo":      "forgejo-mcp",
-		"index":     float64(42),
-		"assignees": "",
-		"assignee":  "ignored-because-assignees-wins",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
+func TestCreateIssue_UnknownLabelCreatesNothing(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	h.resolveLabelIDs = func(context.Context, string, string, string) ([]int64, error) {
+		return nil, errors.New(`unknown label "nope"`)
 	}
-
-	last := (*records)[len(*records)-1]
-	if !strings.Contains(string(last.rawBody), `"assignees":[]`) {
-		t.Fatalf("expected empty assignees array in body, got: %s", last.rawBody)
+	if msg := callErr(t, h.CreateIssueFn, map[string]any{"title": "t", "labels": "nope"}); !strings.Contains(msg, "unknown label") {
+		t.Fatalf("error = %q", msg)
+	}
+	if got, _, _ := f.ListRepoIssues(context.Background(), testOwner, testRepo, listAll()); len(got) != 0 {
+		t.Fatalf("an issue was created: %+v", got)
 	}
 }
 
-func TestUpdateIssue_RefSet(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42,"ref":"feat/my-branch"}`)
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-		"ref":   "feat/my-branch",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
-	}
-
-	if len(*records) == 0 {
-		t.Fatal("expected a ref-only update to send a PATCH")
-	}
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodPatch {
-		t.Fatalf("expected PATCH, got %s", last.method)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	if payload["ref"] != "feat/my-branch" {
-		t.Fatalf("expected ref=feat/my-branch, got %v", payload["ref"])
-	}
-	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
-		t.Fatalf("expected the updated ref in the result, got %q", textOf(res))
+func TestCreateIssue_InvalidMilestone(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	if msg := callErr(t, h.CreateIssueFn, map[string]any{"title": "t", "milestone": "abc"}); !strings.Contains(msg, "invalid milestone ID") {
+		t.Fatalf("error = %q", msg)
 	}
 }
 
-func TestUpdateIssue_RefEmptyClears(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
+func TestUpdateIssue_Assignees(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	idxF := float64(idx)
 
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-		"ref":   "",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
+	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignee": "goern"}))
+	if got := assigneeNames(iss); len(got) != 1 || got[0] != "goern" {
+		t.Fatalf("singular: %v", got)
 	}
-
-	if len(*records) == 0 {
-		t.Fatal("expected an empty ref to send a PATCH that clears it")
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignees": "alice, bob ,carol"}))
+	if got := assigneeNames(iss); strings.Join(got, ",") != "alice,bob,carol" {
+		t.Fatalf("csv: %v", got)
 	}
-	last := (*records)[len(*records)-1]
-	if !strings.Contains(string(last.rawBody), `"ref":""`) {
-		t.Fatalf("expected ref to be sent as an empty string, got: %s", last.rawBody)
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignees": "", "assignee": "ignored"}))
+	if got := assigneeNames(iss); len(got) != 0 {
+		t.Fatalf("empty clears: %v", got)
+	}
+	call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignees": "keep"})
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "title": "renamed"}))
+	if got := assigneeNames(iss); len(got) != 1 || got[0] != "keep" || iss.Title != "renamed" {
+		t.Fatalf("untouched assignees: %v title %q", got, iss.Title)
 	}
 }
 
-func TestUpdateIssue_OmittedRefLeavesItUnchanged(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-		"title": "new title",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
+func TestUpdateIssue_Ref(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := float64(openIssue(t, f, "t"))
+	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "ref": "refs/heads/a"}))
+	if iss.Ref != "refs/heads/a" {
+		t.Fatalf("set: %q", iss.Ref)
 	}
-
-	last := (*records)[len(*records)-1]
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "x"}))
+	if iss.Ref != "refs/heads/a" {
+		t.Fatalf("omitted ref changed it: %q", iss.Ref)
 	}
-	if v, present := payload["ref"]; present && v != nil {
-		t.Fatalf("expected ref to be null/absent when not provided, got %v", v)
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "ref": ""}))
+	if iss.Ref != "" {
+		t.Fatalf("empty ref should clear, got %q", iss.Ref)
 	}
 }
 
-func TestCreateIssue_RefSet(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":7,"ref":"feat/my-branch"}`)
-
-	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"title": "t",
-		"ref":   "feat/my-branch",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("CreateIssueFn returned error: err=%v res=%+v", err, res)
+func TestUpdateIssue_DueDate(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := float64(openIssue(t, f, "t"))
+	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "due_date": "2030-01-02T03:04:05Z"}))
+	if iss.Deadline == nil || iss.Deadline.Format(time.RFC3339) != "2030-01-02T03:04:05Z" {
+		t.Fatalf("set: %v", iss.Deadline)
 	}
-
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodPost {
-		t.Fatalf("expected POST, got %s", last.method)
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "clear_due_date": true}))
+	if iss.Deadline != nil {
+		t.Fatalf("clear: %v", iss.Deadline)
 	}
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
+	if msg := callErr(t, h.UpdateIssueFn, map[string]any{"index": idx, "due_date": "2030-01-02T03:04:05Z", "clear_due_date": true}); !strings.Contains(msg, "cannot set") {
+		t.Fatalf("conflict error = %q", msg)
 	}
-	if payload["ref"] != "feat/my-branch" {
-		t.Fatalf("expected ref=feat/my-branch, got %v", payload["ref"])
-	}
-	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
-		t.Fatalf("expected the created issue's ref in the result, got %q", textOf(res))
+	if msg := callErr(t, h.UpdateIssueFn, map[string]any{"index": idx, "due_date": "tomorrow"}); !strings.Contains(msg, "RFC3339") {
+		t.Fatalf("invalid error = %q", msg)
 	}
 }
 
-func TestGetIssueByIndex_ReturnsRef(t *testing.T) {
-	_, _ = newPatchBackend(t, `{"id":1,"number":42,"ref":"feat/my-branch"}`)
-
-	res, err := GetIssueByIndexFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("GetIssueByIndexFn returned error: err=%v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"ref":"feat/my-branch"`) {
-		t.Fatalf("expected ref in the result, got %q", textOf(res))
-	}
-}
-
-func TestCreateIssue_OmittedRefSendsEmpty(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":7}`)
-
-	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"title": "t",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("CreateIssueFn returned error: err=%v res=%+v", err, res)
-	}
-
-	last := (*records)[len(*records)-1]
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	if payload["ref"] != "" {
-		t.Fatalf("expected ref to be an empty string when not provided, got %v", payload["ref"])
-	}
-}
-
-// newLabelsBackend serves /api/v1/repos/{owner}/{repo}/labels and
-// /api/v1/orgs/{owner}/labels with caller-supplied status codes and bodies.
-// Caller passes maps keyed by exact path. Status defaults to 200 if 0.
-func newLabelsBackend(
-	t *testing.T,
-	repoLabelsBody string, repoStatus int,
-	orgLabelsBody string, orgStatus int,
-) (*httptest.Server, *[]recordedReq) {
-	t.Helper()
-	records := make([]recordedReq, 0, 4)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"11.0.0+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path, rawBody: body})
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case strings.HasPrefix(r.URL.Path, "/api/v1/repos/") && strings.HasSuffix(r.URL.Path, "/labels"):
-			if repoStatus == 0 {
-				repoStatus = http.StatusOK
-			}
-			w.WriteHeader(repoStatus)
-			_, _ = w.Write([]byte(repoLabelsBody))
-		case strings.HasPrefix(r.URL.Path, "/api/v1/orgs/") && strings.HasSuffix(r.URL.Path, "/labels"):
-			if orgStatus == 0 {
-				orgStatus = http.StatusOK
-			}
-			w.WriteHeader(orgStatus)
-			_, _ = w.Write([]byte(orgLabelsBody))
-		default:
-			w.WriteHeader(http.StatusNotFound)
+func TestUpdateIssue_SetLabels(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := float64(openIssue(t, f, "t"))
+	bug := f.SeedIssueLabel(testOwner, testRepo, "bug")
+	triage := f.SeedIssueLabel(testOwner, testRepo, "triage")
+	h.resolveLabelIDs = func(_ context.Context, _, _, csv string) ([]int64, error) {
+		switch csv {
+		case "bug,triage":
+			return []int64{bug, triage}, nil
+		case "bug":
+			return []int64{bug}, nil
 		}
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
+		return nil, errors.New("unknown label " + csv)
 	}
-	forgejo.SetClientForTesting(c)
-	return srv, &records
-}
-
-func TestListOrgLabels_Success(t *testing.T) {
-	_, records := newLabelsBackend(t,
-		"", 0,
-		`[{"id":1,"name":"bug","color":"ff0000","description":"a bug","url":""},{"id":2,"name":"enh","color":"00ff00","description":"","url":""}]`, http.StatusOK,
-	)
-	res, err := ListOrgLabelsFn(context.Background(), makeReq(map[string]any{"org": "codeberg"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListOrgLabelsFn err: %v res=%+v", err, res)
-	}
-	if len(*records) == 0 {
-		t.Fatal("expected request to backend")
-	}
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodGet {
-		t.Fatalf("expected GET, got %s", last.method)
-	}
-	if !strings.HasPrefix(last.path, "/api/v1/orgs/codeberg/labels") {
-		t.Fatalf("unexpected path: %s", last.path)
-	}
-	// Result body should serialize each entry with scope=org.
-	if !strings.Contains(textOf(res), `"scope":"org"`) {
-		t.Fatalf("expected scope=org in result, got %q", textOf(res))
-	}
-}
-
-func TestListOrgLabels_404IsEmpty(t *testing.T) {
-	_, _ = newLabelsBackend(t, "", 0, ``, http.StatusNotFound)
-	res, err := ListOrgLabelsFn(context.Background(), makeReq(map[string]any{"org": "ghost"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("expected success on 404, got err=%v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), "[]") && !strings.Contains(textOf(res), "null") {
-		t.Fatalf("expected empty result for 404, got %q", textOf(res))
-	}
-}
-
-func TestListOrgLabels_UnauthorizedSurfaces(t *testing.T) {
-	_, _ = newLabelsBackend(t, "", 0, ``, http.StatusUnauthorized)
-	_, err := ListOrgLabelsFn(context.Background(), makeReq(map[string]any{"org": "codeberg"}))
-	if err == nil {
-		t.Fatal("expected error on 401, got nil")
-	}
-}
-
-func TestListRepoLabels_MergeWithOrgLabels(t *testing.T) {
-	_, _ = newLabelsBackend(t,
-		`[{"id":10,"name":"good-first-issue","color":"7057ff","description":"","url":""}]`, http.StatusOK,
-		`[{"id":20,"name":"security","color":"d73a4a","description":"","url":""}]`, http.StatusOK,
-	)
-	res, err := ListRepoLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "codeberg-org", "repo": "project",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListRepoLabelsFn err: %v res=%+v", err, res)
-	}
-	out := textOf(res)
-	if !strings.Contains(out, `"scope":"repo"`) || !strings.Contains(out, `"scope":"org"`) {
-		t.Fatalf("expected both scopes in result, got %q", out)
-	}
-	if !strings.Contains(out, `"good-first-issue"`) || !strings.Contains(out, `"security"`) {
-		t.Fatalf("expected both label names in merged result, got %q", out)
-	}
-}
-
-func TestListRepoLabels_IncludeOrgFalseSkipsOrgCall(t *testing.T) {
-	_, records := newLabelsBackend(t,
-		`[{"id":10,"name":"good-first-issue","color":"7057ff","description":"","url":""}]`, http.StatusOK,
-		`[{"id":20,"name":"security","color":"d73a4a","description":"","url":""}]`, http.StatusOK,
-	)
-	res, err := ListRepoLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner":              "codeberg-org",
-		"repo":               "project",
-		"include_org_labels": false,
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListRepoLabelsFn err: %v res=%+v", err, res)
-	}
-	for _, r := range *records {
-		if strings.HasPrefix(r.path, "/api/v1/orgs/") {
-			t.Fatalf("did not expect org-labels request, got %s %s", r.method, r.path)
+	labelNames := func(iss forgejo_sdk.Issue) string {
+		var n []string
+		for _, l := range iss.Labels {
+			n = append(n, l.Name)
 		}
-	}
-	out := textOf(res)
-	if strings.Contains(out, `"scope":"org"`) || strings.Contains(out, `"security"`) {
-		t.Fatalf("expected no org-scoped labels in result, got %q", out)
-	}
-}
-
-func TestListRepoLabels_UserOwnerOrgEndpoint404(t *testing.T) {
-	_, _ = newLabelsBackend(t,
-		`[{"id":10,"name":"bug","color":"ff0000","description":"","url":""}]`, http.StatusOK,
-		``, http.StatusNotFound,
-	)
-	res, err := ListRepoLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "alice", "repo": "project",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("expected success when org endpoint 404s, got err=%v res=%+v", err, res)
-	}
-	out := textOf(res)
-	if !strings.Contains(out, `"scope":"repo"`) {
-		t.Fatalf("expected repo-scoped label in result, got %q", out)
-	}
-	if strings.Contains(out, `"scope":"org"`) {
-		t.Fatalf("expected no org-scoped labels when org endpoint 404s, got %q", out)
-	}
-}
-
-// textOf flattens a CallToolResult into a single string for substring assertions.
-func textOf(res *mcp.CallToolResult) string {
-	var b strings.Builder
-	for _, c := range res.Content {
-		if tc, ok := c.(mcp.TextContent); ok {
-			b.WriteString(tc.Text)
-		}
-	}
-	return b.String()
-}
-
-func TestUpdateIssue_NoAssigneeFieldsOmitsAssignees(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-		"title": "new title",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
+		return strings.Join(n, ",")
 	}
 
-	last := (*records)[len(*records)-1]
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
+	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "set_labels": "bug,triage"}))
+	if labelNames(iss) != "bug,triage" {
+		t.Fatalf("replace: %v", labelNames(iss))
 	}
-	if v, ok := payload["assignees"]; ok && v != nil {
-		// Acceptable for SDK to emit "assignees":null since Assignees is a slice; reject only non-null arrays.
-		if arr, isArr := v.([]any); isArr && len(arr) > 0 {
-			t.Fatalf("expected no assignees set, got %v", v)
-		}
+	// Labels together with a title: the patch lands and the result carries the new labels.
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "retitled", "set_labels": "bug"}))
+	if iss.Title != "retitled" || labelNames(iss) != "bug" {
+		t.Fatalf("title+labels: %q %v", iss.Title, labelNames(iss))
+	}
+	// Unknown label: nothing is written, not even the title.
+	if msg := callErr(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "nope", "set_labels": "ghost"}); !strings.Contains(msg, "unknown label") {
+		t.Fatalf("error = %q", msg)
+	}
+	got := decodeIssue(t, call(t, h.GetIssueByIndexFn, map[string]any{"index": idx}))
+	if got.Title != "retitled" || labelNames(got) != "bug" {
+		t.Fatalf("unchanged expected, got %q %v", got.Title, labelNames(got))
+	}
+	// Empty string clears every label.
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "set_labels": ""}))
+	if len(iss.Labels) != 0 {
+		t.Fatalf("clear: %v", labelNames(iss))
 	}
 }
 
-// newQueryBackend serves /api/v1/version for SDK startup and dispatches every
-// other request to handler, recording each request's method/path/query. Unlike
-// newPatchBackend, the caller's handler can inspect the query (e.g. page) and
-// answer differently per request — needed to simulate the has_next probe,
-// where page and page+1 must return different bodies.
-//
-// /api/v1/settings/api is served separately (not routed through handler, and
-// not recorded in *records) and defaults to 404, so the instance ceiling is
-// "unknown" and every existing caller of newQueryBackend keeps exercising the
-// probe-based fallback path exactly as before. Use newQueryBackendWithSettings
-// to test the known-ceiling path.
-func newQueryBackend(t *testing.T, handler func(w http.ResponseWriter, r *http.Request, records *[]recordedReq)) (*httptest.Server, *[]recordedReq) {
-	t.Helper()
-	return newQueryBackendWithSettings(t, http.StatusNotFound, "", handler)
-}
-
-// newQueryBackendWithSettings is newQueryBackend with a configurable
-// /api/v1/settings/api response, so tests can exercise the known-ceiling
-// path. settingsStatus 0 defaults to 404 (ceiling unknown). The settings
-// request itself is never appended to *records, matching how /api/v1/version
-// is already excluded — both are SDK-internal plumbing, not the search
-// request under test.
-func newQueryBackendWithSettings(
-	t *testing.T,
-	settingsStatus int,
-	settingsBody string,
-	handler func(w http.ResponseWriter, r *http.Request, records *[]recordedReq),
-) (*httptest.Server, *[]recordedReq) {
-	t.Helper()
-	records := make([]recordedReq, 0, 4)
-	if settingsStatus == 0 {
-		settingsStatus = http.StatusNotFound
+func TestIssueStateChange(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := float64(openIssue(t, f, "t"))
+	iss := decodeIssue(t, call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "closed"}))
+	if iss.State != forgejo_sdk.StateClosed {
+		t.Fatalf("state %q", iss.State)
 	}
-	if settingsBody == "" {
-		settingsBody = `{"message":"not found"}`
+	iss = decodeIssue(t, call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "open"}))
+	if iss.State != forgejo_sdk.StateOpen {
+		t.Fatalf("state %q", iss.State)
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"11.0.0+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/api/v1/settings/api", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(settingsStatus)
-		_, _ = w.Write([]byte(settingsBody))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, rawBody: body})
-		w.Header().Set("Content-Type", "application/json")
-		handler(w, r, &records)
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
-	}
-	// Resets the cached MaxResponseItems ceiling too, so one test's ceiling
-	// (or lack thereof) never leaks into the next.
-	forgejo.SetClientForTesting(c)
-	return srv, &records
-}
-
-// knownCeilingBody is the /api/v1/settings/api response body used by tests
-// that need a known instance pagination ceiling of 50.
-const knownCeilingBody = `{"max_response_items":50,"default_paging_num":30,"default_git_trees_per_page":1000,"default_max_blob_size":10485760}`
-
-// pageFromQuery extracts the "page" query parameter, defaulting to "1" when absent
-// (matching the SDK's own default).
-func pageFromQuery(r *http.Request) string {
-	p := r.URL.Query().Get("page")
-	if p == "" {
-		return "1"
-	}
-	return p
-}
-
-func TestSearchIssues_OwnerFilterAndMultiRepo(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		if r.URL.Query().Get("owner") != "goern" {
-			t.Fatalf("expected owner query filter, got %s", r.URL.RawQuery)
-		}
-		_, _ = w.Write([]byte(`[
-			{"id":1,"number":1,"title":"one","repository":{"full_name":"goern/repo-a"}},
-			{"id":2,"number":2,"title":"two","repository":{"full_name":"goern/repo-b"}}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	text := textOf(res)
-	if !strings.Contains(text, "repo-a") || !strings.Contains(text, "repo-b") {
-		t.Fatalf("expected issues from multiple repos, got %s", text)
-	}
-	if len(*records) == 0 {
-		t.Fatal("expected at least one request to backend")
+	if msg := callErr(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "bogus"}); !strings.Contains(msg, "invalid state") {
+		t.Fatalf("error = %q", msg)
 	}
 }
 
-func TestSearchIssues_EnvelopeShape(t *testing.T) {
-	_, _ = newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"},{"id":2,"number":2,"title":"two"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	var wrapper struct {
-		Result struct {
-			Issues  []map[string]any `json:"issues"`
-			Page    int              `json:"page"`
-			Limit   int              `json:"limit"`
-			Count   int              `json:"count"`
-			HasNext bool             `json:"has_next"`
-		} `json:"Result"`
-	}
-	if err := json.Unmarshal([]byte(textOf(res)), &wrapper); err != nil {
-		t.Fatalf("invalid envelope JSON: %v\nbody: %s", err, textOf(res))
-	}
-	envelope := wrapper.Result
-	if envelope.Page != 1 || envelope.Limit != 20 {
-		t.Fatalf("expected default page=1 limit=20, got page=%d limit=%d", envelope.Page, envelope.Limit)
-	}
-	if envelope.Count != len(envelope.Issues) {
-		t.Fatalf("count %d does not match issues length %d", envelope.Count, len(envelope.Issues))
-	}
-	if envelope.Count != 2 {
-		t.Fatalf("expected 2 issues, got %d", envelope.Count)
-	}
-}
-
-func TestSearchIssues_TotalCountFromHeader(t *testing.T) {
-	_, _ = newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		w.Header().Set("X-Total-Count", "333")
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"},{"id":2,"number":2,"title":"two"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"total_count":333`) {
-		t.Fatalf("expected total_count from X-Total-Count header, got %s", textOf(res))
-	}
-}
-
-// A confirmed-zero total and an unknown total are different answers, and
-// `omitempty` on the *int must not collapse them: X-Total-Count: 0 has to
-// marshal as "total_count":0, while a missing header drops the key entirely
-// (asserted by TestSearchIssues_TotalCountOmittedWhenHeaderAbsent below).
-func TestSearchIssues_TotalCountZeroIsEmittedNotOmitted(t *testing.T) {
-	_, _ = newQueryBackend(t, func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-		w.Header().Set("X-Total-Count", "0")
-		_, _ = w.Write([]byte(`[]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"total_count":0`) {
-		t.Fatalf("expected a confirmed-zero total_count to be emitted, got %s", textOf(res))
-	}
-}
-
-func TestSearchIssues_TotalCountOmittedWhenHeaderAbsent(t *testing.T) {
-	_, _ = newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if strings.Contains(textOf(res), "total_count") {
-		t.Fatalf("expected total_count to be omitted when header is absent, got %s", textOf(res))
-	}
-}
-
-func TestSearchIssues_TotalCountOmittedWhenHeaderUnparsable(t *testing.T) {
-	_, _ = newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		w.Header().Set("X-Total-Count", "not-a-number")
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if strings.Contains(textOf(res), "total_count") {
-		t.Fatalf("expected total_count to be omitted for a garbage header, got %s", textOf(res))
-	}
-}
-
-func TestSearchIssues_HasNextTrueWhenProbeReturnsRows(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[{"id":3,"number":3,"title":"three"}]`))
-			return
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "limit": float64(1)}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"has_next":true`) {
-		t.Fatalf("expected has_next true, got %s", textOf(res))
-	}
-	// Current page + probe page.
-	if len(*records) != 2 {
-		t.Fatalf("expected 2 requests (page + probe), got %d", len(*records))
-	}
-}
-
-func TestSearchIssues_HasNextFalseWhenProbeReturnsNoRows(t *testing.T) {
-	_, _ = newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"has_next":false`) {
-		t.Fatalf("expected has_next false, got %s", textOf(res))
-	}
-}
-
-func TestSearchIssues_HasNextFalseOnEmptyPage(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-		_, _ = w.Write([]byte(`[]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"has_next":false`) || !strings.Contains(textOf(res), `"count":0`) {
-		t.Fatalf("expected empty page with has_next false, got %s", textOf(res))
-	}
-	// No probe should be made when the page itself is empty.
-	if len(*records) != 1 {
-		t.Fatalf("expected exactly 1 request (no probe on empty page), got %d", len(*records))
-	}
-}
-
-func TestSearchIssues_DefaultPagingAndClamping(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		if r.URL.Query().Get("limit") != "20" || r.URL.Query().Get("page") != "1" {
-			t.Fatalf("expected clamped page=1 limit=20, got %s", r.URL.RawQuery)
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "page": float64(0), "limit": float64(-5),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"page":1`) || !strings.Contains(textOf(res), `"limit":20`) {
-		t.Fatalf("expected reported page=1 limit=20, got %s", textOf(res))
-	}
-	if len(*records) == 0 {
-		t.Fatal("expected at least one request")
-	}
-}
-
-func TestSearchIssues_CallerRaisedLimit(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		if r.URL.Query().Get("limit") != "50" {
-			t.Fatalf("expected limit=50, got %s", r.URL.RawQuery)
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "limit": float64(50)}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"limit":50`) {
-		t.Fatalf("expected reported limit=50, got %s", textOf(res))
-	}
-	if len(*records) == 0 {
-		t.Fatal("expected at least one request")
-	}
-}
-
-func TestSearchIssues_MissingOwnerErrorsWithoutUpstreamCall(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-		_, _ = w.Write([]byte(`[]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{}))
-	if res != nil {
-		t.Fatalf("expected nil result on error, got %+v", res)
-	}
-	if err == nil || !strings.Contains(err.Error(), "owner") {
-		t.Fatalf("expected error naming owner, got %v", err)
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no upstream request, got %d", len(*records))
-	}
-
-	res, err = SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": ""}))
-	if res != nil {
-		t.Fatalf("expected nil result on error, got %+v", res)
-	}
-	if err == nil || !strings.Contains(err.Error(), "owner") {
-		t.Fatalf("expected error naming owner for empty owner, got %v", err)
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no upstream request for empty owner, got %d", len(*records))
-	}
-}
-
-func TestSearchIssues_FilterPassThrough(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		q := r.URL.Query()
-		if q.Get("state") != "closed" {
-			t.Fatalf("expected state=closed, got %s", r.URL.RawQuery)
-		}
-		if q.Get("labels") != "bug,triage" {
-			t.Fatalf("expected labels passthrough, got %s", r.URL.RawQuery)
-		}
-		if q.Get("q") != "crash" {
-			t.Fatalf("expected q passthrough, got %s", r.URL.RawQuery)
-		}
-		// type is unconditionally emitted by the SDK, but empty when omitted.
-		if !q.Has("type") || q.Get("type") != "" {
-			t.Fatalf("expected type present and empty, got %s", r.URL.RawQuery)
-		}
-		// Filters the caller omitted must carry no value at all.
-		for _, name := range []string{"created_by", "assigned_by", "mentioned_by", "milestones", "team"} {
-			if q.Has(name) {
-				t.Fatalf("expected %s to be absent, got %s", name, r.URL.RawQuery)
-			}
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{
-		"owner":  "goern",
-		"state":  "closed",
-		"labels": "bug,triage",
-		"q":      "crash",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if len(*records) == 0 {
-		t.Fatal("expected at least one request")
-	}
-}
-
-// TestSearchIssues_AllOptionalFiltersPassThrough covers the remaining
-// pass-through filters (type, milestones, created_by, assigned_by,
-// mentioned_by), including the "excluding pull requests" scenario.
-func TestSearchIssues_AllOptionalFiltersPassThrough(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			_, _ = w.Write([]byte(`[]`))
-			return
-		}
-		q := r.URL.Query()
-		if q.Get("type") != "issues" {
-			t.Fatalf("expected type=issues, got %s", r.URL.RawQuery)
-		}
-		if q.Get("milestones") != "v1,v2" {
-			t.Fatalf("expected milestones passthrough, got %s", r.URL.RawQuery)
-		}
-		if q.Get("created_by") != "alice" {
-			t.Fatalf("expected created_by passthrough, got %s", r.URL.RawQuery)
-		}
-		if q.Get("assigned_by") != "bob" {
-			t.Fatalf("expected assigned_by passthrough, got %s", r.URL.RawQuery)
-		}
-		if q.Get("mentioned_by") != "carol" {
-			t.Fatalf("expected mentioned_by passthrough, got %s", r.URL.RawQuery)
-		}
-		// The tool never sets opt.Team, so the SDK's "team" bug (design
-		// Decision 5) cannot fire here even though MentionedBy is set.
-		if q.Has("team") {
-			t.Fatalf("expected no team key since the tool never sets opt.Team, got %s", r.URL.RawQuery)
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one","pull_request":null}]`))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{
-		"owner":        "goern",
-		"type":         "issues",
-		"milestones":   "v1,v2",
-		"created_by":   "alice",
-		"assigned_by":  "bob",
-		"mentioned_by": "carol",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	if len(*records) == 0 {
-		t.Fatal("expected at least one request")
-	}
-}
-
-// TestSearchIssues_ClampedPageStillSignalsContinuation is the clamping
-// falsifier from battle-test.md: an instance silently clamping limit=100
-// down to 50 results must still report has_next true when a further page
-// exists. The count == limit heuristic gets this wrong; the same-limit probe
-// does not.
-//
-// This scenario is now specifically the UNKNOWN-ceiling fallback path: when
-// the instance ceiling is known, a limit that would be clamped is rejected
-// before the upstream call (see TestSearchIssues_LimitAboveKnownCeilingRejected),
-// so this exact mismatch cannot occur there. newQueryBackend's settings
-// endpoint 404s by default, so this test still exercises "ceiling unknown"
-// without any change.
-func TestSearchIssues_ClampedPageStillSignalsContinuation(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			// Further matching issues exist beyond the clamped page.
-			_, _ = w.Write([]byte(`[{"id":51,"number":51,"title":"extra"}]`))
-			return
-		}
-		if r.URL.Query().Get("limit") != "100" {
-			t.Fatalf("expected requested limit=100, got %s", r.URL.RawQuery)
-		}
-		// Simulate the instance clamping at MAX_RESPONSE_ITEMS=50: 50 issues
-		// come back even though the caller asked for 100.
-		issues := make([]string, 0, 50)
-		for i := 1; i <= 50; i++ {
-			issues = append(issues, fmt.Sprintf(`{"id":%d,"number":%d,"title":"issue-%d"}`, i, i, i))
-		}
-		_, _ = w.Write([]byte("[" + strings.Join(issues, ",") + "]"))
-	})
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "limit": float64(100)}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	text := textOf(res)
-	if !strings.Contains(text, `"count":50`) {
-		t.Fatalf("expected count=50 (clamped), got %s", text)
-	}
-	if !strings.Contains(text, `"has_next":true`) {
-		t.Fatalf("count==limit heuristic would report false here; probe must report has_next true, got %s", text)
-	}
-	if len(*records) != 2 {
-		t.Fatalf("expected page request + probe, got %d", len(*records))
-	}
-}
-
-// TestSearchIssues_LimitAboveKnownCeilingRejected is the case chris420's
-// review (PR #458 issuecomment-5533) argued for: when the ceiling is
-// discoverable, an over-ceiling limit must be rejected before the upstream
-// call, not silently truncated with a misleading envelope. The error must
-// name both the requested limit and the ceiling so an LLM caller can
-// self-correct the retry.
-func TestSearchIssues_LimitAboveKnownCeilingRejected(t *testing.T) {
-	_, records := newQueryBackendWithSettings(t, http.StatusOK, knownCeilingBody,
-		func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-			t.Fatal("no upstream search request expected when limit exceeds the known ceiling")
-		},
-	)
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "limit": float64(100)}))
-	if res != nil {
-		t.Fatalf("expected nil result on rejection, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected an error when limit exceeds the known ceiling")
-	}
-	if !strings.Contains(err.Error(), "100") || !strings.Contains(err.Error(), "50") {
-		t.Fatalf("expected error naming both the requested limit (100) and the ceiling (50), got %v", err)
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no upstream search request, got %d", len(*records))
-	}
-}
-
-// TestSearchIssues_LimitEqualsKnownCeilingAccepted asserts the boundary:
-// limit == ceiling is accepted, not rejected.
-func TestSearchIssues_LimitEqualsKnownCeilingAccepted(t *testing.T) {
-	_, records := newQueryBackendWithSettings(t, http.StatusOK, knownCeilingBody,
-		func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-			if r.URL.Query().Get("limit") != "50" {
-				t.Fatalf("expected limit=50, got %s", r.URL.RawQuery)
-			}
-			issues := make([]string, 0, 50)
-			for i := 1; i <= 50; i++ {
-				issues = append(issues, fmt.Sprintf(`{"id":%d,"number":%d,"title":"issue-%d"}`, i, i, i))
-			}
-			_, _ = w.Write([]byte("[" + strings.Join(issues, ",") + "]"))
-		},
-	)
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "limit": float64(50)}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	text := textOf(res)
-	if !strings.Contains(text, `"limit":50`) {
-		t.Fatalf("expected reported limit=50, got %s", text)
-	}
-	if !strings.Contains(text, `"count":50`) {
-		t.Fatalf("expected count=50, got %s", text)
-	}
-	// Full page under a known, honored ceiling: count == limit is sound here
-	// (see design.md Decision 3, revised), so has_next must be true without
-	// a probe.
-	if !strings.Contains(text, `"has_next":true`) {
-		t.Fatalf("expected has_next=true for a full page under a known ceiling, got %s", text)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected exactly 1 request (no probe when ceiling is known), got %d", len(*records))
-	}
-}
-
-// TestSearchIssues_LimitBelowKnownCeilingAccepted covers the ordinary
-// below-ceiling case and its no-probe, short-page has_next=false semantics.
-func TestSearchIssues_LimitBelowKnownCeilingAccepted(t *testing.T) {
-	_, records := newQueryBackendWithSettings(t, http.StatusOK, knownCeilingBody,
-		func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-			if r.URL.Query().Get("limit") != "10" {
-				t.Fatalf("expected limit=10, got %s", r.URL.RawQuery)
-			}
-			_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-		},
-	)
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "limit": float64(10)}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	text := textOf(res)
-	if !strings.Contains(text, `"limit":10`) {
-		t.Fatalf("expected reported limit=10, got %s", text)
-	}
-	if !strings.Contains(text, `"has_next":false`) {
-		t.Fatalf("expected has_next=false for a short page (count < limit), got %s", text)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected exactly 1 request (no probe when ceiling is known), got %d", len(*records))
-	}
-}
-
-// TestSearchIssues_EffectiveLimitReported is the direct regression test for
-// the bug chris420 found: issue.go used to report `Limit: int(limit)` (the
-// raw requested value) in the envelope regardless of what was actually sent
-// upstream. Under this design, an over-ceiling request is rejected outright
-// (see TestSearchIssues_LimitAboveKnownCeilingRejected), so the specific
-// "limit=100 reported, 50 rows returned" mismatch can no longer reach a
-// successful envelope at all — this test pins that down for the accepted
-// case: the envelope's `limit` must equal the value actually sent upstream,
-// sourced from the same variable, not recomputed independently.
-func TestSearchIssues_EffectiveLimitReported(t *testing.T) {
-	_, records := newQueryBackendWithSettings(t, http.StatusOK, knownCeilingBody,
-		func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-			// The instance ceiling is 50; the request below asks for 50 and
-			// must be honored and reported as 50, never mutated en route.
-			if r.URL.Query().Get("limit") != "50" {
-				t.Fatalf("expected effective limit 50 sent upstream, got %s", r.URL.RawQuery)
-			}
-			issues := make([]string, 0, 50)
-			for i := 1; i <= 50; i++ {
-				issues = append(issues, fmt.Sprintf(`{"id":%d,"number":%d,"title":"issue-%d"}`, i, i, i))
-			}
-			_, _ = w.Write([]byte("[" + strings.Join(issues, ",") + "]"))
-		},
-	)
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "limit": float64(50)}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("SearchIssuesFn err: %v res=%+v", err, res)
-	}
-	var wrapper struct {
-		Result struct {
-			Limit int `json:"limit"`
-			Count int `json:"count"`
-		} `json:"Result"`
-	}
-	if err := json.Unmarshal([]byte(textOf(res)), &wrapper); err != nil {
-		t.Fatalf("invalid envelope JSON: %v\nbody: %s", err, textOf(res))
-	}
-	if wrapper.Result.Limit != 50 {
-		t.Fatalf("expected envelope limit=50 (the effective, actually-sent limit), got %d", wrapper.Result.Limit)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected exactly 1 upstream request, got %d", len(*records))
-	}
-}
-
-// TestSearchIssues_SettingsFailureNeverBecomesZeroCeiling asserts that a
-// broken /api/v1/settings/api endpoint (500, not merely 403/404) is treated
-// as "ceiling unknown" and falls back to the probe, rather than being
-// misread as a ceiling of 0 — a zero ceiling would reject every request,
-// including this one for a modest limit of 5.
-func TestSearchIssues_SettingsFailureNeverBecomesZeroCeiling(t *testing.T) {
-	_, records := newQueryBackendWithSettings(t, http.StatusInternalServerError, `{"message":"boom"}`,
-		func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-			if pageFromQuery(r) == "2" {
-				_, _ = w.Write([]byte(`[]`))
-				return
-			}
-			_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-		},
-	)
-
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "limit": float64(5)}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("expected success (ceiling unknown, not zero), got err=%v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"limit":5`) {
-		t.Fatalf("expected reported limit=5, got %s", textOf(res))
-	}
-	// Ceiling unknown -> fallback probe still runs: page + probe.
-	if len(*records) != 2 {
-		t.Fatalf("expected page request + probe (ceiling unknown fallback), got %d", len(*records))
-	}
-}
-
-func TestSearchIssues_ClientErrorPropagates(t *testing.T) {
-	// No backend at all: forgejo.Client construction against an unreachable
-	// URL surfaces as an error before any ListIssues call. Clear the singleton
-	// first so this holds whatever order -shuffle picks.
-	forgejo.ResetClientForTesting()
-	t.Cleanup(forgejo.ResetClientForTesting)
-	forgejo.ConfigureForTesting("http://127.0.0.1:0", "tkn", "")
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if res != nil {
-		t.Fatalf("expected nil result on error, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected error when client cannot be built")
-	}
-}
-
-func TestSearchIssues_ListIssuesErrorPropagates(t *testing.T) {
-	_, _ = newQueryBackend(t, func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"message":"boom"}`))
-	})
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if res != nil {
-		t.Fatalf("expected nil result on error, got %+v", res)
-	}
-	if err == nil || !strings.Contains(err.Error(), "search issues err") {
-		t.Fatalf("expected wrapped search issues error, got %v", err)
-	}
-}
-
-func TestSearchIssues_ProbeErrorPropagates(t *testing.T) {
-	_, _ = newQueryBackend(t, func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-		if pageFromQuery(r) == "2" {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(`{"message":"boom"}`))
-			return
-		}
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-	res, err := SearchIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern"}))
-	if res != nil {
-		t.Fatalf("expected nil result on error, got %+v", res)
-	}
-	if err == nil || !strings.Contains(err.Error(), "probe next issues page err") {
-		t.Fatalf("expected wrapped probe error, got %v", err)
-	}
-}
-
-func TestListRepoIssues_EmptyRepoNamesSearchIssues(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-		_, _ = w.Write([]byte(`[]`))
-	})
-	res, err := ListRepoIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "repo": ""}))
-	if res != nil {
-		t.Fatalf("expected nil result for empty repo, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected error for empty repo")
-	}
-	text := err.Error()
-	if !strings.Contains(text, "repo") {
-		t.Fatalf("expected error to name repo, got %s", text)
-	}
-	if !strings.Contains(text, "search_issues") {
-		t.Fatalf("expected error to mention search_issues, got %s", text)
-	}
-	if strings.Contains(text, "path segment") {
-		t.Fatalf("expected no SDK-internal wording, got %s", text)
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no upstream request, got %d", len(*records))
-	}
-}
-
-func TestListRepoIssues_EmptyOwnerErrorsAndWellFormedCallUnchanged(t *testing.T) {
-	_, records := newQueryBackend(t, func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-		_, _ = w.Write([]byte(`[{"id":1,"number":1,"title":"one"}]`))
-	})
-
-	res, err := ListRepoIssuesFn(context.Background(), makeReq(map[string]any{"owner": "", "repo": "forgejo-mcp"}))
-	if res != nil {
-		t.Fatalf("expected nil result for empty owner, got %+v", res)
-	}
-	if err == nil || !strings.Contains(err.Error(), "owner") {
-		t.Fatalf("expected error naming owner for empty owner, got %v", err)
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no upstream request for empty owner, got %d", len(*records))
-	}
-
-	res, err = ListRepoIssuesFn(context.Background(), makeReq(map[string]any{"owner": "goern", "repo": "forgejo-mcp"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("well-formed call should be unaffected, got err=%v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"title":"one"`) {
-		t.Fatalf("expected issue payload unchanged, got %s", textOf(res))
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected exactly one upstream request for well-formed call, got %d", len(*records))
-	}
-}
-
-// The tests below cover the remaining simple wrapper handlers so package
-// coverage reflects the state of the code this change touches, not just the
-// two functions changed directly.
-
-func TestGetIssueByIndexFn(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42,"title":"hello"}`)
-	res, err := GetIssueByIndexFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(42),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("GetIssueByIndexFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"title":"hello"`) {
-		t.Fatalf("unexpected result: %s", textOf(res))
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-}
-
-func TestCreateIssueFn(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":1,"title":"new issue"}`)
-	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "title": "new issue", "body": "body text",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("CreateIssueFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"title":"new issue"`) {
-		t.Fatalf("unexpected result: %s", textOf(res))
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-}
-
-func TestCreateIssueFn_LabelNamesBecomeIDs(t *testing.T) {
-	records, _ := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgLabels:  []catalogLabel{{ID: 91, Name: "dogfood"}},
-		next: func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-			_, _ = w.Write([]byte(`{"id":1,"number":1,"title":"new issue"}`))
-		},
-	})
-
-	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "agentic-forges", "repo": "forgejo-mcp", "title": "new issue",
-		"labels": "bug,dogfood",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("CreateIssueFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one create request, got %d: %+v", len(*records), *records)
-	}
-	post := (*records)[0]
-	if post.method != http.MethodPost {
-		t.Fatalf("expected POST, got %s", post.method)
-	}
-	// A repo label and an org label, both named, both sent as IDs in the one
-	// request that creates the issue.
-	if got := labelsFromBody(t, post.rawBody); !equalInt64s(got, []int64{5, 91}) {
-		t.Fatalf("expected labels [5 91], got %v (body: %s)", got, post.rawBody)
-	}
-}
-
-func TestCreateIssueFn_AssigneesAndMilestone(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":1,"title":"new issue"}`)
-
-	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "title": "new issue",
-		"assignees": "alice, bob", "milestone": "4",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("CreateIssueFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal((*records)[0].rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, (*records)[0].rawBody)
-	}
-	assignees, ok := payload["assignees"].([]any)
-	if !ok || len(assignees) != 2 || assignees[0] != "alice" || assignees[1] != "bob" {
-		t.Fatalf("expected assignees [alice bob], got %v", payload["assignees"])
-	}
-	if milestone, ok := payload["milestone"].(float64); !ok || milestone != 4 {
-		t.Fatalf("expected milestone 4, got %v", payload["milestone"])
-	}
-}
-
-func TestCreateIssueFn_UnknownLabelCreatesNothing(t *testing.T) {
-	// Resolution happens before the POST precisely so a typo does not leave a
-	// real unlabelled issue behind.
-	records, _ := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgStatus:  http.StatusNotFound,
-	})
-
-	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "title": "new issue", "labels": "nope",
-	}))
-	if res != nil {
-		t.Fatalf("expected nil result for an unknown label, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected an error for an unknown label")
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no issue to be created, got %+v", *records)
-	}
-}
-
-func TestCreateIssueFn_InvalidMilestone(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1}`)
-
-	res, err := CreateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "title": "new issue", "milestone": "soon",
-	}))
-	if res != nil {
-		t.Fatalf("expected nil result for a non-numeric milestone, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected an error for a non-numeric milestone")
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no request, got %+v", *records)
-	}
-}
-
-func TestCreateIssueCommentFn(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"body":"a comment"}`)
-	res, err := CreateIssueCommentFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "body": "a comment",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("CreateIssueCommentFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"body":"a comment"`) {
-		t.Fatalf("unexpected result: %s", textOf(res))
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-}
-
-// addLabelsBackend serves the assignment endpoints for a label catalogue of
-// bug=5 and triage=6: POST .../labels answers with a label list, anything else
-// with the refreshed issue.
-func addLabelsBackend(t *testing.T) (*[]recordedReq, *int) {
-	t.Helper()
-	return newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}, {ID: 6, Name: "triage"}},
-		orgStatus:  http.StatusNotFound,
-		next: func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-			if r.Method == http.MethodPost {
-				_, _ = w.Write([]byte(`[{"id":5},{"id":6}]`))
-				return
-			}
-			_, _ = w.Write([]byte(`{"id":1,"number":1,"labels":[{"id":5},{"id":6}]}`))
-		},
-	})
-}
-
-func TestUpdateIssue_SetLabelsReplaces(t *testing.T) {
-	records, _ := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgStatus:  http.StatusNotFound,
-		next: func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-			if r.Method == http.MethodPut {
-				_, _ = w.Write([]byte(`[{"id":5}]`))
-				return
-			}
-			_, _ = w.Write([]byte(`{"id":1,"number":42,"labels":[{"id":5}]}`))
-		},
-	})
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(42), "set_labels": "bug",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn err: %v res=%+v", err, res)
-	}
-	// set_labels alone: a replace and the re-read, and deliberately no PATCH —
-	// an empty edit would move updated_at for nothing.
-	if len(*records) != 2 {
-		t.Fatalf("expected two requests, got %d: %+v", len(*records), *records)
-	}
-	put := (*records)[0]
-	if put.method != http.MethodPut || !strings.HasSuffix(put.path, "/issues/42/labels") {
-		t.Fatalf("expected PUT to the issue labels endpoint, got %s %s", put.method, put.path)
-	}
-	if got := labelsFromBody(t, put.rawBody); !equalInt64s(got, []int64{5}) {
-		t.Fatalf("expected labels [5] in the PUT body, got %v", got)
-	}
-	for _, rec := range *records {
-		if rec.method == http.MethodPatch {
-			t.Fatalf("expected no PATCH when set_labels is the only argument, got %+v", rec)
-		}
-	}
-}
-
-func TestUpdateIssue_SetLabelsEmptyClears(t *testing.T) {
-	records, catalogReads := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgStatus:  http.StatusNotFound,
-		next: func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-			_, _ = w.Write([]byte(`{"id":1,"number":42,"labels":[]}`))
-		},
-	})
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(42), "set_labels": "",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 2 {
-		t.Fatalf("expected a clear and a re-read, got %d: %+v", len(*records), *records)
-	}
-	clear := (*records)[0]
-	if clear.method != http.MethodDelete || !strings.HasSuffix(clear.path, "/issues/42/labels") {
-		t.Fatalf("expected DELETE of the labels collection, got %s %s", clear.method, clear.path)
-	}
-	// Nothing to resolve when clearing, so the catalogue is never read.
-	if *catalogReads != 0 {
-		t.Fatalf("expected no catalogue read when clearing, got %d", *catalogReads)
-	}
-}
-
-func TestUpdateIssue_SetLabelsWithTitlePatchesFirst(t *testing.T) {
-	records, _ := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgStatus:  http.StatusNotFound,
-		next: func(w http.ResponseWriter, r *http.Request, _ *[]recordedReq) {
-			switch r.Method {
-			case http.MethodPatch:
-				_, _ = w.Write([]byte(`{"id":1,"number":42,"title":"renamed","labels":[]}`))
-			case http.MethodPut:
-				_, _ = w.Write([]byte(`[{"id":5}]`))
-			default:
-				_, _ = w.Write([]byte(`{"id":1,"number":42,"title":"renamed","labels":[{"id":5}]}`))
-			}
-		},
-	})
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(42),
-		"title": "renamed", "set_labels": "bug",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 3 {
-		t.Fatalf("expected PATCH, PUT and a re-read, got %d: %+v", len(*records), *records)
-	}
-	if (*records)[0].method != http.MethodPatch {
-		t.Fatalf("expected the PATCH first, got %s", (*records)[0].method)
-	}
-	if (*records)[1].method != http.MethodPut {
-		t.Fatalf("expected the label replacement second, got %s", (*records)[1].method)
-	}
-	// The edit endpoint has no labels field and ignores one, so sending it
-	// would be a silent no-op the caller could not detect.
-	var patch map[string]any
-	if err := json.Unmarshal((*records)[0].rawBody, &patch); err != nil {
-		t.Fatalf("invalid PATCH body: %v", err)
-	}
-	if _, present := patch["labels"]; present {
-		t.Fatalf("PATCH body must not carry labels: %s", (*records)[0].rawBody)
-	}
-	// The issue returned by the PATCH predates the replacement, so the handler
-	// re-reads and the caller sees the new set.
-	if !strings.Contains(textOf(res), `"id":5`) {
-		t.Fatalf("expected the returned issue to carry the new label: %s", textOf(res))
-	}
-}
-
-func TestUpdateIssue_WithoutSetLabelsIsUnchanged(t *testing.T) {
-	records, catalogReads := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgStatus:  http.StatusNotFound,
-		next: func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-			_, _ = w.Write([]byte(`{"id":1,"number":42,"title":"renamed"}`))
-		},
-	})
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(42), "title": "renamed",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 1 || (*records)[0].method != http.MethodPatch {
-		t.Fatalf("expected exactly one PATCH, got %+v", *records)
-	}
-	if *catalogReads != 0 {
-		t.Fatalf("expected no catalogue read without set_labels, got %d", *catalogReads)
-	}
-}
-
-func TestUpdateIssue_SetLabelsUnknownWritesNothing(t *testing.T) {
-	records, _ := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgStatus:  http.StatusNotFound,
-	})
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(42),
-		"title": "renamed", "set_labels": "nope",
-	}))
-	if res != nil {
-		t.Fatalf("expected nil result for an unknown label, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected an error for an unknown label")
-	}
-	// Resolution precedes the PATCH, so the title is not changed either.
-	if len(*records) != 0 {
-		t.Fatalf("expected no writes at all, got %+v", *records)
-	}
-}
-
-func TestAddIssueLabelsFn_ByName(t *testing.T) {
-	records, _ := addLabelsBackend(t)
-
-	res, err := AddIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "bug,triage",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("AddIssueLabelsFn err: %v res=%+v", err, res)
-	}
-	// Two calls under test: AddIssueLabels then GetIssue. The catalogue reads
-	// the names needed are counted separately, not recorded here.
-	if len(*records) != 2 {
-		t.Fatalf("expected two requests, got %d: %+v", len(*records), *records)
-	}
-
-	post := (*records)[0]
-	if post.method != http.MethodPost || !strings.HasSuffix(post.path, "/issues/1/labels") {
-		t.Fatalf("expected POST to the issue labels endpoint, got %s %s", post.method, post.path)
-	}
-	// The names must reach Forgejo as IDs: it accepts names, but drops the
-	// ones it does not know and still answers 200.
-	if got := labelsFromBody(t, post.rawBody); !equalInt64s(got, []int64{5, 6}) {
-		t.Fatalf("expected labels [5 6] in the POST body, got %v (body: %s)", got, post.rawBody)
-	}
-}
-
-func TestAddIssueLabelsFn_ByID(t *testing.T) {
-	records, _ := addLabelsBackend(t)
-
-	res, err := AddIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "5,6",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("AddIssueLabelsFn err: %v res=%+v", err, res)
-	}
-	if got := labelsFromBody(t, (*records)[0].rawBody); !equalInt64s(got, []int64{5, 6}) {
-		t.Fatalf("expected numeric IDs to keep working, got %v", got)
-	}
-}
-
-func TestAddIssueLabelsFn_UnknownLabel(t *testing.T) {
-	records, _ := addLabelsBackend(t)
-
-	res, err := AddIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "not-a-label",
-	}))
-	if res != nil {
-		t.Fatalf("expected nil result for an unknown label, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected an error for an unknown label")
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no write when a label cannot be resolved, got %+v", *records)
-	}
-}
-
-func TestAddIssueLabelsFn_EmptyLabels(t *testing.T) {
-	records, _ := addLabelsBackend(t)
-
-	if _, err := AddIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "",
-	})); err == nil {
-		t.Fatal("expected an error when labels names nothing")
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no write for an empty labels argument, got %+v", *records)
-	}
-}
-
-func TestRemoveIssueLabelsFn_ByName(t *testing.T) {
-	records, _ := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgStatus:  http.StatusNotFound,
-		next: func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-			_, _ = w.Write([]byte(`{"id":1,"number":1,"labels":[]}`))
-		},
-	})
-
-	res, err := RemoveIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "bug",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("RemoveIssueLabelsFn err: %v res=%+v", err, res)
-	}
-	// Two calls under test: DeleteIssueLabel then GetIssue.
-	if len(*records) != 2 {
-		t.Fatalf("expected two requests, got %d: %+v", len(*records), *records)
-	}
-	del := (*records)[0]
-	if del.method != http.MethodDelete || !strings.HasSuffix(del.path, "/issues/1/labels/5") {
-		t.Fatalf("expected DELETE of label 5, got %s %s", del.method, del.path)
-	}
-}
-
-func TestIssueStateChangeFn(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":1,"state":"closed"}`)
-	res, err := IssueStateChangeFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "state": "closed",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("IssueStateChangeFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-
-	res, err = IssueStateChangeFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "state": "bogus",
-	}))
-	if res != nil {
-		t.Fatalf("expected nil result for invalid state, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected error for invalid state")
-	}
-}
-
-func TestListIssueCommentsFn(t *testing.T) {
-	_, records := newPatchBackend(t, `[{"id":1,"body":"c1"},{"id":2,"body":"c2"}]`)
-	res, err := ListIssueCommentsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1),
-		"since": "2024-01-01T00:00:00Z", "before": "2024-06-01T00:00:00Z",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListIssueCommentsFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"body":"c1"`) {
-		t.Fatalf("unexpected result: %s", textOf(res))
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-}
-
-func TestListIssueCommentsFn_InvalidSince(t *testing.T) {
-	_, _ = newPatchBackend(t, `[]`)
-	res, err := ListIssueCommentsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "since": "not-a-time",
-	}))
-	if res != nil {
-		t.Fatalf("expected nil result for invalid since, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected error for invalid since time")
-	}
-}
-
-func TestGetIssueCommentFn(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":9,"body":"a comment"}`)
-	res, err := GetIssueCommentFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "comment_id": float64(9),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("GetIssueCommentFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-}
-
-func TestEditIssueCommentFn(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":9,"body":"updated"}`)
-	res, err := EditIssueCommentFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "comment_id": float64(9), "body": "updated",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("EditIssueCommentFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-}
-
-func TestDeleteIssueCommentFn(t *testing.T) {
-	_, records := newPatchBackend(t, ``)
-	res, err := DeleteIssueCommentFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "comment_id": float64(9),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("DeleteIssueCommentFn err: %v res=%+v", err, res)
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-}
-
-func TestListRepoMilestonesFn(t *testing.T) {
-	_, records := newPatchBackend(t, `[{"id":1,"title":"v1"}]`)
-	res, err := ListRepoMilestonesFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListRepoMilestonesFn err: %v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), `"title":"v1"`) {
-		t.Fatalf("unexpected result: %s", textOf(res))
-	}
-	if len(*records) != 1 {
-		t.Fatalf("expected one request, got %d", len(*records))
-	}
-}
-
-// --- daikon#93: due_date read/write/sort ---
-
-func TestUpdateIssue_DueDateSet(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner":    "goern",
-		"repo":     "forgejo-mcp",
-		"index":    float64(42),
-		"due_date": "2026-08-20T00:00:00Z",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
-	}
-
-	last := (*records)[len(*records)-1]
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	dueDate, ok := payload["due_date"].(string)
-	if !ok || !strings.HasPrefix(dueDate, "2026-08-20") {
-		t.Fatalf("expected due_date=2026-08-20..., got %v", payload["due_date"])
-	}
-	if v, ok := payload["unset_due_date"]; ok && v != nil {
-		t.Fatalf("expected no unset_due_date field, got %v", v)
-	}
-}
-
-func TestUpdateIssue_DueDateClear(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"number":42}`)
-
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner":          "goern",
-		"repo":           "forgejo-mcp",
-		"index":          float64(42),
-		"clear_due_date": true,
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("UpdateIssueFn returned error: err=%v res=%+v", err, res)
-	}
-
-	last := (*records)[len(*records)-1]
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	if v, ok := payload["unset_due_date"].(bool); !ok || !v {
-		t.Fatalf("expected unset_due_date=true, got %v", payload["unset_due_date"])
-	}
-	if v, ok := payload["due_date"]; ok && v != nil {
-		t.Fatalf("expected no due_date field when clearing, got %v", v)
-	}
-}
-
-func TestUpdateIssue_DueDateSetAndClearConflict(t *testing.T) {
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner":          "goern",
-		"repo":           "forgejo-mcp",
-		"index":          float64(42),
-		"due_date":       "2026-08-20T00:00:00Z",
-		"clear_due_date": true,
-	}))
-	if err == nil {
-		t.Fatalf("expected error when due_date and clear_due_date both set, got res=%+v", res)
-	}
-}
-
-func TestUpdateIssue_DueDateInvalidFormat(t *testing.T) {
-	res, err := UpdateIssueFn(context.Background(), makeReq(map[string]any{
-		"owner":    "goern",
-		"repo":     "forgejo-mcp",
-		"index":    float64(42),
-		"due_date": "not-a-date",
-	}))
-	if err == nil {
-		t.Fatalf("expected error for invalid due_date format, got res=%+v", res)
-	}
-}
-
-func TestGetIssueByIndex_DueDatePassesThrough(t *testing.T) {
-	srv, _ := newPatchBackend(t, `{"id":1,"number":42,"due_date":"2026-08-20T23:59:59Z"}`)
-	_ = srv
-
-	res, err := GetIssueByIndexFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("GetIssueByIndexFn returned error: err=%v res=%+v", err, res)
-	}
-	text := textResultString(t, res)
-	if !strings.Contains(text, "2026-08-20") {
-		t.Fatalf("expected due_date to pass through in response, got: %s", text)
+func TestListRepoIssues(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	a := openIssue(t, f, "a")
+	b := openIssue(t, f, "b")
+	call(t, h.IssueStateChangeFn, map[string]any{"index": float64(a), "state": "closed"})
+
+	var open []forgejo_sdk.Issue
+	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, nil), &open); err != nil {
+		t.Fatal(err)
+	}
+	if len(open) != 1 || open[0].Index != b {
+		t.Fatalf("default open: %+v", open)
+	}
+	var all []forgejo_sdk.Issue
+	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"state": "all", "sort": "oldest"}), &all); err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 || all[0].Index != a {
+		t.Fatalf("all/oldest: %+v", all)
 	}
 }
 
 func TestListRepoIssues_SortNearDueDate(t *testing.T) {
-	srv, records := newPatchBackend(t, `[{"id":1,"number":42,"due_date":"2026-08-20T23:59:59Z"}]`)
-	_ = srv
-
-	res, err := ListRepoIssuesFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"sort":  "nearduedate",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListRepoIssuesFn returned error: err=%v res=%+v", err, res)
+	t.Parallel()
+	h, f := newFixture(t)
+	late := time.Date(2031, 1, 1, 0, 0, 0, 0, time.UTC)
+	soon := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	_, _ = f.CreateIssue(context.Background(), testOwner, testRepo, forgejo_sdk.CreateIssueOption{Title: "late", Deadline: &late})
+	_, _ = f.CreateIssue(context.Background(), testOwner, testRepo, forgejo_sdk.CreateIssueOption{Title: "soon", Deadline: &soon})
+	var got []forgejo_sdk.Issue
+	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"sort": "nearduedate"}), &got); err != nil {
+		t.Fatal(err)
 	}
-
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodGet {
-		t.Fatalf("expected GET, got %s", last.method)
-	}
-	if !strings.Contains(last.query, "sort=nearduedate") {
-		t.Fatalf("expected sort=nearduedate in query, got: %s", last.query)
-	}
-	text := textResultString(t, res)
-	if !strings.Contains(text, "2026-08-20") {
-		t.Fatalf("expected due_date to pass through in response, got: %s", text)
+	if len(got) != 2 || got[0].Title != "soon" {
+		t.Fatalf("got %+v", got)
 	}
 }
 
-// newNotFoundBackend serves 404 for every API path except the SDK's startup
-// version probe, i.e. it stands in for "the repository does not exist".
-func newNotFoundBackend(t *testing.T) *httptest.Server {
-	t.Helper()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"11.0.0+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"message":"repository does not exist","url":"` +
-			`https://example.invalid/api/swagger"}`))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
+func TestListRepoIssues_Validation(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	if msg := callErr(t, h.ListRepoIssuesFn, map[string]any{"repo": ""}); !strings.Contains(msg, "search_issues") {
+		t.Fatalf("empty repo should point at search_issues: %q", msg)
 	}
-	forgejo.SetClientForTesting(c)
-	return srv
-}
-
-// TestListRepoIssues_MissingRepoErrorsWithAndWithoutSort pins the property
-// that made the sort branch worth a second look: the two code paths must agree
-// about a repository that does not exist. /repos/{owner}/{repo}/issues returns
-// 200 [] when a repo simply has no issues, so a 404 there means the repo is
-// missing and must surface as an error — not as an empty list — regardless of
-// whether the caller passed `sort`.
-func TestListRepoIssues_MissingRepoErrorsWithAndWithoutSort(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		args map[string]any
-	}{
-		{"without sort", map[string]any{"owner": "nope", "repo": "nope"}},
-		{"with sort", map[string]any{"owner": "nope", "repo": "nope", "sort": "nearduedate"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			newNotFoundBackend(t)
-
-			res, err := ListRepoIssuesFn(context.Background(), makeReq(tc.args))
-			if err == nil && (res == nil || !res.IsError) {
-				t.Fatalf("missing repository must surface as an error, got err=%v res=%+v", err, res)
-			}
-		})
+	if msg := callErr(t, h.ListRepoIssuesFn, map[string]any{"owner": ""}); !strings.Contains(msg, "owner is required") {
+		t.Fatalf("empty owner: %q", msg)
 	}
-}
-
-// TestListRepoIssues_SortPathEscapesSegments guards the raw-HTTP path built by
-// the sort branch: this is the first raw site to append a query string to a
-// hand-built path, so an unescaped "?" in repo would merge into the query and
-// swallow the /issues segment rather than 404.
-func TestListRepoIssues_SortPathEscapesSegments(t *testing.T) {
-	// The request target has to be read raw: http.Request.URL.Path is the
-	// *decoded* form, so %2F reads back as "/" there and would hide exactly
-	// the escaping this test exists to prove. RequestURI is the untouched
-	// wire value, and a bare handler (no ServeMux) keeps it unrewritten.
-	var requestURI string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/api/v1/version" {
-			_, _ = w.Write([]byte(`{"version":"11.0.0+gitea-1.22.0"}`))
-			return
+	if msg := callErr(t, h.ListRepoIssuesFn, map[string]any{"sort": "sideways"}); !strings.Contains(msg, "invalid sort") {
+		t.Fatalf("invalid sort: %q", msg)
+	}
+	// A missing repository is an error with and without sort, never an empty list.
+	for _, sort := range []string{"", "latest"} {
+		args := map[string]any{"repo": "missing"}
+		if sort != "" {
+			args["sort"] = sort
 		}
-		requestURI = r.RequestURI
-		_, _ = w.Write([]byte(`[]`))
-	}))
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
-	}
-	forgejo.SetClientForTesting(c)
-
-	res, err := ListRepoIssuesFn(context.Background(), makeReq(map[string]any{
-		"owner": "o/x/../../admin",
-		"repo":  "r?state=all&",
-		"sort":  "nearduedate",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListRepoIssuesFn returned error: err=%v res=%+v", err, res)
-	}
-
-	rawPath, rawQuery, _ := strings.Cut(requestURI, "?")
-	if !strings.HasSuffix(rawPath, "/issues") {
-		t.Fatalf("the %q in repo merged into the query and swallowed /issues; request target = %q", "?", requestURI)
-	}
-	if strings.Contains(rawPath, "/x/") || strings.Contains(rawPath, "/../") {
-		t.Fatalf("path traversal was not contained; request target = %q", requestURI)
-	}
-	if !strings.Contains(rawQuery, "sort=nearduedate") {
-		t.Fatalf("expected sort=nearduedate in query, got request target = %q", requestURI)
+		if msg := callErr(t, h.ListRepoIssuesFn, args); !strings.Contains(msg, "get issues list err") {
+			t.Fatalf("sort %q: %q", sort, msg)
+		}
 	}
 }
 
-func TestListRepoIssues_SortInvalidRejected(t *testing.T) {
-	res, err := ListRepoIssuesFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"sort":  "not-a-real-sort",
-	}))
-	if err == nil {
-		t.Fatalf("expected error for invalid sort value, got res=%+v", res)
-	}
+type searchEnvelope struct {
+	Issues     []forgejo_sdk.Issue `json:"issues"`
+	Page       int                 `json:"page"`
+	Limit      int                 `json:"limit"`
+	Count      int                 `json:"count"`
+	HasNext    bool                `json:"has_next"`
+	TotalCount *int                `json:"total_count"`
 }
 
-// textResultString extracts the text payload from an mcp.CallToolResult
-// built by pkg/to.TextResult (a single text content block).
-func textResultString(t *testing.T, res *mcp.CallToolResult) string {
+func search(t *testing.T, h handlers, args map[string]any) searchEnvelope {
 	t.Helper()
-	if len(res.Content) == 0 {
-		t.Fatalf("result has no content")
+	res, err := h.SearchIssuesFn(context.Background(), makeReq(args))
+	if err != nil || res.IsError {
+		t.Fatalf("search failed: %v %+v", err, res)
 	}
-	tc, ok := mcp.AsTextContent(res.Content[0])
-	if !ok {
-		t.Fatalf("result content is not text: %+v", res.Content[0])
+	var env searchEnvelope
+	if err := unmarshalResult(textOf(res), &env); err != nil {
+		t.Fatal(err)
 	}
-	return tc.Text
+	return env
+}
+
+func TestSearchIssues_EnvelopeAndPaging(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	for i := 0; i < 5; i++ {
+		openIssue(t, f, "needle")
+	}
+	// Ceiling unknown: has_next comes from a same-limit probe of the next page.
+	env := search(t, h, map[string]any{"owner": testOwner, "q": "needle", "limit": float64(2)})
+	if env.Count != 2 || env.Limit != 2 || env.Page != 1 || !env.HasNext || env.TotalCount == nil || *env.TotalCount != 5 {
+		t.Fatalf("page 1: %+v", env)
+	}
+	env = search(t, h, map[string]any{"owner": testOwner, "q": "needle", "limit": float64(2), "page": float64(3)})
+	if env.Count != 1 || env.HasNext {
+		t.Fatalf("last page: %+v", env)
+	}
+	env = search(t, h, map[string]any{"owner": testOwner, "q": "absent"})
+	if env.Count != 0 || env.HasNext || len(env.Issues) != 0 {
+		t.Fatalf("empty: %+v", env)
+	}
+}
+
+func TestSearchIssues_KnownCeiling(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.SetMaxResponseItems(2)
+	for i := 0; i < 3; i++ {
+		openIssue(t, f, "x")
+	}
+	if msg := callErr(t, h.SearchIssuesFn, map[string]any{"owner": testOwner, "limit": float64(3)}); !strings.Contains(msg, "exceeds this instance's maximum of 2") {
+		t.Fatalf("error = %q", msg)
+	}
+	env := search(t, h, map[string]any{"owner": testOwner, "limit": float64(2)})
+	if env.Limit != 2 || env.Count != 2 || !env.HasNext {
+		t.Fatalf("at ceiling: %+v", env)
+	}
+	env = search(t, h, map[string]any{"owner": testOwner, "limit": float64(2), "page": float64(2)})
+	if env.Count != 1 || env.HasNext {
+		t.Fatalf("short page: %+v", env)
+	}
+}
+
+func TestSearchIssues_MissingOwner(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	if msg := callErrNoRepo(t, h.SearchIssuesFn); !strings.Contains(msg, "owner is required") {
+		t.Fatalf("error = %q", msg)
+	}
+}
+
+func TestIssueComments(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := float64(openIssue(t, f, "t"))
+
+	created := call(t, h.CreateIssueCommentFn, map[string]any{"index": idx, "body": "first"})
+	var c forgejo_sdk.Comment
+	if err := unmarshalResult(created, &c); err != nil || c.Body != "first" {
+		t.Fatalf("create: %v %s", err, created)
+	}
+	id := float64(c.ID)
+
+	var list []forgejo_sdk.Comment
+	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": idx}), &list); err != nil || len(list) != 1 {
+		t.Fatalf("list: %v %+v", err, list)
+	}
+	if !strings.Contains(call(t, h.GetIssueCommentFn, map[string]any{"comment_id": id}), "first") {
+		t.Fatal("get lost the body")
+	}
+	if !strings.Contains(call(t, h.EditIssueCommentFn, map[string]any{"comment_id": id, "body": "second"}), "second") {
+		t.Fatal("edit lost the body")
+	}
+	if got := call(t, h.DeleteIssueCommentFn, map[string]any{"comment_id": id}); got != `{"Result":"Delete comment success"}` {
+		t.Fatalf("delete: %q", got)
+	}
+	if msg := callErr(t, h.GetIssueCommentFn, map[string]any{"comment_id": id}); !strings.Contains(msg, "get issue comment err") {
+		t.Fatalf("after delete: %q", msg)
+	}
+}
+
+func TestListIssueComments_SinceBefore(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	comment(t, f, idx, "now")
+	if msg := callErr(t, h.ListIssueCommentsFn, map[string]any{"index": float64(idx), "since": "yesterday"}); !strings.Contains(msg, "invalid since") {
+		t.Fatalf("since: %q", msg)
+	}
+	if msg := callErr(t, h.ListIssueCommentsFn, map[string]any{"index": float64(idx), "before": "tomorrow"}); !strings.Contains(msg, "invalid before") {
+		t.Fatalf("before: %q", msg)
+	}
+	future := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	var list []forgejo_sdk.Comment
+	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": float64(idx), "since": future}), &list); err != nil || len(list) != 0 {
+		t.Fatalf("since future: %v %+v", err, list)
+	}
+}
+
+func TestListRepoMilestones(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.SeedMilestone(testOwner, testRepo, "v1")
+	done := f.SeedMilestone(testOwner, testRepo, "v0")
+	f.CloseMilestone(testOwner, testRepo, done)
+	open := call(t, h.ListRepoMilestonesFn, nil)
+	if !strings.Contains(open, `"v1"`) || strings.Contains(open, `"v0"`) {
+		t.Fatalf("open: %s", open)
+	}
+	if all := call(t, h.ListRepoMilestonesFn, map[string]any{"state": "all"}); !strings.Contains(all, `"v0"`) {
+		t.Fatalf("all: %s", all)
+	}
 }

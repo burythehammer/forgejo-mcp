@@ -67,15 +67,22 @@ func (s *Stub) mountAttachments(mux *http.ServeMux) {
 	f := s.Fake
 	const issues = "/api/v1/repos/{owner}/{repo}/issues/{rest...}"
 
+	s.assets = map[string]http.HandlerFunc{}
 	serve := func(method string, h func(w http.ResponseWriter, r *http.Request, owner, repo string, rt assetRoute)) {
-		mux.HandleFunc(method+" "+issues, func(w http.ResponseWriter, r *http.Request) {
-			rt, ok := parseAssetRoute(r.PathValue("rest"))
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			rest := r.PathValue("rest")
+			if rest == "" { // reached through the issue stub's two-segment route
+				rest = r.PathValue("a") + "/" + r.PathValue("b")
+			}
+			rt, ok := parseAssetRoute(rest)
 			if !ok {
 				http.NotFound(w, r)
 				return
 			}
 			h(w, r, r.PathValue("owner"), r.PathValue("repo"), rt)
-		})
+		}
+		s.assets[method] = handler
+		mux.HandleFunc(method+" "+issues, handler)
 	}
 
 	serve("GET", func(w http.ResponseWriter, r *http.Request, owner, repo string, rt assetRoute) {

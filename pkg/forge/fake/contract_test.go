@@ -78,3 +78,11 @@ func TestSearchContract(t *testing.T) {
 		return forgetest.Harness{Port: f, Seed: f}
 	})
 }
+
+func TestIssuesContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunIssues(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}

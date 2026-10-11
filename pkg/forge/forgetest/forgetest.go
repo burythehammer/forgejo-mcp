@@ -63,6 +63,9 @@ type Seeder interface {
 	SeedUser(u forgejo_sdk.User)
 	SeedTeam(org string, t forgejo_sdk.Team)
 	SeedSearchableRepo(r forgejo_sdk.Repository)
+	SeedIssueLabel(owner, repo, name string) int64
+	SeedMilestone(owner, repo, title string) int64
+	CloseMilestone(owner, repo string, id int64)
 }
 
 // Repo is the repository every case works in.

@@ -75,10 +75,6 @@ func (s *Stub) mountPulls(mux *http.ServeMux) {
 			forgejo_sdk.ListPullRequestFilesOptions{ListOptions: listOptions(r)})
 		reply(w, out, err)
 	})
-	mux.HandleFunc("GET /api/v1/repos/{owner}/{repo}/issues/{index}/comments", func(w http.ResponseWriter, r *http.Request) {
-		out, err := f.ListPullRequestComments(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "index"), listOptions(r))
-		reply(w, out, err)
-	})
 
 	mux.HandleFunc("GET "+pullsBase+"/{index}/reviews", func(w http.ResponseWriter, r *http.Request) {
 		out, err := f.ListPullReviews(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "index"),

@@ -50,6 +50,7 @@ type Forgejo struct {
 	actions  actionsState
 	tracking trackingState
 	search   searchState
+	issues   issueState
 }
 
 var _ forge.Forgejo = (*Forgejo)(nil)
