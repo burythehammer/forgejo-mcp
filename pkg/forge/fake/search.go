@@ -90,7 +90,7 @@ func (f *Forgejo) SearchRepos(_ context.Context, opt forgejo_sdk.SearchRepoOptio
 	defer f.search.mu.Unlock()
 	out := []*forgejo_sdk.Repository{}
 	for _, r := range f.search.repos {
-		if opt.Keyword != "" && !contains(r.Name, opt.Keyword) && !(opt.KeywordInDescription && contains(r.Description, opt.Keyword)) {
+		if opt.Keyword != "" && !contains(r.Name, opt.Keyword) && (!opt.KeywordInDescription || !contains(r.Description, opt.Keyword)) {
 			continue
 		}
 		cp := *r

@@ -325,14 +325,14 @@ func parseRange(spec string, total int64) (start, end int64, err error) {
 	if !ok {
 		return 0, 0, errors.New("bad range")
 	}
-	switch {
-	case lo == "":
+	if lo == "" {
 		n, perr := strconv.ParseInt(hi, 10, 64)
 		if perr != nil || n <= 0 {
 			return 0, 0, errors.New("bad range")
 		}
 		return max(total-n, 0), total - 1, nil
-	default:
+	}
+	{
 		start, err = strconv.ParseInt(lo, 10, 64)
 		if err != nil || start >= total {
 			return 0, 0, errors.New("bad range")

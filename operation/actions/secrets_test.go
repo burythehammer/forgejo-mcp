@@ -4,189 +4,90 @@ package actions
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func setupSecretsMockServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *string, *string) {
-	t.Helper()
-	var capturedPath, capturedBody string
+func TestRepoActionSecrets_RoundTripNeverLeaksValues(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedPath = r.URL.Path
-		if r.Body != nil {
-			defer r.Body.Close()
-			buf := make([]byte, 4096)
-			n, _ := r.Body.Read(buf)
-			capturedBody = string(buf[:n])
-		}
-		handler(w, r)
-	}))
-
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
-	}
-	forgejo.SetClientForTesting(client)
-
-	return srv, &capturedPath, &capturedBody
-}
-
-func TestListRepoActionSecretsFn_OmitsValues(t *testing.T) {
-	srv, capturedPath, _ := setupSecretsMockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[{"name":"DEPLOY_TOKEN","data":"should-not-leak","created_at":"2026-01-01T00:00:00Z"}]`))
-	})
-	defer srv.Close()
-
-	result, err := ListRepoActionSecretsFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r",
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("unexpected tool error")
+	created := call(t, h.CreateOrUpdateRepoActionSecretFn, repoArgs(map[string]any{"secret_name": "DEPLOY_TOKEN", "data": "super-secret-value"}))
+	if strings.Contains(created, "super-secret-value") || !strings.Contains(created, "created_or_updated") {
+		t.Fatalf("unexpected create result: %s", created)
 	}
 
-	if *capturedPath != "/api/v1/repos/o/r/actions/secrets" {
-		t.Fatalf("path: %s", *capturedPath)
+	listed := call(t, h.ListRepoActionSecretsFn, repoArgs(nil))
+	if strings.Contains(listed, "super-secret-value") || !strings.Contains(listed, "DEPLOY_TOKEN") {
+		t.Fatalf("list should show the name and never the value: %s", listed)
 	}
 
-	text := result.Content[0].(mcp.TextContent).Text
-	if strings.Contains(text, "should-not-leak") {
-		t.Fatalf("secret value leaked into tool result: %s", text)
+	deleted := call(t, h.DeleteRepoActionSecretFn, repoArgs(map[string]any{"secret_name": "DEPLOY_TOKEN"}))
+	if !strings.Contains(deleted, "deleted") {
+		t.Fatalf("unexpected delete result: %s", deleted)
 	}
-	if !strings.Contains(text, "DEPLOY_TOKEN") {
-		t.Fatalf("expected secret name in result: %s", text)
+	if listed := call(t, h.ListRepoActionSecretsFn, repoArgs(nil)); strings.Contains(listed, "DEPLOY_TOKEN") {
+		t.Fatalf("deleted secret still listed: %s", listed)
 	}
 }
 
-func TestCreateOrUpdateRepoActionSecretFn_SendsPutWithData(t *testing.T) {
-	srv, capturedPath, capturedBody := setupSecretsMockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			t.Errorf("expected PUT, got %s", r.Method)
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-	defer srv.Close()
-
-	result, err := CreateOrUpdateRepoActionSecretFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "secret_name": "DEPLOY_TOKEN", "data": "super-secret-value",
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("unexpected tool error")
+func TestListRepoActionSecretsFn_Pagination(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	for _, n := range []string{"AAA", "BBB", "CCC"} {
+		call(t, h.CreateOrUpdateRepoActionSecretFn, repoArgs(map[string]any{"secret_name": n, "data": "x"}))
 	}
 
-	if *capturedPath != "/api/v1/repos/o/r/actions/secrets/DEPLOY_TOKEN" {
-		t.Fatalf("path: %s", *capturedPath)
-	}
-	var body map[string]interface{}
-	if err := json.Unmarshal([]byte(*capturedBody), &body); err != nil {
-		t.Fatalf("unmarshal body: %v", err)
-	}
-	if body["data"] != "super-secret-value" {
-		t.Fatalf("expected data in request body, got: %v", body)
-	}
+	got := decode[listRepoActionSecretsResult](t, h.ListRepoActionSecretsFn, repoArgs(map[string]any{"page": 2.0, "limit": 2.0}))
 
-	text := result.Content[0].(mcp.TextContent).Text
-	if strings.Contains(text, "super-secret-value") {
-		t.Fatalf("secret value leaked into tool result: %s", text)
+	if got.Count != 1 || got.Secrets[0].Name != "CCC" || got.Page != 2 || got.Limit != 2 {
+		t.Fatalf("page 2: %+v", got)
 	}
 }
 
 func TestCreateOrUpdateRepoActionSecretFn_MissingData(t *testing.T) {
-	_, err := CreateOrUpdateRepoActionSecretFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "secret_name": "DEPLOY_TOKEN",
-	}))
-	if err == nil {
-		t.Fatal("expected error for missing data, got nil")
+	t.Parallel()
+	h, _ := newFixture(t)
+
+	callErr(t, h.CreateOrUpdateRepoActionSecretFn, repoArgs(map[string]any{"secret_name": "DEPLOY_TOKEN"}))
+}
+
+func TestDeleteRepoActionSecretFn_UnknownSecret(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+
+	err := callErr(t, h.DeleteRepoActionSecretFn, repoArgs(map[string]any{"secret_name": "GONE"}))
+
+	if !strings.Contains(err.Error(), "delete repo action secret") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
-func TestDeleteRepoActionSecretFn_SendsDelete(t *testing.T) {
-	srv, capturedPath, _ := setupSecretsMockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete {
-			t.Errorf("expected DELETE, got %s", r.Method)
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-	defer srv.Close()
+func TestOrgActionSecrets_RoundTripNeverLeaksValues(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddActionsOrg("acme")
 
-	result, err := DeleteRepoActionSecretFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"owner": "o", "repo": "r", "secret_name": "DEPLOY_TOKEN",
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	call(t, h.CreateOrUpdateOrgActionSecretFn, map[string]any{"org": "acme", "secret_name": "NPM_TOKEN", "data": "should-not-leak"})
+	listed := call(t, h.ListOrgActionSecretsFn, map[string]any{"org": "acme"})
+	if strings.Contains(listed, "should-not-leak") || !strings.Contains(listed, "NPM_TOKEN") {
+		t.Fatalf("list should show the name and never the value: %s", listed)
 	}
-	if result.IsError {
-		t.Fatalf("unexpected tool error")
-	}
-	if *capturedPath != "/api/v1/repos/o/r/actions/secrets/DEPLOY_TOKEN" {
-		t.Fatalf("path: %s", *capturedPath)
+
+	call(t, h.DeleteOrgActionSecretFn, map[string]any{"org": "acme", "secret_name": "NPM_TOKEN"})
+	port, _ := h.forge.For(context.Background())
+	left, err := port.ListOrgActionSecrets(context.Background(), "acme", forgejo_sdk.ListOptions{})
+	if err != nil || len(left) != 0 {
+		t.Fatalf("secrets left: %v %+v", err, left)
 	}
 }
 
-func TestListOrgActionSecretsFn_OmitsValues(t *testing.T) {
-	srv, capturedPath, _ := setupSecretsMockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[{"name":"NPM_TOKEN","data":"should-not-leak"}]`))
-	})
-	defer srv.Close()
+func TestOrgActionSecrets_UnknownOrgAndMissingOrg(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
 
-	result, err := ListOrgActionSecretsFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"org": "acme",
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if *capturedPath != "/api/v1/orgs/acme/actions/secrets" {
-		t.Fatalf("path: %s", *capturedPath)
-	}
-	text := result.Content[0].(mcp.TextContent).Text
-	if strings.Contains(text, "should-not-leak") {
-		t.Fatalf("secret value leaked into tool result: %s", text)
-	}
-}
-
-func TestCreateOrUpdateOrgActionSecretFn_MissingOrg(t *testing.T) {
-	_, err := CreateOrUpdateOrgActionSecretFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"secret_name": "NPM_TOKEN", "data": "value",
-	}))
-	if err == nil {
-		t.Fatal("expected error for missing org, got nil")
-	}
-}
-
-func TestDeleteOrgActionSecretFn_SendsDelete(t *testing.T) {
-	srv, capturedPath, _ := setupSecretsMockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete {
-			t.Errorf("expected DELETE, got %s", r.Method)
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-	defer srv.Close()
-
-	result, err := DeleteOrgActionSecretFn(context.Background(), newCallToolRequest(map[string]interface{}{
-		"org": "acme", "secret_name": "NPM_TOKEN",
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("unexpected tool error")
-	}
-	if *capturedPath != "/api/v1/orgs/acme/actions/secrets/NPM_TOKEN" {
-		t.Fatalf("path: %s", *capturedPath)
-	}
+	callErr(t, h.ListOrgActionSecretsFn, map[string]any{"org": "ghost"})
+	callErr(t, h.CreateOrUpdateOrgActionSecretFn, map[string]any{"secret_name": "NPM_TOKEN", "data": "value"})
 }

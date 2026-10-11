@@ -1,57 +1,92 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package tracking
 
 import (
 	"context"
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+// Handler tests run against the in-memory fake, build their own, and so run in
+// parallel with no shared state.
+
+const (
+	testOwner = "goern"
+	testRepo  = "forgejo-mcp"
+)
+
+// newFixture returns handlers served by a fresh fake holding issue #106.
+func newFixture(t *testing.T) (handlers, *fake.Forgejo) {
+	t.Helper()
+	f := fake.New()
+	f.AddTrackableIssue(testOwner, testRepo, 106, "track me")
+	return handlers{forge: fake.Factory{Forgejo: f}}, f
+}
 
 func newCallToolRequest(args map[string]any) mcp.CallToolRequest {
 	return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
 }
 
-type capturedRequest struct {
-	method string
-	path   string // URL path only
-	query  string // raw query string (empty if absent)
-	body   string
+func issueArgs(extra map[string]any) map[string]any {
+	args := map[string]any{"owner": testOwner, "repo": testRepo, "index": 106.0}
+	for k, v := range extra {
+		args[k] = v
+	}
+	return args
 }
 
-// mockServer records each incoming request and serves canned responses keyed
-// by (method, pathPrefix). Tests assert against captured() afterwards.
-func mockServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *[]capturedRequest) {
-	t.Helper()
-	captured := make([]capturedRequest, 0, 4)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		captured = append(captured, capturedRequest{
-			method: r.Method,
-			path:   r.URL.Path,
-			query:  r.URL.RawQuery,
-			body:   string(body),
-		})
-		w.Header().Set("Content-Type", "application/json")
-		handler(w, r)
-	}))
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
+type toolFn func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+
+func textOf(res *mcp.CallToolResult) string {
+	var b strings.Builder
+	for _, c := range res.Content {
+		if tc, ok := c.(mcp.TextContent); ok {
+			b.WriteString(tc.Text)
+		}
 	}
-	forgejo.SetClientForTesting(client)
-	return srv, &captured
+	return b.String()
+}
+
+// call runs a tool and fails the test unless it succeeded.
+func call(t *testing.T, fn toolFn, args map[string]any) string {
+	t.Helper()
+	res, err := fn(context.Background(), newCallToolRequest(args))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("err=%v res=%+v", err, res)
+	}
+	return textOf(res)
+}
+
+// callErr runs a tool and returns its error, failing the test if it succeeded.
+func callErr(t *testing.T, fn toolFn, args map[string]any) error {
+	t.Helper()
+	_, err := fn(context.Background(), newCallToolRequest(args))
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	return err
+}
+
+func tracked(t *testing.T, f *fake.Forgejo, index int64) []*forgejo_sdk.TrackedTime {
+	t.Helper()
+	got, err := f.ListIssueTrackedTimes(context.Background(), testOwner, testRepo, index, forgejo_sdk.ListTrackedTimesOptions{})
+	if err != nil {
+		t.Fatalf("reading tracked times: %v", err)
+	}
+	return got
 }
 
 // --- resolveSeconds ----------------------------------------------------------
 
 func TestResolveSeconds_Table(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		args    map[string]any
@@ -72,6 +107,7 @@ func TestResolveSeconds_Table(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := resolveSeconds(tc.args)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
@@ -92,267 +128,253 @@ func TestResolveSeconds_Table(t *testing.T) {
 // --- AddIssueTimeFn ---------------------------------------------------------
 
 func TestAddIssueTimeFn_DurationInput(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/times") {
-			http.NotFound(w, r)
-			return
-		}
-		_ = json.NewEncoder(w).Encode(forgejo_sdk.TrackedTime{ID: 42, Time: 900, UserName: "alice"})
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
 
-	req := newCallToolRequest(map[string]any{
-		"owner":    "goern",
-		"repo":     "forgejo-mcp",
-		"index":    106.0,
-		"duration": "15m",
-	})
-	res, err := AddIssueTimeFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("AddIssueTimeFn error: %v", err)
-	}
-	if res.IsError {
-		t.Fatalf("expected success, got error result: %+v", res)
-	}
-	if len(*captured) != 1 {
-		t.Fatalf("expected 1 API call, got %d", len(*captured))
-	}
-	got := (*captured)[0]
-	if got.method != http.MethodPost {
-		t.Errorf("method = %s, want POST", got.method)
-	}
-	if !strings.Contains(got.path, "/repos/goern/forgejo-mcp/issues/106/times") {
-		t.Errorf("path = %s, want issues/106/times", got.path)
-	}
-	if !strings.Contains(got.body, `"time":900`) {
-		t.Errorf("body = %s, want time:900", got.body)
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"duration": "15m"}))
+
+	got := tracked(t, f, 106)
+	if len(got) != 1 || got[0].Time != 900 {
+		t.Fatalf("tracked times = %+v, want one entry of 900s", got)
 	}
 }
 
 func TestAddIssueTimeFn_InvalidDuration_ReturnsStructuredError(t *testing.T) {
-	// No mock server needed — should fail before any API call.
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		t.Fatalf("handler should not be called on invalid input; got %s %s", r.Method, r.URL.Path)
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
 
-	req := newCallToolRequest(map[string]any{
-		"owner":    "goern",
-		"repo":     "forgejo-mcp",
-		"index":    106.0,
-		"duration": "bananas",
-	})
-	_, err := AddIssueTimeFn(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for malformed duration, got nil")
-	}
+	err := callErr(t, h.AddIssueTimeFn, issueArgs(map[string]any{"duration": "bananas"}))
+
 	if !strings.Contains(err.Error(), "invalid duration") {
 		t.Errorf("unexpected error: %v", err)
 	}
-	if len(*captured) != 0 {
-		t.Errorf("should not hit API on validation failure, captured %d requests", len(*captured))
+	if got := tracked(t, f, 106); len(got) != 0 {
+		t.Errorf("validation failure must not log time, got %+v", got)
 	}
 }
 
 func TestAddIssueTimeFn_CreatedAtRFC3339(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(forgejo_sdk.TrackedTime{ID: 1, Time: 60})
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
 
-	req := newCallToolRequest(map[string]any{
-		"owner":      "o",
-		"repo":       "r",
-		"index":      1.0,
-		"seconds":    60.0,
-		"created_at": "2026-04-21T20:00:00Z",
-	})
-	if _, err := AddIssueTimeFn(context.Background(), req); err != nil {
-		t.Fatalf("unexpected err: %v", err)
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 60.0, "created_at": "2026-04-21T20:00:00Z"}))
+
+	got := tracked(t, f, 106)
+	want := time.Date(2026, 4, 21, 20, 0, 0, 0, time.UTC)
+	if len(got) != 1 || !got[0].Created.Equal(want) {
+		t.Errorf("tracked times = %+v, want one entry created %s", got, want)
 	}
-	if !strings.Contains((*captured)[0].body, `"created":"2026-04-21T20:00:00Z"`) {
-		t.Errorf("expected created timestamp in body, got: %s", (*captured)[0].body)
+}
+
+func TestAddIssueTimeFn_UserName(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 60.0, "user_name": "alice"}))
+
+	if got := tracked(t, f, 106); len(got) != 1 || got[0].UserName != "alice" {
+		t.Errorf("tracked times = %+v, want one entry for alice", got)
 	}
 }
 
 func TestAddIssueTimeFn_InvalidCreatedAt(t *testing.T) {
-	srv, _ := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		t.Fatalf("handler should not be called; got %s %s", r.Method, r.URL.Path)
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, _ := newFixture(t)
 
-	req := newCallToolRequest(map[string]any{
-		"owner":      "o",
-		"repo":       "r",
-		"index":      1.0,
-		"seconds":    60.0,
-		"created_at": "yesterday afternoon",
-	})
-	_, err := AddIssueTimeFn(context.Background(), req)
-	if err == nil || !strings.Contains(err.Error(), "invalid created_at") {
+	err := callErr(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 60.0, "created_at": "yesterday afternoon"}))
+
+	if !strings.Contains(err.Error(), "invalid created_at") {
 		t.Fatalf("expected invalid created_at error, got %v", err)
+	}
+}
+
+func TestAddIssueTimeFn_UnknownIssue(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+
+	err := callErr(t, h.AddIssueTimeFn, issueArgs(map[string]any{"index": 999.0, "seconds": 60.0}))
+
+	if !strings.Contains(err.Error(), "add issue time err") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
 // --- ListIssueTrackedTimesFn ------------------------------------------------
 
-func TestListIssueTrackedTimesFn_FiltersPassed(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode([]forgejo_sdk.TrackedTime{{ID: 1, Time: 60}})
-	})
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]any{
-		"owner":  "o",
-		"repo":   "r",
-		"index":  42.0,
-		"since":  "2026-01-01T00:00:00Z",
-		"before": "2026-12-31T23:59:59Z",
-	})
-	if _, err := ListIssueTrackedTimesFn(context.Background(), req); err != nil {
-		t.Fatalf("err: %v", err)
+func TestListIssueTrackedTimesFn_FiltersApplied(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	for _, created := range []string{"2025-06-01T00:00:00Z", "2026-06-01T00:00:00Z", "2027-06-01T00:00:00Z"} {
+		call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 60.0, "created_at": created}))
 	}
-	got := (*captured)[0].query
-	if !strings.Contains(got, "since=2026-01-01") || !strings.Contains(got, "before=2026-12-31") {
-		t.Errorf("query filters missing in URL query: %s", got)
+	if got := tracked(t, f, 106); len(got) != 3 {
+		t.Fatalf("seeded %d entries, want 3", len(got))
+	}
+
+	out := call(t, h.ListIssueTrackedTimesFn, issueArgs(map[string]any{
+		"since": "2026-01-01T00:00:00Z", "before": "2026-12-31T23:59:59Z",
+	}))
+
+	if !strings.Contains(out, "2026-06-01") || strings.Contains(out, "2025-06-01") || strings.Contains(out, "2027-06-01") {
+		t.Errorf("window not applied: %s", out)
+	}
+}
+
+func TestListIssueTrackedTimesFn_Pagination(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	for _, secs := range []float64{11, 22, 33} {
+		call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": secs}))
+	}
+
+	out := call(t, h.ListIssueTrackedTimesFn, issueArgs(map[string]any{"page": 2.0, "limit": 2.0}))
+
+	if !strings.Contains(out, `"time":33`) || strings.Contains(out, `"time":11`) || strings.Contains(out, `"time":22`) {
+		t.Errorf("page 2 of 2-per-page should hold only the third entry: %s", out)
 	}
 }
 
 func TestListIssueTrackedTimesFn_InvalidSince(t *testing.T) {
-	srv, _ := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		t.Fatalf("handler should not be called")
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, _ := newFixture(t)
 
-	req := newCallToolRequest(map[string]any{
-		"owner": "o",
-		"repo":  "r",
-		"index": 1.0,
-		"since": "not-rfc3339",
-	})
-	if _, err := ListIssueTrackedTimesFn(context.Background(), req); err == nil {
-		t.Fatal("expected error for invalid since")
-	}
+	callErr(t, h.ListIssueTrackedTimesFn, issueArgs(map[string]any{"since": "not-rfc3339"}))
 }
 
 // --- ListRepoTrackedTimesFn -------------------------------------------------
 
-func TestListRepoTrackedTimesFn_UserFilterPassed(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode([]forgejo_sdk.TrackedTime{})
-	})
-	defer srv.Close()
+func TestListRepoTrackedTimesFn_UserFilterApplied(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 61.0, "user_name": "alice"}))
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 62.0, "user_name": "bob"}))
 
-	req := newCallToolRequest(map[string]any{
-		"owner": "o",
-		"repo":  "r",
-		"user":  "alice",
-	})
-	if _, err := ListRepoTrackedTimesFn(context.Background(), req); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if !strings.Contains((*captured)[0].query, "user=alice") {
-		t.Errorf("expected user filter in URL query, got: %s", (*captured)[0].query)
+	out := call(t, h.ListRepoTrackedTimesFn, map[string]any{"owner": testOwner, "repo": testRepo, "user": "alice"})
+
+	if !strings.Contains(out, "alice") || strings.Contains(out, "bob") {
+		t.Errorf("user filter not applied: %s", out)
 	}
 }
 
 // --- ResetIssueTimeFn / DeleteIssueTimeEntryFn ------------------------------
 
 func TestResetIssueTimeFn(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 30.0}))
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 40.0}))
 
-	req := newCallToolRequest(map[string]any{"owner": "o", "repo": "r", "index": 7.0})
-	if _, err := ResetIssueTimeFn(context.Background(), req); err != nil {
-		t.Fatalf("err: %v", err)
+	out := call(t, h.ResetIssueTimeFn, issueArgs(nil))
+
+	if !strings.Contains(out, "Reset tracked time success") {
+		t.Errorf("result = %q", out)
 	}
-	got := (*captured)[0]
-	if got.method != http.MethodDelete || !strings.HasSuffix(got.path, "/issues/7/times") {
-		t.Errorf("unexpected request: %+v", got)
+	if got := tracked(t, f, 106); len(got) != 0 {
+		t.Errorf("entries remain after reset: %+v", got)
 	}
 }
 
 func TestDeleteIssueTimeEntryFn(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 30.0}))
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 40.0}))
+	first := tracked(t, f, 106)[0]
 
-	req := newCallToolRequest(map[string]any{"owner": "o", "repo": "r", "index": 7.0, "time_id": 99.0})
-	if _, err := DeleteIssueTimeEntryFn(context.Background(), req); err != nil {
-		t.Fatalf("err: %v", err)
+	out := call(t, h.DeleteIssueTimeEntryFn, issueArgs(map[string]any{"time_id": float64(first.ID)}))
+
+	if !strings.Contains(out, "Delete time entry success") {
+		t.Errorf("result = %q", out)
 	}
-	got := (*captured)[0]
-	if got.method != http.MethodDelete || !strings.HasSuffix(got.path, "/issues/7/times/99") {
-		t.Errorf("unexpected request: %+v", got)
+	if got := tracked(t, f, 106); len(got) != 1 || got[0].ID == first.ID {
+		t.Errorf("entry %d not the one removed: %+v", first.ID, got)
+	}
+}
+
+func TestDeleteIssueTimeEntryFn_UnknownEntry(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+
+	err := callErr(t, h.DeleteIssueTimeEntryFn, issueArgs(map[string]any{"time_id": 12345.0}))
+
+	if !strings.Contains(err.Error(), "delete time entry err") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
 // --- Stopwatches ------------------------------------------------------------
 
-func TestStartStopCancelStopwatch(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-	})
-	defer srv.Close()
+func TestStartStopStopwatchRecordsTime(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+	f.Now = func() time.Time { return now }
 
-	req := newCallToolRequest(map[string]any{"owner": "o", "repo": "r", "index": 3.0})
-
-	if _, err := StartIssueStopwatchFn(context.Background(), req); err != nil {
-		t.Fatalf("start err: %v", err)
+	if out := call(t, h.StartIssueStopwatchFn, issueArgs(nil)); !strings.Contains(out, "Stopwatch started") {
+		t.Errorf("start result = %q", out)
 	}
-	if _, err := StopIssueStopwatchFn(context.Background(), req); err != nil {
-		t.Fatalf("stop err: %v", err)
-	}
-	if _, err := CancelIssueStopwatchFn(context.Background(), req); err != nil {
-		t.Fatalf("cancel err: %v", err)
+	now = now.Add(90 * time.Second)
+	if out := call(t, h.StopIssueStopwatchFn, issueArgs(nil)); !strings.Contains(out, "Stopwatch stopped") {
+		t.Errorf("stop result = %q", out)
 	}
 
-	if len(*captured) != 3 {
-		t.Fatalf("expected 3 calls, got %d", len(*captured))
+	got := tracked(t, f, 106)
+	if len(got) != 1 || got[0].Time != 90 {
+		t.Errorf("tracked times = %+v, want one entry of 90s", got)
 	}
-	expectSuffixes := []string{"/issues/3/stopwatch/start", "/issues/3/stopwatch/stop", "/issues/3/stopwatch/delete"}
-	for i, want := range expectSuffixes {
-		if !strings.HasSuffix((*captured)[i].path, want) {
-			t.Errorf("call %d: path %s, want suffix %s", i, (*captured)[i].path, want)
-		}
+}
+
+func TestCancelStopwatchRecordsNothing(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	call(t, h.StartIssueStopwatchFn, issueArgs(nil))
+
+	if out := call(t, h.CancelIssueStopwatchFn, issueArgs(nil)); !strings.Contains(out, "Stopwatch cancelled") {
+		t.Errorf("cancel result = %q", out)
+	}
+
+	if got := tracked(t, f, 106); len(got) != 0 {
+		t.Errorf("cancel must not record time, got %+v", got)
+	}
+	if out := call(t, h.ListMyStopwatchesFn, nil); strings.Contains(out, "track me") {
+		t.Errorf("cancelled stopwatch still listed: %s", out)
+	}
+}
+
+func TestStopWithoutStartIsAnError(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+
+	err := callErr(t, h.StopIssueStopwatchFn, issueArgs(nil))
+
+	if !strings.Contains(err.Error(), "stop issue stopwatch err") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
 func TestListMyStopwatchesFn(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode([]forgejo_sdk.StopWatch{{Seconds: 123, IssueIndex: 4, RepoName: "r"}})
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, _ := newFixture(t)
+	call(t, h.StartIssueStopwatchFn, issueArgs(nil))
 
-	req := newCallToolRequest(map[string]any{})
-	res, err := ListMyStopwatchesFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if res.IsError {
-		t.Fatalf("expected success")
-	}
-	if !strings.HasSuffix((*captured)[0].path, "/user/stopwatches") {
-		t.Errorf("unexpected path: %s", (*captured)[0].path)
+	out := call(t, h.ListMyStopwatchesFn, nil)
+
+	if !strings.Contains(out, "track me") || !strings.Contains(out, testRepo) {
+		t.Errorf("running stopwatch not listed: %s", out)
 	}
 }
 
 // --- ListMyTrackedTimesFn ---------------------------------------------------
 
 func TestListMyTrackedTimesFn(t *testing.T) {
-	srv, captured := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode([]forgejo_sdk.TrackedTime{{ID: 1, Time: 60}})
-	})
-	defer srv.Close()
+	t.Parallel()
+	h, _ := newFixture(t)
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 77.0}))
+	call(t, h.AddIssueTimeFn, issueArgs(map[string]any{"seconds": 88.0, "user_name": "someone-else"}))
 
-	req := newCallToolRequest(map[string]any{})
-	if _, err := ListMyTrackedTimesFn(context.Background(), req); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if !strings.HasSuffix((*captured)[0].path, "/user/times") {
-		t.Errorf("unexpected path: %s", (*captured)[0].path)
+	out := call(t, h.ListMyTrackedTimesFn, nil)
+
+	if !strings.Contains(out, `"time":77`) || strings.Contains(out, `"time":88`) {
+		t.Errorf("should list only the caller's entries: %s", out)
 	}
 }

@@ -20,16 +20,14 @@ const (
 	DispatchWorkflowToolName = "dispatch_workflow"
 )
 
-var (
-	DispatchWorkflowTool = mcp.NewTool(
-		DispatchWorkflowToolName,
-		mcp.WithDescription("Trigger a workflow run"),
-		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
-		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-		mcp.WithString("workflow", mcp.Required(), mcp.Description(params.Workflow)),
-		mcp.WithString("ref", mcp.Required(), mcp.Description(params.Ref)),
-		mcp.WithString("inputs", mcp.Description(params.Inputs)),
-	)
+var DispatchWorkflowTool = mcp.NewTool(
+	DispatchWorkflowToolName,
+	mcp.WithDescription("Trigger a workflow run"),
+	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
+	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
+	mcp.WithString("workflow", mcp.Required(), mcp.Description(params.Workflow)),
+	mcp.WithString("ref", mcp.Required(), mcp.Description(params.Ref)),
+	mcp.WithString("inputs", mcp.Description(params.Inputs)),
 )
 
 // handlers serve the Actions tools from the Forgejo port.

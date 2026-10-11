@@ -1,316 +1,175 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package actions
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"strings"
 	"testing"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func newCallToolRequest(args map[string]interface{}) mcp.CallToolRequest {
-	return mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Arguments: args,
-		},
-	}
-}
-
-// setupDispatchMockServer creates a mock server that expects a workflow dispatch POST
-// and returns the captured request body and recorded path.
-func setupDispatchMockServer(t *testing.T, statusCode int) (*httptest.Server, *string, *[]byte) {
+func listRuns(t *testing.T, f interface {
+	ListWorkflowRuns(context.Context, string, string, forgejo_sdk.ListActionRunsOption) (*forgejo_sdk.ListActionRunsResponse, error)
+},
+) *forgejo_sdk.ListActionRunsResponse {
 	t.Helper()
-	var capturedPath string
-	var capturedBody []byte
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedPath = r.URL.Path
-		if r.Body != nil {
-			defer r.Body.Close()
-			buf := make([]byte, 1024)
-			n, _ := r.Body.Read(buf)
-			capturedBody = buf[:n]
-		}
-		w.WriteHeader(statusCode)
-	}))
-
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
+	runs, err := f.ListWorkflowRuns(context.Background(), testOwner, testRepo, forgejo_sdk.ListActionRunsOption{})
 	if err != nil {
-		t.Fatalf("creating test client: %v", err)
+		t.Fatalf("listing runs: %v", err)
 	}
-	forgejo.SetClientForTesting(client)
-
-	return srv, &capturedPath, &capturedBody
+	return runs
 }
 
 func TestDispatchWorkflowFn_Success(t *testing.T) {
-	srv, capturedPath, _ := setupDispatchMockServer(t, http.StatusNoContent)
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddWorkflow(testOwner, testRepo, "ci.yml")
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":    "testowner",
-		"repo":     "testrepo",
-		"workflow": "ci.yml",
-		"ref":      "main",
-	})
+	out := call(t, h.DispatchWorkflowFn, repoArgs(map[string]any{"workflow": "ci.yml", "ref": "main"}))
 
-	result, err := DispatchWorkflowFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("DispatchWorkflowFn returned error: %v", err)
+	if !strings.Contains(out, "Workflow dispatched successfully") || !strings.Contains(out, "/o/r/actions") {
+		t.Errorf("unexpected result: %s", out)
 	}
-	if result.IsError {
-		t.Fatalf("DispatchWorkflowFn returned tool error")
-	}
-
-	expectedPath := "/api/v1/repos/testowner/testrepo/actions/workflows/ci.yml/dispatches"
-	if *capturedPath != expectedPath {
-		t.Errorf("wrong path: got %q, want %q", *capturedPath, expectedPath)
+	runs := listRuns(t, f)
+	if len(runs.WorkflowRuns) != 1 || runs.WorkflowRuns[0].PrettyRef != "main" {
+		t.Fatalf("dispatch should queue one run on main, got %+v", runs)
 	}
 }
 
 func TestDispatchWorkflowFn_WithInputs(t *testing.T) {
-	srv, _, capturedBody := setupDispatchMockServer(t, http.StatusNoContent)
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddWorkflow(testOwner, testRepo, "deploy.yml")
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":    "testowner",
-		"repo":     "testrepo",
-		"workflow": "deploy.yml",
-		"ref":      "v1.0.0",
-		"inputs":   `{"environment": "production", "debug": "false"}`,
-	})
+	call(t, h.DispatchWorkflowFn, repoArgs(map[string]any{
+		"workflow": "deploy.yml", "ref": "v1.0.0", "inputs": `{"environment": "production", "debug": "false"}`,
+	}))
 
-	result, err := DispatchWorkflowFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("DispatchWorkflowFn returned error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("DispatchWorkflowFn returned tool error")
-	}
-
-	var body map[string]interface{}
-	if err := json.Unmarshal(*capturedBody, &body); err != nil {
-		t.Fatalf("unmarshaling captured body: %v", err)
-	}
-
-	inputs, ok := body["inputs"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected inputs in request body, got: %v", body)
-	}
-	if inputs["environment"] != "production" {
-		t.Errorf("expected environment=production, got %v", inputs["environment"])
+	if len(listRuns(t, f).WorkflowRuns) != 1 {
+		t.Fatal("a valid inputs object must dispatch")
 	}
 }
 
 func TestDispatchWorkflowFn_InvalidInputsJSON(t *testing.T) {
-	srv, _, _ := setupDispatchMockServer(t, http.StatusNoContent)
-	defer srv.Close()
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddWorkflow(testOwner, testRepo, "ci.yml")
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":    "testowner",
-		"repo":     "testrepo",
-		"workflow": "ci.yml",
-		"ref":      "main",
-		"inputs":   `not-valid-json`,
-	})
+	err := callErr(t, h.DispatchWorkflowFn, repoArgs(map[string]any{"workflow": "ci.yml", "ref": "main", "inputs": "not-valid-json"}))
 
-	_, err := DispatchWorkflowFn(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for invalid inputs JSON, got nil")
+	if !strings.Contains(err.Error(), "invalid inputs JSON") {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(listRuns(t, f).WorkflowRuns) != 0 {
+		t.Error("nothing may be dispatched on invalid inputs")
 	}
 }
 
-func TestDispatchWorkflowFn_MissingOwner(t *testing.T) {
-	req := newCallToolRequest(map[string]interface{}{
-		"repo":     "testrepo",
-		"workflow": "ci.yml",
-		"ref":      "main",
-	})
+func TestDispatchWorkflowFn_UnknownWorkflow(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
 
-	_, err := DispatchWorkflowFn(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for missing owner, got nil")
+	err := callErr(t, h.DispatchWorkflowFn, repoArgs(map[string]any{"workflow": "nope.yml", "ref": "main"}))
+
+	if !strings.Contains(err.Error(), "failed to dispatch workflow") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
-func TestDispatchWorkflowFn_MissingWorkflow(t *testing.T) {
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "testowner",
-		"repo":  "testrepo",
-		"ref":   "main",
-	})
-
-	_, err := DispatchWorkflowFn(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for missing workflow, got nil")
-	}
-}
-
-// setupListRunsMockServer creates a mock server that returns a list of workflow runs.
-func setupListRunsMockServer(t *testing.T, response interface{}, statusCode int) (*httptest.Server, *string) {
-	t.Helper()
-	var capturedPath string
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedPath = r.URL.Path
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(statusCode)
-		if response != nil {
-			json.NewEncoder(w).Encode(response)
+func TestDispatchWorkflowFn_MissingArguments(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	for name, args := range map[string]map[string]any{
+		"owner":    {"repo": testRepo, "workflow": "ci.yml", "ref": "main"},
+		"workflow": {"owner": testOwner, "repo": testRepo, "ref": "main"},
+		"ref":      {"owner": testOwner, "repo": testRepo, "workflow": "ci.yml"},
+	} {
+		if err := callErr(t, h.DispatchWorkflowFn, args); !strings.Contains(err.Error(), name+" is required") {
+			t.Errorf("missing %s: %v", name, err)
 		}
-	}))
-
-	client, err := forgejo_sdk.NewClient(srv.URL, forgejo_sdk.SetForgejoVersion("7.0.0"))
-	if err != nil {
-		t.Fatalf("creating test client: %v", err)
 	}
-	forgejo.SetClientForTesting(client)
-
-	return srv, &capturedPath
 }
 
 func TestListWorkflowRunsFn_ReturnsRuns(t *testing.T) {
-	mockResponse := map[string]interface{}{
-		"total_count": 2,
-		"workflow_runs": []map[string]interface{}{
-			{
-				"id":         1,
-				"title":      "Run CI",
-				"status":     "success",
-				"event":      "push",
-				"commit_sha": "abc1234567890",
-				"html_url":   "https://example.com/runs/1",
-			},
-			{
-				"id":         2,
-				"title":      "Deploy",
-				"status":     "running",
-				"event":      "workflow_dispatch",
-				"commit_sha": "def9876543210",
-				"html_url":   "https://example.com/runs/2",
-			},
-		},
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Title: "Run CI", Status: "success", Event: "push", CommitSHA: "abc1234567890"})
+	f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Title: "Deploy", Status: "running", Event: "workflow_dispatch", CommitSHA: "def9876543210"})
+
+	out := call(t, h.ListWorkflowRunsFn, repoArgs(nil))
+
+	for _, want := range []string{"total: 2", "Run CI", "Deploy", "SHA: abc1234", "SHA: def9876"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
 	}
+}
 
-	srv, capturedPath := setupListRunsMockServer(t, mockResponse, http.StatusOK)
-	defer srv.Close()
+func TestListWorkflowRunsFn_Filters(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Title: "Run CI", Status: "success", Event: "push"})
+	f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Title: "Deploy", Status: "running", Event: "workflow_dispatch"})
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "testowner",
-		"repo":  "testrepo",
-	})
+	out := call(t, h.ListWorkflowRunsFn, repoArgs(map[string]any{"status": "running"}))
 
-	result, err := ListWorkflowRunsFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("ListWorkflowRunsFn returned error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("ListWorkflowRunsFn returned tool error")
-	}
-
-	expectedPath := "/api/v1/repos/testowner/testrepo/actions/runs"
-	if *capturedPath != expectedPath {
-		t.Errorf("wrong path: got %q, want %q", *capturedPath, expectedPath)
+	if !strings.Contains(out, "Deploy") || strings.Contains(out, "Run CI") {
+		t.Errorf("status filter not applied: %s", out)
 	}
 }
 
 func TestListWorkflowRunsFn_EmptyResult(t *testing.T) {
-	mockResponse := map[string]interface{}{
-		"total_count":   0,
-		"workflow_runs": []interface{}{},
-	}
+	t.Parallel()
+	h, _ := newFixture(t)
 
-	srv, _ := setupListRunsMockServer(t, mockResponse, http.StatusOK)
-	defer srv.Close()
+	out := call(t, h.ListWorkflowRunsFn, repoArgs(nil))
 
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "testowner",
-		"repo":  "testrepo",
-	})
-
-	result, err := ListWorkflowRunsFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("ListWorkflowRunsFn returned error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("ListWorkflowRunsFn returned tool error")
+	if !strings.Contains(out, "No workflow runs found for o/r") {
+		t.Errorf("unexpected result: %s", out)
 	}
 }
 
 func TestListWorkflowRunsFn_MissingRepo(t *testing.T) {
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "testowner",
-	})
+	t.Parallel()
+	h, _ := newFixture(t)
 
-	_, err := ListWorkflowRunsFn(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for missing repo, got nil")
-	}
+	callErr(t, h.ListWorkflowRunsFn, map[string]any{"owner": testOwner})
 }
 
 func TestGetWorkflowRunFn_ReturnsRun(t *testing.T) {
-	mockResponse := map[string]interface{}{
-		"id":         42,
-		"title":      "CI Pipeline",
-		"status":     "success",
-		"event":      "push",
-		"commit_sha": "deadbeef",
-		"prettyref":  "refs/heads/main",
-		"html_url":   "https://example.com/runs/42",
-		"trigger_user": map[string]interface{}{
-			"login":     "testuser",
-			"full_name": "Test User",
-		},
-	}
-
-	srv, capturedPath := setupListRunsMockServer(t, mockResponse, http.StatusOK)
-	defer srv.Close()
-
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":  "testowner",
-		"repo":   "testrepo",
-		"run_id": float64(42),
+	t.Parallel()
+	h, f := newFixture(t)
+	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{
+		Title: "CI Pipeline", Status: "success", Event: "push", CommitSHA: "deadbeef", PrettyRef: "refs/heads/main",
+		TriggerUser: &forgejo_sdk.User{UserName: "testuser"},
 	})
 
-	result, err := GetWorkflowRunFn(context.Background(), req)
-	if err != nil {
-		t.Fatalf("GetWorkflowRunFn returned error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("GetWorkflowRunFn returned tool error")
-	}
+	out := call(t, h.GetWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
 
-	expectedPath := "/api/v1/repos/testowner/testrepo/actions/runs/42"
-	if *capturedPath != expectedPath {
-		t.Errorf("wrong path: got %q, want %q", *capturedPath, expectedPath)
+	for _, want := range []string{"CI Pipeline", "Status: success", "Triggered by: testuser", "Commit SHA: deadbeef"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
+	}
+}
+
+func TestGetWorkflowRunFn_UnknownRun(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+
+	err := callErr(t, h.GetWorkflowRunFn, repoArgs(map[string]any{"run_id": 99.0}))
+
+	if !strings.Contains(err.Error(), "failed to get workflow run") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
 func TestGetWorkflowRunFn_InvalidRunID(t *testing.T) {
-	req := newCallToolRequest(map[string]interface{}{
-		"owner":  "testowner",
-		"repo":   "testrepo",
-		"run_id": float64(-1),
-	})
+	t.Parallel()
+	h, _ := newFixture(t)
 
-	_, err := GetWorkflowRunFn(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for invalid run_id, got nil")
-	}
-}
-
-func TestGetWorkflowRunFn_MissingRunID(t *testing.T) {
-	req := newCallToolRequest(map[string]interface{}{
-		"owner": "testowner",
-		"repo":  "testrepo",
-	})
-
-	_, err := GetWorkflowRunFn(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for missing run_id, got nil")
-	}
+	callErr(t, h.GetWorkflowRunFn, repoArgs(map[string]any{"run_id": -1.0}))
+	callErr(t, h.GetWorkflowRunFn, repoArgs(nil))
 }
