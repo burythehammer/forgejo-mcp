@@ -105,7 +105,7 @@ func newStreamableHTTPHandler(s *server.MCPServer, cfg config.Config) http.Handl
 func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	log.Info("Registering MCP tools")
 
-	RegisterUserTool(s)
+	RegisterUserTool(s, f)
 	RegisterRepoTool(s, f)
 	RegisterIssueTool(s)
 	RegisterPullTool(s, f)
@@ -113,7 +113,7 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	RegisterSearchTool(s)
 	RegisterVersionTool(s, version)
 	RegisterActionsTool(s)
-	RegisterOrgTool(s)
+	RegisterOrgTool(s, f)
 	RegisterPackagesTool(s)
 	RegisterTrackingTool(s)
 	RegisterAttachmentTool(s)
@@ -127,8 +127,8 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 
 // Per-domain registration functions exposed for CLI domain grouping.
 
-func RegisterUserTool(s *server.MCPServer) {
-	user.RegisterTool(s)
+func RegisterUserTool(s *server.MCPServer, f forge.Factory) {
+	user.RegisterTool(s, f)
 	log.Debug("Registered user tools")
 }
 
@@ -167,8 +167,8 @@ func RegisterActionsTool(s *server.MCPServer) {
 	log.Debug("Registered actions tools")
 }
 
-func RegisterOrgTool(s *server.MCPServer) {
-	org.RegisterTool(s)
+func RegisterOrgTool(s *server.MCPServer, f forge.Factory) {
+	org.RegisterTool(s, f)
 	log.Debug("Registered org tools")
 }
 
@@ -329,9 +329,9 @@ func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
 	RegisterCommitResource(s, f)
 	RegisterIssueResources(s)
 	RegisterLabelResources(s)
-	RegisterOwnerResource(s)
+	RegisterOwnerResource(s, f)
 	RegisterPullResources(s, f)
-	RegisterRepoResource(s)
+	RegisterRepoResource(s, f)
 	RegisterStatusResource(s, f)
 	RegisterBranchProtectionResources(s)
 	RegisterHookResources(s)
@@ -374,13 +374,13 @@ func RegisterCommitResource(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered commit resource template")
 }
 
-func RegisterOwnerResource(s *server.MCPServer) {
-	user.RegisterOwnerResource(s)
+func RegisterOwnerResource(s *server.MCPServer, f forge.Factory) {
+	user.RegisterOwnerResource(s, f)
 	log.Debug("Registered owner resource template")
 }
 
-func RegisterRepoResource(s *server.MCPServer) {
-	repo.RegisterRepoResource(s)
+func RegisterRepoResource(s *server.MCPServer, f forge.Factory) {
+	repo.RegisterRepoResource(s, f)
 	log.Debug("Registered repo resource template")
 }
 

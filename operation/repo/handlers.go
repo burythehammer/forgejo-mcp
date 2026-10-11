@@ -4,6 +4,5 @@ package repo
 
 import "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
-// handlers serve the repo tools and resources. They hold the factory rather than
-// a port so each call is bound to the credential of its own request.
+// handlers serve the repo tools; they hold the factory so each call uses its own request's credential.
 type handlers struct{ forge forge.Factory }

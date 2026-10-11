@@ -64,12 +64,12 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(CreateRepoTool, CreateRepoFn)
 	s.AddTool(ForkRepoTool, ForkRepoFn)
 	s.AddTool(ListMyReposTool, ListMyReposFn)
-	s.AddTool(GetRepoTool, GetRepoFn)
-	s.AddTool(EditRepoTool, EditRepoFn)
-	s.AddTool(ListRepoTopicsTool, ListRepoTopicsFn)
-	s.AddTool(SetRepoTopicsTool, SetRepoTopicsFn)
-	s.AddTool(AddRepoTopicTool, AddRepoTopicFn)
-	s.AddTool(DeleteRepoTopicTool, DeleteRepoTopicFn)
+	s.AddTool(GetRepoTool, h.GetRepoFn)
+	s.AddTool(EditRepoTool, h.EditRepoFn)
+	s.AddTool(ListRepoTopicsTool, h.ListRepoTopicsFn)
+	s.AddTool(SetRepoTopicsTool, h.SetRepoTopicsFn)
+	s.AddTool(AddRepoTopicTool, h.AddRepoTopicFn)
+	s.AddTool(DeleteRepoTopicTool, h.DeleteRepoTopicFn)
 
 	// File
 	s.AddTool(GetFileContentTool, h.GetFileContentFn)
@@ -79,9 +79,9 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(ChangeFilesTool, h.ChangeFilesFn)
 
 	// Branch
-	s.AddTool(CreateBranchTool, CreateBranchFn)
-	s.AddTool(DeleteBranchTool, DeleteBranchFn)
-	s.AddTool(ListBranchesTool, ListBranchesFn)
+	s.AddTool(CreateBranchTool, h.CreateBranchFn)
+	s.AddTool(DeleteBranchTool, h.DeleteBranchFn)
+	s.AddTool(ListBranchesTool, h.ListBranchesFn)
 
 	// Commit
 	s.AddTool(ListRepoCommitsTool, h.ListRepoCommitsFn)

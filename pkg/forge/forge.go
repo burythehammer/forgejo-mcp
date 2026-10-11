@@ -15,6 +15,9 @@ import "context"
 type Forgejo interface {
 	Pulls
 	RepoFiles
+	Orgs
+	Users
+	RepoAdmin
 }
 
 // Factory hands out a Forgejo port per request.

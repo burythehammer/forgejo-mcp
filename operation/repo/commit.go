@@ -16,17 +16,15 @@ const (
 	ListRepoCommitsToolName = "list_repo_commits"
 )
 
-var (
-	ListRepoCommitsTool = mcp.NewTool(
-		ListRepoCommitsToolName,
-		mcp.WithDescription("List repo commits"),
-		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
-		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-		mcp.WithString("path", mcp.Description("File/dir path")),
-		mcp.WithString("sha", mcp.Description("SHA/branch to start from")),
-		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
-		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
-	)
+var ListRepoCommitsTool = mcp.NewTool(
+	ListRepoCommitsToolName,
+	mcp.WithDescription("List repo commits"),
+	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
+	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
+	mcp.WithString("path", mcp.Description("File/dir path")),
+	mcp.WithString("sha", mcp.Description("SHA/branch to start from")),
+	mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
+	mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
 )
 
 func (h handlers) ListRepoCommitsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

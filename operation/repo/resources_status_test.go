@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -152,13 +153,7 @@ func TestStatusResourceHandler_NotFound(t *testing.T) {
 	h, _ := newFilesFixture(t)
 	_, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest(testSHA))
 	var resErr *resource.ResourceError
-	if err == nil {
-		t.Fatal("expected error for an unknown commit")
-	}
-	if e, ok := err.(*resource.ResourceError); ok {
-		resErr = e
-	}
-	if resErr == nil || resErr.Code != -32003 {
+	if !errors.As(err, &resErr) || resErr.Code != -32003 {
 		t.Fatalf("want a not-found resource error (-32003), got %T %v", err, err)
 	}
 }
