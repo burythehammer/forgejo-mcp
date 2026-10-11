@@ -10,10 +10,20 @@ The server name (`forgejo`) and variable names are identity-neutral; the values 
 
 If the server is not connected, `fj` (`fj <command> --help` for flag shapes; it infers the repo from `origin` inside a clone) is the stopgap: `fj issue create/view/comment/close`, `fj issue edit <n> labels --add <label>`, `fj pr create/merge`.
 
+## `fj` gotchas
+
+When using the `fj` fallback:
+
+- Issue and PR numbers share one sequence (the first new issue was #6 because #5 was a PR). A ticket body cannot name tickets that are not created yet: create them first, then post one comment mapping the numbers.
+- `fj issue create --body-file <path>` works for long bodies.
+- `fj issue edit <n> labels --add <label>` takes one label per call.
+- List comments with `fj issue view <n> comments` (not `--comments`).
+- `fj issue comment` can panic with "failed to write newline" after the comment has posted. Verify with `fj issue view <n> comments` before retrying, or it posts twice.
+
 ## Conventions
 
 - **Create an issue**: `create_issue` with `title`, `body` and `labels` in one call (a separate labelling call is where a wrong issue number slips in). The body states the reasoning, not just the title.
-- **Read an issue or PR**: read the resource `forgejo://repo/burythehammer/forgejo-mcp/issue/{index}` or `pr/{index}` (`ReadMcpResourceTool`, server `forgejo`); it returns the bounded entity with its comments. Fall back to `get_issue_by_index` / `get_pull_request_by_index`. See the resource table in `AGENTS.md`.
+- **Read an issue or PR**: read the resource `forgejo://repo/burythehammer/forgejo-mcp/issue/{index}` or `pr/{index}` (`ReadMcpResourceTool`, server `forgejo`); it returns the bounded entity with its comments. Fall back to `get_issue_by_index` / `get_pull_request_by_index`. See the resource table in `docs/agents/resources.md`.
 - **Search/list issues**: `list_repo_issues`, or `search_issues` across an owner.
 - **Comment**: `create_issue_comment`
 - **Apply / remove labels**: `add_issue_labels` / `remove_issue_labels`, by name; both also take a PR's index.
