@@ -7,12 +7,32 @@ import (
 	"math"
 
 	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+// jobsArgs are the arguments of list_action_run_jobs.
+type jobsArgs struct {
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	RunID any    `json:"run_id" required:"true" schema:"number"`
+	Page  any    `json:"page" schema:"number"`
+	Limit any    `json:"limit" schema:"number"`
+}
+
+// jobLogArgs are the arguments of get_action_job_logs.
+type jobLogArgs struct {
+	Owner    string `json:"owner" required:"true"`
+	Repo     string `json:"repo" required:"true"`
+	JobID    any    `json:"job_id" required:"true" schema:"number"`
+	Attempt  any    `json:"attempt" schema:"number"`
+	Offset   any    `json:"offset" schema:"number"`
+	MaxBytes any    `json:"max_bytes" schema:"number"`
+}
 
 const (
 	ListActionRunJobsToolName = "list_action_run_jobs"
@@ -50,20 +70,22 @@ var (
 func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListActionRunJobsFn")
 
-	args := req.GetArguments()
-	owner, repo, err := requiredRepo(args)
+	var a jobsArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
+	}
+	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	runID, err := positiveIntegerArg(args, "run_id", true)
+	page, err := boundedIntArg(a.Page, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	limit, err := to.BoundedInt(args, "limit", defaultActionJobsLimit, 1, maxActionJobsLimit)
+	limit, err := boundedIntArg(a.Limit, "limit", defaultActionJobsLimit, 1, maxActionJobsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -72,7 +94,7 @@ func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolReque
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	jobs, err := svc.ListJobs(ctx, owner, repo, runID, app.Paging{Page: page, Limit: limit})
+	jobs, err := svc.ListJobs(ctx, a.Owner, a.Repo, runID, app.Paging{Page: page, Limit: limit})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -82,24 +104,26 @@ func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolReque
 func (h handlers) GetActionJobLogsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetActionJobLogsFn")
 
-	args := req.GetArguments()
-	owner, repo, err := requiredRepo(args)
+	var a jobLogArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
+	}
+	jobID, err := positiveIntegerArg(a.JobID, "job_id", true)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	jobID, err := positiveIntegerArg(args, "job_id", true)
+	attempt, err := positiveIntegerArg(a.Attempt, "attempt", false)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	attempt, err := positiveIntegerArg(args, "attempt", false)
+	maxBytes, err := boundedIntArg(a.MaxBytes, "max_bytes", defaultActionLogBytes, 1, maxActionLogBytes)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	maxBytes, err := to.BoundedInt(args, "max_bytes", defaultActionLogBytes, 1, maxActionLogBytes)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	offset, hasOffset, err := optionalNonNegativeIntegerArg(args, "offset")
+	offset, hasOffset, err := optionalNonNegativeIntegerArg(a.Offset, "offset")
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -108,7 +132,7 @@ func (h handlers) GetActionJobLogsFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := svc.JobLog(ctx, owner, repo, app.JobLogQuery{
+	page, err := svc.JobLog(ctx, a.Owner, a.Repo, app.JobLogQuery{
 		JobID: jobID, Attempt: attempt, Offset: offset, HasOffset: hasOffset, MaxBytes: int64(maxBytes),
 	})
 	if err != nil {

@@ -5,12 +5,13 @@ package actions
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/actionsadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -38,6 +39,25 @@ var DispatchWorkflowTool = mcp.NewTool(
 // use case, render the result.
 type handlers struct{ forge forge.Factory }
 
+// useCases returns the Actions use cases over the request's Forgejo port. It
+// is called after the arguments are checked, as the handlers always did.
+func useCases(ctx context.Context, h handlers) (*app.Service, error) {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return app.New(actionsadapter.New(port)), nil
+}
+
+// dispatchArgs are the arguments of dispatch_workflow.
+type dispatchArgs struct {
+	Owner    string `json:"owner" required:"true"`
+	Repo     string `json:"repo" required:"true"`
+	Workflow string `json:"workflow" required:"true"`
+	Ref      string `json:"ref" required:"true"`
+	Inputs   string `json:"inputs"`
+}
+
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
 	s.AddTool(DispatchWorkflowTool, h.DispatchWorkflowFn)
@@ -60,27 +80,24 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 func (h handlers) DispatchWorkflowFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DispatchWorkflowFn")
 
-	owner, ok := req.GetArguments()["owner"].(string)
-	if !ok || owner == "" {
-		return to.ErrorResult(errors.New("owner is required"))
+	var a dispatchArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	repo, ok := req.GetArguments()["repo"].(string)
-	if !ok || repo == "" {
-		return to.ErrorResult(errors.New("repo is required"))
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
 	}
-	workflow, ok := req.GetArguments()["workflow"].(string)
-	if !ok || workflow == "" {
-		return to.ErrorResult(errors.New("workflow is required"))
+	if err := required("workflow", a.Workflow); err != nil {
+		return to.ErrorResult(err)
 	}
-	ref, ok := req.GetArguments()["ref"].(string)
-	if !ok || ref == "" {
-		return to.ErrorResult(errors.New("ref is required"))
+	if err := required("ref", a.Ref); err != nil {
+		return to.ErrorResult(err)
 	}
 
 	// Parse optional inputs JSON
 	var inputs map[string]string
-	if inputsJSON, ok := req.GetArguments()["inputs"].(string); ok && inputsJSON != "" {
-		if err := json.Unmarshal([]byte(inputsJSON), &inputs); err != nil {
+	if a.Inputs != "" {
+		if err := json.Unmarshal([]byte(a.Inputs), &inputs); err != nil {
 			return to.ErrorResult(fmt.Errorf(`invalid inputs JSON: %w (expected format: {"key": "value"})`, err))
 		}
 	}
@@ -89,13 +106,13 @@ func (h handlers) DispatchWorkflowFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	url, err := svc.Dispatch(ctx, owner, repo, workflow, app.DispatchInput{Ref: ref, Inputs: inputs})
+	url, err := svc.Dispatch(ctx, a.Owner, a.Repo, a.Workflow, app.DispatchInput{Ref: a.Ref, Inputs: inputs})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
 	result := fmt.Sprintf("Workflow dispatched successfully!\n  Workflow: %s\n  Ref: %s\n  URL: %s",
-		workflow, ref, url)
+		a.Workflow, a.Ref, url)
 
 	return to.TextResult(result)
 }

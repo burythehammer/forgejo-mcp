@@ -7,6 +7,7 @@ import (
 	"math"
 
 	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -35,6 +36,41 @@ type actionSecretMutationResult struct {
 	Org        string `json:"org,omitempty"`
 	SecretName string `json:"secret_name"`
 }
+
+// The argument structs of the secret tools. A value is never logged or echoed.
+type (
+	repoSecretsListArgs struct {
+		Owner string `json:"owner" required:"true"`
+		Repo  string `json:"repo" required:"true"`
+		Page  any    `json:"page" schema:"number"`
+		Limit any    `json:"limit" schema:"number"`
+	}
+	repoSecretSetArgs struct {
+		Owner      string `json:"owner" required:"true"`
+		Repo       string `json:"repo" required:"true"`
+		SecretName string `json:"secret_name" required:"true"`
+		Data       string `json:"data" required:"true"`
+	}
+	repoSecretNameArgs struct {
+		Owner      string `json:"owner" required:"true"`
+		Repo       string `json:"repo" required:"true"`
+		SecretName string `json:"secret_name" required:"true"`
+	}
+	orgSecretsListArgs struct {
+		Org   string `json:"org" required:"true"`
+		Page  any    `json:"page" schema:"number"`
+		Limit any    `json:"limit" schema:"number"`
+	}
+	orgSecretSetArgs struct {
+		Org        string `json:"org" required:"true"`
+		SecretName string `json:"secret_name" required:"true"`
+		Data       string `json:"data" required:"true"`
+	}
+	orgSecretNameArgs struct {
+		Org        string `json:"org" required:"true"`
+		SecretName string `json:"secret_name" required:"true"`
+	}
+)
 
 var (
 	ListRepoActionSecretsTool = mcp.NewTool(
@@ -90,16 +126,18 @@ var (
 func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoActionSecretsFn")
 
-	args := req.GetArguments()
-	owner, repo, err := requiredRepo(args)
+	var a repoSecretsListArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
+	}
+	page, err := boundedIntArg(a.Page, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	limit, err := to.BoundedInt(args, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
+	limit, err := boundedIntArg(a.Limit, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -108,7 +146,7 @@ func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolR
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	out, err := svc.ListRepoSecrets(ctx, owner, repo, app.Paging{Page: page, Limit: limit})
+	out, err := svc.ListRepoSecrets(ctx, a.Owner, a.Repo, app.Paging{Page: page, Limit: limit})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -118,17 +156,17 @@ func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolR
 func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateOrUpdateRepoActionSecretFn")
 
-	args := req.GetArguments()
-	owner, repo, err := requiredRepo(args)
-	if err != nil {
+	var a repoSecretSetArgs
+	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	secretName, err := requiredSecretName(args)
-	if err != nil {
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	data, err := requiredSecretData(args)
-	if err != nil {
+	if err := required("secret_name", a.SecretName); err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := required("data", a.Data); err != nil {
 		return to.ErrorResult(err)
 	}
 
@@ -136,27 +174,28 @@ func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := svc.SetRepoSecret(ctx, owner, repo, secretName, data); err != nil {
+	if err := svc.SetRepoSecret(ctx, a.Owner, a.Repo, a.SecretName, a.Data); err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "created_or_updated",
-		Owner:      owner,
-		Repo:       repo,
-		SecretName: secretName,
+		Owner:      a.Owner,
+		Repo:       a.Repo,
+		SecretName: a.SecretName,
 	})
 }
 
 func (h handlers) DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteRepoActionSecretFn")
 
-	args := req.GetArguments()
-	owner, repo, err := requiredRepo(args)
-	if err != nil {
+	var a repoSecretNameArgs
+	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	secretName, err := requiredSecretName(args)
-	if err != nil {
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := required("secret_name", a.SecretName); err != nil {
 		return to.ErrorResult(err)
 	}
 
@@ -164,30 +203,32 @@ func (h handlers) DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := svc.DeleteRepoSecret(ctx, owner, repo, secretName); err != nil {
+	if err := svc.DeleteRepoSecret(ctx, a.Owner, a.Repo, a.SecretName); err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "deleted",
-		Owner:      owner,
-		Repo:       repo,
-		SecretName: secretName,
+		Owner:      a.Owner,
+		Repo:       a.Repo,
+		SecretName: a.SecretName,
 	})
 }
 
 func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListOrgActionSecretsFn")
 
-	args := req.GetArguments()
-	org, err := requiredOrg(args)
+	var a orgSecretsListArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := required("org", a.Org); err != nil {
+		return to.ErrorResult(err)
+	}
+	page, err := boundedIntArg(a.Page, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	limit, err := to.BoundedInt(args, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
+	limit, err := boundedIntArg(a.Limit, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -196,7 +237,7 @@ func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRe
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	out, err := svc.ListOrgSecrets(ctx, org, app.Paging{Page: page, Limit: limit})
+	out, err := svc.ListOrgSecrets(ctx, a.Org, app.Paging{Page: page, Limit: limit})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -206,17 +247,17 @@ func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRe
 func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CreateOrUpdateOrgActionSecretFn")
 
-	args := req.GetArguments()
-	org, err := requiredOrg(args)
-	if err != nil {
+	var a orgSecretSetArgs
+	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	secretName, err := requiredSecretName(args)
-	if err != nil {
+	if err := required("org", a.Org); err != nil {
 		return to.ErrorResult(err)
 	}
-	data, err := requiredSecretData(args)
-	if err != nil {
+	if err := required("secret_name", a.SecretName); err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := required("data", a.Data); err != nil {
 		return to.ErrorResult(err)
 	}
 
@@ -224,26 +265,27 @@ func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.C
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := svc.SetOrgSecret(ctx, org, secretName, data); err != nil {
+	if err := svc.SetOrgSecret(ctx, a.Org, a.SecretName, a.Data); err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "created_or_updated",
-		Org:        org,
-		SecretName: secretName,
+		Org:        a.Org,
+		SecretName: a.SecretName,
 	})
 }
 
 func (h handlers) DeleteOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteOrgActionSecretFn")
 
-	args := req.GetArguments()
-	org, err := requiredOrg(args)
-	if err != nil {
+	var a orgSecretNameArgs
+	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	secretName, err := requiredSecretName(args)
-	if err != nil {
+	if err := required("org", a.Org); err != nil {
+		return to.ErrorResult(err)
+	}
+	if err := required("secret_name", a.SecretName); err != nil {
 		return to.ErrorResult(err)
 	}
 
@@ -251,12 +293,12 @@ func (h handlers) DeleteOrgActionSecretFn(ctx context.Context, req mcp.CallToolR
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := svc.DeleteOrgSecret(ctx, org, secretName); err != nil {
+	if err := svc.DeleteOrgSecret(ctx, a.Org, a.SecretName); err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "deleted",
-		Org:        org,
-		SecretName: secretName,
+		Org:        a.Org,
+		SecretName: a.SecretName,
 	})
 }

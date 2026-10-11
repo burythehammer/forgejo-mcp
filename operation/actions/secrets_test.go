@@ -41,7 +41,7 @@ func TestListRepoActionSecretsFn_Pagination(t *testing.T) {
 		call(t, h.CreateOrUpdateRepoActionSecretFn, repoArgs(map[string]any{"secret_name": n, "data": "x"}))
 	}
 
-	got := decode[model.RepoSecretPage](t, h.ListRepoActionSecretsFn, repoArgs(map[string]any{"page": 2.0, "limit": 2.0}))
+	got := resultOf[model.RepoSecretPage](t, h.ListRepoActionSecretsFn, repoArgs(map[string]any{"page": 2.0, "limit": 2.0}))
 
 	if got.Count != 1 || got.Secrets[0].Name != "CCC" || got.Page != 2 || got.Limit != 2 {
 		t.Fatalf("page 2: %+v", got)

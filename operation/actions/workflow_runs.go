@@ -10,12 +10,32 @@ import (
 
 	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+// listRunsArgs are the arguments of list_workflow_runs.
+type listRunsArgs struct {
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	Status    string `json:"status"`
+	Event     string `json:"event"`
+	RunNumber any    `json:"run_number" schema:"number"`
+	HeadSHA   string `json:"head_sha"`
+	Page      any    `json:"page" schema:"number"`
+	Limit     any    `json:"limit" schema:"number"`
+}
+
+// repoRunArgs are the arguments of the tools that act on one run.
+type repoRunArgs struct {
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	RunID any    `json:"run_id" required:"true" schema:"number"`
+}
 
 const (
 	ListWorkflowRunsToolName = "list_workflow_runs"
@@ -48,27 +68,25 @@ var (
 func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListWorkflowRunsFn")
 
-	owner, ok := req.GetArguments()["owner"].(string)
-	if !ok || owner == "" {
-		return to.ErrorResult(errors.New("owner is required"))
+	var a listRunsArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	repo, ok := req.GetArguments()["repo"].(string)
-	if !ok || repo == "" {
-		return to.ErrorResult(errors.New("repo is required"))
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
 	}
-	status, _ := req.GetArguments()["status"].(string)
-	event, _ := req.GetArguments()["event"].(string)
-	headSHA, _ := req.GetArguments()["head_sha"].(string)
+	// The optional numbers are silently defaulted when they cannot be read,
+	// as they always were.
 	var runNumber int64
-	if rn, err := to.Float64(req.GetArguments()["run_number"]); err == nil {
+	if rn, ok := number(a.RunNumber); ok {
 		runNumber = int64(rn)
 	}
 	page := 1
-	if p, err := to.Float64(req.GetArguments()["page"]); err == nil {
+	if p, ok := number(a.Page); ok {
 		page = int(p)
 	}
 	limit := 30
-	if l, err := to.Float64(req.GetArguments()["limit"]); err == nil {
+	if l, ok := number(a.Limit); ok {
 		limit = int(l)
 	}
 
@@ -76,17 +94,17 @@ func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	list, err := svc.ListRuns(ctx, owner, repo, app.RunQuery{
-		Status: status, Event: event, RunNumber: runNumber, HeadSHA: headSHA,
+	list, err := svc.ListRuns(ctx, a.Owner, a.Repo, app.RunQuery{
+		Status: a.Status, Event: a.Event, RunNumber: runNumber, HeadSHA: a.HeadSHA,
 		Paging: app.Paging{Page: page, Limit: limit},
 	})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 	if len(list.WorkflowRuns) == 0 {
-		return to.TextResult(fmt.Sprintf("No workflow runs found for %s/%s", owner, repo))
+		return to.TextResult(fmt.Sprintf("No workflow runs found for %s/%s", a.Owner, a.Repo))
 	}
-	return to.TextResult(renderRuns(owner, repo, list))
+	return to.TextResult(renderRuns(a.Owner, a.Repo, list))
 }
 
 // renderRuns is the list_workflow_runs text.
@@ -112,16 +130,16 @@ func renderRuns(owner, repo string, list model.WorkflowRunList) string {
 func (h handlers) GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetWorkflowRunFn")
 
-	owner, ok := req.GetArguments()["owner"].(string)
-	if !ok || owner == "" {
-		return to.ErrorResult(errors.New("owner is required"))
+	var a repoRunArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	repo, ok := req.GetArguments()["repo"].(string)
-	if !ok || repo == "" {
-		return to.ErrorResult(errors.New("repo is required"))
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
 	}
-	runIDFloat, err := to.Float64(req.GetArguments()["run_id"])
-	if err != nil {
+	// Any run_id that is not a number, absent ones included, is "required".
+	runIDFloat, ok := number(a.RunID)
+	if !ok {
 		return to.ErrorResult(errors.New("run_id is required"))
 	}
 	runID := int64(runIDFloat)
@@ -133,7 +151,7 @@ func (h handlers) GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	run, err := svc.GetRun(ctx, owner, repo, runID)
+	run, err := svc.GetRun(ctx, a.Owner, a.Repo, runID)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

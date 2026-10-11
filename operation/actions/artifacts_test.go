@@ -29,7 +29,7 @@ func TestListActionRunArtifactsFn_ServerPagedEnvelope(t *testing.T) {
 	h, f := newFixture(t)
 	runID := runWithArtifacts(t, f, "dist", "logs", "dist", "other")
 
-	got := decode[model.ArtifactPage](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{
+	got := resultOf[model.ArtifactPage](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{
 		"run_id": float64(runID), "page": 2.0, "limit": 1.0, "name": "dist",
 	}))
 
@@ -50,7 +50,7 @@ func TestListActionRunArtifactsFn_EmptyPageIsAnEmptyList(t *testing.T) {
 	runID := runWithArtifacts(t, f)
 
 	out := call(t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": float64(runID)}))
-	got := decode[model.ArtifactPage](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": float64(runID)}))
+	got := resultOf[model.ArtifactPage](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": float64(runID)}))
 
 	if got.Count != 0 || got.Artifacts == nil {
 		t.Fatalf("empty page: %+v", got)
@@ -80,7 +80,7 @@ func TestGetActionArtifactFn_MetadataOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := decode[forge.ActionArtifact](t, h.GetActionArtifactFn, repoArgs(map[string]any{"artifact_id": float64(art.ID)}))
+	got := resultOf[forge.ActionArtifact](t, h.GetActionArtifactFn, repoArgs(map[string]any{"artifact_id": float64(art.ID)}))
 
 	if got.ID != art.ID || got.Name != "dist" || got.RunID != runID || got.SizeInBytes != 10 {
 		t.Fatalf("artifact: %+v", got)
