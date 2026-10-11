@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -119,7 +119,7 @@ func (s *Service) Create(ctx context.Context, r CreateRequest) (model.HookPayloa
 	}
 	in := CreateInput{Type: typ, Config: config, BranchFilter: r.BranchFilter, Active: active}
 	if r.Events != "" {
-		in.Events = splitEvents(r.Events)
+		in.Events = split.CSV(r.Events)
 	}
 	hk, err := s.port.CreateRepoHook(ctx, r.Owner, r.Repo, in)
 	if err != nil {
@@ -155,7 +155,7 @@ func (s *Service) Edit(ctx context.Context, r EditRequest) (model.HookPayload, e
 	}
 	in := EditInput{Config: config, BranchFilter: r.BranchFilter, Active: r.Active}
 	if r.Events != "" {
-		in.Events = splitEvents(r.Events)
+		in.Events = split.CSV(r.Events)
 	}
 	if err := s.port.EditRepoHook(ctx, r.Owner, r.Repo, id, in); err != nil {
 		var se *StatusError
@@ -199,16 +199,4 @@ func (r HookRef) check() error {
 		return fmt.Errorf("owner, repo and id are required")
 	}
 	return nil
-}
-
-// splitEvents parses a comma-separated event list into a trimmed, empty-free
-// slice. It returns an empty (non-nil) slice when nothing is left.
-func splitEvents(csv string) []string {
-	out := make([]string, 0)
-	for _, p := range strings.Split(csv, ",") {
-		if s := strings.TrimSpace(p); s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
 }

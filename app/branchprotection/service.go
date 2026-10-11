@@ -5,8 +5,8 @@ package branchprotection
 import (
 	"context"
 	"fmt"
-	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -113,7 +113,7 @@ func (s *Service) Create(ctx context.Context, r CreateRequest) (*model.BranchPro
 		DismissStaleApprovals: r.DismissStaleApprovals,
 	}
 	if r.StatusCheckContexts != nil {
-		in.StatusCheckContexts = splitContexts(*r.StatusCheckContexts)
+		in.StatusCheckContexts = split.CSV(*r.StatusCheckContexts)
 	}
 	bp, err := s.port.CreateBranchProtection(ctx, r.Owner, r.Repo, in)
 	if err != nil {
@@ -169,18 +169,6 @@ func splitPtr(csv *string) *[]string {
 	if csv == nil {
 		return nil
 	}
-	v := splitContexts(*csv)
+	v := split.CSV(*csv)
 	return &v
-}
-
-// splitContexts parses a comma-separated list into a trimmed, empty-free slice.
-// It returns an empty (non-nil) slice for "".
-func splitContexts(csv string) []string {
-	out := make([]string, 0)
-	for _, p := range strings.Split(csv, ",") {
-		if s := strings.TrimSpace(p); s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
 }
