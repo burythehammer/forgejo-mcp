@@ -104,6 +104,10 @@ func ArgsMatchSchema(t *testing.T, tool mcp.Tool, args any) {
 }
 
 func schemaType(t reflect.Type) string {
+	// A pointer field is an optional argument whose type is the pointee's.
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
 	switch t.Kind() {
 	case reflect.String:
 		return "string"

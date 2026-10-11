@@ -94,6 +94,10 @@ func fill(req mcp.CallToolRequest, dst any) ([]string, error) {
 			err = json.Unmarshal(b, rv.Elem().Field(i).Addr().Interface())
 		}
 		if err != nil {
+			// A pointer field can be left allocated by a failed decode, which
+			// would read as "given"; a wrongly typed argument must read as
+			// absent, as the old handlers' type assertions saw it.
+			rv.Elem().Field(i).Set(reflect.Zero(f.Type))
 			problems = append(problems, fmt.Sprintf("%s has the wrong type", name))
 		}
 	}
