@@ -1,7 +1,7 @@
 // Package release registers MCP tools for Forgejo releases and their
-// attachments. The Forgejo SDK provides every endpoint we wrap, so this
-// package uses forgejo.Client(ctx) directly except where the shared raw HTTP
-// helpers provide consistent streaming or download bounds across domains.
+// attachments. It reaches Forgejo through the forge.Releases and
+// forge.Attachments ports; which transport serves a call is the adapter's
+// business.
 package release
 
 import (
@@ -12,7 +12,6 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/upload"
@@ -646,9 +645,9 @@ func (h handlers) DeleteReleaseAttachmentFn(ctx context.Context, req mcp.CallToo
 func downloadResultFor(ctx context.Context, port forge.Attachments, att *forgejo_sdk.Attachment) (*mcp.CallToolResult, error) {
 	res := &downloadResult{Attachment: att}
 
-	if att.Size >= forgejo.MaxInlineDownloadBytes {
+	if att.Size >= forge.MaxInlineDownloadBytes {
 		res.Inline = false
-		res.Reason = fmt.Sprintf("size %d bytes >= inline cap %d; fetch browser_download_url with Authorization: token <TOKEN>", att.Size, forgejo.MaxInlineDownloadBytes)
+		res.Reason = fmt.Sprintf("size %d bytes >= inline cap %d; fetch browser_download_url with Authorization: token <TOKEN>", att.Size, forge.MaxInlineDownloadBytes)
 		return to.TextResult(res)
 	}
 

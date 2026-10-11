@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package forgejo
+package sdk
 
 import (
 	"context"
@@ -9,48 +9,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-)
 
-func TestAPIPath_EscapesSegments(t *testing.T) {
-	tests := []struct {
-		name string
-		got  string
-		want string
-	}{
-		{
-			name: "plain segments are untouched",
-			got:  APIPath("repos", "goern", "forgejo-mcp", "issues", int64(7), "assets"),
-			want: "/repos/goern/forgejo-mcp/issues/7/assets",
-		},
-		{
-			name: "slashes cannot break out of their segment",
-			got:  APIPath("repos", "o/x/../../admin", "r", "issues"),
-			want: "/repos/o%2Fx%2F..%2F..%2Fadmin/r/issues",
-		},
-		{
-			name: "a question mark cannot start a query string",
-			got:  APIPath("repos", "o", "r?state=all", "issues"),
-			want: "/repos/o/r%3Fstate=all/issues",
-		},
-		{
-			name: "int and int64 ids format naturally",
-			got:  APIPath("orgs", "acme", "labels", 12) + APIPath("x", int64(34)),
-			want: "/orgs/acme/labels/12/x/34",
-		},
-		{
-			name: "spaces and unicode are escaped",
-			got:  APIPath("repos", "o", "my repo", "wiki", "Seite Ü"),
-			want: "/repos/o/my%20repo/wiki/Seite%20%C3%9C",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.got != tt.want {
-				t.Fatalf("APIPath = %q, want %q", tt.got, tt.want)
-			}
-		})
-	}
-}
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+)
 
 // TestAPIPath_HostileOwnerStaysOnEndpoint is the regression test for the
 // raw-HTTP path-injection defect: an owner containing a traversal and a repo
@@ -63,14 +24,14 @@ func TestAPIPath_HostileOwnerStaysOnEndpoint(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	}))
 	t.Cleanup(srv.Close)
-	ConfigureForTesting(srv.URL, "test-token", "forgejo-mcp-test/0.0.1")
+	rc := newRawClient(srv.URL, "test-token", "forgejo-mcp-test/0.0.1")
 
 	const owner = "o/x/../../admin"
 	const repo = "r?state=all&"
-	path := APIPath("repos", owner, repo, "issues") + fmt.Sprintf("?page=%d&limit=%d", 1, 20)
+	path := forge.APIPath("repos", owner, repo, "issues") + fmt.Sprintf("?page=%d&limit=%d", 1, 20)
 
 	var out []any
-	if err := DoJSONList(context.Background(), http.MethodGet, path, &out); err != nil {
+	if err := rc.doJSONList(context.Background(), http.MethodGet, path, &out); err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
 

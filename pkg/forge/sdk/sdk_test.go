@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/forgetest"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 )
 
 // Decoys, never real credentials.
@@ -50,6 +50,7 @@ func (s *stub) credentials() string {
 }
 
 func TestFactoryAppliesCredentialPolicy(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		require    bool // network transport without operator opt-in
@@ -60,26 +61,19 @@ func TestFactoryAppliesCredentialPolicy(t *testing.T) {
 		{"request token on stdio", false, requestValue, nil, requestValue},
 		{"request token on network", true, requestValue, nil, requestValue},
 		{"stdio falls back to operator", false, "", nil, operatorValue},
-		{"network refuses without token", true, "", forgejo.ErrNoRequestToken, ""},
+		{"network refuses without token", true, "", forge.ErrNoRequestToken, ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			srv := newStub(t)
 			cfg := config.Forgejo{URL: srv.URL, Token: config.NewSecret(operatorValue)}
-			forgejo.Configure(cfg, "test")
-			forgejo.ResetClientForTesting()
-			prev := forgejo.RequireRequestToken()
-			forgejo.SetRequireRequestToken(tc.require)
-			t.Cleanup(func() {
-				forgejo.SetRequireRequestToken(prev)
-				forgejo.ResetClientForTesting()
-			})
 
 			ctx := context.Background()
 			if tc.token != "" {
-				ctx = forgejo.WithToken(ctx, tc.token)
+				ctx = forge.WithToken(ctx, tc.token)
 			}
-			port, err := NewFactory(cfg).For(ctx)
+			port, err := NewFactory(cfg, "test", WithRequireRequestToken(tc.require)).For(ctx)
 
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
@@ -104,14 +98,12 @@ func TestFactoryAppliesCredentialPolicy(t *testing.T) {
 }
 
 func TestRequestTokenIsForThatRequestOnly(t *testing.T) {
+	t.Parallel()
 	srv := newStub(t)
 	cfg := config.Forgejo{URL: srv.URL, Token: config.NewSecret(operatorValue)}
-	forgejo.Configure(cfg, "test")
-	forgejo.ResetClientForTesting()
-	t.Cleanup(forgejo.ResetClientForTesting)
 
-	f := NewFactory(cfg)
-	if _, err := f.For(forgejo.WithToken(context.Background(), requestValue)); err != nil {
+	f := NewFactory(cfg, "test")
+	if _, err := f.For(forge.WithToken(context.Background(), requestValue)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.For(context.Background()); err != nil {

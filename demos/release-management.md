@@ -303,6 +303,6 @@ No file paths cross the MCP boundary at any step, so the same flow works identic
 
 ## Why the cap, why the slice
 
-- **1 MiB inline cap.** Identical to `download_issue_attachment` — keeps small assets ergonomic in-band, prevents context-window blowout for big ones, and the always-present `browser_download_url` lets agents fall through cleanly. The cap is the constant `MaxInlineDownloadBytes` in `pkg/forgejo/rawhttp.go`; one source of truth across all attachment domains.
+- **1 MiB inline cap.** Identical to `download_issue_attachment` — keeps small assets ergonomic in-band, prevents context-window blowout for big ones, and the always-present `browser_download_url` lets agents fall through cleanly. The cap is the constant `MaxInlineDownloadBytes` in `pkg/forge/limits.go`; one source of truth across all attachment domains.
 - **Client-side state filter on `list_releases`.** Forgejo's REST API has no `state` query param. Filtering client-side means a page may return fewer items than `limit`; the tool description documents this so callers know to paginate, not retry.
 - **Client-side slicing on `list_release_attachments`.** No SDK pagination is available. The full asset slice is fetched, then sliced. Acceptable while real-world releases have <50 assets; revisit if that changes.

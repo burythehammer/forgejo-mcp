@@ -24,7 +24,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/server"
@@ -49,12 +48,12 @@ func withRequestToken(cfg config.Config, ctx context.Context, r *http.Request) c
 		// must never reach Forgejo. The authentication layer has minted a Forgejo
 		// token for this request; only that one enters the handler context.
 		if token, ok := r.Context().Value(mintedTokenKey{}).(string); ok && token != "" {
-			return forgejo.WithToken(ctx, token)
+			return forge.WithToken(ctx, token)
 		}
 		return ctx
 	}
 	if token := extractToken(r.Header.Get("Authorization")); token != "" {
-		return forgejo.WithToken(ctx, token)
+		return forge.WithToken(ctx, token)
 	}
 	return ctx
 }
@@ -229,13 +228,13 @@ func extractToken(auth string) string {
 func Run(cfg config.Config, version string) error {
 	transport := cfg.Transport
 	mcpServer := newMCPServer(version)
-	factory := sdk.NewFactory(cfg.Forgejo)
+	factory := newFactory(cfg, version)
 	RegisterTool(mcpServer, version, factory)
 	RegisterCoreResources(mcpServer, factory)
 
 	if cfg.ResourceServerMode() {
 		// config.Load has already refused every transport but http.
-		rs, err := prepareResourceServer(context.Background(), cfg)
+		rs, err := prepareResourceServer(context.Background(), cfg, factory)
 		if err != nil {
 			return err
 		}
@@ -263,7 +262,7 @@ func Run(cfg config.Config, version string) error {
 	log.Info("Testing connection to Forgejo instance",
 		log.SanitizedURLField("url", cfg.Forgejo.URL),
 	)
-	if err := testConnection(); err != nil {
+	if err := factory.VerifyConnection(context.Background()); err != nil {
 		log.Error("Failed to connect to Forgejo instance",
 			log.SanitizedURLField("url", cfg.Forgejo.URL),
 			log.ErrorField(err),
@@ -321,8 +320,15 @@ func Run(cfg config.Config, version string) error {
 	return nil
 }
 
-func testConnection() error {
-	return forgejo.VerifyConnection()
+// newFactory builds the Forgejo factory from cfg: the one place the credential
+// policy is chosen. The network transports refuse a request that carries no
+// credential of its own unless the operator opted in to the fallback; stdio
+// always falls back, because the client launched this process and there is no
+// per-request identity to carry. The policy is a decision about transport, not
+// about the address a listener bound.
+func newFactory(cfg config.Config, version string) *sdk.Factory {
+	require := cfg.Transport != "stdio" && resolveTransportConfig(cfg).requireAuth
+	return sdk.NewFactory(cfg.Forgejo, version, sdk.WithRequireRequestToken(require))
 }
 
 func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {

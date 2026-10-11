@@ -11,7 +11,6 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -101,9 +100,9 @@ func (h handlers) wikiResourceHandler(ctx context.Context, req mcp.ReadResourceR
 	}
 
 	markdown := string(decoded)
-	if len(markdown) > forgejo.MaxInlineDownloadBytes {
+	if len(markdown) > forge.MaxInlineDownloadBytes {
 		marker := "\n\n[truncated: use get_wiki_page with start_line/end_line to retrieve the remainder.]"
-		keep := forgejo.MaxInlineDownloadBytes - len(marker)
+		keep := forge.MaxInlineDownloadBytes - len(marker)
 		for keep > 0 && !utf8.RuneStart(markdown[keep]) {
 			keep--
 		}

@@ -9,7 +9,6 @@ import (
 	"net/url"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 )
 
 var _ forge.Wiki = (*Adapter)(nil)
@@ -21,7 +20,7 @@ type wikiWriteOptions struct {
 }
 
 func wikiRepoPath(owner, repo string) string {
-	return forgejo.APIPath("repos", owner, repo, "wiki")
+	return forge.APIPath("repos", owner, repo, "wiki")
 }
 
 // wikiPageSegment makes a page name one escaped path segment, whether the

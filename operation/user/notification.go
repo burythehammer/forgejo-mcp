@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -132,7 +132,7 @@ func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequ
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
-	forgejo.LogAPICall(ctx, "GET", "/notifications", duration, statusCode, err)
+	forge.LogAPICall(ctx, "GET", "/notifications", duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, CheckNotificationsToolName, duration, err)
@@ -164,7 +164,7 @@ func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolR
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
-	forgejo.LogAPICall(ctx, "GET", forgejo.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
+	forge.LogAPICall(ctx, "GET", forge.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, GetNotificationThreadToolName, duration, err)
@@ -195,7 +195,7 @@ func (h handlers) MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRe
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
-	forgejo.LogAPICall(ctx, "PATCH", forgejo.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
+	forge.LogAPICall(ctx, "PATCH", forge.APIPath("notifications", "threads", int64(id)), duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, MarkNotificationReadToolName, duration, err)
@@ -229,7 +229,7 @@ func (h handlers) MarkAllNotificationsReadFn(ctx context.Context, req mcp.CallTo
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
-	forgejo.LogAPICall(ctx, "PUT", "/notifications", duration, statusCode, err)
+	forge.LogAPICall(ctx, "PUT", "/notifications", duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, MarkAllNotificationsReadToolName, duration, err)
@@ -305,7 +305,7 @@ func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolR
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
-	forgejo.LogAPICall(ctx, "GET", forgejo.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
+	forge.LogAPICall(ctx, "GET", forge.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, ListRepoNotificationsToolName, duration, err)
@@ -347,7 +347,7 @@ func (h handlers) MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallT
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
-	forgejo.LogAPICall(ctx, "PUT", forgejo.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
+	forge.LogAPICall(ctx, "PUT", forge.APIPath("repos", owner, repo, "notifications"), duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, MarkRepoNotificationsReadToolName, duration, err)

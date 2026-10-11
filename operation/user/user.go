@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -19,11 +18,9 @@ const (
 	GetMyUserInfoToolName = "get_my_user_info"
 )
 
-var (
-	GetMyUserInfoTool = mcp.NewTool(
-		GetMyUserInfoToolName,
-		mcp.WithDescription("Get user info"),
-	)
+var GetMyUserInfoTool = mcp.NewTool(
+	GetMyUserInfoToolName,
+	mcp.WithDescription("Get user info"),
 )
 
 // handlers serve the user tools from the Forgejo port. The port is resolved per
@@ -66,7 +63,7 @@ func (h handlers) GetUserInfoFn(ctx context.Context, req mcp.CallToolRequest) (*
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
-	forgejo.LogAPICall(ctx, "GET", "/user", duration, statusCode, err)
+	forge.LogAPICall(ctx, "GET", "/user", duration, statusCode, err)
 
 	if err != nil {
 		log.LogMCPToolError(ctx, GetMyUserInfoToolName, duration, err)

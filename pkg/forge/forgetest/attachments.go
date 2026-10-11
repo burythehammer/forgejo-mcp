@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -152,7 +151,7 @@ func RunAttachments(t *testing.T, newHarness func(t *testing.T) Harness) {
 		h := newHarness(t)
 		sc := attachmentScopes()[0]
 		sc.seed(h)
-		att, err := sc.create(h, upload("big.bin", "", strings.Repeat("x", int(forgejo.MaxInlineDownloadBytes)+1)))
+		att, err := sc.create(h, upload("big.bin", "", strings.Repeat("x", int(forge.MaxInlineDownloadBytes)+1)))
 		must(t, err)
 		_, err = h.Port.DownloadAttachment(ctx, att.DownloadURL)
 		if !errors.Is(err, forge.ErrPayloadTooLarge) {

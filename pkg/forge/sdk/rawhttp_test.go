@@ -1,4 +1,4 @@
-package forgejo
+package sdk
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 )
 
 type capturedReq struct {
@@ -23,6 +25,7 @@ type capturedReq struct {
 	accept      string
 	rangeHeader string
 	body        []byte
+	rc          *rawClient
 }
 
 func newCaptureServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Request, c *capturedReq)) (*httptest.Server, *capturedReq) {
@@ -40,7 +43,7 @@ func newCaptureServer(t *testing.T, handler func(w http.ResponseWriter, r *http.
 		handler(w, r, c)
 	}))
 	t.Cleanup(srv.Close)
-	ConfigureForTesting(srv.URL, "test-token", "forgejo-mcp-test/0.0.1")
+	c.rc = newRawClient(srv.URL, "test-token", "forgejo-mcp-test/0.0.1")
 	return srv, c
 }
 
@@ -54,7 +57,7 @@ func TestDoJSON_GetSuccess_HeadersAndDecode(t *testing.T) {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	}
-	if err := DoJSON(context.Background(), http.MethodGet, "/repos/o/r/issues/1/assets", nil, &out); err != nil {
+	if err := c.rc.doJSON(context.Background(), http.MethodGet, "/repos/o/r/issues/1/assets", nil, &out); err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 	if out.ID != 42 || out.Name != "hello" {
@@ -78,7 +81,7 @@ func TestDoJSON_PostBodySerialised(t *testing.T) {
 	})
 
 	body := map[string]string{"name": "renamed.txt"}
-	if err := DoJSON(context.Background(), http.MethodPatch, "/x", body, nil); err != nil {
+	if err := c.rc.doJSON(context.Background(), http.MethodPatch, "/x", body, nil); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	if c.method != http.MethodPatch {
@@ -97,10 +100,10 @@ func TestDoJSON_PostBodySerialised(t *testing.T) {
 }
 
 func TestDoJSON_204NoContent(t *testing.T) {
-	newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-	if err := DoJSON(context.Background(), http.MethodDelete, "/x/1", nil, nil); err != nil {
+	if err := c.rc.doJSON(context.Background(), http.MethodDelete, "/x/1", nil, nil); err != nil {
 		t.Fatalf("expected no error on 204, got: %v", err)
 	}
 }
@@ -111,23 +114,23 @@ func TestDoJSON_4xxErrorTypes(t *testing.T) {
 		status int
 		want   error
 	}{
-		{"401", http.StatusUnauthorized, ErrUnauthorized},
-		{"403", http.StatusForbidden, ErrUnauthorized},
-		{"404", http.StatusNotFound, ErrNotFound},
+		{"401", http.StatusUnauthorized, errUnauthorized},
+		{"403", http.StatusForbidden, errUnauthorized},
+		{"404", http.StatusNotFound, errNotFound},
 		{"500", http.StatusInternalServerError, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+			_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(`{"message":"nope"}`))
 			})
-			err := DoJSON(context.Background(), http.MethodGet, "/x", nil, nil)
+			err := c.rc.doJSON(context.Background(), http.MethodGet, "/x", nil, nil)
 			if err == nil {
 				t.Fatalf("expected error for %d", tc.status)
 			}
-			var he *HTTPError
+			var he *httpError
 			if !errors.As(err, &he) {
-				t.Fatalf("expected *HTTPError, got %T", err)
+				t.Fatalf("expected *httpError, got %T", err)
 			}
 			if he.StatusCode != tc.status {
 				t.Fatalf("status: got %d want %d", he.StatusCode, tc.status)
@@ -143,11 +146,11 @@ func TestDoJSON_4xxErrorTypes(t *testing.T) {
 }
 
 func TestDoJSONList_404IsEmpty(t *testing.T) {
-	newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 		w.WriteHeader(http.StatusNotFound)
 	})
 	var out []map[string]any
-	if err := DoJSONList(context.Background(), http.MethodGet, "/x", &out); err != nil {
+	if err := c.rc.doJSONList(context.Background(), http.MethodGet, "/x", &out); err != nil {
 		t.Fatalf("404 on list should be nil err, got: %v", err)
 	}
 	if len(out) != 0 {
@@ -156,17 +159,17 @@ func TestDoJSONList_404IsEmpty(t *testing.T) {
 }
 
 func TestDoJSONWithHeader_404IsError(t *testing.T) {
-	newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"message":"run not found"}`))
 	})
 	var out []map[string]any
-	_, err := DoJSONWithHeader(context.Background(), http.MethodGet, "/x", nil, &out)
+	_, err := c.rc.doJSONWithHeader(context.Background(), http.MethodGet, "/x", nil, &out)
 	if err == nil {
 		t.Fatal("404 must remain an error")
 	}
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
+	if !errors.Is(err, errNotFound) {
+		t.Fatalf("expected errNotFound, got %v", err)
 	}
 	if len(out) != 0 {
 		t.Fatalf("out should stay empty on error, got %d", len(out))
@@ -174,18 +177,18 @@ func TestDoJSONWithHeader_404IsError(t *testing.T) {
 }
 
 func TestDoJSONWithHeader_ReturnsHeaders(t *testing.T) {
-	newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set(TotalCountHeader, "4")
+		w.Header().Set(totalCountHeader, "4")
 		_, _ = w.Write([]byte(`[{"id":1}]`))
 	})
 	var out []map[string]any
-	header, err := DoJSONWithHeader(context.Background(), http.MethodGet, "/x", nil, &out)
+	header, err := c.rc.doJSONWithHeader(context.Background(), http.MethodGet, "/x", nil, &out)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	if header.Get(TotalCountHeader) != "4" {
-		t.Fatalf("X-Total-Count: %q", header.Get(TotalCountHeader))
+	if header.Get(totalCountHeader) != "4" {
+		t.Fatalf("X-Total-Count: %q", header.Get(totalCountHeader))
 	}
 	if len(out) != 1 || out[0]["id"] != float64(1) {
 		t.Fatalf("decode mismatch: %+v", out)
@@ -200,7 +203,7 @@ func TestDoAPIRaw_RangedResponse(t *testing.T) {
 		_, _ = w.Write([]byte("last bytes"))
 	})
 
-	resp, err := DoAPIRaw(
+	resp, err := captured.rc.doAPIRaw(
 		context.Background(),
 		"/repos/o/r/actions/jobs/7/logs?attempt=2",
 		"text/plain",
@@ -231,13 +234,13 @@ func TestDoAPIRaw_RangedResponse(t *testing.T) {
 }
 
 func TestDoAPIRaw_RejectsBodyOverCallerBound(t *testing.T) {
-	newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 		_, _ = w.Write([]byte("sixteen bytes!!!"))
 	})
 
-	_, err := DoAPIRaw(context.Background(), "/x", "text/plain", "bytes=0-7", 8)
-	if !errors.Is(err, ErrPayloadTooLarge) {
-		t.Fatalf("expected ErrPayloadTooLarge, got %v", err)
+	_, err := c.rc.doAPIRaw(context.Background(), "/x", "text/plain", "bytes=0-7", 8)
+	if !errors.Is(err, forge.ErrPayloadTooLarge) {
+		t.Fatalf("expected forge.ErrPayloadTooLarge, got %v", err)
 	}
 }
 
@@ -253,7 +256,7 @@ func TestDoMultipart_RoundTrip(t *testing.T) {
 		Name string `json:"name"`
 	}
 	const payload = "hello world"
-	err := DoMultipart(context.Background(), http.MethodPost, "/repos/o/r/issues/1/assets",
+	err := c.rc.doMultipart(context.Background(), http.MethodPost, "/repos/o/r/issues/1/assets",
 		"attachment", "f.txt", "text/plain", strings.NewReader(payload), &out)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -294,7 +297,7 @@ func TestDoMultipart_DefaultMimeOctetStream(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{}`))
 	})
-	if err := DoMultipart(context.Background(), http.MethodPost, "/x", "attachment", "x.bin", "", strings.NewReader("a"), nil); err != nil {
+	if err := c.rc.doMultipart(context.Background(), http.MethodPost, "/x", "attachment", "x.bin", "", strings.NewReader("a"), nil); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	_, ps, _ := mime.ParseMediaType(c.ctype)
@@ -341,34 +344,34 @@ func TestDoMultipartStreamsAfterRequestStarts(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	}))
 	t.Cleanup(srv.Close)
-	withTarget(t, func(tg *target) { tg.url = srv.URL })
+	rc := newRawClient(srv.URL, "test-token", "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	reader := &gatedReader{started: requestStarted, reader: strings.NewReader("streamed")}
-	if err := DoMultipart(ctx, http.MethodPost, "/x", "attachment", "x.bin", "", reader, nil); err != nil {
+	if err := rc.doMultipart(ctx, http.MethodPost, "/x", "attachment", "x.bin", "", reader, nil); err != nil {
 		t.Fatalf("streaming upload failed: %v", err)
 	}
 }
 
 func TestDoMultipartPropagatesReaderError(t *testing.T) {
-	newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{}`))
 	})
-	err := DoMultipart(context.Background(), http.MethodPost, "/x", "attachment", "x.bin", "", failingReader{}, nil)
+	err := c.rc.doMultipart(context.Background(), http.MethodPost, "/x", "attachment", "x.bin", "", failingReader{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "read failed") {
 		t.Fatalf("expected reader error, got %v", err)
 	}
 }
 
 func TestDoMultipartHonorsContextCancellation(t *testing.T) {
-	newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 		w.WriteHeader(http.StatusOK)
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	time.AfterFunc(20*time.Millisecond, cancel)
-	err := DoMultipart(ctx, http.MethodPost, "/x", "attachment", "x.bin", "", contextReader{ctx: ctx}, nil)
+	err := c.rc.doMultipart(ctx, http.MethodPost, "/x", "attachment", "x.bin", "", contextReader{ctx: ctx}, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context cancellation, got %v", err)
 	}
@@ -380,7 +383,7 @@ func TestDoRaw_SuccessUnderCap(t *testing.T) {
 		_, _ = w.Write([]byte("PDFBYTES"))
 	})
 	_ = srv
-	body, ct, err := DoRaw(context.Background(), "/attachments/uuid-1")
+	body, ct, err := c.rc.doRaw(context.Background(), "/attachments/uuid-1")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -400,17 +403,17 @@ func TestDoRaw_SuccessUnderCap(t *testing.T) {
 }
 
 func TestDoRaw_ExceedsCap(t *testing.T) {
-	bigPayload := make([]byte, MaxInlineDownloadBytes+1024)
+	bigPayload := make([]byte, forge.MaxInlineDownloadBytes+1024)
 	for i := range bigPayload {
 		bigPayload[i] = 'a'
 	}
-	newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		_, _ = w.Write(bigPayload)
 	})
-	_, _, err := DoRaw(context.Background(), "/attachments/big")
-	if !errors.Is(err, ErrPayloadTooLarge) {
-		t.Fatalf("expected ErrPayloadTooLarge, got %v", err)
+	_, _, err := c.rc.doRaw(context.Background(), "/attachments/big")
+	if !errors.Is(err, forge.ErrPayloadTooLarge) {
+		t.Fatalf("expected forge.ErrPayloadTooLarge, got %v", err)
 	}
 }
 
@@ -419,7 +422,7 @@ func TestDoRaw_AbsoluteURLPassThrough(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte("hi"))
 	})
-	body, _, err := DoRaw(context.Background(), srv.URL+"/attachments/abs-uuid")
+	body, _, err := c.rc.doRaw(context.Background(), srv.URL+"/attachments/abs-uuid")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -432,8 +435,7 @@ func TestDoRaw_AbsoluteURLPassThrough(t *testing.T) {
 }
 
 func TestResolveURL_BaseRequired(t *testing.T) {
-	withTarget(t, func(tg *target) { tg.url = "" })
-	if _, err := resolveURL("/x"); err == nil {
+	if _, err := newRawClient("", "", "").resolveURL("/x"); err == nil {
 		t.Fatalf("expected error when Forgejo URL empty")
 	}
 }

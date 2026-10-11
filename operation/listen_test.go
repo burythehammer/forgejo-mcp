@@ -18,7 +18,7 @@ import (
 	"unicode/utf8"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -31,14 +31,6 @@ func defaultListenConfig() config.Config {
 		Transport: "http",
 		Listen:    config.Listen{Host: "localhost"},
 	}
-}
-
-// restoreRequestTokenPolicy puts pkg/forgejo's process-wide credential policy
-// back after a test that starts a listener, which sets it.
-func restoreRequestTokenPolicy(t *testing.T) {
-	t.Helper()
-	require := forgejo.RequireRequestToken()
-	t.Cleanup(func() { forgejo.SetRequireRequestToken(require) })
 }
 
 func mustListenLoopback(t *testing.T) net.Listener {
@@ -127,7 +119,7 @@ func (row *resourceServerRow) handler(t *testing.T, app config.Config, mcp *serv
 	row.fixture = newFixture(t, &rsCfg, "16.0.3", mustP256(t), "")
 	rsCfg.Auth.ResourceAudience = rsClientID
 
-	rs, err := prepareResourceServer(context.Background(), rsCfg)
+	rs, err := prepareResourceServer(context.Background(), rsCfg, newFactory(rsCfg, "test"))
 	if err != nil {
 		t.Fatalf("prepareResourceServer: %v", err)
 	}
@@ -161,11 +153,9 @@ func startGuardedWith(t *testing.T, tr transportCase, app config.Config, tweak f
 	t.Helper()
 	// The handler comes first, as in Run: a resource-server row switches the
 	// mode on while it is built, and the listener must see that mode.
-	restoreRequestTokenPolicy(t)
 	app.Transport = tr.transport
 	handler, app := tr.handler(t, app)
 	cfg := resolveTransportConfig(app)
-	forgejo.SetRequireRequestToken(cfg.requireAuth)
 	ln := mustListenLoopback(t)
 	srv := newMCPHTTPServer(handler, cfg)
 	if tweak != nil {
@@ -428,7 +418,7 @@ func TestOperatorFallbackOptInReAdmitsAnonymousRequests(t *testing.T) {
 			if got := get(t, addr, tr.path, "Host: "+addr); strings.Contains(got, "401") {
 				t.Fatalf("the opt-in did not re-admit anonymous requests: %q", got)
 			}
-			if forgejo.RequireRequestToken() {
+			if newFactory(app, "test").RequireRequestToken() {
 				t.Fatal("the opt-in did not reach the credential policy")
 			}
 		})
@@ -497,7 +487,7 @@ func TestDefaultReverseProxyDoesNotReAdmitTheOperatorCredential(t *testing.T) {
 			if resp.StatusCode != http.StatusUnauthorized {
 				t.Fatalf("an anonymous request through a default-configured reverse proxy got %d, want 401", resp.StatusCode)
 			}
-			if forgejo.RequireRequestToken() != true {
+			if newFactory(app, "test").RequireRequestToken() != true {
 				t.Fatal("the credential fallback was live on a network transport")
 			}
 		})
@@ -816,8 +806,7 @@ func TestPerRequestCredentialReachesTheHandlerContext(t *testing.T) {
 	// authenticated call failing at the forge client — which no other test
 	// here would see.
 	app := defaultListenConfig()
-	restoreRequestTokenPolicy(t)
-	forgejo.SetRequireRequestToken(true)
+	factory := newFactory(app, "test")
 
 	req, err := http.NewRequest(http.MethodPost, "http://example.invalid/mcp", nil)
 	if err != nil {
@@ -829,7 +818,7 @@ func TestPerRequestCredentialReachesTheHandlerContext(t *testing.T) {
 	// unrelated reasons here (no forge URL is configured in a unit test), and
 	// that is not what this test is about.
 	ctx := requestTokenContextFunc(app)(req.Context(), req)
-	if _, err := forgejo.Client(ctx); errors.Is(err, forgejo.ErrNoRequestToken) {
+	if _, err := factory.For(ctx); errors.Is(err, forge.ErrNoRequestToken) {
 		t.Fatal("a request carrying a credential was refused for want of one")
 	}
 
@@ -838,7 +827,7 @@ func TestPerRequestCredentialReachesTheHandlerContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
-	if _, err := forgejo.Client(requestTokenContextFunc(app)(bare.Context(), bare)); !errors.Is(err, forgejo.ErrNoRequestToken) {
+	if _, err := factory.For(requestTokenContextFunc(app)(bare.Context(), bare)); !errors.Is(err, forge.ErrNoRequestToken) {
 		t.Fatalf("a request carrying no credential was not refused: %v", err)
 	}
 }
@@ -869,11 +858,9 @@ func TestAuthenticatedRequestPassesTheDoor(t *testing.T) {
 // did exactly that, and its mutation sibling below is what caught it.
 func startStreamingHandler(t *testing.T, tweak func(*http.Server)) string {
 	t.Helper()
-	restoreRequestTokenPolicy(t)
 	app := defaultListenConfig()
 	app.Transport = "sse"
 	cfg := resolveTransportConfig(app)
-	forgejo.SetRequireRequestToken(cfg.requireAuth)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

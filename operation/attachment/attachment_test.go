@@ -14,7 +14,6 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/upload"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -169,7 +168,7 @@ func TestListUnknownParentIsEmptyArray(t *testing.T) {
 func TestDownloadOverCapReturnsMetadataOnly(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	upload64(t, h, strings.Repeat("x", int(forgejo.MaxInlineDownloadBytes)), "big.bin")
+	upload64(t, h, strings.Repeat("x", int(forge.MaxInlineDownloadBytes)), "big.bin")
 	res := ok(t, h.DownloadIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0})
 	if _, found := blob(res); found {
 		t.Fatal("blob must not be inlined at or above the cap")

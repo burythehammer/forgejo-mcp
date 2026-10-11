@@ -35,6 +35,43 @@ func RunRepoAdmin(t *testing.T, newHarness func(t *testing.T) Harness) {
 			wantNotFound(t, err)
 			wantNotDeleted(t, h, "nobody", "nothing", "b")
 		}},
+		{"created repository reads back and is listed as mine", func(t *testing.T, h Harness) {
+			r, err := h.Port.CreateRepo(ctx, forgejo_sdk.CreateRepoOption{Name: "fresh", Description: "d", Private: true})
+			must(t, err)
+			if r.Name != "fresh" || r.Description != "d" || !r.Private {
+				t.Fatalf("created %+v", r)
+			}
+			got, err := h.Port.GetRepo(ctx, r.Owner.UserName, "fresh")
+			must(t, err)
+			if got.Name != "fresh" {
+				t.Fatalf("read back %+v", got)
+			}
+			mine, err := h.Port.ListMyRepos(ctx, forgejo_sdk.ListReposOptions{})
+			must(t, err)
+			if len(mine) != 1 || mine[0].Name != "fresh" {
+				t.Fatalf("my repos: %+v", mine)
+			}
+			_, err = h.Port.CreateRepo(ctx, forgejo_sdk.CreateRepoOption{Name: "fresh"})
+			if err == nil {
+				t.Fatal("duplicate repository must be refused")
+			}
+		}},
+		{"creating in an unknown organization is not found", func(t *testing.T, h Harness) {
+			_, err := h.Port.CreateOrgRepo(ctx, "no-such-org", forgejo_sdk.CreateRepoOption{Name: "x"})
+			wantNotFound(t, err)
+		}},
+		{"fork copies the source under the caller; unknown source is not found", func(t *testing.T, h Harness) {
+			h.Seed.AddRepo(Owner, Repo)
+			f, err := h.Port.ForkRepo(ctx, Owner, Repo, forgejo_sdk.CreateForkOption{})
+			must(t, err)
+			if f.Name != Repo || f.Owner.UserName == Owner {
+				t.Fatalf("fork %+v", f)
+			}
+			_, err = h.Port.GetRepo(ctx, f.Owner.UserName, Repo)
+			must(t, err)
+			_, err = h.Port.ForkRepo(ctx, "nobody", "nothing", forgejo_sdk.CreateForkOption{})
+			wantNotFound(t, err)
+		}},
 		{"get repo returns its identity", func(t *testing.T, h Harness) {
 			h.Seed.AddRepo(Owner, Repo)
 			r, err := h.Port.GetRepo(ctx, Owner, Repo)

@@ -15,6 +15,16 @@ import (
 // Methods are named for what the repo tools and the repo resource need, and use
 // SDK types as plain data. Failures from Forgejo are *StatusError.
 type RepoAdmin interface {
+	// CreateRepo creates a repository owned by the credential's user.
+	CreateRepo(ctx context.Context, opt forgejo_sdk.CreateRepoOption) (*forgejo_sdk.Repository, error)
+	// CreateOrgRepo creates a repository owned by an organization.
+	CreateOrgRepo(ctx context.Context, org string, opt forgejo_sdk.CreateRepoOption) (*forgejo_sdk.Repository, error)
+	// ForkRepo forks owner/repo into the credential's user, or into
+	// opt.Organization when set.
+	ForkRepo(ctx context.Context, owner, repo string, opt forgejo_sdk.CreateForkOption) (*forgejo_sdk.Repository, error)
+	// ListMyRepos lists the repositories the credential's user owns.
+	ListMyRepos(ctx context.Context, opt forgejo_sdk.ListReposOptions) ([]*forgejo_sdk.Repository, error)
+
 	GetRepo(ctx context.Context, owner, repo string) (*forgejo_sdk.Repository, error)
 	EditRepo(ctx context.Context, owner, repo string, opt forgejo_sdk.EditRepoOption) (*forgejo_sdk.Repository, error)
 

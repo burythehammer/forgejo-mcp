@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/upload"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -257,7 +257,7 @@ func TestDownloadReleaseAttachment_AtCapNoBlob(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	rid := float64(seed(t, f, "v1", false, false).ID)
-	ok(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": b64(strings.Repeat("x", int(forgejo.MaxInlineDownloadBytes))), "filename": "big"})
+	ok(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": b64(strings.Repeat("x", int(forge.MaxInlineDownloadBytes))), "filename": "big"})
 	res := ok(t, h.DownloadReleaseAttachmentFn, map[string]any{"release_id": rid, "attachment_id": 1.0})
 	if len(res.Content) != 1 || !strings.Contains(text(t, res), `"inline":false`) {
 		t.Fatalf("got %+v", res.Content)

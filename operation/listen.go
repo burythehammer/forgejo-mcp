@@ -16,7 +16,6 @@ import (
 	"unicode/utf8"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"go.uber.org/zap"
@@ -57,7 +56,7 @@ const (
 //
 // This decides only whether an allow-list is REQUIRED and whether loopback
 // names are implicitly acceptable. It deliberately decides nothing about
-// credentials — see forgejo.SetRequireRequestToken for why.
+// credentials — see newFactory for why.
 func addrIsLoopbackOnly(a net.Addr) bool {
 	tcpAddr, ok := a.(*net.TCPAddr)
 	if !ok {
@@ -305,7 +304,7 @@ func newMCPHTTPServer(handler http.Handler, cfg transportConfig) *http.Server {
 	// In resource-server mode the handler authenticates its protected route
 	// itself, and its public documents must be reachable without a token, so the
 	// door does not look at Authorization. The credential fallback stays refused
-	// either way: cfg.requireAuth still drives forgejo.SetRequireRequestToken.
+	// either way: cfg.requireAuth still drives the credential policy (see newFactory).
 	return &http.Server{
 		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, cfg.requireAuth && !cfg.resourceServer),
 		ReadHeaderTimeout: readHeaderTimeout,
@@ -419,8 +418,6 @@ func oneFamilyHint(cfg transportConfig) string {
 // its own listener would silently miss all three.
 func serveMCPOverHTTP(transportName string, handler http.Handler, port int, appCfg config.Config) error {
 	cfg := resolveTransportConfig(appCfg)
-
-	forgejo.SetRequireRequestToken(cfg.requireAuth)
 
 	listeners, err := bindListeners(transportName, cfg, port, net.Listen)
 	if err != nil {

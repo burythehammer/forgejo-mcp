@@ -4,11 +4,9 @@ package sdk
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -51,12 +49,12 @@ func (a *Adapter) DeleteFile(_ context.Context, owner, repo, path string, opt fo
 }
 
 // ChangeFiles has no SDK method, so it goes over raw HTTP to the contents
-// endpoint with the package-level target and credential policy.
+// endpoint, through the adapter's raw client.
 func (a *Adapter) ChangeFiles(ctx context.Context, owner, repo string, opt forge.ChangeFilesOptions) (map[string]any, error) {
 	var out map[string]any
-	path := forgejo.APIPath("repos", owner, repo, "contents")
-	if err := forgejo.DoJSON(ctx, http.MethodPost, path, opt, &out); err != nil {
-		return nil, rawStatusErr(err)
+	path := forge.APIPath("repos", owner, repo, "contents")
+	if err := a.rawDo(ctx, http.MethodPost, path, opt, &out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -78,17 +76,7 @@ func (a *Adapter) ListCommitStatuses(_ context.Context, owner, repo, sha string,
 	}
 	out := forge.CommitStatuses{Statuses: s}
 	if resp != nil && resp.Response != nil {
-		out.TotalCount = forgejo.TotalCountPtr(resp.Header)
+		out.TotalCount = totalCountPtr(resp.Header)
 	}
 	return out, nil
-}
-
-// rawStatusErr carries the status of a raw-HTTP failure the way statusErr does
-// for the SDK's, leaving the message unchanged.
-func rawStatusErr(err error) error {
-	var he *forgejo.HTTPError
-	if errors.As(err, &he) {
-		return &forge.StatusError{StatusCode: he.StatusCode, Err: err}
-	}
-	return err
 }

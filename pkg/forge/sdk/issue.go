@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -34,7 +33,7 @@ func headerPageInfo(h http.Header) forge.PageInfo {
 			info.HasNext = true
 		}
 	}
-	info.TotalCount, info.TotalKnown = forgejo.TotalCount(h)
+	info.TotalCount, info.TotalKnown = totalCountOK(h)
 	return info
 }
 
@@ -54,7 +53,7 @@ func (a *Adapter) ListRepoIssues(ctx context.Context, owner, repo string, opt fo
 	// repository does not exist and must not read as "no issues".
 	if opt.Sort != "" {
 		query := opt.QueryEncode() + "&sort=" + url.QueryEscape(opt.Sort)
-		path := forgejo.APIPath("repos", owner, repo, "issues") + "?" + query
+		path := forge.APIPath("repos", owner, repo, "issues") + "?" + query
 		var issues []*forgejo_sdk.Issue
 		header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
 		if err != nil {
@@ -119,9 +118,4 @@ func (a *Adapter) DeleteIssueComment(_ context.Context, owner, repo string, id i
 func (a *Adapter) ListRepoMilestones(_ context.Context, owner, repo string, opt forgejo_sdk.ListMilestoneOption) ([]*forgejo_sdk.Milestone, error) {
 	ms, resp, err := a.client.ListRepoMilestones(owner, repo, opt)
 	return ms, statusErr(resp, err)
-}
-
-// MaxResponseItems reads the instance setting, cached per instance.
-func (a *Adapter) MaxResponseItems(ctx context.Context) (int, bool) {
-	return forgejo.MaxResponseItems(ctx)
 }

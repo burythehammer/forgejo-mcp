@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -27,7 +26,7 @@ type issueMetaBody struct {
 
 // listIssues lists issues at an issue sub-resource, a 404 meaning none.
 func (a *Adapter) listIssues(ctx context.Context, owner, repo string, index int64, sub string, page, limit int) ([]*forgejo_sdk.Issue, error) {
-	path := forgejo.APIPath("repos", owner, repo, "issues", index, sub) + "?" + pageQuery(page, limit)
+	path := forge.APIPath("repos", owner, repo, "issues", index, sub) + "?" + pageQuery(page, limit)
 	issues := []*forgejo_sdk.Issue{}
 	_, err := a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
 	if forge.IsNotFound(err) {
@@ -48,13 +47,13 @@ func (a *Adapter) ListIssueDependents(ctx context.Context, owner, repo string, i
 }
 
 func (a *Adapter) AddIssueDependency(ctx context.Context, owner, repo string, index int64, dep forge.IssueRef) error {
-	path := forgejo.APIPath("repos", owner, repo, "issues", index, "dependencies")
+	path := forge.APIPath("repos", owner, repo, "issues", index, "dependencies")
 	_, err := a.rawJSON(ctx, http.MethodPost, path, issueMetaBody{Index: dep.Index, Owner: dep.Owner, Repo: dep.Repo}, nil)
 	return err
 }
 
 func (a *Adapter) RemoveIssueDependency(ctx context.Context, owner, repo string, index int64, dep forge.IssueRef) error {
-	path := forgejo.APIPath("repos", owner, repo, "issues", index, "dependencies")
+	path := forge.APIPath("repos", owner, repo, "issues", index, "dependencies")
 	_, err := a.rawJSON(ctx, http.MethodDelete, path, issueMetaBody{Index: dep.Index, Owner: dep.Owner, Repo: dep.Repo}, nil)
 	return err
 }
