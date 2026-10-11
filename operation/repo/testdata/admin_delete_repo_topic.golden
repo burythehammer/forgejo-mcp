@@ -1,0 +1,3 @@
+{"Result":{"status":"deleted","topic":"ci"}}
+-- port calls --
+DeleteRepoTopic ["octo","hello","ci"]

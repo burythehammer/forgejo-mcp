@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -22,10 +23,10 @@ func statusesReq(extra map[string]any) mcp.CallToolRequest {
 	return filesReq(args)
 }
 
-func decodeStatuses(t *testing.T, res *mcp.CallToolResult) getCommitStatusesResult {
+func decodeStatuses(t *testing.T, res *mcp.CallToolResult) model.CommitStatuses {
 	t.Helper()
 	var envelope struct {
-		Result getCommitStatusesResult `json:"Result"`
+		Result model.CommitStatuses `json:"Result"`
 	}
 	if err := json.Unmarshal([]byte(extractText(t, res)), &envelope); err != nil {
 		t.Fatalf("result JSON: %v", err)
