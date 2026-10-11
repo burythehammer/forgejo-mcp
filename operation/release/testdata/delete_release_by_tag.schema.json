@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete a release by tag name. Destructive — verify tag before calling.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "tag": {
+        "description": "Existing release tag name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "tag"
+    ],
+    "type": "object"
+  },
+  "name": "delete_release_by_tag"
+}

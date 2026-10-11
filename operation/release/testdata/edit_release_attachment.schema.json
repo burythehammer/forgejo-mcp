@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Rename a release attachment.",
+  "inputSchema": {
+    "properties": {
+      "attachment_id": {
+        "description": "Attachment ID",
+        "type": "number"
+      },
+      "name": {
+        "description": "New name for the attachment",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "release_id": {
+        "description": "Release ID",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "release_id",
+      "attachment_id",
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "edit_release_attachment"
+}

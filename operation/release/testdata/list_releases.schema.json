@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List releases for a repository. The state filter is applied client-side after pagination, so result size may be smaller than limit even when more matches exist on later pages.",
+  "inputSchema": {
+    "properties": {
+      "limit": {
+        "default": 20,
+        "description": "Page size",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "default": "all",
+        "description": "Filter by state: all|draft|prerelease|published. Filter is applied client-side after pagination, so result size may be smaller than limit.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_releases"
+}

@@ -1,0 +1,56 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Edit an existing release. Only fields supplied by the caller are sent to Forgejo.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Content body",
+        "type": "string"
+      },
+      "draft": {
+        "description": "Whether the release is a draft",
+        "type": "boolean"
+      },
+      "name": {
+        "description": "Title",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "prerelease": {
+        "description": "Whether the release is a prerelease",
+        "type": "boolean"
+      },
+      "release_id": {
+        "description": "Release ID",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "tag_name": {
+        "description": "Tag name for the release (created if it does not exist)",
+        "type": "string"
+      },
+      "target_commitish": {
+        "description": "Branch or commit SHA the tag points at (only used when the tag does not yet exist)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "release_id"
+    ],
+    "type": "object"
+  },
+  "name": "edit_release"
+}
