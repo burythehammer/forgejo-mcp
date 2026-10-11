@@ -1,0 +1,3 @@
+ERROR: delete issue comment err: boom
+-- port calls --
+DeleteIssueComment ["octo","hello",31]

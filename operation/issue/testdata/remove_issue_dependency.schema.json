@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Remove a dependency from the given issue. The dependency on dependency_index is removed from the issue identified by index. For a cross-repo dependency, pass dependency_owner/dependency_repo, which default to owner/repo. This tool fails if the repository has disabled issue dependencies.",
+  "inputSchema": {
+    "properties": {
+      "dependency_index": {
+        "description": "Issue index to remove as a dependency",
+        "type": "number"
+      },
+      "dependency_owner": {
+        "description": "Owner of the repository the dependency issue lives in (defaults to owner)",
+        "type": "string"
+      },
+      "dependency_repo": {
+        "description": "Repository the dependency issue lives in (defaults to repo)",
+        "type": "string"
+      },
+      "index": {
+        "description": "Issue index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "dependency_index"
+    ],
+    "type": "object"
+  },
+  "name": "remove_issue_dependency"
+}

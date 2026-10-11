@@ -1,0 +1,65 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Search issues across every repository belonging to one owner (organization or user), without naming a repo. Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count, when present, is the total number of matching issues across all pages (from Forgejo's X-Total-Count header); it is omitted rather than 0 when the header is unavailable. Each issue identifies its source repository only via its html_url/url field; there is no separate repository field. Use list_repo_issues instead when the repo is already known.",
+  "inputSchema": {
+    "properties": {
+      "assigned_by": {
+        "description": "Filter by assignee username",
+        "type": "string"
+      },
+      "created_by": {
+        "description": "Filter by creator username",
+        "type": "string"
+      },
+      "labels": {
+        "description": "Labels (comma-separated); OR semantics — an issue matching any listed label is returned",
+        "type": "string"
+      },
+      "limit": {
+        "default": 20,
+        "description": "Page size",
+        "type": "number"
+      },
+      "mentioned_by": {
+        "description": "Filter by mentioned username",
+        "type": "string"
+      },
+      "milestones": {
+        "description": "Milestone names/IDs (comma-separated)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
+      },
+      "q": {
+        "description": "Search keyword (matches issue title, body, and comments)",
+        "type": "string"
+      },
+      "state": {
+        "default": "open",
+        "description": "State (open|closed|all)",
+        "type": "string"
+      },
+      "type": {
+        "description": "Type (issues|pulls)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "search_issues"
+}

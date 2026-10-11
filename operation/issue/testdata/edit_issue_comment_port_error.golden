@@ -1,0 +1,3 @@
+ERROR: edit issue comment err: boom
+-- port calls --
+EditIssueComment ["octo","hello",31,"x"]

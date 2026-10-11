@@ -1,0 +1,36 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create an organization-level label. Returns the created label including its numeric id.",
+  "inputSchema": {
+    "properties": {
+      "color": {
+        "description": "Label color as 6-digit hex (e.g. #0088ff or 0088ff)",
+        "type": "string"
+      },
+      "description": {
+        "description": "Label description",
+        "type": "string"
+      },
+      "name": {
+        "description": "Label name",
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "name",
+      "color"
+    ],
+    "type": "object"
+  },
+  "name": "create_org_label"
+}
