@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/diff"
 )
@@ -305,21 +305,10 @@ func (s *Service) CancelReviewRequests(ctx context.Context, in ReviewersInput) e
 func reviewers(in ReviewersInput) Reviewers {
 	var r Reviewers
 	if in.Reviewers != "" {
-		r.Users = splitCSV(in.Reviewers)
+		r.Users = split.CSV(in.Reviewers)
 	}
 	if in.TeamReviewers != "" {
-		r.Teams = splitCSV(in.TeamReviewers)
+		r.Teams = split.CSV(in.TeamReviewers)
 	}
 	return r
-}
-
-func splitCSV(s string) []string {
-	parts := strings.Split(s, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if trimmed := strings.TrimSpace(p); trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }
