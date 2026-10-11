@@ -1,0 +1,3 @@
+{"Result":{"files":[{"id":1,"name":"a.tgz","size":10,"sha256":"sha-a"},{"id":2,"name":"b.tgz","size":20,"sha256":"sha-b"}],"page":1,"limit":2,"count":2,"has_next":true,"total_count":5}}
+-- port calls --
+ListPackageFiles ["octo","generic","tool","1.0"]

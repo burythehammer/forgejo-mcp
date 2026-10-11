@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List files of one package version. Forgejo returns the full file list with no paging; page (default 1) and limit (default 30, maximum 50) slice it client-side. Returns {files, page, limit, count, has_next, total_count}. total_count is the fetched list length (the files endpoint has no X-Total-Count). Each file is id, name, size, sha256.",
+  "inputSchema": {
+    "properties": {
+      "limit": {
+        "default": 30,
+        "description": "Page size",
+        "maximum": 50,
+        "minimum": 1,
+        "type": "number"
+      },
+      "name": {
+        "description": "Package name (container names may contain /)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "type": {
+        "description": "Package type (container, generic, npm, maven, …). Omit on list to include every type",
+        "type": "string"
+      },
+      "version": {
+        "description": "Package version",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "type",
+      "name",
+      "version"
+    ],
+    "type": "object"
+  },
+  "name": "list_package_files"
+}
