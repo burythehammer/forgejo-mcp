@@ -22,6 +22,15 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// numberKind is the kind of a field's value, looking through a pointer, so an
+// optional number (*float64) takes a string number as a plain one does.
+func numberKind(t reflect.Type) reflect.Kind {
+	if t.Kind() == reflect.Pointer {
+		return t.Elem().Kind()
+	}
+	return t.Kind()
+}
+
 func isNumber(k reflect.Kind) bool {
 	switch k {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -77,7 +86,7 @@ func fill(req mcp.CallToolRequest, dst any) ([]string, error) {
 			}
 			continue
 		}
-		if s, isString := raw.(string); isString && isNumber(f.Type.Kind()) {
+		if s, isString := raw.(string); isString && isNumber(numberKind(f.Type)) {
 			// Some MCP clients send number parameters as strings.
 			s = strings.TrimSpace(s)
 			if s == "" {
