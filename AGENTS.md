@@ -21,7 +21,7 @@ Key directories:
 
 - `operation/` - MCP adapters by domain: tool definitions, argument decoding, rendering
 - `app/` - Use cases by domain: MCP-free and SDK-free (`scripts/ci/check-app-boundary.sh`)
-- `pkg/forge/` - The Forgejo port (interfaces, no SDK client); `pkg/forge/sdk/` is the one real adapter; `pkg/forge/<domain>adapter/` bridges a use case's port to it
+- `pkg/forge/` - The Forgejo port (interfaces, no SDK client); `pkg/forge/sdk/` is the Forgejo adapter (the real one); `pkg/forge/<domain>adapter/` is a port bridge from a use case's port to it
 - `pkg/to/` - Response formatting helpers
 - `pkg/params/` - Shared parameter descriptions
 
