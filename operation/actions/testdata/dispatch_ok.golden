@@ -1,0 +1,3 @@
+{"Result":"Workflow dispatched successfully!\n  Workflow: ci.yaml\n  Ref: main\n  URL: https://f.example/octo/hello/actions"}
+-- port calls --
+DispatchWorkflow ["octo","hello","ci.yaml",{"ref":"main","inputs":{"a":"b"}}]
