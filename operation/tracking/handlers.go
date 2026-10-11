@@ -7,6 +7,7 @@ import (
 
 	apptracking "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/tracking"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/trackingadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
@@ -94,7 +95,7 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	log.Debugf("Called %s", name)
 	var args A
 	if err := decode.Lax(req, &args); err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return do(ctx, apptracking.New(h.source()), args)
 }
@@ -111,21 +112,10 @@ func (h handlers) source() apptracking.Source {
 	}
 }
 
-// fail is the one place use-case errors become MCP errors.
-func fail(err error) (*mcp.CallToolResult, error) { return to.ErrorResult(err) }
-
-// render sends a use case's result, or its error, to the client as JSON.
-func render(v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return fail(err)
-	}
-	return to.TextResult(v)
-}
-
 // message sends a use case's outcome as the given text.
 func message(text string, err error) (*mcp.CallToolResult, error) {
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(text)
 }
@@ -137,7 +127,7 @@ func ref(a issueArgs) apptracking.IssueRef {
 func (h handlers) ListIssueTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a issueTimesArgs) (*mcp.CallToolResult, error) {
 		page, limit := paging(a.Page, a.Limit)
-		return render(s.IssueTimes(ctx, apptracking.IssueTimesInput{
+		return mcpresult.Render(s.IssueTimes(ctx, apptracking.IssueTimesInput{
 			IssueRef: ref(issueArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
 			Since:    a.Since, Before: a.Before, Page: page, Limit: limit,
 		}))
@@ -147,7 +137,7 @@ func (h handlers) ListIssueTrackedTimesFn(ctx context.Context, req mcp.CallToolR
 func (h handlers) ListRepoTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a repoTimesArgs) (*mcp.CallToolResult, error) {
 		page, limit := paging(a.Page, a.Limit)
-		return render(s.RepoTimes(ctx, apptracking.RepoTimesInput{
+		return mcpresult.Render(s.RepoTimes(ctx, apptracking.RepoTimesInput{
 			Owner: a.Owner, Repo: a.Repo, Since: a.Since, Before: a.Before, User: a.User, Page: page, Limit: limit,
 		}))
 	})
@@ -155,13 +145,13 @@ func (h handlers) ListRepoTrackedTimesFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) ListMyTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListMyTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, _ noArgs) (*mcp.CallToolResult, error) {
-		return render(s.MyTimes(ctx))
+		return mcpresult.Render(s.MyTimes(ctx))
 	})
 }
 
 func (h handlers) AddIssueTimeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "AddIssueTimeFn", func(ctx context.Context, s *apptracking.Service, a addTimeArgs) (*mcp.CallToolResult, error) {
-		return render(s.AddTime(ctx, apptracking.AddTimeInput{
+		return mcpresult.Render(s.AddTime(ctx, apptracking.AddTimeInput{
 			IssueRef:  apptracking.IssueRef{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
 			Seconds:   a.Seconds,
 			Duration:  a.Duration,
@@ -203,6 +193,6 @@ func (h handlers) CancelIssueStopwatchFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) ListMyStopwatchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListMyStopwatchesFn", func(ctx context.Context, s *apptracking.Service, _ noArgs) (*mcp.CallToolResult, error) {
-		return render(s.MyStopwatches(ctx))
+		return mcpresult.Render(s.MyStopwatches(ctx))
 	})
 }

@@ -12,6 +12,7 @@ import (
 
 	appbp "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/branchprotection"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/branchprotectionadapter"
@@ -175,37 +176,26 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	}
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return do(ctx, appbp.New(branchprotectionadapter.New(port)), args)
 }
 
-// fail is the one place use-case errors become MCP errors.
-func fail(err error) (*mcp.CallToolResult, error) { return to.ErrorResult(err) }
-
-// render sends a use case's result, or its error, to the client as JSON.
-func render(v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return fail(err)
-	}
-	return to.TextResult(v)
-}
-
 func (h handlers) ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListBranchProtectionsFn", func(ctx context.Context, s *appbp.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return render(s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
+		return mcpresult.Render(s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
 	})
 }
 
 func (h handlers) GetBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a ruleArgs) (*mcp.CallToolResult, error) {
-		return render(s.Get(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}))
+		return mcpresult.Render(s.Get(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}))
 	})
 }
 
 func (h handlers) CreateBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a createArgs) (*mcp.CallToolResult, error) {
-		return render(s.Create(ctx, appbp.CreateRequest{
+		return mcpresult.Render(s.Create(ctx, appbp.CreateRequest{
 			Owner: a.Owner, Repo: a.Repo, BranchName: a.BranchName, RuleName: a.RuleName,
 			EnablePush: a.EnablePush, EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts,
 			RequiredApprovals: a.RequiredApprovals, BlockOnOutdatedBranch: a.BlockOnOutdatedBranch,
@@ -216,7 +206,7 @@ func (h handlers) CreateBranchProtectionFn(ctx context.Context, req mcp.CallTool
 
 func (h handlers) EditBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a editArgs) (*mcp.CallToolResult, error) {
-		return render(s.Edit(ctx, appbp.EditRequest{
+		return mcpresult.Render(s.Edit(ctx, appbp.EditRequest{
 			RuleRef:    appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule},
 			EnablePush: a.EnablePush, EnablePushWhitelist: a.EnablePushWhitelist, PushWhitelistUsernames: a.PushWhitelistUsernames,
 			EnableMergeWhitelist: a.EnableMergeWhitelist, MergeWhitelistUsernames: a.MergeWhitelistUsernames,
@@ -231,7 +221,7 @@ func (h handlers) EditBranchProtectionFn(ctx context.Context, req mcp.CallToolRe
 func (h handlers) DeleteBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a ruleArgs) (*mcp.CallToolResult, error) {
 		if err := s.Delete(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}); err != nil {
-			return fail(err)
+			return mcpresult.Fail(err)
 		}
 		return to.TextResult(fmt.Sprintf("Deleted branch protection rule %q on %s/%s", a.Rule, a.Owner, a.Repo))
 	})

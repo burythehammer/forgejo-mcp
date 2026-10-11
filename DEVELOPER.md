@@ -164,8 +164,8 @@ in `app/issue`. Per domain:
    `int64(...)` in the MCP adapter. Both accept string-encoded numbers. Then each
    MCP adapter method is a few lines through the generic `run` helper: decode, build
    `apppull.New(pulladapter.New(port))`, call the use case, render with
-   `to.TextResult` / plain text. Use-case errors become MCP errors in one
-   function (`fail`); invalid or missing arguments are a tool error result
+   `mcpresult.Render` / plain text. Use-case errors become MCP errors in one
+   function (`mcpresult.Fail`); invalid or missing arguments are a tool error result
    (`mcp.NewToolResultError`). Keep the exported `XxxTool` definitions and
    `XxxToolName` constants as they were.
 
@@ -269,15 +269,16 @@ var ListThingsTool = mcp.NewTool(
 
 func (h handlers) ListThingsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListThingsFn", func(ctx context.Context, s *appmydomain.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return render(s.List(ctx, appmydomain.ListInput{Owner: a.Owner, Repo: a.Repo, Limit: int(a.Limit)}))
+		return mcpresult.Render(s.List(ctx, appmydomain.ListInput{Owner: a.Owner, Repo: a.Repo, Limit: int(a.Limit)}))
 	})
 }
 ```
 
-`run`, `render` and `fail` are the per-domain helpers in `operation/pull/handlers.go`:
-`run` decodes the arguments, calls `h.forge.For(ctx)` for this request's
-credential and builds the use case over the bridge; `render` sends the result
-with `to.TextResult` and any error through `to.ErrorResult`.
+`run` is the per-domain helper in `operation/pull/handlers.go`: it decodes the
+arguments, calls `h.forge.For(ctx)` for this request's credential and builds the
+use case over the bridge. `mcpresult.Render` (in `operation/mcpresult`, shared by
+every domain) sends the result with `to.TextResult` and any error through
+`mcpresult.Fail`, which uses `to.ErrorResult`.
 
 Argument struct rules:
 

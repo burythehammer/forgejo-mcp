@@ -7,10 +7,10 @@ import (
 
 	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/issueadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -36,21 +36,9 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	}
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return do(ctx, apppissue.New(issueadapter.New(port)), args)
-}
-
-// fail is the one place use-case errors become MCP errors. The text is the
-// one the use case gave, or the one Forgejo gave.
-func fail(err error) (*mcp.CallToolResult, error) { return to.ErrorResult(err) }
-
-// render sends a use case's result, or its error, to the client as JSON.
-func render(v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return fail(err)
-	}
-	return to.TextResult(v)
 }
 
 // pageOr is a page or limit argument as the tools have always read it: an

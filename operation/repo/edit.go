@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -49,7 +50,7 @@ type getRepoArgs struct {
 func (h handlers) GetRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return runAdmin(ctx, h, req, "GetRepoFn", func(ctx context.Context, s *apprepo.AdminService, a getRepoArgs) (*mcp.CallToolResult, error) {
 		r, err := s.GetRepo(ctx, a.Owner, a.Repo)
-		return renderAdmin(r, err)
+		return mcpresult.Render(r, err)
 	})
 }
 
@@ -84,6 +85,6 @@ func (h handlers) EditRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 			HasProjects: a.HasProjects, HasReleases: a.HasReleases, HasPackages: a.HasPackages,
 			HasActions: a.HasActions,
 		}})
-		return renderAdmin(r, err)
+		return mcpresult.Render(r, err)
 	})
 }

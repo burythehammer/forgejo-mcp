@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -111,7 +112,7 @@ func (h handlers) CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*m
 			Gitignores: a.Gitignores, License: a.License, Readme: a.Readme,
 			DefaultBranch: a.DefaultBranch,
 		})
-		return renderAdmin(r, err)
+		return mcpresult.Render(r, err)
 	})
 }
 
@@ -125,7 +126,7 @@ type forkRepoArgs struct {
 func (h handlers) ForkRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return runAdmin(ctx, h, req, "ForkRepoFn", func(ctx context.Context, s *apprepo.AdminService, a forkRepoArgs) (*mcp.CallToolResult, error) {
 		if err := s.ForkRepo(ctx, apprepo.ForkInput{User: a.User, Repo: a.Repo, Organization: a.Organization, Name: a.Name}); err != nil {
-			return fail(err)
+			return mcpresult.Fail(err)
 		}
 		return to.TextResult("Fork success")
 	})
@@ -139,6 +140,6 @@ type listMyReposArgs struct {
 func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return runAdmin(ctx, h, req, "ListMyReposFn", func(ctx context.Context, s *apprepo.AdminService, a listMyReposArgs) (*mcp.CallToolResult, error) {
 		repos, err := s.ListMyRepos(ctx, apprepo.AdminPaging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)})
-		return renderAdmin(repos, err)
+		return mcpresult.Render(repos, err)
 	})
 }

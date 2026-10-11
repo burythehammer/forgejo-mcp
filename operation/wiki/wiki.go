@@ -7,11 +7,11 @@ import (
 
 	appwiki "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/wiki"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/wikiadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -160,49 +160,38 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	}
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return do(ctx, appwiki.New(wikiadapter.New(port)), args)
 }
 
-// fail is the one place use-case errors become MCP errors.
-func fail(err error) (*mcp.CallToolResult, error) { return to.ErrorResult(err) }
-
-// render sends a use case's result, or its error, to the client as JSON.
-func render(v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return fail(err)
-	}
-	return to.TextResult(v)
-}
-
 func (h handlers) ListWikiPagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListWikiPagesFn", func(ctx context.Context, s *appwiki.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return render(s.List(ctx, appwiki.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
+		return mcpresult.Render(s.List(ctx, appwiki.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
 	})
 }
 
 func (h handlers) GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetWikiPageFn", func(ctx context.Context, s *appwiki.Service, a getArgs) (*mcp.CallToolResult, error) {
-		return render(s.Get(ctx, appwiki.GetRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, StartLine: a.StartLine, EndLine: a.EndLine}))
+		return mcpresult.Render(s.Get(ctx, appwiki.GetRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, StartLine: a.StartLine, EndLine: a.EndLine}))
 	})
 }
 
 func (h handlers) GetWikiRevisionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetWikiRevisionsFn", func(ctx context.Context, s *appwiki.Service, a revisionsArgs) (*mcp.CallToolResult, error) {
-		return render(s.Revisions(ctx, appwiki.RevisionsRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Page: a.Page, Limit: a.Limit}))
+		return mcpresult.Render(s.Revisions(ctx, appwiki.RevisionsRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Page: a.Page, Limit: a.Limit}))
 	})
 }
 
 func (h handlers) CreateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateWikiPageFn", func(ctx context.Context, s *appwiki.Service, a createArgs) (*mcp.CallToolResult, error) {
-		return render(s.Create(ctx, appwiki.CreateRequest{Owner: a.Owner, Repo: a.Repo, Title: a.Title, Content: a.Content, Message: a.Message}))
+		return mcpresult.Render(s.Create(ctx, appwiki.CreateRequest{Owner: a.Owner, Repo: a.Repo, Title: a.Title, Content: a.Content, Message: a.Message}))
 	})
 }
 
 func (h handlers) UpdateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdateWikiPageFn", func(ctx context.Context, s *appwiki.Service, a updateArgs) (*mcp.CallToolResult, error) {
-		return render(s.Update(ctx, appwiki.UpdateRequest{
+		return mcpresult.Render(s.Update(ctx, appwiki.UpdateRequest{
 			Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Title: a.Title, Content: a.Content, Message: a.Message,
 		}))
 	})
@@ -210,6 +199,6 @@ func (h handlers) UpdateWikiPageFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) DeleteWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteWikiPageFn", func(ctx context.Context, s *appwiki.Service, a pageArgs) (*mcp.CallToolResult, error) {
-		return render(s.Delete(ctx, appwiki.PageRef{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName}))
+		return mcpresult.Render(s.Delete(ctx, appwiki.PageRef{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName}))
 	})
 }

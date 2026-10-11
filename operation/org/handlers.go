@@ -9,6 +9,7 @@ import (
 
 	apporg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/org"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/orgadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
@@ -143,7 +144,7 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	log.Debugf("Called %s", name)
 	var args A
 	if err := decode.Lax(req, &args); err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return do(ctx, apporg.New(h.source()), args)
 }
@@ -160,21 +161,10 @@ func (h handlers) source() apporg.Source {
 	}
 }
 
-// fail is the one place errors become MCP errors.
-func fail(err error) (*mcp.CallToolResult, error) { return to.ErrorResult(err) }
-
-// render sends a use case's result, or its error, to the client as JSON.
-func render(v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return fail(err)
-	}
-	return to.TextResult(v)
-}
-
 // message sends a use case's outcome as the given text.
 func message(text string, err error) (*mcp.CallToolResult, error) {
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(text)
 }
@@ -182,9 +172,9 @@ func message(text string, err error) (*mcp.CallToolResult, error) {
 func (h handlers) CreateOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateOrgFn", func(ctx context.Context, s *apporg.Service, a createOrgArgs) (*mcp.CallToolResult, error) {
 		if a.Name == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
-		return render(s.CreateOrg(ctx, apporg.CreateOrgInput{
+		return mcpresult.Render(s.CreateOrg(ctx, apporg.CreateOrgInput{
 			Name: *a.Name, FullName: a.FullName, Description: a.Description,
 			Website: a.Website, Location: a.Location, Visibility: a.Visibility,
 		}))
@@ -194,33 +184,33 @@ func (h handlers) CreateOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 func (h handlers) GetOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetOrgFn", func(ctx context.Context, s *apporg.Service, a orgArgs) (*mcp.CallToolResult, error) {
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
-		return render(s.GetOrg(ctx, *a.Org))
+		return mcpresult.Render(s.GetOrg(ctx, *a.Org))
 	})
 }
 
 func (h handlers) ListMyOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListMyOrgsFn", func(ctx context.Context, s *apporg.Service, a myOrgsArgs) (*mcp.CallToolResult, error) {
-		return render(s.MyOrgs(ctx, paging(a.Page, a.Limit)))
+		return mcpresult.Render(s.MyOrgs(ctx, paging(a.Page, a.Limit)))
 	})
 }
 
 func (h handlers) ListUserOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListUserOrgsFn", func(ctx context.Context, s *apporg.Service, a userOrgsArgs) (*mcp.CallToolResult, error) {
 		if a.User == nil {
-			return fail(errUserName)
+			return mcpresult.Fail(errUserName)
 		}
-		return render(s.UserOrgs(ctx, *a.User, paging(a.Page, a.Limit)))
+		return mcpresult.Render(s.UserOrgs(ctx, *a.User, paging(a.Page, a.Limit)))
 	})
 }
 
 func (h handlers) EditOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditOrgFn", func(ctx context.Context, s *apporg.Service, a editOrgArgs) (*mcp.CallToolResult, error) {
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
-		return render(s.EditOrg(ctx, *a.Org, apporg.EditOrgInput{
+		return mcpresult.Render(s.EditOrg(ctx, *a.Org, apporg.EditOrgInput{
 			FullName: a.FullName, Description: a.Description, Website: a.Website,
 			Location: a.Location, Visibility: a.Visibility,
 		}))
@@ -230,7 +220,7 @@ func (h handlers) EditOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 func (h handlers) DeleteOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteOrgFn", func(ctx context.Context, s *apporg.Service, a orgArgs) (*mcp.CallToolResult, error) {
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
 		err := s.DeleteOrg(ctx, *a.Org)
 		return message(fmt.Sprintf("Organization '%s' deleted successfully", *a.Org), err)
@@ -240,22 +230,22 @@ func (h handlers) DeleteOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mc
 func (h handlers) ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgMembersFn", func(ctx context.Context, s *apporg.Service, a membersArgs) (*mcp.CallToolResult, error) {
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
-		return render(s.Members(ctx, *a.Org, paging(a.Page, a.Limit)))
+		return mcpresult.Render(s.Members(ctx, *a.Org, paging(a.Page, a.Limit)))
 	})
 }
 
 func (h handlers) CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CheckOrgMembershipFn", func(ctx context.Context, s *apporg.Service, a membershipArgs) (*mcp.CallToolResult, error) {
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
 		if a.User == nil {
-			return fail(errUserName)
+			return mcpresult.Fail(errUserName)
 		}
 		isMember, err := s.IsMember(ctx, *a.Org, *a.User)
-		return render(map[string]interface{}{
+		return mcpresult.Render(map[string]interface{}{
 			"org":       *a.Org,
 			"user":      *a.User,
 			"is_member": isMember,
@@ -266,10 +256,10 @@ func (h handlers) CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequ
 func (h handlers) RemoveOrgMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "RemoveOrgMemberFn", func(ctx context.Context, s *apporg.Service, a membershipArgs) (*mcp.CallToolResult, error) {
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
 		if a.User == nil {
-			return fail(errUserName)
+			return mcpresult.Fail(errUserName)
 		}
 		err := s.RemoveMember(ctx, *a.Org, *a.User)
 		return message(fmt.Sprintf("User '%s' removed from organization '%s'", *a.User, *a.Org), err)
@@ -279,21 +269,21 @@ func (h handlers) RemoveOrgMemberFn(ctx context.Context, req mcp.CallToolRequest
 func (h handlers) ListOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgTeamsFn", func(ctx context.Context, s *apporg.Service, a teamsArgs) (*mcp.CallToolResult, error) {
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
-		return render(s.Teams(ctx, *a.Org, paging(a.Page, a.Limit)))
+		return mcpresult.Render(s.Teams(ctx, *a.Org, paging(a.Page, a.Limit)))
 	})
 }
 
 func (h handlers) CreateOrgTeamFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateOrgTeamFn", func(ctx context.Context, s *apporg.Service, a createTeamArgs) (*mcp.CallToolResult, error) {
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
 		if a.Name == nil {
-			return fail(errTeamName)
+			return mcpresult.Fail(errTeamName)
 		}
-		return render(s.CreateTeam(ctx, *a.Org, apporg.CreateTeamInput{
+		return mcpresult.Render(s.CreateTeam(ctx, *a.Org, apporg.CreateTeamInput{
 			Name: *a.Name, Description: a.Description, Permission: a.Permission,
 			CanCreateOrgRepo: a.CanCreateOrgRepo, IncludesAllRepositories: a.IncludesAllRepositories,
 		}))
@@ -303,10 +293,10 @@ func (h handlers) CreateOrgTeamFn(ctx context.Context, req mcp.CallToolRequest) 
 func (h handlers) AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "AddTeamMemberFn", func(ctx context.Context, s *apporg.Service, a teamMemberArgs) (*mcp.CallToolResult, error) {
 		if a.TeamID == nil {
-			return fail(errTeamID)
+			return mcpresult.Fail(errTeamID)
 		}
 		if a.User == nil {
-			return fail(errUserName)
+			return mcpresult.Fail(errUserName)
 		}
 		teamID := int64(*a.TeamID)
 		err := s.AddTeamMember(ctx, teamID, *a.User)
@@ -317,10 +307,10 @@ func (h handlers) AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) 
 func (h handlers) RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "RemoveTeamMemberFn", func(ctx context.Context, s *apporg.Service, a teamMemberArgs) (*mcp.CallToolResult, error) {
 		if a.TeamID == nil {
-			return fail(errTeamID)
+			return mcpresult.Fail(errTeamID)
 		}
 		if a.User == nil {
-			return fail(errUserName)
+			return mcpresult.Fail(errUserName)
 		}
 		teamID := int64(*a.TeamID)
 		err := s.RemoveTeamMember(ctx, teamID, *a.User)
@@ -331,13 +321,13 @@ func (h handlers) RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolReques
 func (h handlers) AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "AddTeamRepoFn", func(ctx context.Context, s *apporg.Service, a teamRepoArgs) (*mcp.CallToolResult, error) {
 		if a.TeamID == nil {
-			return fail(errTeamID)
+			return mcpresult.Fail(errTeamID)
 		}
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
 		if a.Repo == nil {
-			return fail(errRepoName)
+			return mcpresult.Fail(errRepoName)
 		}
 		teamID := int64(*a.TeamID)
 		err := s.AddTeamRepo(ctx, teamID, *a.Org, *a.Repo)
@@ -348,13 +338,13 @@ func (h handlers) AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*
 func (h handlers) RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "RemoveTeamRepoFn", func(ctx context.Context, s *apporg.Service, a teamRepoArgs) (*mcp.CallToolResult, error) {
 		if a.TeamID == nil {
-			return fail(errTeamID)
+			return mcpresult.Fail(errTeamID)
 		}
 		if a.Org == nil {
-			return fail(errOrgName)
+			return mcpresult.Fail(errOrgName)
 		}
 		if a.Repo == nil {
-			return fail(errRepoName)
+			return mcpresult.Fail(errRepoName)
 		}
 		teamID := int64(*a.TeamID)
 		err := s.RemoveTeamRepo(ctx, teamID, *a.Org, *a.Repo)

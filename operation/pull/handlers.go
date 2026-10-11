@@ -7,10 +7,10 @@ import (
 
 	apppull "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/pull"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/pulladapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -142,42 +142,28 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	}
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return do(ctx, apppull.New(pulladapter.New(port)), args)
-}
-
-// fail is the one place use-case errors become MCP errors. The typed kinds in
-// app/pull (InvalidInputError, DiffFileNotFoundError, MergeDeclinedError) and
-// failures from Forgejo all surface as the tool call's error, with the text
-// the use case gave them.
-func fail(err error) (*mcp.CallToolResult, error) { return to.ErrorResult(err) }
-
-// render sends a use case's result, or its error, to the client as JSON.
-func render(v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return fail(err)
-	}
-	return to.TextResult(v)
 }
 
 // message sends a use case's outcome as plain text.
 func message(text string, err error) (*mcp.CallToolResult, error) {
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return mcp.NewToolResultText(text), nil
 }
 
 func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetPullRequestByIndexFn", func(ctx context.Context, s *apppull.Service, a getArgs) (*mcp.CallToolResult, error) {
-		return render(s.Get(ctx, apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}))
+		return mcpresult.Render(s.Get(ctx, apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}))
 	})
 }
 
 func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoPullRequestsFn", func(ctx context.Context, s *apppull.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return render(s.List(ctx, apppull.ListInput{
+		return mcpresult.Render(s.List(ctx, apppull.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: a.State, Sort: a.Sort, Milestone: a.Milestone, Page: int(a.Page), Limit: int(a.Limit),
 		}))
 	})
@@ -185,13 +171,13 @@ func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) CreatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreatePullRequestFn", func(ctx context.Context, s *apppull.Service, a createArgs) (*mcp.CallToolResult, error) {
-		return render(s.Create(ctx, apppull.CreateRequest{Owner: a.Owner, Repo: a.Repo, Head: a.Head, Base: a.Base, Title: a.Title, Body: a.Body}))
+		return mcpresult.Render(s.Create(ctx, apppull.CreateRequest{Owner: a.Owner, Repo: a.Repo, Head: a.Head, Base: a.Base, Title: a.Title, Body: a.Body}))
 	})
 }
 
 func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdatePullRequestFn", func(ctx context.Context, s *apppull.Service, a updateArgs) (*mcp.CallToolResult, error) {
-		return render(s.Update(ctx, apppull.UpdateInput{
+		return mcpresult.Render(s.Update(ctx, apppull.UpdateInput{
 			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
 			Title: a.Title, Body: a.Body, Base: a.Base, Assignee: a.Assignee, Milestone: a.Milestone,
 		}))
@@ -200,19 +186,19 @@ func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolReque
 
 func (h handlers) ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullReviewsFn", func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
-		return render(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)}))
+		return mcpresult.Render(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)}))
 	})
 }
 
 func (h handlers) GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetPullReviewFn", func(ctx context.Context, s *apppull.Service, a reviewArgs) (*mcp.CallToolResult, error) {
-		return render(s.Review(ctx, reviewRef(a)))
+		return mcpresult.Render(s.Review(ctx, reviewRef(a)))
 	})
 }
 
 func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullReviewCommentsFn", func(ctx context.Context, s *apppull.Service, a reviewArgs) (*mcp.CallToolResult, error) {
-		return render(s.ReviewComments(ctx, reviewRef(a)))
+		return mcpresult.Render(s.ReviewComments(ctx, reviewRef(a)))
 	})
 }
 
@@ -233,7 +219,7 @@ func (h handlers) MergePullRequestFn(ctx context.Context, req mcp.CallToolReques
 
 func (h handlers) ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullRequestFilesFn", func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
-		return render(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)}))
+		return mcpresult.Render(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)}))
 	})
 }
 
@@ -246,7 +232,7 @@ func (h handlers) GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequ
 
 func (h handlers) CreatePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreatePullReviewFn", func(ctx context.Context, s *apppull.Service, a createReviewArgs) (*mcp.CallToolResult, error) {
-		return render(s.CreateReview(ctx, apppull.CreateReviewRequest{
+		return mcpresult.Render(s.CreateReview(ctx, apppull.CreateReviewRequest{
 			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
 			State: a.State, Body: a.Body, Comments: a.Comments,
 		}))
@@ -255,7 +241,7 @@ func (h handlers) CreatePullReviewFn(ctx context.Context, req mcp.CallToolReques
 
 func (h handlers) SubmitPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SubmitPullReviewFn", func(ctx context.Context, s *apppull.Service, a submitReviewArgs) (*mcp.CallToolResult, error) {
-		return render(s.SubmitReview(ctx, apppull.SubmitReviewRequest{
+		return mcpresult.Render(s.SubmitReview(ctx, apppull.SubmitReviewRequest{
 			ReviewRef: reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID}),
 			State:     a.State, Body: a.Body,
 		}))

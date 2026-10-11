@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
@@ -387,7 +388,7 @@ func target(a issueRefArgs) apppissue.Target {
 
 func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetIssueByIndexFn", func(ctx context.Context, s *apppissue.Service, a getIssueArgs) (*mcp.CallToolResult, error) {
-		return render(s.Get(ctx, target(a)))
+		return mcpresult.Render(s.Get(ctx, target(a)))
 	})
 }
 
@@ -398,7 +399,7 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.State != nil {
 			state = *a.State
 		}
-		return render(s.List(ctx, apppissue.ListInput{
+		return mcpresult.Render(s.List(ctx, apppissue.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
 			Milestones: a.Milestones, Labels: a.Labels,
 			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 20)},
@@ -409,7 +410,7 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchIssuesFn", func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
 		// Out-of-range page and limit values are corrected by the use case.
-		return render(s.Search(ctx, apppissue.SearchInput{
+		return mcpresult.Render(s.Search(ctx, apppissue.SearchInput{
 			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
 			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
 			Paging: apppissue.Paging{Page: int(a.Page), Limit: int(a.Limit)},
@@ -419,7 +420,7 @@ func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (
 
 func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateIssueFn", func(ctx context.Context, s *apppissue.Service, a createIssueArgs) (*mcp.CallToolResult, error) {
-		return render(s.Create(ctx, apppissue.CreateInput{
+		return mcpresult.Render(s.Create(ctx, apppissue.CreateInput{
 			Owner: a.Owner, Repo: a.Repo, Title: a.Title, Body: a.Body, Ref: a.Ref,
 			Labels: a.Labels, Assignees: a.Assignees, Milestone: a.Milestone,
 		}))
@@ -428,13 +429,13 @@ func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 func (h handlers) CreateIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a createCommentArgs) (*mcp.CallToolResult, error) {
-		return render(s.CreateComment(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.Body))
+		return mcpresult.Render(s.CreateComment(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.Body))
 	})
 }
 
 func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdateIssueFn", func(ctx context.Context, s *apppissue.Service, a updateIssueArgs) (*mcp.CallToolResult, error) {
-		return render(s.Update(ctx, apppissue.UpdateInput{
+		return mcpresult.Render(s.Update(ctx, apppissue.UpdateInput{
 			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
 			Title:  a.Title, Body: a.Body, Assignee: a.Assignee, Assignees: a.Assignees, Ref: a.Ref,
 			Milestone: a.Milestone, DueDate: a.DueDate, ClearDueDate: a.ClearDueDate, SetLabels: a.SetLabels,
@@ -444,25 +445,25 @@ func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 func (h handlers) AddIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "AddIssueLabelsFn", func(ctx context.Context, s *apppissue.Service, a labelsArgs) (*mcp.CallToolResult, error) {
-		return render(s.AddLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels))
+		return mcpresult.Render(s.AddLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels))
 	})
 }
 
 func (h handlers) RemoveIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "RemoveIssueLabelsFn", func(ctx context.Context, s *apppissue.Service, a labelsArgs) (*mcp.CallToolResult, error) {
-		return render(s.RemoveLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels))
+		return mcpresult.Render(s.RemoveLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels))
 	})
 }
 
 func (h handlers) IssueStateChangeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "IssueStateChangeFn", func(ctx context.Context, s *apppissue.Service, a stateArgs) (*mcp.CallToolResult, error) {
-		return render(s.ChangeState(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.State))
+		return mcpresult.Render(s.ChangeState(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.State))
 	})
 }
 
 func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueCommentsFn", func(ctx context.Context, s *apppissue.Service, a listCommentsArgs) (*mcp.CallToolResult, error) {
-		return render(s.Comments(ctx, apppissue.CommentsInput{
+		return mcpresult.Render(s.Comments(ctx, apppissue.CommentsInput{
 			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
 			Since:  a.Since, Before: a.Before,
 			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 20)},
@@ -472,25 +473,25 @@ func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolReque
 
 func (h handlers) GetIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a commentArgs) (*mcp.CallToolResult, error) {
-		return render(s.Comment(ctx, a.Owner, a.Repo, int64(a.CommentID)))
+		return mcpresult.Render(s.Comment(ctx, a.Owner, a.Repo, int64(a.CommentID)))
 	})
 }
 
 func (h handlers) EditIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a editCommentArgs) (*mcp.CallToolResult, error) {
-		return render(s.EditComment(ctx, a.Owner, a.Repo, int64(a.CommentID), a.Body))
+		return mcpresult.Render(s.EditComment(ctx, a.Owner, a.Repo, int64(a.CommentID), a.Body))
 	})
 }
 
 func (h handlers) DeleteIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a commentArgs) (*mcp.CallToolResult, error) {
-		return render("Delete comment success", s.DeleteComment(ctx, a.Owner, a.Repo, int64(a.CommentID)))
+		return mcpresult.Render("Delete comment success", s.DeleteComment(ctx, a.Owner, a.Repo, int64(a.CommentID)))
 	})
 }
 
 func (h handlers) ListRepoMilestonesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoMilestonesFn", func(ctx context.Context, s *apppissue.Service, a milestonesArgs) (*mcp.CallToolResult, error) {
-		return render(s.Milestones(ctx, a.Owner, a.Repo, apppissue.MilestoneList{
+		return mcpresult.Render(s.Milestones(ctx, a.Owner, a.Repo, apppissue.MilestoneList{
 			State:  a.State,
 			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)},
 		}))
@@ -503,7 +504,7 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.IncludeOrg != nil {
 			includeOrg = *a.IncludeOrg
 		}
-		return render(s.RepoLabels(ctx, apppissue.RepoLabelsInput{
+		return mcpresult.Render(s.RepoLabels(ctx, apppissue.RepoLabelsInput{
 			Owner: a.Owner, Repo: a.Repo, IncludeOrg: includeOrg,
 			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)},
 		}))
@@ -512,6 +513,6 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgLabelsFn", func(ctx context.Context, s *apppissue.Service, a orgLabelsArgs) (*mcp.CallToolResult, error) {
-		return render(s.OrgLabels(ctx, a.Org, apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)}))
+		return mcpresult.Render(s.OrgLabels(ctx, a.Org, apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)}))
 	})
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 
@@ -42,6 +43,6 @@ func (h handlers) GetCommitStatusesFn(ctx context.Context, req mcp.CallToolReque
 		// The paging is truncated before the use case clamps it, which gives
 		// the same page and limit as clamping the fraction did.
 		res, err := s.GetCommitStatuses(ctx, a.Owner, a.Repo, a.SHA, int(a.Page), int(a.Limit))
-		return renderAdmin(res, err)
+		return mcpresult.Render(res, err)
 	})
 }

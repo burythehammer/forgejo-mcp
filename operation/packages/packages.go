@@ -8,6 +8,7 @@ import (
 
 	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
@@ -91,14 +92,6 @@ type listPackageFilesArgs struct {
 	Limit   decode.Arg `json:"limit" schema:"number"`
 }
 
-// render sends a use case's result, or its error, to the client as JSON.
-func render(v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	return to.TextResult(v)
-}
-
 // coords checks the coordinates in the order the tools always have: owner,
 // type, name, version. An empty value is a missing one.
 func (a packageArgs) coords() (apppkg.Coords, error) {
@@ -133,7 +126,7 @@ func (h handlers) GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*m
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return render(apppkg.New(packagesadapter.New(port)).Get(ctx, c))
+	return mcpresult.Render(apppkg.New(packagesadapter.New(port)).Get(ctx, c))
 }
 
 // DeletePackageFn validates the coordinates, then runs the delete use case.
@@ -152,5 +145,5 @@ func (h handlers) DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) 
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return render(apppkg.New(packagesadapter.New(port)).Delete(ctx, c))
+	return mcpresult.Render(apppkg.New(packagesadapter.New(port)).Delete(ctx, c))
 }

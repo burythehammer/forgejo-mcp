@@ -8,10 +8,10 @@ import (
 
 	appsearch "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/search"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/searchadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -69,29 +69,18 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	log.Debugf("Called %s", name)
 	var args A
 	if err := decode.Lax(req, &args); err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	return do(ctx, appsearch.New(searchadapter.New(port)), args)
 }
 
-// fail is the one place use-case errors become MCP errors.
-func fail(err error) (*mcp.CallToolResult, error) { return to.ErrorResult(err) }
-
-// render sends a use case's result, or its error, to the client as JSON.
-func render(v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return fail(err)
-	}
-	return to.TextResult(v)
-}
-
 func (h handlers) SearchUserFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchUserFn", func(ctx context.Context, s *appsearch.Service, a usersArgs) (*mcp.CallToolResult, error) {
-		return render(s.Users(ctx, appsearch.UserQuery{Keyword: a.Keyword, Paging: paging(a.Page, a.Limit)}))
+		return mcpresult.Render(s.Users(ctx, appsearch.UserQuery{Keyword: a.Keyword, Paging: paging(a.Page, a.Limit)}))
 	})
 }
 
@@ -102,22 +91,22 @@ func (h handlers) SearchOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest)
 	log.Debugf("Called SearchOrgTeamsFn")
 	var a orgTeamsArgs
 	if err := decode.Lax(req, &a); err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
 	if a.Org == nil {
-		return fail(errors.New("org name is required"))
+		return mcpresult.Fail(errors.New("org name is required"))
 	}
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return fail(err)
+		return mcpresult.Fail(err)
 	}
-	return render(appsearch.New(searchadapter.New(port)).OrgTeams(ctx, *a.Org,
+	return mcpresult.Render(appsearch.New(searchadapter.New(port)).OrgTeams(ctx, *a.Org,
 		appsearch.TeamQuery{Keyword: a.Keyword, Paging: paging(a.Page, a.Limit)}))
 }
 
 func (h handlers) SearchReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchReposFn", func(ctx context.Context, s *appsearch.Service, a reposArgs) (*mcp.CallToolResult, error) {
-		return render(s.Repos(ctx, appsearch.RepoQuery{
+		return mcpresult.Render(s.Repos(ctx, appsearch.RepoQuery{
 			Keyword: a.Keyword, Sort: a.Sort, Order: a.Order, Paging: paging(a.Page, a.Limit),
 		}))
 	})

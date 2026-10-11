@@ -9,6 +9,7 @@ import (
 
 	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
@@ -47,7 +48,7 @@ func (h handlers) ListPackagesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return render(apppkg.New(packagesadapter.New(port)).List(ctx, apppkg.ListRequest{
+	return mcpresult.Render(apppkg.New(packagesadapter.New(port)).List(ctx, apppkg.ListRequest{
 		Owner: a.Owner, Type: a.Type, Query: a.Q, Page: page, Limit: limit,
 	}))
 }
