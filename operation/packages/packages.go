@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"math"
 
+	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -26,49 +28,6 @@ const (
 	defaultPackagesLimit = 30
 	maxPackagesLimit     = 50
 )
-
-type packageVersion struct {
-	ID         int64  `json:"id"`
-	Type       string `json:"type"`
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	HTMLURL    string `json:"html_url,omitempty"`
-	CreatedAt  string `json:"created_at,omitempty"`
-	Repository string `json:"repository,omitempty"`
-}
-
-type packageFile struct {
-	ID     int64  `json:"id"`
-	Name   string `json:"name"`
-	Size   int64  `json:"size"`
-	SHA256 string `json:"sha256,omitempty"`
-}
-
-type listPackagesResult struct {
-	Packages   []packageVersion `json:"packages"`
-	Page       int              `json:"page"`
-	Limit      int              `json:"limit"`
-	Count      int              `json:"count"`
-	HasNext    bool             `json:"has_next"`
-	TotalCount *int             `json:"total_count,omitempty"`
-}
-
-type listPackageFilesResult struct {
-	Files      []packageFile `json:"files"`
-	Page       int           `json:"page"`
-	Limit      int           `json:"limit"`
-	Count      int           `json:"count"`
-	HasNext    bool          `json:"has_next"`
-	TotalCount int           `json:"total_count"`
-}
-
-type deletePackageResult struct {
-	Owner   string `json:"owner"`
-	Type    string `json:"type"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Status  string `json:"status"`
-}
 
 var (
 	GetPackageTool = mcp.NewTool(
@@ -104,6 +63,15 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 // so each request gets its own credential.
 type handlers struct{ forge forge.Factory }
 
+// render sends a use case's result, or its error, to the client as JSON.
+func render(v any, err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	return to.TextResult(v)
+}
+
+// GetPackageFn validates the coordinates, then runs the get use case.
 func (h handlers) GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called GetPackageFn")
 	args := req.GetArguments()
@@ -113,17 +81,16 @@ func (h handlers) GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*m
 		return to.ErrorResult(err)
 	}
 
-	f, err := h.forge.For(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	src, err := f.GetPackage(ctx, owner, packageType, name, version)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("get package: %w", err))
-	}
-	return to.TextResult(projectPackageVersion(*src))
+	return render(apppkg.New(packagesadapter.New(port)).Get(ctx, apppkg.Coords{
+		Owner: owner, Type: packageType, Name: name, Version: version,
+	}))
 }
 
+// DeletePackageFn validates the coordinates, then runs the delete use case.
 func (h handlers) DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeletePackageFn")
 	args := req.GetArguments()
@@ -133,33 +100,13 @@ func (h handlers) DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) 
 		return to.ErrorResult(err)
 	}
 
-	f, err := h.forge.For(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := f.DeletePackage(ctx, owner, packageType, name, version); err != nil {
-		return to.ErrorResult(fmt.Errorf("delete package: %w", err))
-	}
-	return to.TextResult(deletePackageResult{
-		Owner:   owner,
-		Type:    packageType,
-		Name:    name,
-		Version: version,
-		Status:  "deleted",
-	})
-}
-
-func projectPackageVersion(src forge.PackageVersion) packageVersion {
-	row := packageVersion{
-		ID:        src.ID,
-		Type:      src.Type,
-		Name:      src.Name,
-		Version:   src.Version,
-		HTMLURL:   src.HTMLURL,
-		CreatedAt: src.CreatedAt,
-	}
-	row.Repository = src.Repository
-	return row
+	return render(apppkg.New(packagesadapter.New(port)).Delete(ctx, apppkg.Coords{
+		Owner: owner, Type: packageType, Name: name, Version: version,
+	}))
 }
 
 func requiredOwner(args map[string]any) (string, error) {

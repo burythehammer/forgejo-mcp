@@ -4,11 +4,11 @@ package packages
 
 import (
 	"context"
-	"fmt"
 	"math"
 
+	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -25,6 +25,8 @@ var ListPackagesTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(defaultPackagesLimit), mcp.Min(1), mcp.Max(maxPackagesLimit)),
 )
 
+// ListPackagesFn validates the arguments, then runs the list use case. The
+// validation comes before the credential lookup, as it always has.
 func (h handlers) ListPackagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPackagesFn")
 	args := req.GetArguments()
@@ -44,26 +46,11 @@ func (h handlers) ListPackagesFn(ctx context.Context, req mcp.CallToolRequest) (
 	packageType, _ := args["type"].(string)
 	q, _ := args["q"].(string)
 
-	f, err := h.forge.For(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	list, err := f.ListPackages(ctx, owner, forge.ListPackagesOptions{Type: packageType, Query: q, Page: page, Limit: limit})
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list packages: %w", err))
-	}
-
-	packages := make([]packageVersion, 0, len(list.Packages))
-	for _, row := range list.Packages {
-		packages = append(packages, projectPackageVersion(row))
-	}
-
-	return to.TextResult(listPackagesResult{
-		Packages:   packages,
-		Page:       page,
-		Limit:      limit,
-		Count:      len(packages),
-		HasNext:    list.HasNext,
-		TotalCount: list.TotalCount,
-	})
+	return render(apppkg.New(packagesadapter.New(port)).List(ctx, apppkg.ListRequest{
+		Owner: owner, Type: packageType, Query: q, Page: page, Limit: limit,
+	}))
 }
