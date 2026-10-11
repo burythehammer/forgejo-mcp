@@ -162,7 +162,10 @@ func TestFailuresAreWrapped(t *testing.T) {
 		call   func(*apporg.Service) error
 		prefix string
 	}{
-		{"create", func(s *apporg.Service) error { _, err := s.CreateOrg(ctx, apporg.CreateOrgInput{Name: "o"}); return err }, "create org err: "},
+		{"create", func(s *apporg.Service) error {
+			_, err := s.CreateOrg(ctx, apporg.CreateOrgInput{Name: "o"})
+			return err
+		}, "create org err: "},
 		{"get", func(s *apporg.Service) error { _, err := s.GetOrg(ctx, "o"); return err }, "get org err: "},
 		{"edit", func(s *apporg.Service) error { _, err := s.EditOrg(ctx, "o", apporg.EditOrgInput{}); return err }, "edit org err: "},
 		{"delete", func(s *apporg.Service) error { return s.DeleteOrg(ctx, "o") }, "delete org err: "},
