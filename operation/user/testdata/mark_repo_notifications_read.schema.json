@@ -1,0 +1,31 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Mark all notifications in a specific repo as read",
+  "inputSchema": {
+    "properties": {
+      "last_read_at": {
+        "description": "Optional RFC3339 time",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "mark_repo_notifications_read"
+}

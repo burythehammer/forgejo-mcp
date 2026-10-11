@@ -1,0 +1,22 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get detailed info on a single notification thread",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Notification ID",
+        "type": "number"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "get_notification_thread"
+}

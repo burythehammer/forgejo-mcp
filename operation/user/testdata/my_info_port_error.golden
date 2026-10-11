@@ -1,0 +1,3 @@
+ERROR: get user info err: boom
+-- port calls --
+GetMyUserInfo null
