@@ -94,11 +94,10 @@ type createFileArgs struct {
 	Message       string `json:"message" required:"true"`
 	BranchName    string `json:"branch_name" required:"true"`
 	NewBranchName string `json:"new_branch_name"`
-	// Content and ContentBase64 are read by selectRepositoryWriteContent from
-	// the raw arguments, which need their presence; they are declared so the
-	// struct matches the schema.
-	Content       *string `json:"content"`
-	ContentBase64 *string `json:"content_base64"`
+	// Content and ContentBase64 are the two content selectors; selection needs
+	// whether each was sent, so they are decode.Arg.
+	Content       decode.Arg `json:"content" schema:"string"`
+	ContentBase64 decode.Arg `json:"content_base64" schema:"string"`
 }
 
 type updateFileArgs struct {
@@ -109,11 +108,10 @@ type updateFileArgs struct {
 	BranchName    string `json:"branch_name" required:"true"`
 	SHA           string `json:"sha" required:"true"`
 	NewBranchName string `json:"new_branch_name"`
-	// Content and ContentBase64 are read by selectRepositoryWriteContent from
-	// the raw arguments, which need their presence; they are declared so the
-	// struct matches the schema.
-	Content       *string `json:"content"`
-	ContentBase64 *string `json:"content_base64"`
+	// Content and ContentBase64 are the two content selectors; selection needs
+	// whether each was sent, so they are decode.Arg.
+	Content       decode.Arg `json:"content" schema:"string"`
+	ContentBase64 decode.Arg `json:"content_base64" schema:"string"`
 }
 
 type deleteFileArgs struct {
@@ -160,7 +158,7 @@ func (h handlers) CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*m
 	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	content, err := selectRepositoryWriteContent(req.GetArguments())
+	content, err := selectRepositoryWriteContent(a.Content, a.ContentBase64)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -179,7 +177,7 @@ func (h handlers) UpdateFileFn(ctx context.Context, req mcp.CallToolRequest) (*m
 	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	content, err := selectRepositoryWriteContent(req.GetArguments())
+	content, err := selectRepositoryWriteContent(a.Content, a.ContentBase64)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

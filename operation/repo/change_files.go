@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -62,13 +63,40 @@ var ChangeFilesTool = mcp.NewTool(
 	),
 )
 
-// The batch is parsed from the raw arguments rather than decoded with
-// decode.Lax: the tool reports a wrongly typed or missing field with its own
-// message, and a Lax decode would turn those into a different error.
+// Argument structs for the batch: the top level, and one entry of `files`.
+// `json` names the MCP argument; mcptest.ArgsMatchSchema keeps them in
+// agreement with the schema. A decode.Arg records whether the argument was
+// sent, null included, because the batch's error texts depend on that.
+// Files is read as a plain array and each entry is then decoded on its own,
+// so an entry that is not an object gets the tool's own message.
+
+type changeFilesArgs struct {
+	Owner         decode.Arg `json:"owner" required:"true" schema:"string"`
+	Repo          decode.Arg `json:"repo" required:"true" schema:"string"`
+	Message       decode.Arg `json:"message" required:"true" schema:"string"`
+	BranchName    decode.Arg `json:"branch_name" required:"true" schema:"string"`
+	NewBranchName decode.Arg `json:"new_branch_name" schema:"string"`
+	Files         any        `json:"files" required:"true" schema:"array"`
+}
+
+type changeFileArgs struct {
+	Operation     decode.Arg `json:"operation" required:"true" schema:"string"`
+	Path          decode.Arg `json:"path" required:"true" schema:"string"`
+	Content       decode.Arg `json:"content" schema:"string"`
+	ContentBase64 decode.Arg `json:"content_base64" schema:"string"`
+	SHA           decode.Arg `json:"sha" schema:"string"`
+}
+
+// The batch's errors are the tool's own, so it is decoded with decode.Lax and
+// validated here rather than by decode.
 func (h handlers) ChangeFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ChangeFilesFn")
 
-	owner, repo, in, err := parseChangeFilesArguments(req.GetArguments())
+	var a changeFilesArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	owner, repo, in, err := parseChangeFiles(a)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -79,34 +107,30 @@ func (h handlers) ChangeFilesFn(ctx context.Context, req mcp.CallToolRequest) (*
 	return gitText(svc.ChangeFiles(ctx, owner, repo, in))
 }
 
-func parseChangeFilesArguments(args map[string]any) (string, string, apprepo.ChangeFilesInput, error) {
-	owner, err := requiredNonBlankString(args, "owner")
+func parseChangeFiles(a changeFilesArgs) (string, string, apprepo.ChangeFilesInput, error) {
+	owner, err := requiredNonBlank("owner", a.Owner)
 	if err != nil {
 		return "", "", apprepo.ChangeFilesInput{}, err
 	}
-	repo, err := requiredNonBlankString(args, "repo")
+	repo, err := requiredNonBlank("repo", a.Repo)
 	if err != nil {
 		return "", "", apprepo.ChangeFilesInput{}, err
 	}
-	message, err := requiredNonBlankString(args, "message")
+	message, err := requiredNonBlank("message", a.Message)
 	if err != nil {
 		return "", "", apprepo.ChangeFilesInput{}, err
 	}
-	branchName, err := requiredNonBlankString(args, "branch_name")
+	branchName, err := requiredNonBlank("branch_name", a.BranchName)
 	if err != nil {
 		return "", "", apprepo.ChangeFilesInput{}, err
 	}
 
-	newBranchName := ""
-	if raw, ok := args["new_branch_name"]; ok {
-		value, ok := raw.(string)
-		if !ok {
-			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("new_branch_name must be a string")
-		}
-		newBranchName = value
+	newBranchName, _, err := a.NewBranchName.String("new_branch_name")
+	if err != nil {
+		return "", "", apprepo.ChangeFilesInput{}, err
 	}
 
-	rawFiles, ok := args["files"].([]any)
+	rawFiles, ok := a.Files.([]any)
 	if !ok || len(rawFiles) == 0 {
 		return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files must contain at least one operation")
 	}
@@ -118,12 +142,16 @@ func parseChangeFilesArguments(args map[string]any) (string, string, apprepo.Cha
 		if !ok {
 			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d] must be an object", index)
 		}
+		var f changeFileArgs
+		if err := decode.Map(item, &f); err != nil {
+			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
+		}
 
-		operation, err := requiredNonBlankString(item, "operation")
+		operation, err := requiredNonBlank("operation", f.Operation)
 		if err != nil {
 			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
-		path, err := requiredNonBlankString(item, "path")
+		path, err := requiredNonBlank("path", f.Path)
 		if err != nil {
 			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
@@ -132,7 +160,7 @@ func parseChangeFilesArguments(args map[string]any) (string, string, apprepo.Cha
 		}
 		seenPaths[path] = struct{}{}
 
-		sha, hasSHA, err := optionalString(item, "sha")
+		sha, hasSHA, err := f.SHA.String("sha")
 		if err != nil {
 			return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 		}
@@ -143,7 +171,7 @@ func parseChangeFilesArguments(args map[string]any) (string, string, apprepo.Cha
 			if hasSHA {
 				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: sha must be omitted for create", index)
 			}
-			encoded, err := selectRepositoryWriteContent(item)
+			encoded, err := selectRepositoryWriteContent(f.Content, f.ContentBase64)
 			if err != nil {
 				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
@@ -152,14 +180,14 @@ func parseChangeFilesArguments(args map[string]any) (string, string, apprepo.Cha
 			if !hasSHA || strings.TrimSpace(sha) == "" {
 				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: sha is required for update", index)
 			}
-			encoded, err := selectRepositoryWriteContent(item)
+			encoded, err := selectRepositoryWriteContent(f.Content, f.ContentBase64)
 			if err != nil {
 				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
 			entry.Content = &encoded
 			entry.SHA = sha
 		case "delete":
-			if err := rejectRepositoryWriteContent(item); err != nil {
+			if err := rejectRepositoryWriteContent(f.Content, f.ContentBase64); err != nil {
 				return "", "", apprepo.ChangeFilesInput{}, fmt.Errorf("files[%d]: %w", index, err)
 			}
 			if !hasSHA || strings.TrimSpace(sha) == "" {
@@ -180,14 +208,16 @@ func parseChangeFilesArguments(args map[string]any) (string, string, apprepo.Cha
 	}, nil
 }
 
-func requiredNonBlankString(values map[string]any, name string) (string, error) {
-	raw, ok := values[name]
-	if !ok {
+// requiredNonBlank reads a required string: absent is "<name> is required", a
+// value that is not a string (null included) is "<name> must be a string", and
+// a blank one is "<name> must not be empty".
+func requiredNonBlank(name string, a decode.Arg) (string, error) {
+	if !a.Present() {
 		return "", fmt.Errorf("%s is required", name)
 	}
-	value, ok := raw.(string)
-	if !ok {
-		return "", fmt.Errorf("%s must be a string", name)
+	value, _, err := a.String(name)
+	if err != nil {
+		return "", err
 	}
 	if strings.TrimSpace(value) == "" {
 		return "", fmt.Errorf("%s must not be empty", name)

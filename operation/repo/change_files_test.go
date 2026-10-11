@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 )
 
 func TestChangeFilesFnAppliesAtomicBatch(t *testing.T) {
@@ -148,7 +150,11 @@ func TestParseChangeFilesArgumentsRejectsInvalidBatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, _, err := parseChangeFilesArguments(tt.args)
+			var a changeFilesArgs
+			if err := decode.Map(tt.args, &a); err != nil {
+				t.Fatal(err)
+			}
+			_, _, _, err := parseChangeFiles(a)
 			if err == nil {
 				t.Fatal("expected validation error")
 			}

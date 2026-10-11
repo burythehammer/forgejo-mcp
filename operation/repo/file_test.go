@@ -270,7 +270,7 @@ func TestRepositoryWriteContentRejectsMissingAndAmbiguousContent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := selectRepositoryWriteContent(tt.args); err == nil {
+			if _, err := selectFromMap(tt.args); err == nil {
 				t.Fatal("expected content selection error")
 			}
 		})
@@ -279,7 +279,7 @@ func TestRepositoryWriteContentRejectsMissingAndAmbiguousContent(t *testing.T) {
 
 func TestRepositoryWriteContentRejectsInvalidBase64(t *testing.T) {
 	t.Parallel()
-	if _, err := selectRepositoryWriteContent(map[string]any{"content_base64": "%%%not-base64%%%"}); err == nil {
+	if _, err := selectFromMap(map[string]any{"content_base64": "%%%not-base64%%%"}); err == nil {
 		t.Fatal("expected invalid base64 error")
 	}
 }
@@ -290,7 +290,7 @@ func TestRepositoryWriteContentAcceptsExplicitEmptyValues(t *testing.T) {
 		{"content": ""},
 		{"content_base64": ""},
 	} {
-		got, err := selectRepositoryWriteContent(args)
+		got, err := selectFromMap(args)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
