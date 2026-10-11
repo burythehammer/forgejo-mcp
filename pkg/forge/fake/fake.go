@@ -35,6 +35,8 @@ type Forgejo struct {
 	pulls pullState
 	orgs  orgState
 	users userState
+	bps   bpState
+	hooks hookState
 	admin repoAdminState
 }
 

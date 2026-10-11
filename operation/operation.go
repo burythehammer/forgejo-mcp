@@ -118,8 +118,8 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	RegisterTrackingTool(s)
 	RegisterAttachmentTool(s)
 	RegisterReleaseTool(s)
-	RegisterBranchProtectionTool(s)
-	RegisterHookTool(s)
+	RegisterBranchProtectionTool(s, f)
+	RegisterHookTool(s, f)
 	RegisterWikiTool(s)
 
 	log.Info("All MCP tools registered successfully")
@@ -192,13 +192,13 @@ func RegisterReleaseTool(s *server.MCPServer) {
 	log.Debug("Registered release tools")
 }
 
-func RegisterBranchProtectionTool(s *server.MCPServer) {
-	branchprotection.RegisterTool(s)
+func RegisterBranchProtectionTool(s *server.MCPServer, f forge.Factory) {
+	branchprotection.RegisterTool(s, f)
 	log.Debug("Registered branch protection tools")
 }
 
-func RegisterHookTool(s *server.MCPServer) {
-	hook.RegisterTools(s)
+func RegisterHookTool(s *server.MCPServer, f forge.Factory) {
+	hook.RegisterTools(s, f)
 	log.Debug("Registered webhook tools")
 }
 
@@ -333,8 +333,8 @@ func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
 	RegisterPullResources(s, f)
 	RegisterRepoResource(s, f)
 	RegisterStatusResource(s)
-	RegisterBranchProtectionResources(s)
-	RegisterHookResources(s)
+	RegisterBranchProtectionResources(s, f)
+	RegisterHookResources(s, f)
 	RegisterWikiResource(s)
 	log.Debug("Registered core resource templates")
 }
@@ -349,13 +349,13 @@ func RegisterLabelResources(s *server.MCPServer) {
 	log.Debug("Registered label resource templates")
 }
 
-func RegisterBranchProtectionResources(s *server.MCPServer) {
-	branchprotection.RegisterResource(s)
+func RegisterBranchProtectionResources(s *server.MCPServer, f forge.Factory) {
+	branchprotection.RegisterResource(s, f)
 	log.Debug("Registered branch protection resource templates")
 }
 
-func RegisterHookResources(s *server.MCPServer) {
-	hook.RegisterResources(s)
+func RegisterHookResources(s *server.MCPServer, f forge.Factory) {
+	hook.RegisterResources(s, f)
 	log.Debug("Registered webhook resource templates")
 }
 

@@ -16,6 +16,8 @@ type Forgejo interface {
 	Pulls
 	Orgs
 	Users
+	BranchProtections
+	Hooks
 	RepoAdmin
 }
 
