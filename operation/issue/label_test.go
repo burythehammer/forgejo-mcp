@@ -15,38 +15,6 @@ import (
 
 // ---- normalizeColor ----
 
-func TestNormalizeColor(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		in  string
-		out string
-		err bool
-	}{
-		{"0088ff", "#0088ff", false},
-		{"#0088ff", "#0088ff", false},
-		{"#0088FF", "#0088ff", false},
-		{"0088FF", "#0088ff", false},
-		{"abc", "", true},    // 3-digit rejected
-		{"#abc", "", true},   // 3-digit rejected
-		{"gggggg", "", true}, // invalid hex
-		{"", "", true},
-	}
-	for _, c := range cases {
-		got, err := normalizeColor(c.in)
-		if c.err {
-			if err == nil {
-				t.Errorf("normalizeColor(%q): want error, got %q", c.in, got)
-			}
-		} else {
-			if err != nil {
-				t.Errorf("normalizeColor(%q): unexpected error: %v", c.in, err)
-			} else if got != c.out {
-				t.Errorf("normalizeColor(%q): got %q, want %q", c.in, got, c.out)
-			}
-		}
-	}
-}
-
 // ---- create_repo_label ----
 
 func TestCreateRepoLabelFn_CreatesIt(t *testing.T) {

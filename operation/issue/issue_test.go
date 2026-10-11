@@ -5,7 +5,7 @@ package issue
 import (
 	"context"
 	"encoding/json"
-	"errors"
+
 	"strings"
 	"testing"
 	"time"
@@ -84,36 +84,6 @@ func TestCreateIssue(t *testing.T) {
 	}
 }
 
-func TestCreateIssue_LabelNamesBecomeIDs(t *testing.T) {
-	t.Parallel()
-	h, f := newFixture(t)
-	bug := f.SeedIssueLabel(testOwner, testRepo, "bug")
-	h.resolveLabelIDs = func(_ context.Context, _, _, csv string) ([]int64, error) {
-		if csv != "bug" {
-			t.Errorf("resolver got %q", csv)
-		}
-		return []int64{bug}, nil
-	}
-	iss := decodeIssue(t, call(t, h.CreateIssueFn, map[string]any{"title": "t", "labels": "bug"}))
-	if len(iss.Labels) != 1 || iss.Labels[0].Name != "bug" {
-		t.Fatalf("labels %+v", iss.Labels)
-	}
-}
-
-func TestCreateIssue_UnknownLabelCreatesNothing(t *testing.T) {
-	t.Parallel()
-	h, f := newFixture(t)
-	h.resolveLabelIDs = func(context.Context, string, string, string) ([]int64, error) {
-		return nil, errors.New(`unknown label "nope"`)
-	}
-	if msg := callErr(t, h.CreateIssueFn, map[string]any{"title": "t", "labels": "nope"}); !strings.Contains(msg, "unknown label") {
-		t.Fatalf("error = %q", msg)
-	}
-	if got, _, _ := f.ListRepoIssues(context.Background(), testOwner, testRepo, listAll()); len(got) != 0 {
-		t.Fatalf("an issue was created: %+v", got)
-	}
-}
-
 func TestCreateIssue_InvalidMilestone(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
@@ -182,53 +152,6 @@ func TestUpdateIssue_DueDate(t *testing.T) {
 	}
 	if msg := callErr(t, h.UpdateIssueFn, map[string]any{"index": idx, "due_date": "tomorrow"}); !strings.Contains(msg, "RFC3339") {
 		t.Fatalf("invalid error = %q", msg)
-	}
-}
-
-func TestUpdateIssue_SetLabels(t *testing.T) {
-	t.Parallel()
-	h, f := newFixture(t)
-	idx := float64(openIssue(t, f, "t"))
-	bug := f.SeedIssueLabel(testOwner, testRepo, "bug")
-	triage := f.SeedIssueLabel(testOwner, testRepo, "triage")
-	h.resolveLabelIDs = func(_ context.Context, _, _, csv string) ([]int64, error) {
-		switch csv {
-		case "bug,triage":
-			return []int64{bug, triage}, nil
-		case "bug":
-			return []int64{bug}, nil
-		}
-		return nil, errors.New("unknown label " + csv)
-	}
-	labelNames := func(iss forgejo_sdk.Issue) string {
-		var n []string
-		for _, l := range iss.Labels {
-			n = append(n, l.Name)
-		}
-		return strings.Join(n, ",")
-	}
-
-	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "set_labels": "bug,triage"}))
-	if labelNames(iss) != "bug,triage" {
-		t.Fatalf("replace: %v", labelNames(iss))
-	}
-	// Labels together with a title: the patch lands and the result carries the new labels.
-	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "retitled", "set_labels": "bug"}))
-	if iss.Title != "retitled" || labelNames(iss) != "bug" {
-		t.Fatalf("title+labels: %q %v", iss.Title, labelNames(iss))
-	}
-	// Unknown label: nothing is written, not even the title.
-	if msg := callErr(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "nope", "set_labels": "ghost"}); !strings.Contains(msg, "unknown label") {
-		t.Fatalf("error = %q", msg)
-	}
-	got := decodeIssue(t, call(t, h.GetIssueByIndexFn, map[string]any{"index": idx}))
-	if got.Title != "retitled" || labelNames(got) != "bug" {
-		t.Fatalf("unchanged expected, got %q %v", got.Title, labelNames(got))
-	}
-	// Empty string clears every label.
-	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "set_labels": ""}))
-	if len(iss.Labels) != 0 {
-		t.Fatalf("clear: %v", labelNames(iss))
 	}
 }
 

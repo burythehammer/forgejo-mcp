@@ -5,14 +5,11 @@ package issue
 import (
 	"context"
 	"fmt"
-	"strings"
 
+	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -68,15 +65,6 @@ var (
 	)
 )
 
-// paginatedDependencyResult wraps a list of dependency issues with the page
-// metadata needed for resumability. The shape echoes the page/limit parameters
-// so callers can fetch the next page.
-type paginatedDependencyResult struct {
-	Page   int                  `json:"page"`
-	Limit  int                  `json:"limit"`
-	Issues []*forgejo_sdk.Issue `json:"issues"`
-}
-
 func (h handlers) registerDependencyTools(s *server.MCPServer) {
 	s.AddTool(ListIssueDependenciesTool, h.ListIssueDependenciesFn)
 	s.AddTool(ListIssueDependentsTool, h.ListIssueDependentsFn)
@@ -84,40 +72,109 @@ func (h handlers) registerDependencyTools(s *server.MCPServer) {
 	s.AddTool(RemoveIssueDependencyTool, h.RemoveIssueDependencyFn)
 }
 
-func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListIssueDependenciesFn")
-	owner, _ := req.GetArguments()["owner"].(string)
-	repo, _ := req.GetArguments()["repo"].(string)
-	index, _ := to.Float64(req.GetArguments()["index"])
-	page, limit := parsePageLimit(req.GetArguments())
+type listDependenciesArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index float64 `json:"index" required:"true"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
+}
 
-	fg, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	issues, err := fg.ListIssueDependencies(ctx, owner, repo, int64(index), page, limit)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list issue dependencies err: %w", err))
-	}
-	return to.TextResult(paginatedDependencyResult{Page: page, Limit: limit, Issues: issues})
+type addDependencyArgs struct {
+	Owner          string  `json:"owner" required:"true"`
+	Repo           string  `json:"repo" required:"true"`
+	Index          float64 `json:"index" required:"true"`
+	DependsOnIndex float64 `json:"depends_on_index" required:"true"`
+	DependsOnOwner string  `json:"depends_on_owner"`
+	DependsOnRepo  string  `json:"depends_on_repo"`
+}
+
+type removeDependencyArgs struct {
+	Owner           string  `json:"owner" required:"true"`
+	Repo            string  `json:"repo" required:"true"`
+	Index           float64 `json:"index" required:"true"`
+	DependencyIndex float64 `json:"dependency_index" required:"true"`
+	DependencyOwner string  `json:"dependency_owner"`
+	DependencyRepo  string  `json:"dependency_repo"`
+}
+
+func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return run(ctx, h, req, "ListIssueDependenciesFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
+		return render(s.Dependencies(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			apppissue.Paging{Page: intOr(a.Page, 1), Limit: intOr(a.Limit, 20)}))
+	})
 }
 
 func (h handlers) ListIssueDependentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListIssueDependentsFn")
-	owner, _ := req.GetArguments()["owner"].(string)
-	repo, _ := req.GetArguments()["repo"].(string)
-	index, _ := to.Float64(req.GetArguments()["index"])
-	page, limit := parsePageLimit(req.GetArguments())
+	return run(ctx, h, req, "ListIssueDependentsFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
+		return render(s.Dependents(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			apppissue.Paging{Page: intOr(a.Page, 1), Limit: intOr(a.Limit, 20)}))
+	})
+}
 
-	fg, err := h.forge.For(ctx)
+// The number and repository arguments of the dependency tools are read from
+// the raw call, as they always were: a missing or malformed index is an error
+// naming it, and a cross-repository name of the wrong type is refused rather
+// than read as "the target's own repository".
+
+func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return run(ctx, h, req, "AddIssueDependencyFn", func(ctx context.Context, s *apppissue.Service, a addDependencyArgs) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		index, err := numberArg(args, "index")
+		if err != nil {
+			return fail(err)
+		}
+		dependsOn, err := numberArg(args, "depends_on_index")
+		if err != nil {
+			return fail(err)
+		}
+		depOwner, depRepo, err := crossRepoArgs(args, "depends_on_owner", "depends_on_repo", a.Owner, a.Repo)
+		if err != nil {
+			return fail(err)
+		}
+		if err := s.AddDependency(ctx,
+			apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(index)},
+			apppissue.Target{Owner: depOwner, Repo: depRepo, Index: int64(dependsOn)},
+		); err != nil {
+			return fail(err)
+		}
+		return to.TextResult(fmt.Sprintf("Issue #%d now depends on %s/%s#%d", int64(index), depOwner, depRepo, int64(dependsOn)))
+	})
+}
+
+func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return run(ctx, h, req, "RemoveIssueDependencyFn", func(ctx context.Context, s *apppissue.Service, a removeDependencyArgs) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		index, err := numberArg(args, "index")
+		if err != nil {
+			return fail(err)
+		}
+		dependencyIndex, err := numberArg(args, "dependency_index")
+		if err != nil {
+			return fail(err)
+		}
+		depOwner, depRepo, err := crossRepoArgs(args, "dependency_owner", "dependency_repo", a.Owner, a.Repo)
+		if err != nil {
+			return fail(err)
+		}
+		if err := s.RemoveDependency(ctx,
+			apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(index)},
+			apppissue.Target{Owner: depOwner, Repo: depRepo, Index: int64(dependencyIndex)},
+		); err != nil {
+			return fail(err)
+		}
+		return to.TextResult(fmt.Sprintf("Removed dependency on %s/%s#%d from issue #%d", depOwner, depRepo, int64(dependencyIndex), int64(index)))
+	})
+}
+
+// numberArg reads a required number argument. A missing or malformed one is an
+// error that names it.
+func numberArg(args map[string]any, key string) (float64, error) {
+	v, err := to.Float64(args[key])
 	if err != nil {
-		return to.ErrorResult(err)
+		return 0, fmt.Errorf("%s: %w", key, err)
 	}
-	issues, err := fg.ListIssueDependents(ctx, owner, repo, int64(index), page, limit)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list issue dependents err: %w", err))
-	}
-	return to.TextResult(paginatedDependencyResult{Page: page, Limit: limit, Issues: issues})
+	return v, nil
 }
 
 // crossRepoArgs resolves the optional owner/repo pair naming the repository a
@@ -156,90 +213,4 @@ func optionalString(args map[string]any, key, fallback string) (string, error) {
 		return fallback, nil
 	}
 	return s, nil
-}
-
-func parsePageLimit(args map[string]any) (page, limit int) {
-	pageFloat, _ := to.Float64(args["page"])
-	page = int(pageFloat)
-	if page == 0 {
-		page = 1
-	}
-	limitFloat, _ := to.Float64(args["limit"])
-	limit = int(limitFloat)
-	if limit == 0 {
-		limit = 20
-	}
-	return page, limit
-}
-
-func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called AddIssueDependencyFn")
-	owner, _ := req.GetArguments()["owner"].(string)
-	repo, _ := req.GetArguments()["repo"].(string)
-	index, err := to.Float64(req.GetArguments()["index"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("index: %w", err))
-	}
-	dependsOn, err := to.Float64(req.GetArguments()["depends_on_index"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("depends_on_index: %w", err))
-	}
-	depOwner, depRepo, err := crossRepoArgs(req.GetArguments(), "depends_on_owner", "depends_on_repo", owner, repo)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-
-	// Scoped to same-repo (including the defaulted case, since depOwner/depRepo
-	// already fall back to owner/repo above): a same-index dependency in a
-	// DIFFERENT repository is a legitimate cross-repo dependency, not a
-	// self-dependency (see TestAddIssueDependency_CrossRepoSameIndexAllowed).
-	// index and depends_on_index are validated above so a missing/malformed
-	// required argument surfaces as its own clear error instead of both
-	// silently coercing to 0 and being misreported as "cannot depend on itself".
-	// EqualFold on owner and repo: Forgejo treats both case-insensitively, so an
-	// uppercased spelling of the same repository is the same repository. Forgejo
-	// rejects the self-dependency server-side either way; comparing case-blind is
-	// about failing early with the clearer message instead of a generic API error.
-	if strings.EqualFold(depOwner, owner) && strings.EqualFold(depRepo, repo) &&
-		int64(index) == int64(dependsOn) {
-		return to.ErrorResult(fmt.Errorf("an issue cannot depend on itself"))
-	}
-
-	fg, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	dep := forge.IssueRef{Owner: depOwner, Repo: depRepo, Index: int64(dependsOn)}
-	if err := fg.AddIssueDependency(ctx, owner, repo, int64(index), dep); err != nil {
-		return to.ErrorResult(fmt.Errorf("add issue dependency err: %w", err))
-	}
-	return to.TextResult(fmt.Sprintf("Issue #%d now depends on %s/%s#%d", int64(index), depOwner, depRepo, int64(dependsOn)))
-}
-
-func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called RemoveIssueDependencyFn")
-	owner, _ := req.GetArguments()["owner"].(string)
-	repo, _ := req.GetArguments()["repo"].(string)
-	index, err := to.Float64(req.GetArguments()["index"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("index: %w", err))
-	}
-	dependencyIndex, err := to.Float64(req.GetArguments()["dependency_index"])
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("dependency_index: %w", err))
-	}
-	depOwner, depRepo, err := crossRepoArgs(req.GetArguments(), "dependency_owner", "dependency_repo", owner, repo)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-
-	fg, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	dep := forge.IssueRef{Owner: depOwner, Repo: depRepo, Index: int64(dependencyIndex)}
-	if err := fg.RemoveIssueDependency(ctx, owner, repo, int64(index), dep); err != nil {
-		return to.ErrorResult(fmt.Errorf("remove issue dependency err: %w", err))
-	}
-	return to.TextResult(fmt.Sprintf("Removed dependency on %s/%s#%d from issue #%d", depOwner, depRepo, int64(dependencyIndex), int64(index)))
 }

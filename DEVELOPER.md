@@ -76,6 +76,7 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 | `pkg/forge/forgetest/` | Contract suite run against the fake and the adapter, and the shared stub server |
 | `app/<domain>/` | Use cases (ADR 0003): typed inputs, a domain port, repo-owned results. No mcp-go or SDK import (`scripts/ci/check-app-boundary.sh`) |
 | `app/model/` | Repo-owned domain types that use cases return (wire-shaped copies of the SDK types) |
+| `app/internal/split/` | The comma-separated list parser the use cases share |
 | `operation/decode/`, `operation/mcptest/` | Argument decoding into per-tool structs; golden, schema-snapshot and args-vs-schema test helpers |
 | `pkg/forge/<domain>adapter/` | Bridge from a use case's port to `forge.<Domain>`: the one place SDK and repo-owned types are translated |
 | `pkg/to/` | Response formatting helpers (`TextResult`, `ErrorResult`) |
@@ -130,8 +131,11 @@ startup gate `Run` calls before serving.
 ## Splitting a domain into MCP adapters and use cases
 
 ADR 0003 splits every tool into an MCP adapter (`operation/<domain>`) and an
-MCP-free use case (`app/<domain>`). `version` is the smallest example and `pull`
-(all 16 pull tools) the reference for a domain with a port. Per domain:
+MCP-free use case (`app/<domain>`). `version` is the smallest example, `pull`
+(all 16 pull tools) the reference for a domain with a port, and `issue` (the 16
+issue tools with their 8 label and 4 dependency tools) the one with the most
+moving parts: label-name resolution and the `update_issue` ordering both live
+in `app/issue`. Per domain:
 
 1. **Pin first.** Before moving anything, write the characterisation tests
    against the existing code: `mcptest.SchemaSnapshot` for each tool and
@@ -157,12 +161,29 @@ MCP-free use case (`app/<domain>`). `version` is the smallest example and `pull`
    schema). Decode with `decode.Lax`, not `decode.Args`, while the wire contract
    is frozen: the old handlers never rejected a missing or mistyped argument,
    and truncated numbers, so declare numeric fields `float64` and convert with
-   `int64(...)` in the handler. Both accept string-encoded numbers. Then each handler is a few lines through the generic
-   `run` helper: decode, build `apppull.New(pulladapter.New(port))`, call the
-   use case, render with `to.TextResult` / plain text. Use-case errors become
-   MCP errors in one function (`fail`); invalid or missing arguments are a tool
-   error result (`mcp.NewToolResultError`). Keep the exported `XxxTool`
-   definitions and `XxxToolName` constants as they were.
+   `int64(...)` in the handler. Both accept string-encoded numbers. Then each
+   handler is a few lines through the generic `run` helper: decode, build
+   `apppull.New(pulladapter.New(port))`, call the use case, render with
+   `to.TextResult` / plain text. Use-case errors become MCP errors in one
+   function (`fail`); invalid or missing arguments are a tool error result
+   (`mcp.NewToolResultError`). Keep the exported `XxxTool` definitions and
+   `XxxToolName` constants as they were.
+
+   Three refinements came with `issue` (`operation/issue/`, 28 tools):
+   - **Defaults that test for zero live in the adapter, before truncation.**
+     The old handlers defaulted `page == 0` on the float, so `0.5` was passed
+     on as `0`. `pageOr` (in `handlers.go`) keeps that; the use case does not
+     default a page or limit it is handed.
+   - **Pointer fields where presence matters.** An argument whose "given but
+     empty" differs from "not given" (`labels`, `assignees`, `set_labels`,
+     `ref`, a label's `name`, `state` on `list_repo_issues`) is a `*string`
+     struct field, nil when absent or wrongly typed. `decode.Lax` zeroes a
+     field whose value fails to decode, so a wrong type reads as absent.
+     `mcptest.ArgsMatchSchema` dereferences pointer fields.
+   - **Raw checks for a few numbers.** The dependency tools' index arguments
+     were always type-checked (a missing one was an error), which a zero value
+     cannot express. Those are read with `to.Float64` from the raw arguments in
+     the adapter (`numberArg`), with the old error text.
 5. **Tests.** Use cases: `app/<domain>/service_test.go`, an external test
    package over the in-memory fake through the bridge (no SDK import allowed
    under `app/`, so seed through the fake's SDK-free helpers or the use case
