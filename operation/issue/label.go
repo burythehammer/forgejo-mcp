@@ -135,8 +135,8 @@ func normalizeColor(color string) (string, error) {
 
 // repoLabelInUseCount returns the number of issues/PRs in the repo that carry
 // the label (identified by name), from the list's total count.
-func repoLabelInUseCount(ctx context.Context, client forge.Forgejo, owner, repo, labelName string) (int, error) {
-	_, info, err := client.ListRepoIssues(ctx, owner, repo, forge.ListIssuesOptions{ListIssueOption: forgejo_sdk.ListIssueOption{
+func repoLabelInUseCount(ctx context.Context, fg forge.Forgejo, owner, repo, labelName string) (int, error) {
+	_, info, err := fg.ListRepoIssues(ctx, owner, repo, forge.ListIssuesOptions{ListIssueOption: forgejo_sdk.ListIssueOption{
 		State:       forgejo_sdk.StateType("all"),
 		Labels:      []string{labelName},
 		ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: 1},
@@ -153,11 +153,11 @@ func repoLabelInUseCount(ctx context.Context, client forge.Forgejo, owner, repo,
 // orgLabelInUseCount returns the best-effort count of issues/PRs in the org's
 // visible repos that carry the label (identified by name). May under-count for
 // repos the token cannot read.
-func orgLabelInUseCount(ctx context.Context, client forge.Forgejo, org, labelName string) (int, error) {
+func orgLabelInUseCount(ctx context.Context, fg forge.Forgejo, org, labelName string) (int, error) {
 	total := 0
 	page := 1
 	for {
-		names, err := client.ListOrgRepoNames(ctx, org, page, 50)
+		names, err := fg.ListOrgRepoNames(ctx, org, page, 50)
 		if err != nil {
 			return total, fmt.Errorf("enumerate org repos for label usage count: %w", err)
 		}
@@ -165,7 +165,7 @@ func orgLabelInUseCount(ctx context.Context, client forge.Forgejo, org, labelNam
 			break
 		}
 		for _, name := range names {
-			n, _ := repoLabelInUseCount(ctx, client, org, name, labelName)
+			n, _ := repoLabelInUseCount(ctx, fg, org, name, labelName)
 			total += n
 		}
 		page++
@@ -188,7 +188,7 @@ func (h handlers) CreateRepoLabelFn(ctx context.Context, req mcp.CallToolRequest
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -198,7 +198,7 @@ func (h handlers) CreateRepoLabelFn(ctx context.Context, req mcp.CallToolRequest
 		Color:       color,
 		Description: description,
 	}
-	label, err := client.CreateRepoLabel(ctx, owner, repo, opt)
+	label, err := fg.CreateRepoLabel(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create repo label: %w", err))
 	}
@@ -244,12 +244,12 @@ func (h handlers) EditRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) 
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
-	label, err := client.EditRepoLabel(ctx, owner, repo, int64(idF), opt)
+	label, err := fg.EditRepoLabel(ctx, owner, repo, int64(idF), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit repo label: %w", err))
 	}
@@ -264,17 +264,17 @@ func (h handlers) DeleteRepoLabelFn(ctx context.Context, req mcp.CallToolRequest
 	deleteMode, _ := req.GetArguments()["delete_mode"].(string)
 	id := int64(idF)
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
 	if deleteMode != "force" {
-		label, err := client.GetRepoLabel(ctx, owner, repo, id)
+		label, err := fg.GetRepoLabel(ctx, owner, repo, id)
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("get repo label: %w", err))
 		}
-		count, err := repoLabelInUseCount(ctx, client, owner, repo, label.Name)
+		count, err := repoLabelInUseCount(ctx, fg, owner, repo, label.Name)
 		if err != nil {
 			return to.ErrorResult(err)
 		}
@@ -283,7 +283,7 @@ func (h handlers) DeleteRepoLabelFn(ctx context.Context, req mcp.CallToolRequest
 		}
 	}
 
-	if err := client.DeleteRepoLabel(ctx, owner, repo, id); err != nil {
+	if err := fg.DeleteRepoLabel(ctx, owner, repo, id); err != nil {
 		if forge.IsNotFound(err) {
 			return to.ErrorResult(fmt.Errorf("label %d not found", id))
 		}
@@ -298,12 +298,12 @@ func (h handlers) GetRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (
 	repo, _ := req.GetArguments()["repo"].(string)
 	idF, _ := to.Float64(req.GetArguments()["id"])
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
-	label, err := client.GetRepoLabel(ctx, owner, repo, int64(idF))
+	label, err := fg.GetRepoLabel(ctx, owner, repo, int64(idF))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get repo label: %w", err))
 	}
@@ -324,12 +324,12 @@ func (h handlers) CreateOrgLabelFn(ctx context.Context, req mcp.CallToolRequest)
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
-	label, err := client.CreateOrgLabel(ctx, org, forgejo_sdk.CreateLabelOption{Name: name, Color: color, Description: description})
+	label, err := fg.CreateOrgLabel(ctx, org, forgejo_sdk.CreateLabelOption{Name: name, Color: color, Description: description})
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create org label: %w", err))
 	}
@@ -346,12 +346,12 @@ func (h handlers) EditOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
-	label, err := client.EditOrgLabel(ctx, org, int64(idF), opt)
+	label, err := fg.EditOrgLabel(ctx, org, int64(idF), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit org label: %w", err))
 	}
@@ -365,18 +365,18 @@ func (h handlers) DeleteOrgLabelFn(ctx context.Context, req mcp.CallToolRequest)
 	deleteMode, _ := req.GetArguments()["delete_mode"].(string)
 	id := int64(idF)
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
 	if deleteMode != "force" {
-		label, err := client.GetOrgLabel(ctx, org, id)
+		label, err := fg.GetOrgLabel(ctx, org, id)
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("get org label: %w", err))
 		}
 
-		count, countErr := orgLabelInUseCount(ctx, client, org, label.Name)
+		count, countErr := orgLabelInUseCount(ctx, fg, org, label.Name)
 		if countErr != nil {
 			return to.ErrorResult(fmt.Errorf("label %q in-use count failed (token may lack org-repo access); use delete_mode=force to override: %w", label.Name, countErr))
 		}
@@ -385,7 +385,7 @@ func (h handlers) DeleteOrgLabelFn(ctx context.Context, req mcp.CallToolRequest)
 		}
 	}
 
-	if err := client.DeleteOrgLabel(ctx, org, id); err != nil {
+	if err := fg.DeleteOrgLabel(ctx, org, id); err != nil {
 		return to.ErrorResult(fmt.Errorf("delete org label: %w", err))
 	}
 	return to.TextResult(map[string]any{"deleted": true, "id": id})
@@ -396,12 +396,12 @@ func (h handlers) GetOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*
 	org, _ := req.GetArguments()["org"].(string)
 	idF, _ := to.Float64(req.GetArguments()["id"])
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
-	label, err := client.GetOrgLabel(ctx, org, int64(idF))
+	label, err := fg.GetOrgLabel(ctx, org, int64(idF))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get org label: %w", err))
 	}

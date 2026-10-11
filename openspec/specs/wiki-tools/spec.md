@@ -3,11 +3,12 @@
 ## Purpose
 Read and write repository wiki pages — list, get, get revisions, create, update, delete. Every read is bounded and resumable and every write base64-encodes content, because the wiki API returns encoded bodies and an unbounded page fetch is exactly what breaks an MCP client. Update never silently renames a page.
 ## Requirements
-### Requirement: Wiki tools use direct REST calls, not the SDK
+### Requirement: Wiki tools go through the Forgejo port's Wiki interface
 
-The wiki tool handlers SHALL be implemented on top of the raw-HTTP helpers in
-`pkg/forgejo` (`DoJSON` / `DoJSONList`) and SHALL NOT import or depend on any
-`forgejo-sdk` wiki type or method. The `operation/wiki` package SHALL compile in the
+The wiki tool handlers SHALL call the Forgejo port's `Wiki` interface (`pkg/forge`),
+which uses plain types and SHALL NOT depend on any `forgejo-sdk` wiki type or method.
+The raw HTTP lives inside the real adapter in `pkg/forge/sdk`, and every API path it
+builds SHALL be escaped with `forge.APIPath`. The `operation/wiki` package SHALL compile in the
 default build (no `//go:build wiki` tag) and SHALL be registered from
 `operation/operation.go` via `RegisterWikiTool`.
 
@@ -18,17 +19,17 @@ default build (no `//go:build wiki` tag) and SHALL be registered from
   `get_wiki_revisions`, `create_wiki_page`, `update_wiki_page`, and `delete_wiki_page`
 
 #### Scenario: No SDK wiki dependency
-- **WHEN** the `operation/wiki` package is compiled
-- **THEN** it SHALL NOT reference any `forgejo-sdk` wiki symbol
+- **WHEN** the `operation/wiki` package and the `Wiki` port are compiled
+- **THEN** neither SHALL reference any `forgejo-sdk` wiki symbol
 
 ### Requirement: List wiki pages is bounded and resumable
 
 `list_wiki_pages` SHALL accept required `owner` and `repo` string parameters and optional
 `page` (1-indexed, default 1) and `limit` (default server page size) integer parameters.
-It SHALL call `GET /repos/{owner}/{repo}/wiki/pages` via `DoJSONList` and return each
+It SHALL call `GET /repos/{owner}/{repo}/wiki/pages` through the port's `Wiki` interface and return each
 page's `title`, `page_name`, and `sub_url`, plus a `page` echo and a `has_next` boolean.
 
-Because the raw-HTTP helper does not expose response headers (so `X-Total-Count` /
+Because the adapter's raw-HTTP call does not expose response headers (so `X-Total-Count` /
 `Link` are unreachable), `has_next` SHALL use a pagination-preserving next-page probe.
 The handler requests the current page with exactly `limit`. If fewer rows arrive,
 `has_next=false`. If exactly `limit` rows arrive, it requests `page+1` with the same
@@ -107,7 +108,7 @@ reported as an error, matching `sliceLines`.
 
 `get_wiki_revisions` SHALL accept required `owner`, `repo`, `page_name` and optional
 `page` / `limit` parameters, call `GET /repos/{owner}/{repo}/wiki/revisions/{pageName}`
-via `DoJSON` (**not** `DoJSONList`), and return each revision's `sha`, `author`, and
+through the port's `Wiki` interface, and return each revision's `sha`, `author`, and
 `message`, plus the echoed `page` and a `has_next` boolean derived by the same
 exact-limit, same-limit next-page probe as `list_wiki_pages`.
 

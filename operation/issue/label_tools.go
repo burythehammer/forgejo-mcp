@@ -62,16 +62,16 @@ func (h handlers) AddIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := client.AddIssueLabels(ctx, owner, repo, int64(index), labelIDs); err != nil {
+	if err := fg.AddIssueLabels(ctx, owner, repo, int64(index), labelIDs); err != nil {
 		return to.ErrorResult(fmt.Errorf("add issue labels err: %w", err))
 	}
 
 	// Fetch the updated issue to return it with the new labels
-	issue, err := client.GetIssue(ctx, owner, repo, int64(index))
+	issue, err := fg.GetIssue(ctx, owner, repo, int64(index))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get updated issue err: %w", err))
 	}
@@ -90,19 +90,19 @@ func (h handlers) RemoveIssueLabelsFn(ctx context.Context, req mcp.CallToolReque
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
 	for _, labelID := range labelIDs {
-		if derr := client.RemoveIssueLabel(ctx, owner, repo, int64(index), labelID); derr != nil {
+		if derr := fg.RemoveIssueLabel(ctx, owner, repo, int64(index), labelID); derr != nil {
 			return to.ErrorResult(fmt.Errorf("remove issue label err: %w", derr))
 		}
 	}
 
 	// Fetch the updated issue to return it with the updated labels
-	issue, err := client.GetIssue(ctx, owner, repo, int64(index))
+	issue, err := fg.GetIssue(ctx, owner, repo, int64(index))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get updated issue err: %w", err))
 	}
@@ -134,11 +134,11 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		},
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	repoLabels, _, err := client.ListRepoLabels(ctx, owner, repo, opt)
+	repoLabels, _, err := fg.ListRepoLabels(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list repo labels err: %w", err))
 	}
@@ -148,7 +148,7 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 	}
 
 	if includeOrg {
-		orgLabels, _, oerr := listOrgLabels(ctx, client, owner, int(page), int(limit))
+		orgLabels, _, oerr := listOrgLabels(ctx, fg, owner, int(page), int(limit))
 		if oerr != nil {
 			return to.ErrorResult(fmt.Errorf("list org labels err: %w", oerr))
 		}
@@ -171,11 +171,11 @@ func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) 
 		limit = 100
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	labels, _, err := listOrgLabels(ctx, client, org, int(page), int(limit))
+	labels, _, err := listOrgLabels(ctx, fg, org, int(page), int(limit))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list org labels err: %w", err))
 	}

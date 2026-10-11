@@ -94,11 +94,11 @@ func (h handlers) ListOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (
 			PageSize: int(limit),
 		},
 	}
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	teams, err := client.ListOrgTeams(ctx, orgName, opt)
+	teams, err := fg.ListOrgTeams(ctx, orgName, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list org teams err: %w", err))
 	}
@@ -135,11 +135,11 @@ func (h handlers) CreateOrgTeamFn(ctx context.Context, req mcp.CallToolRequest) 
 		opt.IncludesAllRepositories = v
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	team, err := client.CreateTeam(ctx, orgName, opt)
+	team, err := fg.CreateTeam(ctx, orgName, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create org team err: %w", err))
 	}
@@ -158,11 +158,11 @@ func (h handlers) AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) 
 		return to.ErrorResult(errors.New("username is required"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.AddTeamMember(ctx, teamID, user)
+	err = fg.AddTeamMember(ctx, teamID, user)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("add team member err: %w", err))
 	}
@@ -181,11 +181,11 @@ func (h handlers) RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolReques
 		return to.ErrorResult(errors.New("username is required"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.RemoveTeamMember(ctx, teamID, user)
+	err = fg.RemoveTeamMember(ctx, teamID, user)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("remove team member err: %w", err))
 	}
@@ -208,11 +208,11 @@ func (h handlers) AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*
 		return to.ErrorResult(errors.New("repository name is required"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.AddTeamRepository(ctx, teamID, orgName, repo)
+	err = fg.AddTeamRepository(ctx, teamID, orgName, repo)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("add team repo err: %w", err))
 	}
@@ -235,11 +235,11 @@ func (h handlers) RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest)
 		return to.ErrorResult(errors.New("repository name is required"))
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.RemoveTeamRepository(ctx, teamID, orgName, repo)
+	err = fg.RemoveTeamRepository(ctx, teamID, orgName, repo)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("remove team repo err: %w", err))
 	}

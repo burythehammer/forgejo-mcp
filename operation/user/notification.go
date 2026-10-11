@@ -124,11 +124,11 @@ func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequ
 		opt.Before = t
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	notifications, err := client.ListNotifications(ctx, opt)
+	notifications, err := fg.ListNotifications(ctx, opt)
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
@@ -156,11 +156,11 @@ func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolR
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	thread, err := client.GetNotification(ctx, int64(id))
+	thread, err := fg.GetNotification(ctx, int64(id))
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
@@ -187,11 +187,11 @@ func (h handlers) MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRe
 		return to.ErrorResult(err)
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	thread, err := client.ReadNotification(ctx, int64(id))
+	thread, err := fg.ReadNotification(ctx, int64(id))
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
@@ -221,11 +221,11 @@ func (h handlers) MarkAllNotificationsReadFn(ctx context.Context, req mcp.CallTo
 		opt.LastReadAt = t
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.ReadNotifications(ctx, opt)
+	err = fg.ReadNotifications(ctx, opt)
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
@@ -297,11 +297,11 @@ func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolR
 		opt.Before = t
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	notifications, err := client.ListRepoNotifications(ctx, owner, repo, opt)
+	notifications, err := fg.ListRepoNotifications(ctx, owner, repo, opt)
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)
@@ -339,11 +339,11 @@ func (h handlers) MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallT
 		opt.LastReadAt = t
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.ReadRepoNotifications(ctx, owner, repo, opt)
+	err = fg.ReadRepoNotifications(ctx, owner, repo, opt)
 	duration := time.Since(start)
 
 	statusCode := apiStatus(err)

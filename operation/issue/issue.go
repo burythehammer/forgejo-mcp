@@ -265,11 +265,11 @@ func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest
 	repo, _ := req.GetArguments()["repo"].(string)
 	index, _ := to.Float64(req.GetArguments()["index"])
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	issue, err := client.GetIssue(ctx, owner, repo, int64(index))
+	issue, err := fg.GetIssue(ctx, owner, repo, int64(index))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get issue err: %w", err))
 	}
@@ -334,11 +334,11 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 	}
 
 	// The adapter carries sort to Forgejo (the SDK cannot), see forge.ListIssuesOptions.
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	issues, _, err := client.ListRepoIssues(ctx, owner, repo, forge.ListIssuesOptions{ListIssueOption: opt, Sort: sort})
+	issues, _, err := fg.ListRepoIssues(ctx, owner, repo, forge.ListIssuesOptions{ListIssueOption: opt, Sort: sort})
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get issues list err: %w", err))
 	}
@@ -392,11 +392,11 @@ func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (
 	// larger than what was actually applied. An unknown ceiling (settings
 	// endpoint unreachable/403) falls back to the same-limit next-page probe
 	// below.
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	ceiling, ceilingKnown := client.MaxResponseItems(ctx)
+	ceiling, ceilingKnown := fg.MaxResponseItems(ctx)
 	if ceilingKnown && requestedLimit > ceiling {
 		return to.ErrorResult(fmt.Errorf(
 			"limit %d exceeds this instance's maximum of %d (max_response_items); retry with limit <= %d",
@@ -439,7 +439,7 @@ func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (
 		opt.MentionedBy = mentionedBy
 	}
 
-	issues, info, err := client.SearchIssues(ctx, opt)
+	issues, info, err := fg.SearchIssues(ctx, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("search issues err: %w", err))
 	}
@@ -464,7 +464,7 @@ func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (
 	} else if count > 0 {
 		probeOpt := opt
 		probeOpt.Page = int(page) + 1
-		nextIssues, _, err := client.SearchIssues(ctx, probeOpt)
+		nextIssues, _, err := fg.SearchIssues(ctx, probeOpt)
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("probe next issues page err: %w", err))
 		}
@@ -518,11 +518,11 @@ func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 		opt.Milestone = milestoneID
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	issue, err := client.CreateIssue(ctx, owner, repo, opt)
+	issue, err := fg.CreateIssue(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create issue err: %w", err))
 	}
@@ -536,11 +536,11 @@ func (h handlers) CreateIssueCommentFn(ctx context.Context, req mcp.CallToolRequ
 	index, _ := to.Float64(req.GetArguments()["index"])
 	body, _ := req.GetArguments()["body"].(string)
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	comment, err := client.CreateIssueComment(ctx, owner, repo, int64(index), body)
+	comment, err := fg.CreateIssueComment(ctx, owner, repo, int64(index), body)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("create issue comment err: %w", err))
 	}
@@ -634,14 +634,14 @@ func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 		}
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
 	var issue *forgejo_sdk.Issue
 	if patchRequested || !setLabelsProvided {
-		issue, err = client.EditIssue(ctx, owner, repo, int64(index), opt)
+		issue, err = fg.EditIssue(ctx, owner, repo, int64(index), opt)
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("update issue err: %w", err))
 		}
@@ -649,15 +649,15 @@ func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 	if setLabelsProvided {
 		if clearLabels {
-			if cerr := client.ClearIssueLabels(ctx, owner, repo, int64(index)); cerr != nil {
+			if cerr := fg.ClearIssueLabels(ctx, owner, repo, int64(index)); cerr != nil {
 				return to.ErrorResult(fmt.Errorf("clear issue labels err: %w", cerr))
 			}
-		} else if rerr := client.ReplaceIssueLabels(ctx, owner, repo, int64(index), setLabelIDs); rerr != nil {
+		} else if rerr := fg.ReplaceIssueLabels(ctx, owner, repo, int64(index), setLabelIDs); rerr != nil {
 			return to.ErrorResult(fmt.Errorf("replace issue labels err: %w", rerr))
 		}
 		// Re-read: any issue returned by the PATCH above predates the label
 		// change, so returning it would report the old label set.
-		issue, err = client.GetIssue(ctx, owner, repo, int64(index))
+		issue, err = fg.GetIssue(ctx, owner, repo, int64(index))
 		if err != nil {
 			return to.ErrorResult(fmt.Errorf("get updated issue err: %w", err))
 		}
@@ -684,11 +684,11 @@ func (h handlers) IssueStateChangeFn(ctx context.Context, req mcp.CallToolReques
 		State: &stateType,
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	issue, err := client.EditIssue(ctx, owner, repo, int64(index), opt)
+	issue, err := fg.EditIssue(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("change issue state err: %w", err))
 	}
@@ -734,11 +734,11 @@ func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolReque
 		opt.Before = beforeTime
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	comments, _, err := client.ListIssueComments(ctx, owner, repo, int64(index), opt)
+	comments, _, err := fg.ListIssueComments(ctx, owner, repo, int64(index), opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list issue comments err: %w", err))
 	}
@@ -751,11 +751,11 @@ func (h handlers) GetIssueCommentFn(ctx context.Context, req mcp.CallToolRequest
 	repo, _ := req.GetArguments()["repo"].(string)
 	commentID, _ := to.Float64(req.GetArguments()["comment_id"])
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	comment, err := client.GetIssueComment(ctx, owner, repo, int64(commentID))
+	comment, err := fg.GetIssueComment(ctx, owner, repo, int64(commentID))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("get issue comment err: %w", err))
 	}
@@ -769,11 +769,11 @@ func (h handlers) EditIssueCommentFn(ctx context.Context, req mcp.CallToolReques
 	commentID, _ := to.Float64(req.GetArguments()["comment_id"])
 	body, _ := req.GetArguments()["body"].(string)
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	comment, err := client.EditIssueComment(ctx, owner, repo, int64(commentID), body)
+	comment, err := fg.EditIssueComment(ctx, owner, repo, int64(commentID), body)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("edit issue comment err: %w", err))
 	}
@@ -786,11 +786,11 @@ func (h handlers) DeleteIssueCommentFn(ctx context.Context, req mcp.CallToolRequ
 	repo, _ := req.GetArguments()["repo"].(string)
 	commentID, _ := to.Float64(req.GetArguments()["comment_id"])
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	err = client.DeleteIssueComment(ctx, owner, repo, int64(commentID))
+	err = fg.DeleteIssueComment(ctx, owner, repo, int64(commentID))
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("delete issue comment err: %w", err))
 	}
@@ -822,11 +822,11 @@ func (h handlers) ListRepoMilestonesFn(ctx context.Context, req mcp.CallToolRequ
 		State: forgejo_sdk.StateType(state),
 	}
 
-	client, err := h.forge.For(ctx)
+	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	milestones, err := client.ListRepoMilestones(ctx, owner, repo, opt)
+	milestones, err := fg.ListRepoMilestones(ctx, owner, repo, opt)
 	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list repo milestones err: %w", err))
 	}

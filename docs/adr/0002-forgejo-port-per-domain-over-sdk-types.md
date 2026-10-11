@@ -11,7 +11,7 @@ Tool handlers reach Forgejo through the package-level `forgejo.Client(ctx)` sing
 
 - **One port per domain** (issues, pull requests, and so on), with methods named for what the tools need. A top-level Forgejo factory composes them and is built once in the composition root.
 - **SDK types appear at the port.** Domain types of our own are deferred to #8, which will decide them.
-- **The SDK and raw HTTP stay inside the adapter.** Nothing outside `pkg/forge/sdk` imports the SDK. The port package imports neither.
+- **The SDK client and raw HTTP stay inside the adapter.** No SDK client is built and no HTTP to Forgejo is made outside `pkg/forge/sdk`. SDK types appear as data at the port (and in `operation/*`) until #8 replaces them with domain types.
 
 ## Alternatives considered
 
