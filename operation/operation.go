@@ -328,7 +328,7 @@ func testConnection() error {
 func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
 	RegisterCommitResource(s, f)
 	RegisterIssueResources(s, f)
-	RegisterLabelResources(s)
+	RegisterLabelResources(s, f)
 	RegisterOwnerResource(s, f)
 	RegisterPullResources(s, f)
 	RegisterRepoResource(s, f)
@@ -344,8 +344,8 @@ func RegisterWikiResource(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered wiki resource template")
 }
 
-func RegisterLabelResources(s *server.MCPServer) {
-	issue.RegisterLabelResources(s)
+func RegisterLabelResources(s *server.MCPServer, f forge.Factory) {
+	issue.RegisterLabelResources(s, f)
 	log.Debug("Registered label resource templates")
 }
 

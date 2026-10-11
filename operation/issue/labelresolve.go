@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -45,12 +45,7 @@ func labelsArgDescription(lead string) string {
 // labels; 401/403 surface as an error rather than silently narrowing the
 // catalogue, since resolution failures here are reported to the caller as
 // "unknown label".
-func listAssignableLabels(ctx context.Context, owner, repo string) ([]ScopedLabel, error) {
-	client, err := forgejo.Client(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func listAssignableLabels(ctx context.Context, client forge.Labels, owner, repo string) ([]ScopedLabel, error) {
 	catalog := []ScopedLabel{}
 
 	for page := 1; ; page++ {
@@ -60,7 +55,7 @@ func listAssignableLabels(ctx context.Context, owner, repo string) ([]ScopedLabe
 				owner, repo, maxLabelCatalogPages*labelCatalogPageSize,
 			)
 		}
-		repoLabels, _, lerr := client.ListRepoLabels(owner, repo, forgejo_sdk.ListLabelsOptions{
+		repoLabels, _, lerr := client.ListRepoLabels(ctx, owner, repo, forgejo_sdk.ListLabelsOptions{
 			ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: labelCatalogPageSize},
 		})
 		if lerr != nil {
@@ -81,7 +76,7 @@ func listAssignableLabels(ctx context.Context, owner, repo string) ([]ScopedLabe
 				owner, maxLabelCatalogPages*labelCatalogPageSize,
 			)
 		}
-		orgLabels, _, oerr := fetchOrgLabels(ctx, owner, page, labelCatalogPageSize)
+		orgLabels, _, oerr := listOrgLabels(ctx, client, owner, page, labelCatalogPageSize)
 		if oerr != nil {
 			return nil, fmt.Errorf("list org labels err: %w", oerr)
 		}
@@ -108,13 +103,17 @@ func listAssignableLabels(ctx context.Context, owner, repo string) ([]ScopedLabe
 // literally named "123" stays reachable through an argument documented to take
 // names. An ID is honoured only when the catalogue has it, which turns a stale
 // ID into the same clear error as a stale name.
-func resolveIssueLabelIDs(ctx context.Context, owner, repo, csv string) ([]int64, error) {
+func (h handlers) resolveIssueLabelIDs(ctx context.Context, owner, repo, csv string) ([]int64, error) {
 	tokens := splitCSV(csv)
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("labels names nothing: pass at least one label name or numeric ID")
 	}
 
-	catalog, err := listAssignableLabels(ctx, owner, repo)
+	client, err := h.forge.For(ctx)
+	if err != nil {
+		return nil, err
+	}
+	catalog, err := listAssignableLabels(ctx, client, owner, repo)
 	if err != nil {
 		return nil, err
 	}

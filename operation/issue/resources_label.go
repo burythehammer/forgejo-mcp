@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
@@ -19,12 +19,13 @@ import (
 )
 
 // RegisterLabelResources registers the label resource templates.
-func RegisterLabelResources(s *server.MCPServer) {
+func RegisterLabelResources(s *server.MCPServer, f forge.Factory) {
+	h := newHandlers(f)
 	resource.RegisterTemplate(
 		s,
 		"forgejo://repo/{owner}/{repo}/label/{id}",
 		"Forgejo Repo Label",
-		repoLabelResourceHandler,
+		h.repoLabelResourceHandler,
 		mcp.WithTemplateDescription(
 			"Single repository label by id. "+
 				"URI: forgejo://repo/{owner}/{repo}/label/{id}.",
@@ -41,7 +42,7 @@ func RegisterLabelResources(s *server.MCPServer) {
 		s,
 		"forgejo://repo/{owner}/{repo}/labels{?page,limit}",
 		"Forgejo Repo Labels",
-		repoLabelsResourceHandler,
+		h.repoLabelsResourceHandler,
 		mcp.WithTemplateDescription(
 			"Bounded list of repository labels (page/limit client-controlled, ceiling "+
 				strconv.Itoa(resource.EmbeddedListCap)+"). "+
@@ -56,7 +57,7 @@ func RegisterLabelResources(s *server.MCPServer) {
 		// is what makes page/limit reachable at all.
 		"forgejo://org/{org}/labels{?page,limit}",
 		"Forgejo Org Labels",
-		orgLabelsResourceHandler,
+		h.orgLabelsResourceHandler,
 		mcp.WithTemplateDescription(
 			"Bounded list of organization-level labels (page/limit client-controlled, ceiling "+
 				strconv.Itoa(resource.EmbeddedListCap)+"). "+
@@ -78,24 +79,21 @@ type labelResourcePayload struct {
 	URL         string `json:"url"`
 }
 
-func repoLabelResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) repoLabelResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseLabel(uri)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	label, resp, err := client.GetRepoLabel(p.Owner, p.Repo, p.ID)
+	label, err := client.GetRepoLabel(ctx, p.Owner, p.Repo, p.ID)
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
 	payload := labelResourcePayload{
@@ -127,7 +125,7 @@ type labelsListPayload struct {
 	Sentinel  string                 `json:"sentinel,omitempty"`
 }
 
-func repoLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) repoLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseLabels(uri)
 	if err != nil {
@@ -136,7 +134,7 @@ func repoLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest)
 
 	page, limit := pageLimit(req)
 
-	client, err := forgejo.Client(ctx)
+	client, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
@@ -147,14 +145,11 @@ func repoLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest)
 	// page N showed — and that row is returned by no page the client can ask
 	// for. The probe and the page cannot share PageSize. "More exists" comes
 	// from the response's Link header instead.
-	rawLabels, resp, err := client.ListRepoLabels(p.Owner, p.Repo, forgejo_sdk.ListLabelsOptions{
+	rawLabels, info, err := client.ListRepoLabels(ctx, p.Owner, p.Repo, forgejo_sdk.ListLabelsOptions{
 		ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: limit},
 	})
 	if err != nil {
-		if resp != nil {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", resp.StatusCode, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
 
 	items := make([]string, len(rawLabels))
@@ -162,8 +157,8 @@ func repoLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest)
 		items[i] = strconv.FormatInt(l.ID, 10)
 	}
 	bounded := resource.Bounded(items, limit, ListRepoLabelsToolName)
-	if hasMore(resp) {
-		bounded = bounded.WithMoreRemaining(totalCount(resp))
+	if info.HasNext {
+		bounded = bounded.WithMoreRemaining(info.TotalCount)
 	}
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
@@ -211,7 +206,7 @@ type orgLabelsListPayload struct {
 	Sentinel  string                 `json:"sentinel,omitempty"`
 }
 
-func orgLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+func (h handlers) orgLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseOrgLabels(uri)
 	if err != nil {
@@ -221,12 +216,14 @@ func orgLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) 
 	page, limit := pageLimit(req)
 
 	// PageSize == limit, for the paging reason spelled out in
-	// repoLabelsResourceHandler above. This path goes through the raw-HTTP
-	// helper rather than the SDK, so the Link/X-Total-Count headers are read
-	// directly instead of via forgejo_sdk.Response.
-	rawLabels, header, err := fetchOrgLabels(ctx, p.Org, page, limit)
+	// repoLabelsResourceHandler above.
+	client, err := h.forge.For(ctx)
 	if err != nil {
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, fmt.Errorf("forgejo client: %w", err)
+	}
+	rawLabels, info, err := listOrgLabels(ctx, client, p.Org, page, limit)
+	if err != nil {
+		return nil, mapErr(uri, err)
 	}
 
 	items := make([]string, len(rawLabels))
@@ -234,8 +231,8 @@ func orgLabelsResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) 
 		items[i] = strconv.FormatInt(l.ID, 10)
 	}
 	bounded := resource.Bounded(items, limit, ListOrgLabelsToolName)
-	if headerHasMore(header) {
-		bounded = bounded.WithMoreRemaining(headerTotalCount(header))
+	if info.HasNext {
+		bounded = bounded.WithMoreRemaining(info.TotalCount)
 	}
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))

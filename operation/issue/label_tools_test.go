@@ -7,67 +7,59 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
+
+	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
-// Tests of the label tools, which still run against the legacy client. The
-// labels ticket migrates them.
+// Tests of the label-assignment and label-listing tools.
+
+func newLabel(t *testing.T, f *fake.Forgejo, name string) int64 {
+	t.Helper()
+	l, err := f.CreateRepoLabel(context.Background(), testOwner, testRepo, forgejo_sdk.CreateLabelOption{Name: name, Color: "#aabbcc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return l.ID
+}
 
 func TestListOrgLabels_Success(t *testing.T) {
-	_, records := newLabelsBackend(t,
-		"", 0,
-		`[{"id":1,"name":"bug","color":"ff0000","description":"a bug","url":""},{"id":2,"name":"enh","color":"00ff00","description":"","url":""}]`, http.StatusOK,
-	)
-	res, err := ListOrgLabelsFn(context.Background(), makeReq(map[string]any{"org": "codeberg"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListOrgLabelsFn err: %v res=%+v", err, res)
-	}
-	if len(*records) == 0 {
-		t.Fatal("expected request to backend")
-	}
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodGet {
-		t.Fatalf("expected GET, got %s", last.method)
-	}
-	if !strings.HasPrefix(last.path, "/api/v1/orgs/codeberg/labels") {
-		t.Fatalf("unexpected path: %s", last.path)
-	}
-	// Result body should serialize each entry with scope=org.
-	if !strings.Contains(textOf(res), `"scope":"org"`) {
-		t.Fatalf("expected scope=org in result, got %q", textOf(res))
+	t.Parallel()
+	h, f := newFixture(t)
+	seedOrgLabels(t, f, "codeberg", 2)
+
+	out := call(t, h.ListOrgLabelsFn, map[string]any{"org": "codeberg"})
+	if !strings.Contains(out, `"scope":"org"`) || !strings.Contains(out, `"label-1"`) || !strings.Contains(out, `"label-2"`) {
+		t.Fatalf("expected both labels with scope=org, got %q", out)
 	}
 }
 
-func TestListOrgLabels_404IsEmpty(t *testing.T) {
-	_, _ = newLabelsBackend(t, "", 0, ``, http.StatusNotFound)
-	res, err := ListOrgLabelsFn(context.Background(), makeReq(map[string]any{"org": "ghost"}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("expected success on 404, got err=%v res=%+v", err, res)
-	}
-	if !strings.Contains(textOf(res), "[]") && !strings.Contains(textOf(res), "null") {
-		t.Fatalf("expected empty result for 404, got %q", textOf(res))
+func TestListOrgLabels_UnknownOrgIsEmpty(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	out := call(t, h.ListOrgLabelsFn, map[string]any{"org": "ghost"})
+	if !strings.Contains(out, "[]") {
+		t.Fatalf("expected an empty list, got %q", out)
 	}
 }
 
 func TestListOrgLabels_UnauthorizedSurfaces(t *testing.T) {
-	_, _ = newLabelsBackend(t, "", 0, ``, http.StatusUnauthorized)
-	_, err := ListOrgLabelsFn(context.Background(), makeReq(map[string]any{"org": "codeberg"}))
-	if err == nil {
-		t.Fatal("expected error on 401, got nil")
-	}
+	t.Parallel()
+	f := fake.New()
+	h := withPort(statusPort{Forgejo: f, orgLabelsStatus: http.StatusUnauthorized})
+	callErr(t, h.ListOrgLabelsFn, map[string]any{"org": "codeberg"})
 }
 
 func TestListRepoLabels_MergeWithOrgLabels(t *testing.T) {
-	_, _ = newLabelsBackend(t,
-		`[{"id":10,"name":"good-first-issue","color":"7057ff","description":"","url":""}]`, http.StatusOK,
-		`[{"id":20,"name":"security","color":"d73a4a","description":"","url":""}]`, http.StatusOK,
-	)
-	res, err := ListRepoLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "codeberg-org", "repo": "project",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListRepoLabelsFn err: %v res=%+v", err, res)
+	t.Parallel()
+	h, f := newFixture(t)
+	newLabel(t, f, "good-first-issue")
+	if _, err := f.CreateOrgLabel(context.Background(), testOwner, forgejo_sdk.CreateLabelOption{Name: "security", Color: "#d73a4a"}); err != nil {
+		t.Fatal(err)
 	}
-	out := textOf(res)
+
+	out := call(t, h.ListRepoLabelsFn, nil)
 	if !strings.Contains(out, `"scope":"repo"`) || !strings.Contains(out, `"scope":"org"`) {
 		t.Fatalf("expected both scopes in result, got %q", out)
 	}
@@ -76,141 +68,110 @@ func TestListRepoLabels_MergeWithOrgLabels(t *testing.T) {
 	}
 }
 
-func TestListRepoLabels_IncludeOrgFalseSkipsOrgCall(t *testing.T) {
-	_, records := newLabelsBackend(t,
-		`[{"id":10,"name":"good-first-issue","color":"7057ff","description":"","url":""}]`, http.StatusOK,
-		`[{"id":20,"name":"security","color":"d73a4a","description":"","url":""}]`, http.StatusOK,
-	)
-	res, err := ListRepoLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner":              "codeberg-org",
-		"repo":               "project",
-		"include_org_labels": false,
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListRepoLabelsFn err: %v res=%+v", err, res)
+func TestListRepoLabels_IncludeOrgFalseSkipsOrgLabels(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	newLabel(t, f, "good-first-issue")
+	if _, err := f.CreateOrgLabel(context.Background(), testOwner, forgejo_sdk.CreateLabelOption{Name: "security", Color: "#d73a4a"}); err != nil {
+		t.Fatal(err)
 	}
-	for _, r := range *records {
-		if strings.HasPrefix(r.path, "/api/v1/orgs/") {
-			t.Fatalf("did not expect org-labels request, got %s %s", r.method, r.path)
-		}
-	}
-	out := textOf(res)
+
+	out := call(t, h.ListRepoLabelsFn, map[string]any{"include_org_labels": false})
 	if strings.Contains(out, `"scope":"org"`) || strings.Contains(out, `"security"`) {
 		t.Fatalf("expected no org-scoped labels in result, got %q", out)
 	}
+	if !strings.Contains(out, `"good-first-issue"`) {
+		t.Fatalf("expected the repo label, got %q", out)
+	}
 }
 
-func TestListRepoLabels_UserOwnerOrgEndpoint404(t *testing.T) {
-	_, _ = newLabelsBackend(t,
-		`[{"id":10,"name":"bug","color":"ff0000","description":"","url":""}]`, http.StatusOK,
-		``, http.StatusNotFound,
-	)
-	res, err := ListRepoLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "alice", "repo": "project",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("expected success when org endpoint 404s, got err=%v res=%+v", err, res)
-	}
-	out := textOf(res)
-	if !strings.Contains(out, `"scope":"repo"`) {
-		t.Fatalf("expected repo-scoped label in result, got %q", out)
-	}
-	if strings.Contains(out, `"scope":"org"`) {
-		t.Fatalf("expected no org-scoped labels when org endpoint 404s, got %q", out)
+func TestListRepoLabels_UserOwnerHasNoOrgLabels(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	newLabel(t, f, "bug")
+
+	out := call(t, h.ListRepoLabelsFn, nil)
+	if !strings.Contains(out, `"scope":"repo"`) || strings.Contains(out, `"scope":"org"`) {
+		t.Fatalf("expected only repo-scoped labels, got %q", out)
 	}
 }
 
 func TestAddIssueLabelsFn_ByName(t *testing.T) {
-	records, _ := addLabelsBackend(t)
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	newLabel(t, f, "bug")
+	newLabel(t, f, "triage")
 
-	res, err := AddIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "bug,triage",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("AddIssueLabelsFn err: %v res=%+v", err, res)
+	out := call(t, h.AddIssueLabelsFn, map[string]any{"index": float64(idx), "labels": "bug,triage"})
+	// The result is the refreshed issue, labels included.
+	if !strings.Contains(out, `"bug"`) || !strings.Contains(out, `"triage"`) {
+		t.Fatalf("expected the refreshed issue with both labels, got %q", out)
 	}
-	// Two calls under test: AddIssueLabels then GetIssue. The catalogue reads
-	// the names needed are counted separately, not recorded here.
-	if len(*records) != 2 {
-		t.Fatalf("expected two requests, got %d: %+v", len(*records), *records)
+	if got := issueLabelNames(t, f, idx); strings.Join(got, ",") != "bug,triage" {
+		t.Fatalf("labels on the issue: %v", got)
 	}
+}
 
-	post := (*records)[0]
-	if post.method != http.MethodPost || !strings.HasSuffix(post.path, "/issues/1/labels") {
-		t.Fatalf("expected POST to the issue labels endpoint, got %s %s", post.method, post.path)
-	}
-	// The names must reach Forgejo as IDs: it accepts names, but drops the
-	// ones it does not know and still answers 200.
-	if got := labelsFromBody(t, post.rawBody); !equalInt64s(got, []int64{5, 6}) {
-		t.Fatalf("expected labels [5 6] in the POST body, got %v (body: %s)", got, post.rawBody)
+func TestAddIssueLabelsFn_KeepsExistingLabels(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	newLabel(t, f, "bug")
+	newLabel(t, f, "triage")
+
+	call(t, h.AddIssueLabelsFn, map[string]any{"index": float64(idx), "labels": "bug"})
+	call(t, h.AddIssueLabelsFn, map[string]any{"index": float64(idx), "labels": "triage"})
+	if got := issueLabelNames(t, f, idx); strings.Join(got, ",") != "bug,triage" {
+		t.Fatalf("labels on the issue: %v", got)
 	}
 }
 
 func TestAddIssueLabelsFn_ByID(t *testing.T) {
-	records, _ := addLabelsBackend(t)
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	bug := newLabel(t, f, "bug")
+	triage := newLabel(t, f, "triage")
 
-	res, err := AddIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "5,6",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("AddIssueLabelsFn err: %v res=%+v", err, res)
-	}
-	if got := labelsFromBody(t, (*records)[0].rawBody); !equalInt64s(got, []int64{5, 6}) {
-		t.Fatalf("expected numeric IDs to keep working, got %v", got)
+	call(t, h.AddIssueLabelsFn, map[string]any{"index": float64(idx), "labels": itoa(bug) + "," + itoa(triage)})
+	if got := issueLabelNames(t, f, idx); strings.Join(got, ",") != "bug,triage" {
+		t.Fatalf("numeric IDs should keep working, got %v", got)
 	}
 }
 
-func TestAddIssueLabelsFn_UnknownLabel(t *testing.T) {
-	records, _ := addLabelsBackend(t)
+func TestAddIssueLabelsFn_UnknownLabelWritesNothing(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	newLabel(t, f, "bug")
 
-	res, err := AddIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "not-a-label",
-	}))
-	if res != nil {
-		t.Fatalf("expected nil result for an unknown label, got %+v", res)
-	}
-	if err == nil {
-		t.Fatal("expected an error for an unknown label")
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no write when a label cannot be resolved, got %+v", *records)
+	callErr(t, h.AddIssueLabelsFn, map[string]any{"index": float64(idx), "labels": "bug,not-a-label"})
+	if got := issueLabelNames(t, f, idx); len(got) != 0 {
+		t.Fatalf("expected no write when a label cannot be resolved, got %v", got)
 	}
 }
 
 func TestAddIssueLabelsFn_EmptyLabels(t *testing.T) {
-	records, _ := addLabelsBackend(t)
-
-	if _, err := AddIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "",
-	})); err == nil {
-		t.Fatal("expected an error when labels names nothing")
-	}
-	if len(*records) != 0 {
-		t.Fatalf("expected no write for an empty labels argument, got %+v", *records)
-	}
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	callErr(t, h.AddIssueLabelsFn, map[string]any{"index": float64(idx), "labels": ""})
 }
 
 func TestRemoveIssueLabelsFn_ByName(t *testing.T) {
-	records, _ := newResolveBackend(t, resolveBackendOptions{
-		repoLabels: []catalogLabel{{ID: 5, Name: "bug"}},
-		orgStatus:  http.StatusNotFound,
-		next: func(w http.ResponseWriter, _ *http.Request, _ *[]recordedReq) {
-			_, _ = w.Write([]byte(`{"id":1,"number":1,"labels":[]}`))
-		},
-	})
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "t")
+	newLabel(t, f, "bug")
+	newLabel(t, f, "triage")
+	call(t, h.AddIssueLabelsFn, map[string]any{"index": float64(idx), "labels": "bug,triage"})
 
-	res, err := RemoveIssueLabelsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern", "repo": "forgejo-mcp", "index": float64(1), "labels": "bug",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("RemoveIssueLabelsFn err: %v res=%+v", err, res)
+	out := call(t, h.RemoveIssueLabelsFn, map[string]any{"index": float64(idx), "labels": "bug"})
+	if strings.Contains(out, `"name":"bug"`) {
+		t.Fatalf("expected the refreshed issue without the label, got %q", out)
 	}
-	// Two calls under test: DeleteIssueLabel then GetIssue.
-	if len(*records) != 2 {
-		t.Fatalf("expected two requests, got %d: %+v", len(*records), *records)
-	}
-	del := (*records)[0]
-	if del.method != http.MethodDelete || !strings.HasSuffix(del.path, "/issues/1/labels/5") {
-		t.Fatalf("expected DELETE of label 5, got %s %s", del.method, del.path)
+	if got := issueLabelNames(t, f, idx); strings.Join(got, ",") != "triage" {
+		t.Fatalf("labels on the issue: %v", got)
 	}
 }
