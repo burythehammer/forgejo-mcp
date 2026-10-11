@@ -5,18 +5,19 @@ Status: accepted
 
 ## Context
 
-Tool handlers in `operation/*` read MCP arguments, call Forgejo, and format MCP results in one function. Business logic cannot be tested without building MCP requests, and SDK and mcp-go types leak through every handler. With the Forgejo port in place (ADR 0002), the remaining coupling is between tool logic and the MCP protocol (spec #8).
+Tool functions in `operation/*` read MCP arguments, call Forgejo, and format MCP results in one function. Business logic cannot be tested without building MCP requests, and SDK and mcp-go types leak through every handler. With the Forgejo port in place (ADR 0002), the remaining coupling is between tool logic and the MCP protocol (spec #8).
 
 ## Decision
 
-- **Each tool is an MCP adapter plus a use case.** The adapter (in `operation/<domain>`) owns the tool definition, decodes arguments into a per-tool argument struct with the shared decoder (`operation/decode`), calls the use case, and renders the result as MCP output. The use case (in `app/<domain>`) takes plain inputs, reaches Forgejo only through the Forgejo port, and returns a repo-owned result type.
+- **Each tool is an MCP adapter plus a use case.** The MCP adapter (in `operation/<domain>`, file `handlers.go`) owns the tool definition, decodes arguments into a per-tool argument struct with the shared decoder (`operation/decode`), calls the use case, and renders the result as MCP output. The use case (in `app/<domain>`) takes plain inputs, reaches Forgejo only through the Forgejo port, and returns a repo-owned result type.
+- **Port bridges** (`pkg/forge/<domain>adapter/`) connect a use case's own port to the Forgejo port. A port bridge implements no Forgejo operation and is not a Forgejo adapter (the SDK and fake implementations of the Forgejo port are).
 - **`app/**` is MCP-free and SDK-free.** It must not import mcp-go or the Forgejo SDK; `scripts/ci/check-app-boundary.sh` enforces this in CI.
 - **The wire contract is frozen.** Tool names, input schemas and output bytes do not change by moving a tool. Each migrated tool is pinned by golden-output and schema-snapshot tests (`operation/mcptest`) written before the move, and an argument struct is checked against its schema by `mcptest.ArgsMatchSchema`.
 - **Repo-owned output types** replace SDK types at the use case boundary. Until a domain migrates, its port still returns SDK types.
 
 ## Alternatives considered
 
-- **Keep handlers as they are.** Rejected: logic stays untestable without MCP, and the SDK and mcp-go stay coupled everywhere.
+- **Keep the tool functions as they are.** Rejected: logic stays untestable without MCP, and the SDK and mcp-go stay coupled everywhere.
 - **Generate the schema from the argument struct.** Rejected for now: it would change schema bytes; the contract is frozen and the struct is verified against the hand-written schema instead.
 - **Put use cases beside adapters in `operation/`.** Rejected: the boundary cannot be enforced by a directory-level import check.
 

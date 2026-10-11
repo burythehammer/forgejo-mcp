@@ -304,7 +304,7 @@ func failing(method string, err error) func(*goldenStub) {
 	return func(s *goldenStub) { s.failOn[method] = err }
 }
 
-var boom = errors.New("boom")
+var errBoom = errors.New("boom")
 
 var goldenCases = []goldenCase{
 	// get_issue_by_index
@@ -315,7 +315,7 @@ var goldenCases = []goldenCase{
 	// number is truncated.
 	{name: "get_issue_fractional_index", tool: GetIssueByIndexToolName, args: map[string]any{"index": 5.5}},
 	{name: "get_issue_missing_required", tool: GetIssueByIndexToolName, args: map[string]any{"owner": nil, "repo": nil}},
-	{name: "get_issue_port_error", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7)}, stub: failing("GetIssue", boom)},
+	{name: "get_issue_port_error", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7)}, stub: failing("GetIssue", errBoom)},
 
 	// list_repo_issues
 	{name: "list_issues_defaults", tool: ListRepoIssuesToolName},
@@ -327,7 +327,7 @@ var goldenCases = []goldenCase{
 	{name: "list_issues_missing_owner", tool: ListRepoIssuesToolName, args: map[string]any{"owner": nil}},
 	{name: "list_issues_missing_repo", tool: ListRepoIssuesToolName, args: map[string]any{"repo": nil}},
 	{name: "list_issues_bad_sort", tool: ListRepoIssuesToolName, args: map[string]any{"sort": "random"}},
-	{name: "list_issues_port_error", tool: ListRepoIssuesToolName, stub: failing("ListRepoIssues", boom)},
+	{name: "list_issues_port_error", tool: ListRepoIssuesToolName, stub: failing("ListRepoIssues", errBoom)},
 
 	// search_issues
 	{name: "search_issues_defaults", tool: SearchIssuesToolName},
@@ -343,7 +343,7 @@ var goldenCases = []goldenCase{
 	}},
 	{name: "search_issues_missing_owner", tool: SearchIssuesToolName, args: map[string]any{"owner": nil}},
 	{name: "search_issues_filters", tool: SearchIssuesToolName, args: map[string]any{"state": "all", "type": "pulls", "labels": "a,b", "milestones": "1", "q": "crash", "created_by": "bob", "assigned_by": "al", "mentioned_by": "cy", "page": "0", "limit": "0"}},
-	{name: "search_issues_port_error", tool: SearchIssuesToolName, stub: failing("SearchIssues", boom)},
+	{name: "search_issues_port_error", tool: SearchIssuesToolName, stub: failing("SearchIssues", errBoom)},
 
 	// create_issue
 	{name: "create_issue", tool: CreateIssueToolName, args: map[string]any{"title": "T", "body": "B", "labels": "bug,ui", "assignees": "a, b", "milestone": "4", "ref": "feat"}},
@@ -355,22 +355,22 @@ var goldenCases = []goldenCase{
 	{name: "create_issue_empty_assignees", tool: CreateIssueToolName, args: map[string]any{"title": "T", "assignees": ""}},
 	{name: "create_issue_bad_milestone", tool: CreateIssueToolName, args: map[string]any{"title": "T", "milestone": "x"}},
 	{name: "create_issue_missing_title", tool: CreateIssueToolName, args: map[string]any{"title": nil}},
-	{name: "create_issue_port_error", tool: CreateIssueToolName, args: map[string]any{"title": "T"}, stub: failing("CreateIssue", boom)},
+	{name: "create_issue_port_error", tool: CreateIssueToolName, args: map[string]any{"title": "T"}, stub: failing("CreateIssue", errBoom)},
 
 	// create_issue_comment, list/get/edit/delete_issue_comment
 	{name: "create_issue_comment", tool: CreateIssueCommentToolName, args: map[string]any{"index": float64(7), "body": "hi"}},
-	{name: "create_issue_comment_port_error", tool: CreateIssueCommentToolName, args: map[string]any{"index": float64(7), "body": "hi"}, stub: failing("CreateIssueComment", boom)},
+	{name: "create_issue_comment_port_error", tool: CreateIssueCommentToolName, args: map[string]any{"index": float64(7), "body": "hi"}, stub: failing("CreateIssueComment", errBoom)},
 	{name: "list_issue_comments_defaults", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7)}},
 	{name: "list_issue_comments_paged_since_before", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7), "page": float64(2), "limit": float64(5), "since": "2026-01-02T03:04:05Z", "before": "2026-02-03T04:05:06Z"}},
 	{name: "list_issue_comments_bad_since", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7), "since": "yesterday"}},
 	{name: "list_issue_comments_bad_before", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7), "before": "x"}},
-	{name: "list_issue_comments_port_error", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7)}, stub: failing("ListIssueComments", boom)},
+	{name: "list_issue_comments_port_error", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7)}, stub: failing("ListIssueComments", errBoom)},
 	{name: "get_issue_comment", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}},
-	{name: "get_issue_comment_port_error", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}, stub: failing("GetIssueComment", boom)},
+	{name: "get_issue_comment_port_error", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}, stub: failing("GetIssueComment", errBoom)},
 	{name: "edit_issue_comment", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}},
-	{name: "edit_issue_comment_port_error", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}, stub: failing("EditIssueComment", boom)},
+	{name: "edit_issue_comment_port_error", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}, stub: failing("EditIssueComment", errBoom)},
 	{name: "delete_issue_comment", tool: DeleteIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}},
-	{name: "delete_issue_comment_port_error", tool: DeleteIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}, stub: failing("DeleteIssueComment", boom)},
+	{name: "delete_issue_comment_port_error", tool: DeleteIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}, stub: failing("DeleteIssueComment", errBoom)},
 
 	// update_issue
 	{name: "update_issue_fields", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T", "body": "B", "assignee": "bob", "milestone": "4", "due_date": "2026-08-20T00:00:00Z", "ref": "feat"}},
@@ -387,21 +387,21 @@ var goldenCases = []goldenCase{
 	{name: "update_issue_set_labels_unknown", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T", "set_labels": "nope"}},
 	{name: "update_issue_nothing", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7)}},
 	{name: "update_issue_wrong_types", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": float64(5), "clear_due_date": "true", "assignees": float64(7)}},
-	{name: "update_issue_edit_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T"}, stub: failing("EditIssue", boom)},
-	{name: "update_issue_replace_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": "bug"}, stub: failing("ReplaceIssueLabels", boom)},
-	{name: "update_issue_clear_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": ""}, stub: failing("ClearIssueLabels", boom)},
-	{name: "update_issue_reread_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": "bug"}, stub: failing("GetIssue", boom)},
+	{name: "update_issue_edit_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T"}, stub: failing("EditIssue", errBoom)},
+	{name: "update_issue_replace_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": "bug"}, stub: failing("ReplaceIssueLabels", errBoom)},
+	{name: "update_issue_clear_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": ""}, stub: failing("ClearIssueLabels", errBoom)},
+	{name: "update_issue_reread_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": "bug"}, stub: failing("GetIssue", errBoom)},
 
 	// issue_state_change
 	{name: "issue_state_change_closed", tool: IssueStateChangeToolName, args: map[string]any{"index": float64(7), "state": "closed"}},
 	{name: "issue_state_change_invalid", tool: IssueStateChangeToolName, args: map[string]any{"index": float64(7), "state": "merged"}},
-	{name: "issue_state_change_port_error", tool: IssueStateChangeToolName, args: map[string]any{"index": float64(7), "state": "open"}, stub: failing("EditIssue", boom)},
+	{name: "issue_state_change_port_error", tool: IssueStateChangeToolName, args: map[string]any{"index": float64(7), "state": "open"}, stub: failing("EditIssue", errBoom)},
 
 	// list_repo_milestones
 	{name: "list_milestones_defaults", tool: ListRepoMilestonesToolName},
 	{name: "list_milestones_closed_paged", tool: ListRepoMilestonesToolName, args: map[string]any{"state": "closed", "page": float64(2), "limit": float64(10)}},
 	{name: "list_milestones_empty_state", tool: ListRepoMilestonesToolName, args: map[string]any{"state": ""}},
-	{name: "list_milestones_port_error", tool: ListRepoMilestonesToolName, stub: failing("ListRepoMilestones", boom)},
+	{name: "list_milestones_port_error", tool: ListRepoMilestonesToolName, stub: failing("ListRepoMilestones", errBoom)},
 
 	// list_repo_labels, list_org_labels
 	{name: "list_repo_labels_user_owner", tool: ListRepoLabelsToolName},
@@ -409,8 +409,8 @@ var goldenCases = []goldenCase{
 	{name: "list_repo_labels_no_org", tool: ListRepoLabelsToolName, args: map[string]any{"owner": "acme", "include_org_labels": false}},
 	{name: "list_repo_labels_include_string", tool: ListRepoLabelsToolName, args: map[string]any{"owner": "acme", "include_org_labels": "false"}},
 	{name: "list_repo_labels_paged", tool: ListRepoLabelsToolName, args: map[string]any{"page": float64(2), "limit": float64(1)}},
-	{name: "list_repo_labels_port_error", tool: ListRepoLabelsToolName, stub: failing("ListRepoLabels", boom)},
-	{name: "list_repo_labels_org_error", tool: ListRepoLabelsToolName, args: map[string]any{"owner": "acme"}, stub: failing("ListOrgLabels", boom)},
+	{name: "list_repo_labels_port_error", tool: ListRepoLabelsToolName, stub: failing("ListRepoLabels", errBoom)},
+	{name: "list_repo_labels_org_error", tool: ListRepoLabelsToolName, args: map[string]any{"owner": "acme"}, stub: failing("ListOrgLabels", errBoom)},
 	{name: "list_org_labels_defaults", tool: ListOrgLabelsToolName, args: map[string]any{"org": "acme"}},
 	{name: "list_org_labels_user_is_empty", tool: ListOrgLabelsToolName, args: map[string]any{"org": "octo"}},
 	{name: "list_org_labels_forbidden", tool: ListOrgLabelsToolName, args: map[string]any{"org": "denied"}},
@@ -420,55 +420,55 @@ var goldenCases = []goldenCase{
 	{name: "add_issue_labels_id", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "4"}},
 	{name: "add_issue_labels_unknown", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "nope"}},
 	{name: "add_issue_labels_empty", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": ""}},
-	{name: "add_issue_labels_port_error", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug"}, stub: failing("AddIssueLabels", boom)},
-	{name: "add_issue_labels_reread_error", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug"}, stub: failing("GetIssue", boom)},
+	{name: "add_issue_labels_port_error", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug"}, stub: failing("AddIssueLabels", errBoom)},
+	{name: "add_issue_labels_reread_error", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug"}, stub: failing("GetIssue", errBoom)},
 	{name: "remove_issue_labels_names", tool: RemoveIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug,ui"}},
 	{name: "remove_issue_labels_unknown", tool: RemoveIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "nope"}},
-	{name: "remove_issue_labels_port_error", tool: RemoveIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug"}, stub: failing("RemoveIssueLabel", boom)},
+	{name: "remove_issue_labels_port_error", tool: RemoveIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug"}, stub: failing("RemoveIssueLabel", errBoom)},
 
 	// repo labels
 	{name: "create_repo_label", tool: CreateRepoLabelToolName, args: map[string]any{"name": "ui2", "color": "#0088FF", "description": "d"}},
 	{name: "create_repo_label_bad_color", tool: CreateRepoLabelToolName, args: map[string]any{"name": "x", "color": "red"}},
-	{name: "create_repo_label_port_error", tool: CreateRepoLabelToolName, args: map[string]any{"name": "x", "color": "0088ff"}, stub: failing("CreateRepoLabel", boom)},
+	{name: "create_repo_label_port_error", tool: CreateRepoLabelToolName, args: map[string]any{"name": "x", "color": "0088ff"}, stub: failing("CreateRepoLabel", errBoom)},
 	{name: "edit_repo_label", tool: EditRepoLabelToolName, args: map[string]any{"id": float64(3), "name": "x", "color": "00ff00"}},
 	{name: "edit_repo_label_no_fields", tool: EditRepoLabelToolName, args: map[string]any{"id": float64(3)}},
 	{name: "edit_repo_label_empty_name_and_description", tool: EditRepoLabelToolName, args: map[string]any{"id": float64(3), "name": "", "description": ""}},
 	{name: "edit_repo_label_bad_color", tool: EditRepoLabelToolName, args: map[string]any{"id": float64(3), "color": "zz"}},
-	{name: "edit_repo_label_port_error", tool: EditRepoLabelToolName, args: map[string]any{"id": float64(3), "name": "x"}, stub: failing("EditRepoLabel", boom)},
+	{name: "edit_repo_label_port_error", tool: EditRepoLabelToolName, args: map[string]any{"id": float64(3), "name": "x"}, stub: failing("EditRepoLabel", errBoom)},
 	{name: "delete_repo_label_unused", tool: DeleteRepoLabelToolName, args: map[string]any{"id": float64(3)}},
 	{name: "delete_repo_label_in_use", tool: DeleteRepoLabelToolName, args: map[string]any{"id": float64(3)}, stub: func(s *goldenStub) {
 		s.info = forge.PageInfo{TotalCount: 2, TotalKnown: true}
 	}},
 	{name: "delete_repo_label_force", tool: DeleteRepoLabelToolName, args: map[string]any{"id": float64(3), "delete_mode": "force"}},
 	{name: "delete_repo_label_not_found", tool: DeleteRepoLabelToolName, args: map[string]any{"id": float64(3), "delete_mode": "force"}, stub: failing("DeleteRepoLabel", goldenStatus(http.StatusNotFound))},
-	{name: "delete_repo_label_port_error", tool: DeleteRepoLabelToolName, args: map[string]any{"id": float64(3), "delete_mode": "force"}, stub: failing("DeleteRepoLabel", boom)},
-	{name: "delete_repo_label_get_error", tool: DeleteRepoLabelToolName, args: map[string]any{"id": float64(3)}, stub: failing("GetRepoLabel", boom)},
+	{name: "delete_repo_label_port_error", tool: DeleteRepoLabelToolName, args: map[string]any{"id": float64(3), "delete_mode": "force"}, stub: failing("DeleteRepoLabel", errBoom)},
+	{name: "delete_repo_label_get_error", tool: DeleteRepoLabelToolName, args: map[string]any{"id": float64(3)}, stub: failing("GetRepoLabel", errBoom)},
 	{name: "get_repo_label", tool: GetRepoLabelToolName, args: map[string]any{"id": float64(3)}},
-	{name: "get_repo_label_port_error", tool: GetRepoLabelToolName, args: map[string]any{"id": float64(3)}, stub: failing("GetRepoLabel", boom)},
+	{name: "get_repo_label_port_error", tool: GetRepoLabelToolName, args: map[string]any{"id": float64(3)}, stub: failing("GetRepoLabel", errBoom)},
 
 	// org labels
 	{name: "create_org_label", tool: CreateOrgLabelToolName, args: map[string]any{"org": "acme", "name": "n", "color": "0088ff"}},
 	{name: "create_org_label_bad_color", tool: CreateOrgLabelToolName, args: map[string]any{"org": "acme", "name": "n", "color": "red"}},
-	{name: "create_org_label_port_error", tool: CreateOrgLabelToolName, args: map[string]any{"org": "acme", "name": "n", "color": "0088ff"}, stub: failing("CreateOrgLabel", boom)},
+	{name: "create_org_label_port_error", tool: CreateOrgLabelToolName, args: map[string]any{"org": "acme", "name": "n", "color": "0088ff"}, stub: failing("CreateOrgLabel", errBoom)},
 	{name: "edit_org_label", tool: EditOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12), "name": "n"}},
 	{name: "edit_org_label_no_fields", tool: EditOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}},
-	{name: "edit_org_label_port_error", tool: EditOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12), "name": "n"}, stub: failing("EditOrgLabel", boom)},
+	{name: "edit_org_label_port_error", tool: EditOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12), "name": "n"}, stub: failing("EditOrgLabel", errBoom)},
 	{name: "delete_org_label_unused", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}},
 	{name: "delete_org_label_in_use", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}, stub: func(s *goldenStub) {
 		s.info = forge.PageInfo{TotalCount: 3, TotalKnown: true}
 	}},
 	{name: "delete_org_label_force", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12), "delete_mode": "force"}},
-	{name: "delete_org_label_count_error", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}, stub: failing("ListOrgRepoNames", boom)},
-	{name: "delete_org_label_port_error", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12), "delete_mode": "force"}, stub: failing("DeleteOrgLabel", boom)},
+	{name: "delete_org_label_count_error", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}, stub: failing("ListOrgRepoNames", errBoom)},
+	{name: "delete_org_label_port_error", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12), "delete_mode": "force"}, stub: failing("DeleteOrgLabel", errBoom)},
 	{name: "get_org_label", tool: GetOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}},
-	{name: "get_org_label_port_error", tool: GetOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}, stub: failing("GetOrgLabel", boom)},
+	{name: "get_org_label_port_error", tool: GetOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}, stub: failing("GetOrgLabel", errBoom)},
 
 	// issue dependencies
 	{name: "list_dependencies_defaults", tool: ListIssueDependenciesToolName, args: map[string]any{"index": float64(7)}},
 	{name: "list_dependencies_paged", tool: ListIssueDependenciesToolName, args: map[string]any{"index": float64(7), "page": float64(2), "limit": float64(5)}},
-	{name: "list_dependencies_port_error", tool: ListIssueDependenciesToolName, args: map[string]any{"index": float64(7)}, stub: failing("ListIssueDependencies", boom)},
+	{name: "list_dependencies_port_error", tool: ListIssueDependenciesToolName, args: map[string]any{"index": float64(7)}, stub: failing("ListIssueDependencies", errBoom)},
 	{name: "list_dependents_defaults", tool: ListIssueDependentsToolName, args: map[string]any{"index": float64(7)}},
-	{name: "list_dependents_port_error", tool: ListIssueDependentsToolName, args: map[string]any{"index": float64(7)}, stub: failing("ListIssueDependents", boom)},
+	{name: "list_dependents_port_error", tool: ListIssueDependentsToolName, args: map[string]any{"index": float64(7)}, stub: failing("ListIssueDependents", errBoom)},
 	{name: "add_dependency", tool: AddIssueDependencyToolName, args: map[string]any{"index": float64(7), "depends_on_index": float64(9)}},
 	{name: "add_dependency_cross_repo", tool: AddIssueDependencyToolName, args: map[string]any{"index": float64(7), "depends_on_owner": "acme", "depends_on_repo": "other", "depends_on_index": float64(7)}},
 	{name: "add_dependency_self", tool: AddIssueDependencyToolName, args: map[string]any{"index": float64(7), "depends_on_index": float64(7)}},
@@ -477,12 +477,12 @@ var goldenCases = []goldenCase{
 	{name: "add_dependency_bad_index", tool: AddIssueDependencyToolName, args: map[string]any{"index": "abc", "depends_on_index": float64(9)}},
 	{name: "add_dependency_wrong_type_owner", tool: AddIssueDependencyToolName, args: map[string]any{"index": float64(7), "depends_on_owner": float64(5), "depends_on_index": float64(9)}},
 	{name: "add_dependency_empty_owner_defaults", tool: AddIssueDependencyToolName, args: map[string]any{"index": float64(7), "depends_on_owner": "", "depends_on_index": float64(9)}},
-	{name: "add_dependency_port_error", tool: AddIssueDependencyToolName, args: map[string]any{"index": float64(7), "depends_on_index": float64(9)}, stub: failing("AddIssueDependency", boom)},
+	{name: "add_dependency_port_error", tool: AddIssueDependencyToolName, args: map[string]any{"index": float64(7), "depends_on_index": float64(9)}, stub: failing("AddIssueDependency", errBoom)},
 	{name: "remove_dependency", tool: RemoveIssueDependencyToolName, args: map[string]any{"index": float64(7), "dependency_index": float64(9)}},
 	{name: "remove_dependency_cross_repo", tool: RemoveIssueDependencyToolName, args: map[string]any{"index": float64(7), "dependency_owner": "acme", "dependency_repo": "other", "dependency_index": float64(9)}},
 	{name: "remove_dependency_missing_index", tool: RemoveIssueDependencyToolName, args: map[string]any{"index": float64(7), "dependency_index": nil}},
 	{name: "remove_dependency_wrong_type_repo", tool: RemoveIssueDependencyToolName, args: map[string]any{"index": float64(7), "dependency_repo": true, "dependency_index": float64(9)}},
-	{name: "remove_dependency_port_error", tool: RemoveIssueDependencyToolName, args: map[string]any{"index": float64(7), "dependency_index": float64(9)}, stub: failing("RemoveIssueDependency", boom)},
+	{name: "remove_dependency_port_error", tool: RemoveIssueDependencyToolName, args: map[string]any{"index": float64(7), "dependency_index": float64(9)}, stub: failing("RemoveIssueDependency", errBoom)},
 }
 
 func TestGolden(t *testing.T) {
