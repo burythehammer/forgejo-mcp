@@ -1,0 +1,5 @@
+{"attachment":{"id":7,"name":"shot.png","size":12,"download_count":1,"created_at":"2026-01-02T03:04:05Z","uuid":"u-7","browser_download_url":"https://f.example/dl/7"},"inline":true,"bytes_included":3}
+RESOURCE https://f.example/dl/7 text/plain blob=cG5n
+-- port calls --
+GetIssueAttachment ["octo","hello",4,7]
+DownloadAttachment ["https://f.example/dl/7"]

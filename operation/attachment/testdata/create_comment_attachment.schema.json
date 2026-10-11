@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Upload a new attachment to an issue/PR comment from exactly one of base64 content or a file path on the forgejo-mcp host.",
+  "inputSchema": {
+    "properties": {
+      "comment_id": {
+        "description": "Comment ID",
+        "type": "number"
+      },
+      "content": {
+        "description": "Base64-encoded file bytes to upload. Provide exactly one of content or file_path",
+        "type": "string"
+      },
+      "file_path": {
+        "description": "Path to a file on the forgejo-mcp host. Relative paths resolve from the server process working directory. Disabled unless the host sets FORGEJO_MCP_ALLOW_FILE_PATH_UPLOAD=1, and confined to FORGEJO_MCP_UPLOAD_ROOT when that is set. Provide exactly one of content or file_path",
+        "type": "string"
+      },
+      "filename": {
+        "description": "Filename to associate with the upload. Required with content; optional with file_path (defaults to the path basename)",
+        "type": "string"
+      },
+      "mime_type": {
+        "description": "MIME type hint for uploaded file (optional; inferred from filename if omitted)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id"
+    ],
+    "type": "object"
+  },
+  "name": "create_comment_attachment"
+}
