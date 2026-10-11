@@ -6,67 +6,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// newLabelBackend builds a test server where mux routes specific label paths.
-// Records all non-version requests.
-func newLabelBackend(t *testing.T, muxFn func(*http.ServeMux)) (*httptest.Server, *[]recordedReq) {
-	t.Helper()
-	records := make([]recordedReq, 0, 4)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"11.0.0+gitea-1.22.0"}`))
-	})
-	muxFn(mux)
-	// Catch-all recorder
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path})
-		w.WriteHeader(http.StatusNotFound)
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("sdk client: %v", err)
-	}
-	forgejo.SetClientForTesting(c)
-	return srv, &records
-}
-
-func labelHandler(t *testing.T, method, path string, status int, body any) func(*http.ServeMux) {
-	t.Helper()
-	return func(mux *http.ServeMux) {
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != method {
-				w.WriteHeader(http.StatusMethodNotAllowed)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(status)
-			if body != nil {
-				json.NewEncoder(w).Encode(body)
-			}
-		})
-	}
-}
-
 // ---- normalizeColor ----
 
 func TestNormalizeColor(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in  string
 		out string
@@ -99,272 +49,263 @@ func TestNormalizeColor(t *testing.T) {
 
 // ---- create_repo_label ----
 
-func TestCreateRepoLabelFn_HappyPath(t *testing.T) {
-	label := forgejo_sdk.Label{ID: 1, Name: "bug", Color: "0088ff", Description: "a bug"}
-	newLabelBackend(t, labelHandler(t, http.MethodPost, "/api/v1/repos/owner/repo/labels", http.StatusCreated, label))
+func TestCreateRepoLabelFn_CreatesIt(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
 
-	res, err := CreateRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "name": "bug", "color": "0088ff",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("unexpected error: err=%v res=%+v", err, res)
+	out := call(t, h.CreateRepoLabelFn, map[string]any{"name": "bug", "color": "0088ff", "description": "a bug"})
+	if !strings.Contains(out, `"name":"bug"`) {
+		t.Fatalf("got %q", out)
 	}
-}
-
-func TestCreateRepoLabelFn_MissingHash(t *testing.T) {
-	label := forgejo_sdk.Label{ID: 2, Name: "bug", Color: "aabbcc"}
-	newLabelBackend(t, labelHandler(t, http.MethodPost, "/api/v1/repos/owner/repo/labels", http.StatusCreated, label))
-
-	res, err := CreateRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "name": "bug", "color": "aabbcc",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("should succeed normalizing aabbcc: err=%v", err)
+	labels, _, err := f.ListRepoLabels(context.Background(), testOwner, testRepo, forgejo_sdk.ListLabelsOptions{})
+	if err != nil || len(labels) != 1 || labels[0].Description != "a bug" {
+		t.Fatalf("labels = %+v err=%v", labels, err)
 	}
 }
 
 func TestCreateRepoLabelFn_InvalidColor(t *testing.T) {
-	newLabelBackend(t, func(_ *http.ServeMux) {})
-	_, err := CreateRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "name": "bug", "color": "gg00ff",
-	}))
-	if err == nil {
-		t.Fatal("expected error for invalid color")
+	t.Parallel()
+	h, f := newFixture(t)
+
+	callErr(t, h.CreateRepoLabelFn, map[string]any{"name": "bug", "color": "gg00ff"})
+	if labels, _, _ := f.ListRepoLabels(context.Background(), testOwner, testRepo, forgejo_sdk.ListLabelsOptions{}); len(labels) != 0 {
+		t.Fatalf("an invalid colour must create nothing, got %+v", labels)
 	}
 }
 
 // ---- edit_repo_label ----
 
-func TestEditRepoLabelFn_PartialPatch(t *testing.T) {
-	_, records := newPatchBackend(t, `{"id":1,"name":"bug","color":"#0088ff"}`)
+func TestEditRepoLabelFn_OnlyTheSuppliedFieldsChange(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	id := newLabel(t, f, "bug")
 
-	res, err := EditRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "id": float64(1), "name": "bug-renamed",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("edit failed: err=%v", err)
+	call(t, h.EditRepoLabelFn, map[string]any{"id": float64(id), "name": "bug-renamed"})
+	l, err := f.GetRepoLabel(context.Background(), testOwner, testRepo, id)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(*records) == 0 {
-		t.Fatal("no request recorded")
-	}
-	// name should be set; color should be null (SDK marshals nil *string as null, not omitted).
-	var body map[string]any
-	_ = json.Unmarshal((*records)[0].rawBody, &body)
-	if body["name"] == nil {
-		t.Error("name should be set in PATCH body")
-	}
-	if v, ok := body["color"]; ok && v != nil {
-		t.Errorf("color should be null/absent when not provided, got %v", v)
+	if l.Name != "bug-renamed" || l.Color != "aabbcc" {
+		t.Fatalf("got %+v", l)
 	}
 }
 
 func TestEditRepoLabelFn_EmptyReject(t *testing.T) {
-	newPatchBackend(t, `{}`)
-	_, err := EditRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "id": float64(1),
-	}))
-	if err == nil {
-		t.Fatal("expected error when no fields provided")
+	t.Parallel()
+	h, f := newFixture(t)
+	id := newLabel(t, f, "bug")
+
+	msg := callErr(t, h.EditRepoLabelFn, map[string]any{"id": float64(id)})
+	if !strings.Contains(msg, "at least one of name, color, description") {
+		t.Fatalf("got %q", msg)
 	}
 }
 
 // ---- delete_repo_label ----
 
 func TestDeleteRepoLabelFn_UnusedSuccess(t *testing.T) {
-	muxSetup := func(mux *http.ServeMux) {
-		// GET label
-		mux.HandleFunc("/api/v1/repos/owner/repo/labels/1", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			switch r.Method {
-			case http.MethodGet:
-				json.NewEncoder(w).Encode(forgejo_sdk.Label{ID: 1, Name: "unused"})
-			case http.MethodDelete:
-				w.WriteHeader(http.StatusNoContent)
-			}
-		})
-		// Issues list with X-Total-Count: 0
-		mux.HandleFunc("/api/v1/repos/owner/repo/issues", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-Total-Count", "0")
-			_, _ = w.Write([]byte("[]"))
-		})
-	}
-	newLabelBackend(t, muxSetup)
+	t.Parallel()
+	h, f := newFixture(t)
+	id := newLabel(t, f, "unused")
 
-	res, err := DeleteRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "id": float64(1),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("delete unused label failed: err=%v", err)
+	out := call(t, h.DeleteRepoLabelFn, map[string]any{"id": float64(id)})
+	if !strings.Contains(out, `"deleted":true`) {
+		t.Fatalf("got %q", out)
+	}
+	if _, err := f.GetRepoLabel(context.Background(), testOwner, testRepo, id); err == nil {
+		t.Fatal("label still exists")
 	}
 }
 
 func TestDeleteRepoLabelFn_InUseRefused(t *testing.T) {
-	muxSetup := func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/owner/repo/labels/2", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(forgejo_sdk.Label{ID: 2, Name: "inuse"})
-		})
-		mux.HandleFunc("/api/v1/repos/owner/repo/issues", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-Total-Count", "3")
-			_, _ = w.Write([]byte("[]"))
-		})
+	t.Parallel()
+	h, f := newFixture(t)
+	id := newLabel(t, f, "inuse")
+	for _, title := range []string{"a", "b", "c"} {
+		idx := openIssue(t, f, title)
+		if err := f.AddIssueLabels(context.Background(), testOwner, testRepo, idx, []int64{id}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	newLabelBackend(t, muxSetup)
 
-	_, err := DeleteRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "id": float64(2),
-	}))
-	if err == nil || !strings.Contains(err.Error(), "is used by") {
-		t.Fatalf("expected in-use error, got: %v", err)
+	msg := callErr(t, h.DeleteRepoLabelFn, map[string]any{"id": float64(id)})
+	if !strings.Contains(msg, "is used by 3") {
+		t.Fatalf("expected in-use error, got: %q", msg)
+	}
+	if _, err := f.GetRepoLabel(context.Background(), testOwner, testRepo, id); err != nil {
+		t.Fatalf("the label must survive a refused delete: %v", err)
 	}
 }
 
 func TestDeleteRepoLabelFn_InUseForceSuccess(t *testing.T) {
-	muxSetup := func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/owner/repo/labels/3", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			if r.Method == http.MethodDelete {
-				w.WriteHeader(http.StatusNoContent)
-			}
-		})
+	t.Parallel()
+	h, f := newFixture(t)
+	id := newLabel(t, f, "inuse")
+	idx := openIssue(t, f, "a")
+	if err := f.AddIssueLabels(context.Background(), testOwner, testRepo, idx, []int64{id}); err != nil {
+		t.Fatal(err)
 	}
-	newLabelBackend(t, muxSetup)
 
-	res, err := DeleteRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "id": float64(3), "delete_mode": "force",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("force delete failed: err=%v", err)
+	call(t, h.DeleteRepoLabelFn, map[string]any{"id": float64(id), "delete_mode": "force"})
+	if got := issueLabelNames(t, f, idx); len(got) != 0 {
+		t.Fatalf("deleting a label unlabels its issues, got %v", got)
 	}
 }
 
-func TestDeleteRepoLabelFn_404(t *testing.T) {
-	muxSetup := func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/owner/repo/labels/99", func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{}`))
-		})
-	}
-	newLabelBackend(t, muxSetup)
-
-	_, err := DeleteRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "id": float64(99), "delete_mode": "force",
-	}))
-	if err == nil {
-		t.Fatal("expected error for 404")
+func TestDeleteRepoLabelFn_NotFound(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	msg := callErr(t, h.DeleteRepoLabelFn, map[string]any{"id": float64(99), "delete_mode": "force"})
+	if !strings.Contains(msg, "label 99 not found") {
+		t.Fatalf("got %q", msg)
 	}
 }
 
 // ---- get_repo_label ----
 
 func TestGetRepoLabelFn_HappyPath(t *testing.T) {
-	label := forgejo_sdk.Label{ID: 5, Name: "priority", Color: "#ff0000"}
-	newLabelBackend(t, labelHandler(t, http.MethodGet, "/api/v1/repos/owner/repo/labels/5", http.StatusOK, label))
+	t.Parallel()
+	h, f := newFixture(t)
+	id := newLabel(t, f, "priority")
 
-	res, err := GetRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "id": float64(5),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("get label failed: err=%v", err)
+	out := call(t, h.GetRepoLabelFn, map[string]any{"id": float64(id)})
+	if !strings.Contains(out, `"name":"priority"`) {
+		t.Fatalf("got %q", out)
 	}
 }
 
-func TestGetRepoLabelFn_404(t *testing.T) {
-	newLabelBackend(t, func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/owner/repo/labels/404", func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{}`))
-		})
-	})
-	_, err := GetRepoLabelFn(context.Background(), makeReq(map[string]any{
-		"owner": "owner", "repo": "repo", "id": float64(404),
-	}))
-	if err == nil {
-		t.Fatal("expected error for missing label")
-	}
+func TestGetRepoLabelFn_NotFound(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	callErr(t, h.GetRepoLabelFn, map[string]any{"id": float64(404)})
 }
 
-// ---- label resources parse helpers (smoke tests) ----
+// ---- organization labels ----
+
+func orgReq(args map[string]any) map[string]any {
+	args["org"] = "acme"
+	return args
+}
+
+func TestOrgLabelTools_RoundTrip(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+
+	out := call(t, h.CreateOrgLabelFn, orgReq(map[string]any{"name": "prio", "color": "0088ff", "description": "d"}))
+	var wrapped struct{ Result forgejo_sdk.Label }
+	if err := json.Unmarshal([]byte(out), &wrapped); err != nil || wrapped.Result.Name != "prio" || wrapped.Result.ID == 0 {
+		t.Fatalf("create: %q err=%v", out, err)
+	}
+	id := float64(wrapped.Result.ID)
+
+	out = call(t, h.GetOrgLabelFn, orgReq(map[string]any{"id": id}))
+	if !strings.Contains(out, `"name":"prio"`) {
+		t.Fatalf("get: %q", out)
+	}
+
+	out = call(t, h.EditOrgLabelFn, orgReq(map[string]any{"id": id, "name": "prio2"}))
+	if !strings.Contains(out, `"name":"prio2"`) || !strings.Contains(out, `"description":"d"`) {
+		t.Fatalf("edit should change only the name: %q", out)
+	}
+
+	callErr(t, h.EditOrgLabelFn, orgReq(map[string]any{"id": id}))
+	callErr(t, h.CreateOrgLabelFn, orgReq(map[string]any{"name": "x", "color": "zzz"}))
+
+	call(t, h.DeleteOrgLabelFn, orgReq(map[string]any{"id": id}))
+	if labels, _, _ := f.ListOrgLabels(context.Background(), "acme", 1, 10); len(labels) != 0 {
+		t.Fatalf("label still exists: %+v", labels)
+	}
+	callErr(t, h.GetOrgLabelFn, orgReq(map[string]any{"id": id}))
+}
+
+func TestDeleteOrgLabelFn_RefusedWhileAnIssueInAnOrgRepoUsesIt(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddRepo("acme", "anvil")
+	label, err := f.CreateOrgLabel(context.Background(), "acme", forgejo_sdk.CreateLabelOption{Name: "prio", Color: "#aabbcc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	iss, err := f.CreateIssue(context.Background(), "acme", "anvil", forgejo_sdk.CreateIssueOption{Title: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.AddIssueLabels(context.Background(), "acme", "anvil", iss.Index, []int64{label.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := callErr(t, h.DeleteOrgLabelFn, orgReq(map[string]any{"id": float64(label.ID)}))
+	if !strings.Contains(msg, "is used by 1 issue(s)/PR(s) in visible repos") {
+		t.Fatalf("got %q", msg)
+	}
+
+	call(t, h.DeleteOrgLabelFn, orgReq(map[string]any{"id": float64(label.ID), "delete_mode": "force"}))
+}
+
+// ---- label resources ----
 
 func TestParseLabel_InvalidID(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
 	req := mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/owner/repo/label/abc"}}
-	_, err := repoLabelResourceHandler(context.Background(), req)
-	if err == nil {
+	if _, err := h.repoLabelResourceHandler(context.Background(), req); err == nil {
 		t.Fatal("expected error for non-numeric id")
 	}
 }
 
-func TestRepoLabelsResource_HappyPath(t *testing.T) {
-	labels := []forgejo_sdk.Label{
-		{ID: 1, Name: "bug", Color: "#ff0000"},
-		{ID: 2, Name: "feature", Color: "#0088ff"},
-	}
-	muxSetup := func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/owner/repo/labels", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(labels)
-		})
-	}
-	newLabelBackend(t, muxSetup)
+func TestRepoLabelResource_HappyPath(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	id := newLabel(t, f, "bug")
 
-	req := mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{
-		URI: "forgejo://repo/owner/repo/labels",
-	}}
-	contents, err := repoLabelsResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("resource handler error: %v", err)
+	var p labelResourcePayload
+	readJSON(t, h.repoLabelResourceHandler, fmt.Sprintf("forgejo://repo/%s/%s/label/%d", testOwner, testRepo, id), &p)
+	if p.ID != id || p.Name != "bug" || p.Color != "aabbcc" {
+		t.Fatalf("got %+v", p)
 	}
-	if len(contents) == 0 {
-		t.Fatal("expected contents")
+}
+
+func TestRepoLabelResource_NotFound(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	req := mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: fmt.Sprintf("forgejo://repo/%s/%s/label/77", testOwner, testRepo)}}
+	if _, err := h.repoLabelResourceHandler(context.Background(), req); err == nil {
+		t.Fatal("expected error for a missing label")
+	}
+}
+
+func TestRepoLabelsResource_HappyPath(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	seedRepoLabels(t, f, 2)
+
+	var p labelsListPayload
+	readJSON(t, h.repoLabelsResourceHandler, fmt.Sprintf("forgejo://repo/%s/%s/labels", testOwner, testRepo), &p)
+	if len(p.Labels) != 2 || p.Truncated {
+		t.Fatalf("got %+v", p)
 	}
 }
 
 func TestRepoLabelsResource_OverCap(t *testing.T) {
-	// Build 31 labels (> EmbeddedListCap=30) to trigger truncation.
-	labels := make([]forgejo_sdk.Label, 31)
-	for i := range labels {
-		labels[i] = forgejo_sdk.Label{ID: int64(i + 1), Name: fmt.Sprintf("label-%d", i+1)}
-	}
-	muxSetup := func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/owner/repo/labels", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(labels)
-		})
-	}
-	newLabelBackend(t, muxSetup)
+	t.Parallel()
+	h, f := newFixture(t)
+	seedRepoLabels(t, f, 31) // more than EmbeddedListCap (30)
 
-	req := mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{
-		URI: "forgejo://repo/owner/repo/labels",
-	}}
-	contents, err := repoLabelsResourceHandler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("resource handler error: %v", err)
-	}
-	var payload labelsListPayload
-	tc := contents[0].(mcp.TextResourceContents)
-	_ = json.Unmarshal([]byte(tc.Text), &payload)
-	if !payload.Truncated {
+	var p labelsListPayload
+	readJSON(t, h.repoLabelsResourceHandler, fmt.Sprintf("forgejo://repo/%s/%s/labels", testOwner, testRepo), &p)
+	if !p.Truncated {
 		t.Error("expected truncated=true for 31 labels")
 	}
-	if payload.ListTool != ListRepoLabelsToolName {
-		t.Errorf("expected list_tool=%q got %q", ListRepoLabelsToolName, payload.ListTool)
+	if p.ListTool != ListRepoLabelsToolName {
+		t.Errorf("expected list_tool=%q got %q", ListRepoLabelsToolName, p.ListTool)
 	}
 }
 
-func TestRepoLabelsResource_404(t *testing.T) {
-	muxSetup := func(mux *http.ServeMux) {
-		mux.HandleFunc("/api/v1/repos/owner/repo/labels", func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{}`))
-		})
-	}
-	newLabelBackend(t, muxSetup)
-
-	req := mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/owner/repo/labels"}}
-	_, err := repoLabelsResourceHandler(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for 404")
+func TestRepoLabelsResource_UnknownRepo(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	req := mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/nobody/nothing/labels"}}
+	if _, err := h.repoLabelsResourceHandler(context.Background(), req); err == nil {
+		t.Fatal("expected error for an unknown repository")
 	}
 }

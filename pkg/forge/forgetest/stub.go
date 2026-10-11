@@ -60,6 +60,7 @@ func NewStub(t testing.TB) *Stub {
 	s.mountHooks(mux)
 	s.mountRepoAdmin(mux)
 	s.mountIssues(mux)
+	s.mountLabels(mux)
 	s.Server = httptest.NewServer(mux)
 	s.Fake.BaseURL = s.URL
 	t.Cleanup(s.Close)

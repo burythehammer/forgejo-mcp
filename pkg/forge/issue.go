@@ -11,7 +11,7 @@ import (
 // Issues is the issue domain of the port: issues, their comments, the issue
 // label assignment that update_issue needs, and repository milestones.
 //
-// Label and milestone catalogues, and issue dependencies, are other ports.
+// Label catalogues are on Labels and issue dependencies on Dependencies.
 // Failures from Forgejo are *StatusError; validation failures (an empty title)
 // are plain errors.
 type Issues interface {

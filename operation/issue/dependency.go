@@ -5,11 +5,10 @@ package issue
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -69,15 +68,6 @@ var (
 	)
 )
 
-// issueMetaBody is the Forgejo/Gitea IssueMeta request body used by the
-// dependency and blocks mutation endpoints. It requires owner, repo, and index
-// rather than a single dependency_issue_index field.
-type issueMetaBody struct {
-	Index int64  `json:"index"`
-	Owner string `json:"owner"`
-	Repo  string `json:"repo"`
-}
-
 // paginatedDependencyResult wraps a list of dependency issues with the page
 // metadata needed for resumability. The shape echoes the page/limit parameters
 // so callers can fetch the next page.
@@ -87,38 +77,44 @@ type paginatedDependencyResult struct {
 	Issues []*forgejo_sdk.Issue `json:"issues"`
 }
 
-func RegisterDependencyTool(s *server.MCPServer) {
-	s.AddTool(ListIssueDependenciesTool, ListIssueDependenciesFn)
-	s.AddTool(ListIssueDependentsTool, ListIssueDependentsFn)
-	s.AddTool(AddIssueDependencyTool, AddIssueDependencyFn)
-	s.AddTool(RemoveIssueDependencyTool, RemoveIssueDependencyFn)
+func (h handlers) registerDependencyTools(s *server.MCPServer) {
+	s.AddTool(ListIssueDependenciesTool, h.ListIssueDependenciesFn)
+	s.AddTool(ListIssueDependentsTool, h.ListIssueDependentsFn)
+	s.AddTool(AddIssueDependencyTool, h.AddIssueDependencyFn)
+	s.AddTool(RemoveIssueDependencyTool, h.RemoveIssueDependencyFn)
 }
 
-func ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListIssueDependenciesFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
 	index, _ := to.Float64(req.GetArguments()["index"])
 	page, limit := parsePageLimit(req.GetArguments())
 
-	path := forgejo.APIPath("repos", owner, repo, "issues", int64(index), "dependencies") + fmt.Sprintf("?page=%d&limit=%d", page, limit)
-	issues := []*forgejo_sdk.Issue{}
-	if err := forgejo.DoJSONList(ctx, http.MethodGet, path, &issues); err != nil {
+	client, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	issues, err := client.ListIssueDependencies(ctx, owner, repo, int64(index), page, limit)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list issue dependencies err: %w", err))
 	}
 	return to.TextResult(paginatedDependencyResult{Page: page, Limit: limit, Issues: issues})
 }
 
-func ListIssueDependentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) ListIssueDependentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListIssueDependentsFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
 	index, _ := to.Float64(req.GetArguments()["index"])
 	page, limit := parsePageLimit(req.GetArguments())
 
-	path := forgejo.APIPath("repos", owner, repo, "issues", int64(index), "blocks") + fmt.Sprintf("?page=%d&limit=%d", page, limit)
-	issues := []*forgejo_sdk.Issue{}
-	if err := forgejo.DoJSONList(ctx, http.MethodGet, path, &issues); err != nil {
+	client, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	issues, err := client.ListIssueDependents(ctx, owner, repo, int64(index), page, limit)
+	if err != nil {
 		return to.ErrorResult(fmt.Errorf("list issue dependents err: %w", err))
 	}
 	return to.TextResult(paginatedDependencyResult{Page: page, Limit: limit, Issues: issues})
@@ -176,7 +172,7 @@ func parsePageLimit(args map[string]any) (page, limit int) {
 	return page, limit
 }
 
-func AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called AddIssueDependencyFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -209,15 +205,18 @@ func AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		return to.ErrorResult(fmt.Errorf("an issue cannot depend on itself"))
 	}
 
-	path := forgejo.APIPath("repos", owner, repo, "issues", int64(index), "dependencies")
-	body := issueMetaBody{Index: int64(dependsOn), Owner: depOwner, Repo: depRepo}
-	if err := forgejo.DoJSON(ctx, http.MethodPost, path, body, nil); err != nil {
+	client, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	dep := forge.IssueRef{Owner: depOwner, Repo: depRepo, Index: int64(dependsOn)}
+	if err := client.AddIssueDependency(ctx, owner, repo, int64(index), dep); err != nil {
 		return to.ErrorResult(fmt.Errorf("add issue dependency err: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("Issue #%d now depends on %s/%s#%d", int64(index), depOwner, depRepo, int64(dependsOn)))
 }
 
-func RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called RemoveIssueDependencyFn")
 	owner, _ := req.GetArguments()["owner"].(string)
 	repo, _ := req.GetArguments()["repo"].(string)
@@ -234,9 +233,12 @@ func RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return to.ErrorResult(err)
 	}
 
-	path := forgejo.APIPath("repos", owner, repo, "issues", int64(index), "dependencies")
-	body := issueMetaBody{Index: int64(dependencyIndex), Owner: depOwner, Repo: depRepo}
-	if err := forgejo.DoJSON(ctx, http.MethodDelete, path, body, nil); err != nil {
+	client, err := h.forge.For(ctx)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	dep := forge.IssueRef{Owner: depOwner, Repo: depRepo, Index: int64(dependencyIndex)}
+	if err := client.RemoveIssueDependency(ctx, owner, repo, int64(index), dep); err != nil {
 		return to.ErrorResult(fmt.Errorf("remove issue dependency err: %w", err))
 	}
 	return to.TextResult(fmt.Sprintf("Removed dependency on %s/%s#%d from issue #%d", depOwner, depRepo, int64(dependencyIndex), int64(index)))

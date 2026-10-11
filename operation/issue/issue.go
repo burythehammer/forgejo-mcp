@@ -244,19 +244,19 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(CreateIssueTool, h.CreateIssueFn)
 	s.AddTool(CreateIssueCommentTool, h.CreateIssueCommentFn)
 	s.AddTool(UpdateIssueTool, h.UpdateIssueFn)
-	s.AddTool(AddIssueLabelsTools, AddIssueLabelsFn)
-	s.AddTool(RemoveIssueLabelsTools, RemoveIssueLabelsFn)
+	s.AddTool(AddIssueLabelsTools, h.AddIssueLabelsFn)
+	s.AddTool(RemoveIssueLabelsTools, h.RemoveIssueLabelsFn)
 	s.AddTool(IssueStateChangeTool, h.IssueStateChangeFn)
 	s.AddTool(ListIssueCommentsTool, h.ListIssueCommentsFn)
 	s.AddTool(GetIssueCommentTool, h.GetIssueCommentFn)
 	s.AddTool(EditIssueCommentTool, h.EditIssueCommentFn)
 	s.AddTool(DeleteIssueCommentTool, h.DeleteIssueCommentFn)
 	s.AddTool(ListRepoMilestonesTool, h.ListRepoMilestonesFn)
-	s.AddTool(ListRepoLabelsTool, ListRepoLabelsFn)
-	s.AddTool(ListOrgLabelsTool, ListOrgLabelsFn)
+	s.AddTool(ListRepoLabelsTool, h.ListRepoLabelsFn)
+	s.AddTool(ListOrgLabelsTool, h.ListOrgLabelsFn)
 	s.AddTool(SearchIssuesTool, h.SearchIssuesFn)
-	RegisterLabelTool(s)
-	RegisterDependencyTool(s)
+	h.registerLabelTools(s)
+	h.registerDependencyTools(s)
 }
 
 func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -837,14 +837,16 @@ func (h handlers) ListRepoMilestonesFn(ctx context.Context, req mcp.CallToolRequ
 // each request gets the port for its own credential.
 type handlers struct {
 	forge forge.Factory
-	// resolveLabelIDs turns a caller's label names or IDs into label IDs. The
-	// label catalogue is not on the issue port, so the default still reads it
-	// through the legacy client; the labels ticket replaces it.
+	// resolveLabelIDs turns a caller's label names or IDs into label IDs. It
+	// defaults to resolveIssueLabelIDs, which reads the catalogue through the
+	// port; tests may replace it.
 	resolveLabelIDs func(ctx context.Context, owner, repo, csv string) ([]int64, error)
 }
 
 func newHandlers(f forge.Factory) handlers {
-	return handlers{forge: f, resolveLabelIDs: resolveIssueLabelIDs}
+	h := handlers{forge: f}
+	h.resolveLabelIDs = h.resolveIssueLabelIDs
+	return h
 }
 
 func splitCSV(s string) []string {

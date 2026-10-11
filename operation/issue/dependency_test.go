@@ -4,654 +4,303 @@ package issue
 
 import (
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forgejo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// newDependenciesBackend stubs the endpoints used by issue-dependency tools.
-func newDependenciesBackend(t *testing.T) (*httptest.Server, *[]recordedReq) {
+// dependsOn lists the indices of the issues testOwner/testRepo#index depends on.
+func dependsOn(t *testing.T, f *fake.Forgejo, index int64) []int64 {
 	t.Helper()
-	records := make([]recordedReq, 0, 4)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"15.0.2+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, rawBody: body})
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`[]`))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
+	issues, err := f.ListIssueDependencies(context.Background(), testOwner, testRepo, index, 1, 50)
 	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
+		t.Fatalf("listing dependencies: %v", err)
 	}
-	forgejo.SetClientForTesting(c)
-	return srv, &records
+	out := make([]int64, len(issues))
+	for i, iss := range issues {
+		out[i] = iss.Index
+	}
+	return out
 }
 
-func TestListIssueDependencies_SendsGetToDependencies(t *testing.T) {
-	_, records := newDependenciesBackend(t)
+func wantIndices(t *testing.T, got []int64, want ...int64) {
+	t.Helper()
+	if !equalInt64s(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
 
-	res, err := ListIssueDependenciesFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListIssueDependenciesFn returned error: err=%v res=%+v", err, res)
+func equalInt64s(got, want []int64) bool {
+	if len(got) != len(want) {
+		return false
 	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
 
-	if len(*records) == 0 {
-		t.Fatal("expected request to backend")
-	}
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodGet {
-		t.Fatalf("expected GET, got %s", last.method)
-	}
-	want := "/api/v1/repos/goern/forgejo-mcp/issues/42/dependencies"
-	if last.path != want {
-		t.Fatalf("unexpected path: got %s want %s", last.path, want)
-	}
-	if !strings.Contains(last.query, "page=1") {
-		t.Fatalf("expected default page=1 in query, got %s", last.query)
-	}
-	if !strings.Contains(last.query, "limit=20") {
-		t.Fatalf("expected default limit=20 in query, got %s", last.query)
+func TestListIssueDependencies_EchoesDefaultPageAndLimit(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	a, b := openIssue(t, f, "a"), openIssue(t, f, "b")
+	if err := f.AddIssueDependency(context.Background(), testOwner, testRepo, a, forge.IssueRef{Owner: testOwner, Repo: testRepo, Index: b}); err != nil {
+		t.Fatal(err)
 	}
 
-	out := textOf(res)
+	out := call(t, h.ListIssueDependenciesFn, map[string]any{"index": float64(a)})
 	if !strings.Contains(out, `"page":1`) || !strings.Contains(out, `"limit":20`) {
-		t.Fatalf("expected response to echo page/limit, got %q", out)
+		t.Fatalf("expected response to echo default page/limit, got %q", out)
+	}
+	if !strings.Contains(out, `"title":"b"`) {
+		t.Fatalf("expected the dependency in the result, got %q", out)
 	}
 }
 
-func TestListIssueDependents_SendsGetToBlocks(t *testing.T) {
-	_, records := newDependenciesBackend(t)
-
-	res, err := ListIssueDependentsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListIssueDependentsFn returned error: err=%v res=%+v", err, res)
+func TestListIssueDependents_ListsTheIssuesThatDependOnIt(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	a, b := openIssue(t, f, "a"), openIssue(t, f, "b")
+	if err := f.AddIssueDependency(context.Background(), testOwner, testRepo, a, forge.IssueRef{Owner: testOwner, Repo: testRepo, Index: b}); err != nil {
+		t.Fatal(err)
 	}
 
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodGet {
-		t.Fatalf("expected GET, got %s", last.method)
-	}
-	want := "/api/v1/repos/goern/forgejo-mcp/issues/42/blocks"
-	if last.path != want {
-		t.Fatalf("unexpected path: got %s want %s", last.path, want)
-	}
-	if !strings.Contains(last.query, "page=1") || !strings.Contains(last.query, "limit=20") {
-		t.Fatalf("expected default page/limit in query, got %s", last.query)
-	}
-
-	out := textOf(res)
-	if !strings.Contains(out, `"page":1`) || !strings.Contains(out, `"limit":20`) {
-		t.Fatalf("expected response to echo page/limit, got %q", out)
+	out := call(t, h.ListIssueDependentsFn, map[string]any{"index": float64(b)})
+	if !strings.Contains(out, `"title":"a"`) || !strings.Contains(out, `"page":1`) || !strings.Contains(out, `"limit":20`) {
+		t.Fatalf("got %q", out)
 	}
 }
 
-func TestAddIssueDependency_SendsPostWithIssueMeta(t *testing.T) {
-	_, records := newDependenciesBackend(t)
-
-	res, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"depends_on_index": float64(7),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("AddIssueDependencyFn returned error: err=%v res=%+v", err, res)
+func TestListIssueDependencies_PagesAndEchoesThem(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	a := openIssue(t, f, "a")
+	for _, title := range []string{"b", "c", "d"} {
+		dep := openIssue(t, f, title)
+		if err := f.AddIssueDependency(context.Background(), testOwner, testRepo, a, forge.IssueRef{Owner: testOwner, Repo: testRepo, Index: dep}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodPost {
-		t.Fatalf("expected POST, got %s", last.method)
+	out := call(t, h.ListIssueDependenciesFn, map[string]any{"index": float64(a), "page": float64(2), "limit": float64(2)})
+	if !strings.Contains(out, `"title":"d"`) || strings.Contains(out, `"title":"b"`) {
+		t.Fatalf("expected only the second page, got %q", out)
 	}
-	want := "/api/v1/repos/goern/forgejo-mcp/issues/42/dependencies"
-	if last.path != want {
-		t.Fatalf("unexpected path: got %s want %s", last.path, want)
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	if payload["index"] != float64(7) {
-		t.Fatalf("expected index=7, got %v", payload["index"])
-	}
-	if payload["owner"] != "goern" {
-		t.Fatalf("expected owner=goern, got %v", payload["owner"])
-	}
-	if payload["repo"] != "forgejo-mcp" {
-		t.Fatalf("expected repo=forgejo-mcp, got %v", payload["repo"])
-	}
-	if !strings.Contains(textOf(res), "now depends on") {
-		t.Fatalf("expected success message, got %q", textOf(res))
+	if !strings.Contains(out, `"page":2`) || !strings.Contains(out, `"limit":2`) {
+		t.Fatalf("expected response to echo requested page/limit, got %q", out)
 	}
 }
 
-func TestAddIssueDependency_CrossRepoBodyShape(t *testing.T) {
-	_, records := newDependenciesBackend(t)
-
-	res, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"depends_on_index": float64(7),
-		"depends_on_owner": "other-org",
-		"depends_on_repo":  "other-repo",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("AddIssueDependencyFn returned error: err=%v res=%+v", err, res)
-	}
-
-	last := (*records)[len(*records)-1]
-	want := "/api/v1/repos/goern/forgejo-mcp/issues/42/dependencies"
-	if last.path != want {
-		t.Fatalf("unexpected path: got %s want %s", last.path, want)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	if payload["owner"] != "other-org" || payload["repo"] != "other-repo" || payload["index"] != float64(7) {
-		t.Fatalf("expected cross-repo IssueMeta body, got %v", payload)
+func TestListIssueDependencies_UnknownIssueIsEmpty(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	for name, fn := range map[string]toolFn{"dependencies": h.ListIssueDependenciesFn, "dependents": h.ListIssueDependentsFn} {
+		out := call(t, fn, map[string]any{"index": float64(42)})
+		if !strings.Contains(out, `"issues":[]`) || !strings.Contains(out, `"page":1`) || !strings.Contains(out, `"limit":20`) {
+			t.Fatalf("%s: expected an empty result echoing page/limit, got %q", name, out)
+		}
 	}
 }
 
-func TestAddIssueDependency_SelfDependencyIsCaseInsensitive(t *testing.T) {
-	_, records := newDependenciesBackend(t)
+// failingDeps is a port whose dependency listing fails the way a repository
+// with dependencies disabled does.
+type failingDeps struct{ *fake.Forgejo }
 
-	// Forgejo treats owner and repository names case-insensitively, so a
-	// differently-cased spelling names the same repository. Comparing the two
-	// exactly let that spelling past the early check, which then reported a
-	// generic server-side error instead of the clear one.
-	_, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(7),
-		"depends_on_index": float64(7),
-		"depends_on_owner": "Goern",
-		"depends_on_repo":  "Forgejo-MCP",
-	}))
-	if err == nil {
-		t.Fatal("a differently-cased spelling of the same repo was not caught as a self-dependency")
+func (failingDeps) ListIssueDependencies(context.Context, string, string, int64, int, int) ([]*forgejo_sdk.Issue, error) {
+	return nil, &forge.StatusError{StatusCode: http.StatusBadRequest, Err: errString("issue dependencies are disabled")}
+}
+
+type errString string
+
+func (e errString) Error() string { return string(e) }
+
+func TestListIssueDependencies_APIErrorSurfaces(t *testing.T) {
+	t.Parallel()
+	f := fake.New()
+	f.AddRepo(testOwner, testRepo)
+	msg := callErr(t, withPort(failingDeps{f}).ListIssueDependenciesFn, map[string]any{"index": float64(42)})
+	if !strings.Contains(msg, "issue dependencies are disabled") {
+		t.Fatalf("got %q", msg)
 	}
-	if !strings.Contains(err.Error(), "cannot depend on itself") {
-		t.Fatalf("wrong error for a case-differing self-dependency: %v", err)
+}
+
+func TestAddIssueDependency_RecordsTheDependency(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	a, b := openIssue(t, f, "a"), openIssue(t, f, "b")
+
+	out := call(t, h.AddIssueDependencyFn, map[string]any{"index": float64(a), "depends_on_index": float64(b)})
+	if !strings.Contains(out, "depends on") {
+		t.Fatalf("got %q", out)
 	}
-	if len(*records) > 0 {
-		t.Fatalf("expected no HTTP request, got %d", len(*records))
+	wantIndices(t, dependsOn(t, f, a), b)
+}
+
+func TestAddIssueDependency_CrossRepo(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddRepo(testOwner, "other-repo")
+	a := openIssue(t, f, "a")
+	other, err := f.CreateIssue(context.Background(), testOwner, "other-repo", forgejo_sdk.CreateIssueOption{Title: "elsewhere"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := call(t, h.AddIssueDependencyFn, map[string]any{
+		"index": float64(a), "depends_on_index": float64(other.Index), "depends_on_repo": "other-repo",
+	})
+	if !strings.Contains(out, testOwner+"/other-repo#") {
+		t.Fatalf("expected the dependency's repository in the message, got %q", out)
+	}
+	deps, err := f.ListIssueDependencies(context.Background(), testOwner, testRepo, a, 1, 50)
+	if err != nil || len(deps) != 1 || deps[0].Title != "elsewhere" {
+		t.Fatalf("got %+v err=%v", deps, err)
 	}
 }
 
 func TestAddIssueDependency_CrossRepoSameIndexAllowed(t *testing.T) {
-	_, records := newDependenciesBackend(t)
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddRepo(testOwner, "other-repo")
+	a := openIssue(t, f, "a")
+	if _, err := f.CreateIssue(context.Background(), testOwner, "other-repo", forgejo_sdk.CreateIssueOption{Title: "same index"}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Same index in a DIFFERENT repo is not a self-dependency.
-	res, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"depends_on_index": float64(42),
-		"depends_on_repo":  "other-repo",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("expected cross-repo same-index to be allowed: err=%v res=%+v", err, res)
-	}
-	if len(*records) == 0 {
-		t.Fatal("expected an HTTP request for cross-repo same-index dependency")
+	call(t, h.AddIssueDependencyFn, map[string]any{"index": float64(a), "depends_on_index": float64(a), "depends_on_repo": "other-repo"})
+	if len(dependsOn(t, f, a)) != 1 {
+		t.Fatal("expected the cross-repo dependency to be recorded")
 	}
 }
 
 func TestAddIssueDependency_SelfDependencyRejected(t *testing.T) {
-	_, records := newDependenciesBackend(t)
+	t.Parallel()
+	h, f := newFixture(t)
+	a := openIssue(t, f, "a")
 
-	_, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"depends_on_index": float64(42),
-	}))
-	if err == nil {
-		t.Fatal("expected self-dependency to be rejected, got nil error")
+	msg := callErr(t, h.AddIssueDependencyFn, map[string]any{"index": float64(a), "depends_on_index": float64(a)})
+	if !strings.Contains(msg, "cannot depend on itself") {
+		t.Fatalf("got %q", msg)
 	}
-	if len(*records) > 0 {
-		t.Fatalf("expected no HTTP request for self-dependency, got %d", len(*records))
+	wantIndices(t, dependsOn(t, f, a))
+}
+
+// Forgejo treats owner and repository names case-insensitively, so a
+// differently-cased spelling names the same repository and must fail early with
+// the clear message.
+func TestAddIssueDependency_SelfDependencyIsCaseInsensitive(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	a := openIssue(t, f, "a")
+
+	msg := callErr(t, h.AddIssueDependencyFn, map[string]any{
+		"index": float64(a), "depends_on_index": float64(a),
+		"depends_on_owner": strings.ToUpper(testOwner), "depends_on_repo": strings.ToUpper(testRepo),
+	})
+	if !strings.Contains(msg, "cannot depend on itself") {
+		t.Fatalf("got %q", msg)
 	}
 }
 
-// TestAddIssueDependency_MissingDependsOnIndexIsNotMisreportedAsSelfDependency
-// guards the self-dependency check: index and depends_on_index must be
-// validated BEFORE that check runs. Previously both were parsed with
-// to.Float64's error discarded, so a missing/malformed depends_on_index
-// silently coerced to 0 — indistinguishable from a genuine index=0 — and, if
-// index also happened to be 0, would misreport as "an issue cannot depend on
-// itself" instead of the real problem (a missing required argument).
+// index and depends_on_index are validated before the self-dependency check, so
+// a missing required argument is reported as itself.
 func TestAddIssueDependency_MissingDependsOnIndexIsNotMisreportedAsSelfDependency(t *testing.T) {
-	_, records := newDependenciesBackend(t)
+	t.Parallel()
+	h, f := newFixture(t)
+	a := openIssue(t, f, "a")
 
-	_, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-		// depends_on_index intentionally omitted.
-	}))
-	if err == nil {
-		t.Fatal("expected an error for missing depends_on_index")
-	}
-	if strings.Contains(err.Error(), "cannot depend on itself") {
-		t.Fatalf("missing depends_on_index was misreported as a self-dependency: %v", err)
-	}
-	if len(*records) > 0 {
-		t.Fatalf("expected no HTTP request for missing depends_on_index, got %d", len(*records))
+	msg := callErr(t, h.AddIssueDependencyFn, map[string]any{"index": float64(a)})
+	if strings.Contains(msg, "cannot depend on itself") || !strings.Contains(msg, "depends_on_index") {
+		t.Fatalf("got %q", msg)
 	}
 }
 
-func TestRemoveIssueDependency_SendsDeleteWithIssueMeta(t *testing.T) {
-	_, records := newDependenciesBackend(t)
+func TestRemoveIssueDependency_RemovesIt(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	a, b := openIssue(t, f, "a"), openIssue(t, f, "b")
+	call(t, h.AddIssueDependencyFn, map[string]any{"index": float64(a), "depends_on_index": float64(b)})
 
-	res, err := RemoveIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"dependency_index": float64(7),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("RemoveIssueDependencyFn returned error: err=%v res=%+v", err, res)
+	out := call(t, h.RemoveIssueDependencyFn, map[string]any{"index": float64(a), "dependency_index": float64(b)})
+	if !strings.Contains(out, "Removed dependency") {
+		t.Fatalf("got %q", out)
 	}
-
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodDelete {
-		t.Fatalf("expected DELETE, got %s", last.method)
-	}
-	want := "/api/v1/repos/goern/forgejo-mcp/issues/42/dependencies"
-	if last.path != want {
-		t.Fatalf("unexpected path: got %s want %s", last.path, want)
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	if payload["index"] != float64(7) {
-		t.Fatalf("expected index=7, got %v", payload["index"])
-	}
-	if payload["owner"] != "goern" || payload["repo"] != "forgejo-mcp" {
-		t.Fatalf("expected owner/repo to match repo, got %v", payload)
-	}
-	if !strings.Contains(textOf(res), "Removed dependency") {
-		t.Fatalf("expected success message, got %q", textOf(res))
-	}
+	wantIndices(t, dependsOn(t, f, a))
 }
 
-// TestRemoveIssueDependency_CrossRepoBodyShape mirrors
-// TestAddIssueDependency_CrossRepoBodyShape for the DELETE body: the
-// dependency_owner/dependency_repo arguments must resolve into the
-// IssueMeta request body, not the target issue's own owner/repo.
-func TestRemoveIssueDependency_CrossRepoBodyShape(t *testing.T) {
-	_, records := newDependenciesBackend(t)
-
-	res, err := RemoveIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"dependency_index": float64(7),
-		"dependency_owner": "other-org",
-		"dependency_repo":  "other-repo",
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("RemoveIssueDependencyFn returned error: err=%v res=%+v", err, res)
-	}
-
-	last := (*records)[len(*records)-1]
-	if last.method != http.MethodDelete {
-		t.Fatalf("expected DELETE, got %s", last.method)
-	}
-	want := "/api/v1/repos/goern/forgejo-mcp/issues/42/dependencies"
-	if last.path != want {
-		t.Fatalf("unexpected path: got %s want %s", last.path, want)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	if payload["owner"] != "other-org" || payload["repo"] != "other-repo" || payload["index"] != float64(7) {
-		t.Fatalf("expected cross-repo IssueMeta body, got %v", payload)
-	}
-	if !strings.Contains(textOf(res), "other-org/other-repo#7") {
-		t.Fatalf("expected success message to name the cross-repo dependency, got %q", textOf(res))
-	}
-}
-
-func TestListIssueDependencies_DecodesIssueList(t *testing.T) {
-	records := make([]recordedReq, 0, 2)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"15.0.2+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, rawBody: body})
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`[{"id":1,"number":7,"title":"dependency"}]`))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
+func TestRemoveIssueDependency_CrossRepo(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.AddRepo(testOwner, "other-repo")
+	a := openIssue(t, f, "a")
+	other, err := f.CreateIssue(context.Background(), testOwner, "other-repo", forgejo_sdk.CreateIssueOption{Title: "elsewhere"})
 	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
+		t.Fatal(err)
 	}
-	forgejo.SetClientForTesting(c)
+	call(t, h.AddIssueDependencyFn, map[string]any{"index": float64(a), "depends_on_index": float64(other.Index), "depends_on_repo": "other-repo"})
 
-	res, err := ListIssueDependenciesFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-		"page":  float64(2),
-		"limit": float64(5),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("ListIssueDependenciesFn returned error: err=%v res=%+v", err, res)
-	}
-	out := textOf(res)
-	if !strings.Contains(out, `"number":7`) || !strings.Contains(out, `"title":"dependency"`) {
-		t.Fatalf("expected decoded issue list, got %q", out)
-	}
-	if !strings.Contains(out, `"page":2`) || !strings.Contains(out, `"limit":5`) {
-		t.Fatalf("expected response to echo requested page/limit, got %q", out)
-	}
-	last := records[len(records)-1]
-	if !strings.Contains(last.query, "page=2") || !strings.Contains(last.query, "limit=5") {
-		t.Fatalf("expected query params page=2&limit=5, got %s", last.query)
-	}
-}
-
-func TestListIssueDependencies_APIErrorSurfaces(t *testing.T) {
-	records := make([]recordedReq, 0, 2)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"15.0.2+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path, rawBody: body})
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"message":"issue dependencies are disabled"}`))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
-	}
-	forgejo.SetClientForTesting(c)
-
-	_, err = ListIssueDependenciesFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-	}))
-	if err == nil {
-		t.Fatal("expected API error to surface, got nil")
-	}
-}
-
-func TestListIssueDependencies_404IsEmpty(t *testing.T) {
-	records := make([]recordedReq, 0, 2)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"15.0.2+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path, rawBody: body})
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{}`))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
-	}
-	forgejo.SetClientForTesting(c)
-
-	res, err := ListIssueDependenciesFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("expected 404 to be treated as empty list, got err=%v res=%+v", err, res)
-	}
-	out := textOf(res)
-	if !strings.Contains(out, `"issues":[]`) {
-		t.Fatalf("expected empty result for 404, got %q", out)
-	}
-	if !strings.Contains(out, `"page":1`) || !strings.Contains(out, `"limit":20`) {
-		t.Fatalf("expected response to echo default page/limit, got %q", out)
-	}
-}
-
-func TestListIssueDependents_404IsEmpty(t *testing.T) {
-	records := make([]recordedReq, 0, 2)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"15.0.2+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path, rawBody: body})
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{}`))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
-
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
-	}
-	forgejo.SetClientForTesting(c)
-
-	res, err := ListIssueDependentsFn(context.Background(), makeReq(map[string]any{
-		"owner": "goern",
-		"repo":  "forgejo-mcp",
-		"index": float64(42),
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("expected 404 to be treated as empty list, got err=%v res=%+v", err, res)
-	}
-	out := textOf(res)
-	if !strings.Contains(out, `"issues":[]`) {
-		t.Fatalf("expected empty result for 404, got %q", out)
-	}
-	if !strings.Contains(out, `"page":1`) || !strings.Contains(out, `"limit":20`) {
-		t.Fatalf("expected response to echo default page/limit, got %q", out)
-	}
+	call(t, h.RemoveIssueDependencyFn, map[string]any{"index": float64(a), "dependency_index": float64(other.Index), "dependency_repo": "other-repo"})
+	wantIndices(t, dependsOn(t, f, a))
 }
 
 func TestRemoveIssueDependency_APIErrorSurfaces(t *testing.T) {
-	records := make([]recordedReq, 0, 2)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":"15.0.2+gitea-1.22.0"}`))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		records = append(records, recordedReq{method: r.Method, path: r.URL.Path, rawBody: body})
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"message":"issue dependencies are disabled"}`))
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	forgejo.ConfigureForTesting(srv.URL, "tkn", "test")
+	t.Parallel()
+	h, f := newFixture(t)
+	a := openIssue(t, f, "a")
 
-	c, err := forgejo_sdk.NewClient(srv.URL,
-		forgejo_sdk.SetToken("tkn"),
-		forgejo_sdk.SetUserAgent("test"),
-	)
-	if err != nil {
-		t.Fatalf("failed to build SDK client for test: %v", err)
-	}
-	forgejo.SetClientForTesting(c)
-
-	_, err = RemoveIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"dependency_index": float64(7),
-	}))
-	if err == nil {
-		t.Fatal("expected API error to surface, got nil")
+	// Nothing to remove: Forgejo's 404 reaches the caller.
+	msg := callErr(t, h.RemoveIssueDependencyFn, map[string]any{"index": float64(a), "dependency_index": float64(99)})
+	if !strings.Contains(msg, "remove issue dependency err") {
+		t.Fatalf("got %q", msg)
 	}
 }
 
-// A non-string cross-repo argument is malformed, not absent. Before this was
-// fixed, crossRepoArgs discarded the failed type assertion, so the zero value
-// was indistinguishable from an omitted argument and the request silently
-// resolved to the TARGET's own repository — a dependency written against the
-// wrong repo, reported as success. These tests pin the refusal and, more
-// importantly, that nothing reaches the network.
-func TestAddIssueDependency_NonStringCrossRepoOwnerIsRefused(t *testing.T) {
-	_, records := newDependenciesBackend(t)
-
-	_, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"depends_on_index": float64(7),
-		"depends_on_owner": float64(123),
-	}))
-	if err == nil {
-		t.Fatal("a non-string depends_on_owner was accepted and silently defaulted to the target repo")
+// A non-string cross-repo argument is malformed, not absent. If it silently
+// defaulted to the target's own repository a dependency would be written
+// against the wrong repo and reported as success.
+func TestCrossRepoArgumentsOfTheWrongTypeAreRefused(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		fn   func(h handlers) toolFn
+		args map[string]any
+		arg  string
+	}{
+		{"add owner", func(h handlers) toolFn { return h.AddIssueDependencyFn }, map[string]any{"depends_on_index": float64(2), "depends_on_owner": float64(123)}, "depends_on_owner"},
+		{"add repo", func(h handlers) toolFn { return h.AddIssueDependencyFn }, map[string]any{"depends_on_index": float64(2), "depends_on_repo": true}, "depends_on_repo"},
+		{"remove owner", func(h handlers) toolFn { return h.RemoveIssueDependencyFn }, map[string]any{"dependency_index": float64(2), "dependency_owner": float64(123)}, "dependency_owner"},
 	}
-	if !strings.Contains(err.Error(), "depends_on_owner") {
-		t.Fatalf("error does not name the offending argument: %v", err)
-	}
-	if len(*records) > 0 {
-		t.Fatalf("expected no HTTP request for a malformed argument, got %d", len(*records))
-	}
-}
-
-func TestAddIssueDependency_NonStringCrossRepoRepoIsRefused(t *testing.T) {
-	_, records := newDependenciesBackend(t)
-
-	_, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"depends_on_index": float64(7),
-		"depends_on_repo":  true,
-	}))
-	if err == nil {
-		t.Fatal("a non-string depends_on_repo was accepted and silently defaulted to the target repo")
-	}
-	if !strings.Contains(err.Error(), "depends_on_repo") {
-		t.Fatalf("error does not name the offending argument: %v", err)
-	}
-	if len(*records) > 0 {
-		t.Fatalf("expected no HTTP request for a malformed argument, got %d", len(*records))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h, f := newFixture(t)
+			a, b := openIssue(t, f, "a"), openIssue(t, f, "b")
+			tc.args["index"] = float64(a)
+			msg := callErr(t, tc.fn(h), tc.args)
+			if !strings.Contains(msg, tc.arg) {
+				t.Fatalf("error does not name the offending argument: %q", msg)
+			}
+			wantIndices(t, dependsOn(t, f, a))
+			_ = b
+		})
 	}
 }
 
-func TestRemoveIssueDependency_NonStringCrossRepoOwnerIsRefused(t *testing.T) {
-	_, records := newDependenciesBackend(t)
-
-	_, err := RemoveIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"dependency_index": float64(7),
-		"dependency_owner": float64(123),
-	}))
-	if err == nil {
-		t.Fatal("a non-string dependency_owner was accepted and silently defaulted to the target repo")
-	}
-	if !strings.Contains(err.Error(), "dependency_owner") {
-		t.Fatalf("error does not name the offending argument: %v", err)
-	}
-	if len(*records) > 0 {
-		t.Fatalf("expected no HTTP request for a malformed argument, got %d", len(*records))
-	}
-}
-
-// An explicit JSON null is absent, not malformed: a client that spells an
-// omitted optional argument as null must keep the documented default rather
-// than be refused.
+// An explicit JSON null is absent, not malformed: it keeps the documented
+// default instead of being refused.
 func TestAddIssueDependency_NullCrossRepoOwnerDefaultsToTargetRepo(t *testing.T) {
-	_, records := newDependenciesBackend(t)
+	t.Parallel()
+	h, f := newFixture(t)
+	a, b := openIssue(t, f, "a"), openIssue(t, f, "b")
 
-	res, err := AddIssueDependencyFn(context.Background(), makeReq(map[string]any{
-		"owner":            "goern",
-		"repo":             "forgejo-mcp",
-		"index":            float64(42),
-		"depends_on_index": float64(7),
-		"depends_on_owner": nil,
-	}))
-	if err != nil || res == nil || res.IsError {
-		t.Fatalf("a null depends_on_owner should default to the target repo: err=%v res=%+v", err, res)
-	}
-
-	last := (*records)[len(*records)-1]
-	var payload map[string]any
-	if err := json.Unmarshal(last.rawBody, &payload); err != nil {
-		t.Fatalf("invalid JSON body: %v\nbody: %s", err, last.rawBody)
-	}
-	if payload["owner"] != "goern" || payload["repo"] != "forgejo-mcp" {
-		t.Fatalf("expected the target repo in the body, got %v", payload)
-	}
+	call(t, h.AddIssueDependencyFn, map[string]any{"index": float64(a), "depends_on_index": float64(b), "depends_on_owner": nil})
+	wantIndices(t, dependsOn(t, f, a), b)
 }
-
-// Ensure CallToolRequest is used for the shared makeReq helper.
-var _ mcp.CallToolRequest = mcp.CallToolRequest{}
