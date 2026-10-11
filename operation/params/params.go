@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package params
 
 // Shared parameter descriptions for MCP tools

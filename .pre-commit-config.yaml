@@ -49,6 +49,36 @@ repos:
         pass_filenames: false
         files: ^(operation/.*\.go|README\.md|scripts/ci/check-readme-tool-coverage\.sh)$
 
+      - id: check-spdx-headers
+        name: check SPDX headers on Go and shell sources
+        description: >-
+          Reject a tracked .go or .sh file with no SPDX-License-Identifier
+          line. Mirrors the spdx-headers step in .tekton/tasks/go-ci.yaml.
+        entry: scripts/ci/check-spdx-headers.sh
+        language: script
+        pass_filenames: false
+        files: ^.*\.(go|sh)$
+
+      - id: check-stale-names
+        name: check live docs for removed pkg/forgejo names
+        description: >-
+          Reject forgejo.Client(, DoJSON, DoAPIRaw or SetClientForTesting in
+          live specs and docs. Mirrors the stale-names step in
+          .tekton/tasks/go-ci.yaml.
+        entry: scripts/ci/check-stale-names.sh
+        language: script
+        pass_filenames: false
+        files: ^(openspec/specs/.*|AGENTS\.md|DEVELOPER\.md|scripts/ci/check-stale-names\.sh)$
+
+      - id: check-conflict-markers
+        name: check for merge-conflict markers
+        description: >-
+          Reject committed conflict markers. Mirrors the conflict-markers step
+          in .tekton/tasks/go-ci.yaml.
+        entry: scripts/ci/check-conflict-markers.sh
+        language: script
+        pass_filenames: false
+
       - id: check-skills-lock
         name: check skills-lock.json matches .agents/skills
         description: >-
