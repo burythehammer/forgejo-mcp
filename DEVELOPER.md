@@ -184,6 +184,16 @@ in `app/issue`. Per domain:
      were always type-checked (a missing one was an error), which a zero value
      cannot express. Those are read with `to.Float64` from the raw arguments in
      the adapter (`numberArg`), with the old error text.
+   - **Validation before the credential.** The old handlers checked their
+     arguments before calling `h.forge.For`, so a bad request got its input
+     error even when no credential resolved. A use case that validates (parses
+     a time, checks a duration) takes a `Source` (`func(ctx) (Port, error)`)
+     instead of a port, and looks the port up only after its checks. The
+     adapter passes `h.source()`. `app/tracking` and `app/user` do this.
+   - **Optional numbers.** A pointer to a number reads a JSON number only; a
+     numeric string is read only when the field is tagged `numeric:"string"`
+     (for the handlers that used `to.Float64`). Plain number fields keep reading
+     numeric strings. Pick per field to match the old handler.
 5. **Tests.** Use cases: `app/<domain>/service_test.go`, an external test
    package over the in-memory fake through the bridge (no SDK import allowed
    under `app/`, so seed through the fake's SDK-free helpers or the use case
