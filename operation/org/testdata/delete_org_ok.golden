@@ -1,0 +1,3 @@
+{"Result":"Organization 'octo-org' deleted successfully"}
+-- port calls --
+DeleteOrg ["octo-org"]

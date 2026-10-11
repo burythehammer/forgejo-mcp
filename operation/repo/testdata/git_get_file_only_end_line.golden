@@ -1,0 +1,3 @@
+{"Result":"line one"}
+-- port calls --
+GetFile ["octo","hello","main","docs/a.txt"]

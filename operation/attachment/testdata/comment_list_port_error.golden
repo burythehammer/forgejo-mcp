@@ -1,0 +1,3 @@
+ERROR: list comment attachments err: boom
+-- port calls --
+ListCommentAttachments ["octo","hello",9]

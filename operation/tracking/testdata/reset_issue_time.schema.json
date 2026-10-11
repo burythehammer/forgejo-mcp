@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete ALL tracked time entries on an issue or pull request (including entries from other users). This is destructive and cannot be undone.",
+  "inputSchema": {
+    "properties": {
+      "index": {
+        "description": "Issue or pull request index (Forgejo shares index namespace between the two)",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index"
+    ],
+    "type": "object"
+  },
+  "name": "reset_issue_time"
+}

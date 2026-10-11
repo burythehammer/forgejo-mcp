@@ -1,0 +1,3 @@
+ERROR: create repo hook: boom
+-- port calls --
+CreateRepoHook ["octo","hello",{"type":"forgejo","config":{"content_type":"json","url":"https://hooks.example/a"},"events":null,"branch_filter":"","active":true,"authorization_header":""}]

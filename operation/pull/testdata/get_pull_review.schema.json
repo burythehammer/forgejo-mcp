@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get a specific pull request review",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Review ID",
+        "type": "number"
+      },
+      "index": {
+        "description": "PR index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "get_pull_review"
+}

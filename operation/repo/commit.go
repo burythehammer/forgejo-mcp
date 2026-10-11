@@ -4,13 +4,13 @@ package repo
 
 import (
 	"context"
-	"fmt"
 
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -29,43 +29,28 @@ var ListRepoCommitsTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
 )
 
+// listRepoCommitsArgs are the arguments of list_repo_commits.
+type listRepoCommitsArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Path  string  `json:"path"`
+	SHA   string  `json:"sha"`
+	Page  float64 `json:"page" required:"true"`
+	Limit float64 `json:"limit" required:"true"`
+}
+
 func (h handlers) ListRepoCommitsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListRepoCommitsFn")
-	owner, _ := req.GetArguments()["owner"].(string)
-	repo, _ := req.GetArguments()["repo"].(string)
-	path, ok := req.GetArguments()["path"].(string)
-	pathStr := ""
-	if ok && path != "" {
-		pathStr = path
+	var a listRepoCommitsArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
 	}
-	sha, ok := req.GetArguments()["sha"].(string)
-	shaStr := ""
-	if ok && sha != "" {
-		shaStr = sha
-	}
-	page, _ := to.Float64(req.GetArguments()["page"])
-	if page == 0 {
-		page = 1
-	}
-	limit, _ := to.Float64(req.GetArguments()["limit"])
-	if limit == 0 {
-		limit = 100
-	}
-	opt := forgejo_sdk.ListCommitOptions{
-		Path: pathStr,
-		SHA:  shaStr,
-		ListOptions: forgejo_sdk.ListOptions{
-			Page:     int(page),
-			PageSize: int(limit),
-		},
-	}
-	port, err := h.forge.For(ctx)
+	svc, err := h.gitService(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	commits, err := port.ListCommits(ctx, owner, repo, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list repo commits error: %w", err))
-	}
-	return to.TextResult(commits)
+	return gitText(svc.ListCommits(ctx, a.Owner, a.Repo, apprepo.ListCommitsInput{
+		Path: a.Path, SHA: a.SHA,
+		Page: apprepo.GitPage{Page: int(orDefault(a.Page, 1)), Limit: int(orDefault(a.Limit, 100))},
+	}))
 }

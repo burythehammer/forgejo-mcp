@@ -1,0 +1,3 @@
+ERROR: delete package: boom
+-- port calls --
+DeletePackage ["octo","generic","tool","1.0"]

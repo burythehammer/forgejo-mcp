@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get one wiki page as decoded Markdown. Optional start_line/end_line bound content; total_lines is always returned.",
+  "inputSchema": {
+    "properties": {
+      "end_line": {
+        "description": "Last line to return (1-based, inclusive)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page_name": {
+        "description": "Wiki page name",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "start_line": {
+        "description": "First line to return (1-based, inclusive)",
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "page_name"
+    ],
+    "type": "object"
+  },
+  "name": "get_wiki_page"
+}

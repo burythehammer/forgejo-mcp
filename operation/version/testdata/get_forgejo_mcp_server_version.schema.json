@@ -1,0 +1,15 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get MCP server version",
+  "inputSchema": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "name": "get_forgejo_mcp_server_version"
+}

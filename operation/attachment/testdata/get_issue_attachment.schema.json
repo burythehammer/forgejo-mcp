@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get metadata for a single issue/PR attachment.",
+  "inputSchema": {
+    "properties": {
+      "attachment_id": {
+        "description": "Attachment ID",
+        "type": "number"
+      },
+      "index": {
+        "description": "Issue/PR index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "attachment_id"
+    ],
+    "type": "object"
+  },
+  "name": "get_issue_attachment"
+}

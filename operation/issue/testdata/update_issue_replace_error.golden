@@ -1,0 +1,5 @@
+ERROR: replace issue labels err: boom
+-- port calls --
+ListRepoLabels ["octo","hello",{"Page":1,"PageSize":100}]
+ListOrgLabels ["octo",1,100]
+ReplaceIssueLabels ["octo","hello",7,[3]]

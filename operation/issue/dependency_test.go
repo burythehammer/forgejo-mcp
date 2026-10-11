@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 
@@ -303,4 +304,14 @@ func TestAddIssueDependency_NullCrossRepoOwnerDefaultsToTargetRepo(t *testing.T)
 
 	call(t, h.AddIssueDependencyFn, map[string]any{"index": float64(a), "depends_on_index": float64(b), "depends_on_owner": nil})
 	wantIndices(t, dependsOn(t, f, a), b)
+}
+
+// TestDependencyArgsMatchSchemas keeps each dependency tool's argument struct in
+// agreement with its input schema: same names, types and required set.
+func TestDependencyArgsMatchSchemas(t *testing.T) {
+	t.Parallel()
+	mcptest.ArgsMatchSchema(t, ListIssueDependenciesTool, listDependenciesArgs{})
+	mcptest.ArgsMatchSchema(t, ListIssueDependentsTool, listDependenciesArgs{})
+	mcptest.ArgsMatchSchema(t, AddIssueDependencyTool, addDependencyArgs{})
+	mcptest.ArgsMatchSchema(t, RemoveIssueDependencyTool, removeDependencyArgs{})
 }

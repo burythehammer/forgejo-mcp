@@ -1,0 +1,3 @@
+Pull request merged successfully
+-- port calls --
+MergePullRequest ["octo","hello",7,{"Do":"squash","MergeCommitID":"","MergeTitleField":"t","MergeMessageField":"m","delete_branch_after_merge":true,"force_merge":true,"head_commit_id":"","merge_when_checks_succeed":false}]

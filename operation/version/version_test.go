@@ -7,9 +7,23 @@ import (
 	"strings"
 	"testing"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+func TestVersionOutputGolden(t *testing.T) {
+	mcptest.Golden(t, "version_1.2.3", []byte(callVersion(t, "1.2.3")))
+	mcptest.Golden(t, "version_dev", []byte(callVersion(t, "")))
+}
+
+func TestVersionSchemaSnapshot(t *testing.T) {
+	mcptest.SchemaSnapshot(t, GetForgejoMCPServerVersionTool)
+}
+
+func TestVersionArgsMatchSchema(t *testing.T) {
+	mcptest.ArgsMatchSchema(t, GetForgejoMCPServerVersionTool, Args{})
+}
 
 func callVersion(t *testing.T, version string) string {
 	t.Helper()

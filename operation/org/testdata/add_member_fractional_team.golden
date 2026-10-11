@@ -1,0 +1,3 @@
+{"Result":"User 'bob' added to team 5"}
+-- port calls --
+AddTeamMember [5,"bob"]

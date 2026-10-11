@@ -125,14 +125,14 @@ exit status 1
 ```
 
 <!-- evidence-kind: test-invocation -->
-*Proof:* the same refusal through `Run`. The test then binds the configured port itself, which fails if the refused start had bound it.
+*Proof:* the same refusal at the `Validate` level. `config.Load` runs `Validate` and `cmd` only starts a loaded configuration, so this refusal is what keeps the listener unbound. The test asserts the transport refusal from `Validate` (`TestRefusedConfigurationIsRefusedBeforeBinding`, renamed from `TestRefusedConfigurationNeverBinds`; it no longer binds the port itself).
 
 ```bash
-proof ./operation/ -run '^TestRefusedConfigurationNeverBinds$'
+proof ./operation/ -run '^TestRefusedConfigurationIsRefusedBeforeBinding$'
 ```
 
 ```output
---- PASS: TestRefusedConfigurationNeverBinds
+--- PASS: TestRefusedConfigurationIsRefusedBeforeBinding
 ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
 ```
 

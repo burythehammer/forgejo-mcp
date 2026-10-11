@@ -5,9 +5,9 @@ Read and write repository wiki pages — list, get, get revisions, create, updat
 ## Requirements
 ### Requirement: Wiki tools go through the Forgejo port's Wiki interface
 
-The wiki tool handlers SHALL call the Forgejo port's `Wiki` interface (`pkg/forge`),
+The wiki MCP adapters SHALL call the Forgejo port's `Wiki` interface (`pkg/forge`),
 which uses plain types and SHALL NOT depend on any `forgejo-sdk` wiki type or method.
-The raw HTTP lives inside the real adapter in `pkg/forge/sdk`, and every API path it
+The raw HTTP lives inside the Forgejo adapter (the real one) in `pkg/forge/sdk`, and every API path it
 builds SHALL be escaped with `forge.APIPath`. The `operation/wiki` package SHALL compile in the
 default build (no `//go:build wiki` tag) and SHALL be registered from
 `operation/operation.go` via `RegisterWikiTool`.
@@ -70,9 +70,10 @@ and `total_lines`.
 
 `total_lines` is a field **introduced by this tool** (`get_file_content` does not expose
 it). To guarantee one line-range dialect across both tools, the line operations SHALL
-call the **same** routine `get_file_content` uses (currently the unexported `sliceLines`
-in `operation/repo/file.go`); since a cross-package call requires it, the routine SHALL be
-exported in place (`repo.SliceLines`) or lifted to a shared package, with
+call the **same** routine `get_file_content` uses (`SliceLines` in `app/repo`, the shared
+package the `get_file_content` use case calls); since a cross-package call requires it, the
+routine SHALL be exported (`repo.SliceLines`, now `apprepo.SliceLines` in `app/repo`) or
+lifted to a shared package, with
 `get_file_content` left calling the identical routine (no behavior change). It SHALL NOT
 be copy-pasted (a divergent copy would re-break the single-dialect guarantee). `total_lines`
 SHALL be defined as `len(strings.Split(decoded, "\n"))` — the count produced by that same

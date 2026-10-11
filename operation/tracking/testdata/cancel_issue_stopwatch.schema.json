@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Cancel a running stopwatch without recording a tracked time entry",
+  "inputSchema": {
+    "properties": {
+      "index": {
+        "description": "Issue or pull request index (Forgejo shares index namespace between the two)",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index"
+    ],
+    "type": "object"
+  },
+  "name": "cancel_issue_stopwatch"
+}

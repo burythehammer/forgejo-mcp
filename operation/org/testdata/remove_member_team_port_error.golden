@@ -1,0 +1,3 @@
+ERROR: remove team member err: boom
+-- port calls --
+RemoveTeamMember [5,"bob"]

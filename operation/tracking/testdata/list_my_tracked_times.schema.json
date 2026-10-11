@@ -1,0 +1,15 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List tracked time entries for the authenticated user across all repositories",
+  "inputSchema": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "name": "list_my_tracked_times"
+}

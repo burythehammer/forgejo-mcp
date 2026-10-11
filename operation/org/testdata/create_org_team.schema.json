@@ -1,0 +1,43 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create a team in an organization",
+  "inputSchema": {
+    "properties": {
+      "can_create_org_repo": {
+        "description": "Whether members can create repos in the org",
+        "type": "boolean"
+      },
+      "description": {
+        "description": "Description",
+        "type": "string"
+      },
+      "includes_all_repositories": {
+        "description": "Whether team has access to all org repos",
+        "type": "boolean"
+      },
+      "name": {
+        "description": "Team name",
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "permission": {
+        "description": "Access level: read, write, or admin (default: read)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "create_org_team"
+}

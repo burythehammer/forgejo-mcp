@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete a comment attachment.",
+  "inputSchema": {
+    "properties": {
+      "attachment_id": {
+        "description": "Attachment ID",
+        "type": "number"
+      },
+      "comment_id": {
+        "description": "Comment ID",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "attachment_id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_comment_attachment"
+}

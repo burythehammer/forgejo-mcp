@@ -1,0 +1,83 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Edit repository settings (PATCH — only supplied fields change). Providing no fields is an error. name renames the repository; subsequent calls must use the new name. Does not change topics (those use a separate API).",
+  "inputSchema": {
+    "properties": {
+      "archived": {
+        "description": "Archive the repository",
+        "type": "boolean"
+      },
+      "default_branch": {
+        "description": "Default branch",
+        "type": "string"
+      },
+      "description": {
+        "description": "Description",
+        "type": "string"
+      },
+      "has_actions": {
+        "description": "Enable Actions",
+        "type": "boolean"
+      },
+      "has_issues": {
+        "description": "Enable the issues unit",
+        "type": "boolean"
+      },
+      "has_packages": {
+        "description": "Enable packages",
+        "type": "boolean"
+      },
+      "has_projects": {
+        "description": "Enable the projects unit",
+        "type": "boolean"
+      },
+      "has_pull_requests": {
+        "description": "Enable pull requests",
+        "type": "boolean"
+      },
+      "has_releases": {
+        "description": "Enable releases",
+        "type": "boolean"
+      },
+      "has_wiki": {
+        "description": "Enable the wiki unit",
+        "type": "boolean"
+      },
+      "name": {
+        "description": "New repository name",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "private": {
+        "description": "Private repo",
+        "type": "boolean"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "template": {
+        "description": "Template repo",
+        "type": "boolean"
+      },
+      "website": {
+        "description": "Website URL",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "edit_repo"
+}

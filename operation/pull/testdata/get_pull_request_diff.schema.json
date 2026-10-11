@@ -1,0 +1,36 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get the unified diff of a pull request. Pass an optional file_path to receive only the hunks for that file (match is exact on either the pre- or post-rename path). Use list_pull_request_files first to discover the file paths in the PR.",
+  "inputSchema": {
+    "properties": {
+      "file_path": {
+        "description": "Optional. Return only the diff section for this file (matched on the diff --git boundary). Omit for the full diff.",
+        "type": "string"
+      },
+      "index": {
+        "description": "PR index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index"
+    ],
+    "type": "object"
+  },
+  "name": "get_pull_request_diff"
+}

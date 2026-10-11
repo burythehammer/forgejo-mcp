@@ -1,0 +1,52 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Update pull request",
+  "inputSchema": {
+    "properties": {
+      "assignee": {
+        "description": "Assignee username",
+        "type": "string"
+      },
+      "base": {
+        "description": "Base branch",
+        "type": "string"
+      },
+      "body": {
+        "description": "Content body",
+        "type": "string"
+      },
+      "index": {
+        "description": "PR index",
+        "type": "number"
+      },
+      "milestone": {
+        "description": "Milestone ID",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "Title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index"
+    ],
+    "type": "object"
+  },
+  "name": "update_pull_request"
+}

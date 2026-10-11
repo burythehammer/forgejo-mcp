@@ -1,0 +1,3 @@
+ERROR: change files error: boom
+-- port calls --
+ChangeFiles ["octo","hello",{"branch":"main","message":"m","files":[{"operation":"create","path":"new.txt","content":"aGk="},{"operation":"update","path":"a.txt","content":"aGVsbG8K","sha":"0123456789abcdef0123456789abcdef01234567"},{"operation":"delete","path":"old.txt","sha":"89abcdef0123456789abcdef0123456789abcdef"}]}]

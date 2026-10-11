@@ -4,13 +4,10 @@ package repo
 
 import (
 	"context"
-	"fmt"
-	"regexp"
-	"strings"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -21,12 +18,7 @@ const (
 	SetRepoTopicsToolName   = "set_repo_topics"
 	AddRepoTopicToolName    = "add_repo_topic"
 	DeleteRepoTopicToolName = "delete_repo_topic"
-
-	maxRepoTopics = 25
-	maxTopicLen   = 35
 )
-
-var topicNameRe = regexp.MustCompile(`^[a-z0-9][-.a-z0-9]*$`)
 
 var (
 	ListRepoTopicsTool = mcp.NewTool(
@@ -63,160 +55,58 @@ var (
 	)
 )
 
-type listRepoTopicsResult struct {
-	Topics []string `json:"topics"`
-	Page   int      `json:"page"`
-	Limit  int      `json:"limit"`
-	Count  int      `json:"count"`
-}
-
-func normalizeTopic(s string) (string, error) {
-	name := strings.ToLower(strings.TrimSpace(s))
-	if name == "" {
-		return "", fmt.Errorf("topic name is empty")
-	}
-	if len(name) > maxTopicLen {
-		return "", fmt.Errorf("topic %q exceeds %d characters", name, maxTopicLen)
-	}
-	if !topicNameRe.MatchString(name) {
-		return "", fmt.Errorf("topic %q is invalid: must match ^[a-z0-9][-.a-z0-9]*$", name)
-	}
-	return name, nil
-}
-
-func splitTopics(s string) ([]string, error) {
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
-		if strings.TrimSpace(part) == "" {
-			continue
-		}
-		name, err := normalizeTopic(part)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		out = append(out, name)
-	}
-	if len(out) > maxRepoTopics {
-		return nil, fmt.Errorf("at most %d topics per repository, got %d", maxRepoTopics, len(out))
-	}
-	return out, nil
+type listRepoTopicsArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
 }
 
 func (h handlers) ListRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListRepoTopicsFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
-	page, _ := to.Float64(args["page"])
-	if page == 0 {
-		page = 1
-	}
-	limit, _ := to.Float64(args["limit"])
-	if limit == 0 {
-		limit = 100
-	}
+	return runAdmin(ctx, h, req, "ListRepoTopicsFn", func(ctx context.Context, s *apprepo.AdminService, a listRepoTopicsArgs) (*mcp.CallToolResult, error) {
+		page, err := s.ListRepoTopics(ctx, a.Owner, a.Repo, apprepo.AdminPaging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)})
+		return mcpresult.Render(page, err)
+	})
+}
 
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	topics, err := f.ListRepoTopics(ctx, owner, repo, forgejo_sdk.ListRepoTopicsOptions{
-		ListOptions: forgejo_sdk.ListOptions{Page: int(page), PageSize: int(limit)},
-	})
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list repo topics: %w", err))
-	}
-	if topics == nil {
-		topics = []string{}
-	}
-	return to.TextResult(listRepoTopicsResult{
-		Topics: topics,
-		Page:   int(page),
-		Limit:  int(limit),
-		Count:  len(topics),
-	})
+type setRepoTopicsArgs struct {
+	Owner  string  `json:"owner" required:"true"`
+	Repo   string  `json:"repo" required:"true"`
+	Topics *string `json:"topics" required:"true"`
 }
 
 func (h handlers) SetRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called SetRepoTopicsFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
-	raw, ok := args["topics"].(string)
-	if !ok {
-		return to.ErrorResult(fmt.Errorf("topics is required"))
-	}
-	topics, err := splitTopics(raw)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+	return runAdmin(ctx, h, req, "SetRepoTopicsFn", func(ctx context.Context, s *apprepo.AdminService, a setRepoTopicsArgs) (*mcp.CallToolResult, error) {
+		topics, err := s.SetRepoTopics(ctx, a.Owner, a.Repo, a.Topics)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return to.TextResult(map[string]any{"topics": topics})
+	})
+}
 
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	if err := f.SetRepoTopics(ctx, owner, repo, topics); err != nil {
-		return to.ErrorResult(fmt.Errorf("set repo topics: %w", err))
-	}
-	return to.TextResult(map[string]any{"topics": topics})
+type addRepoTopicArgs struct {
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Topic string `json:"topic" required:"true"`
 }
 
 func (h handlers) AddRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called AddRepoTopicFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
-	raw, _ := args["topic"].(string)
-	name, err := normalizeTopic(raw)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	if err := f.AddRepoTopic(ctx, owner, repo, name); err != nil {
-		return to.ErrorResult(fmt.Errorf("add repo topic: %w", err))
-	}
-	return to.TextResult(map[string]string{"topic": name, "status": "added"})
+	return runAdmin(ctx, h, req, "AddRepoTopicFn", func(ctx context.Context, s *apprepo.AdminService, a addRepoTopicArgs) (*mcp.CallToolResult, error) {
+		name, err := s.AddRepoTopic(ctx, a.Owner, a.Repo, a.Topic)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return to.TextResult(map[string]string{"topic": name, "status": "added"})
+	})
 }
 
 func (h handlers) DeleteRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteRepoTopicFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
-	raw, _ := args["topic"].(string)
-	name, err := normalizeTopic(raw)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	if err := f.DeleteRepoTopic(ctx, owner, repo, name); err != nil {
-		return to.ErrorResult(fmt.Errorf("delete repo topic: %w", err))
-	}
-	return to.TextResult(map[string]string{"topic": name, "status": "deleted"})
+	return runAdmin(ctx, h, req, "DeleteRepoTopicFn", func(ctx context.Context, s *apprepo.AdminService, a addRepoTopicArgs) (*mcp.CallToolResult, error) {
+		name, err := s.DeleteRepoTopic(ctx, a.Owner, a.Repo, a.Topic)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return to.TextResult(map[string]string{"topic": name, "status": "deleted"})
+	})
 }

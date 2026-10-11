@@ -18,36 +18,6 @@ limitations under the License.
 
 package ptr
 
-import (
-	"fmt"
-	"reflect"
-)
-
-// AllPtrFieldsNil tests whether all pointer fields in a struct are nil.  This is useful when,
-// for example, an API struct is handled by plugins which need to distinguish
-// "no plugin accepted this spec" from "this spec is empty".
-//
-// This function is only valid for structs and pointers to structs.  Any other
-// type will cause a panic.  Passing a typed nil pointer will return true.
-func AllPtrFieldsNil(obj interface{}) bool {
-	v := reflect.ValueOf(obj)
-	if !v.IsValid() {
-		panic(fmt.Sprintf("reflect.ValueOf() produced a non-valid Value for %#v", obj))
-	}
-	if v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			return true
-		}
-		v = v.Elem()
-	}
-	for i := 0; i < v.NumField(); i++ {
-		if v.Field(i).Kind() == reflect.Pointer && !v.Field(i).IsNil() {
-			return false
-		}
-	}
-	return true
-}
-
 // To returns a pointer to the given value.
 func To[T any](v T) *T {
 	return &v

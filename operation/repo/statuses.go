@@ -4,13 +4,11 @@ package repo
 
 import (
 	"context"
-	"fmt"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -32,66 +30,19 @@ var GetCommitStatusesTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(defaultCommitStatusesLimit), mcp.Min(1), mcp.Max(maxCommitStatusesLimit)),
 )
 
-type getCommitStatusesResult struct {
-	SHA        string       `json:"sha"`
-	Statuses   []statusItem `json:"statuses"`
-	Page       int          `json:"page"`
-	Limit      int          `json:"limit"`
-	Count      int          `json:"count"`
-	TotalCount *int         `json:"total_count,omitempty"`
+type getCommitStatusesArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	SHA   string  `json:"sha" required:"true"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
 }
 
 func (h handlers) GetCommitStatusesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetCommitStatusesFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	sha, _ := args["sha"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
-	if err := resource.ValidateSHA(sha); err != nil {
-		return to.ErrorResult(err)
-	}
-
-	page, _ := to.Float64(args["page"])
-	if page < 1 {
-		page = 1
-	}
-	limit, _ := to.Float64(args["limit"])
-	if limit < 1 {
-		limit = float64(defaultCommitStatusesLimit)
-	}
-	if limit > float64(maxCommitStatusesLimit) {
-		limit = float64(maxCommitStatusesLimit)
-	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	res, err := port.ListCommitStatuses(ctx, owner, repo, sha, forgejo_sdk.ListStatusesOption{
-		ListOptions: forgejo_sdk.ListOptions{Page: int(page), PageSize: int(limit)},
-	})
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("get commit statuses: %w", err))
-	}
-
-	items := make([]statusItem, 0, len(res.Statuses))
-	for _, s := range res.Statuses {
-		item, ok := toStatusItem(s)
-		if !ok {
-			continue
-		}
-		items = append(items, item)
-	}
-
-	return to.TextResult(getCommitStatusesResult{
-		SHA:        sha,
-		Statuses:   items,
-		Page:       int(page),
-		Limit:      int(limit),
-		Count:      len(items),
-		TotalCount: res.TotalCount,
+	return runAdmin(ctx, h, req, "GetCommitStatusesFn", func(ctx context.Context, s *apprepo.AdminService, a getCommitStatusesArgs) (*mcp.CallToolResult, error) {
+		// The paging is truncated before the use case clamps it, which gives
+		// the same page and limit as clamping the fraction did.
+		res, err := s.GetCommitStatuses(ctx, a.Owner, a.Repo, a.SHA, int(a.Page), int(a.Limit))
+		return mcpresult.Render(res, err)
 	})
 }

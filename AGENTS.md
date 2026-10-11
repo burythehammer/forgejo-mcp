@@ -14,13 +14,14 @@ make vendor         # Tidy and verify Go module dependencies
 ## Architecture Summary
 
 ```
-main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registration) → operation/{domain}/*.go (tool handlers)
+main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registration) → operation/{domain}/*.go (MCP adapters) → app/{domain}/ (use cases) → pkg/forge/ (port)
 ```
 
 Key directories:
 
-- `operation/` - MCP tool definitions and handlers by domain
-- `pkg/forge/` - The Forgejo port (interfaces, no SDK client); `pkg/forge/sdk/` is the one real adapter
+- `operation/` - MCP adapters by domain: tool definitions, argument decoding, rendering
+- `app/` - Use cases by domain: MCP-free and SDK-free (`scripts/ci/check-app-boundary.sh`)
+- `pkg/forge/` - The Forgejo port (interfaces, no SDK client); `pkg/forge/sdk/` is the Forgejo adapter (the real one); `pkg/forge/<domain>adapter/` is a port bridge from a use case's port to it
 - `pkg/to/` - Response formatting helpers
 - `pkg/params/` - Shared parameter descriptions
 
@@ -30,12 +31,12 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 
 ## Adding a New Tool
 
-1. Create or modify a file in `operation/{domain}/`
-2. Define tool with `mcp.NewTool()` and implement handler function
-3. Register in the domain's `RegisterTool(s *server.MCPServer)` function
+1. Put the logic in a use case in `app/{domain}/` (typed input, repo-owned result). `app/**` must not import mcp-go or the Forgejo SDK (`scripts/ci/check-app-boundary.sh`); reach Forgejo through the port in `pkg/forge/`, bridged by `pkg/forge/<domain>adapter/`
+2. Put the MCP adapter in `operation/{domain}/`: a `mcp.NewTool()` definition, an argument struct (`json:"name"`, `required:"true"`) decoded with `decode.Lax`, then a call to the use case. Numbers are `float64`
+3. Register in the domain's `RegisterTool(s *server.MCPServer, f forge.Factory)` function
 4. If new domain, import and call in `operation/operation.go`
-5. **Go through the port.** Handlers take a `forge.Factory`, call
-   `f.For(ctx)` per request and use the returned `forge.Forgejo`; a new
+5. **Pin it with tests.** `mcptest.SchemaSnapshot` and `mcptest.Golden` per tool, `mcptest.ArgsMatchSchema` per argument struct (`go test ./operation/{domain} -update` writes the files), and use-case tests in `app/{domain}/`
+6. **Go through the port.** The adapter's `run` helper calls `f.For(ctx)` per request and hands the port to the bridge; a new
    endpoint is a port method, its adapter in `pkg/forge/sdk/`, its fake and a
    contract case. Nothing outside `pkg/forge/sdk` builds an SDK client or an
    HTTP request to Forgejo. **Escape API paths** in the adapter's raw-HTTP
@@ -45,11 +46,11 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
    containing `/` or `?` retarget the request at another endpoint;
    `scripts/ci/check-api-path-escaping.sh` fails the build on it. Append query
    strings to the `APIPath` result.
-6. **Bound the output.** If response size depends on data (not tool
+7. **Bound the output.** If response size depends on data (not tool
    semantics), the tool MUST satisfy [docs/design/output-bounding.md](docs/design/output-bounding.md):
    client-controlled bound + resumability + documented parameters. Use the
    checklist there in the PR description.
-7. **Add the README row.** Every registered tool needs a row in the README
+8. **Add the README row.** Every registered tool needs a row in the README
    "Available Tools" table, and every `forgejo://` resource template a row in
    the "Resources" table. `scripts/ci/check-readme-tool-coverage.sh` fails the
    build on a tool or template with no row: it compares the `…ToolName`

@@ -1,0 +1,3 @@
+{"Result":{"is_member":true,"org":"octo-org","user":"octo"}}
+-- port calls --
+CheckOrgMembership ["octo-org","octo"]

@@ -1,0 +1,41 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List repository webhooks. page/limit control pagination (default: page 1, limit 30); no server-imposed ceiling. Returns total_count when Forgejo reports X-Total-Count.",
+  "inputSchema": {
+    "properties": {
+      "limit": {
+        "default": 30,
+        "description": "Page size",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "page",
+      "limit"
+    ],
+    "type": "object"
+  },
+  "name": "list_repo_hooks"
+}

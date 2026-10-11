@@ -21,14 +21,6 @@ const (
 	testURL    = "https://forgejo.example.org"
 )
 
-// resourceServerEnvVars are the environment variables of the resource-server
-// only settings.
-var resourceServerEnvVars = []string{
-	"FORGEJO_MCP_AUTHORIZATION_SERVER", "FORGEJO_MCP_RESOURCE", "FORGEJO_MCP_RESOURCE_AUDIENCE",
-	"FORGEJO_MCP_SCOPES_SUPPORTED", "FORGEJO_MCP_FORGEJO_AUDIENCE_CLAIM", "FORGEJO_MCP_FORGEJO_JWT_ISSUER",
-	"FORGEJO_MCP_FORGEJO_JWT_SIGNING_KEY_FILE", "FORGEJO_MCP_FORGEJO_JWT_PUBLISHED_KEY_FILES",
-}
-
 // load runs config.Load against args and a hermetic environment holding only
 // FORGEJO_URL, unless env overrides it (an empty value counts as unset).
 func load(args []string, env map[string]string) (config.Config, error) {

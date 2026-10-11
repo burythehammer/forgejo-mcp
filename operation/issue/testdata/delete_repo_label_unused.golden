@@ -1,0 +1,5 @@
+{"Result":{"deleted":true,"id":3}}
+-- port calls --
+GetRepoLabel ["octo","hello",3]
+ListRepoIssues ["octo","hello",{"Page":1,"PageSize":1,"State":"all","Type":"","Labels":["bug"],"Milestones":null,"KeyWord":"","Since":"0001-01-01T00:00:00Z","Before":"0001-01-01T00:00:00Z","CreatedBy":"","AssignedBy":"","MentionedBy":"","Owner":"","Team":"","Sort":""}]
+DeleteRepoLabel ["octo","hello",3]

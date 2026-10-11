@@ -65,10 +65,6 @@ func callErrNoRepo(t *testing.T, fn toolFn) string {
 	return textOf(res)
 }
 
-func listAll() forge.ListIssuesOptions {
-	return forge.ListIssuesOptions{ListIssueOption: forgejo_sdk.ListIssueOption{State: forgejo_sdk.StateAll}}
-}
-
 func repoReq(args map[string]any) mcp.CallToolRequest {
 	base := map[string]any{"owner": testOwner, "repo": testRepo}
 	for k, v := range args {

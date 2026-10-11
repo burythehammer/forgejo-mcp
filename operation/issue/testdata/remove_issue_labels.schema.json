@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Remove labels from issue, by label name or numeric ID",
+  "inputSchema": {
+    "properties": {
+      "index": {
+        "description": "Issue index",
+        "type": "number"
+      },
+      "labels": {
+        "description": "Labels to remove (comma-separated). Accepts label names or numeric IDs. A name is matched before an ID, so a label named \"123\" wins over the ID 123. An unrecognised name is an error and nothing is applied; list_repo_labels shows what exists.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "labels"
+    ],
+    "type": "object"
+  },
+  "name": "remove_issue_labels"
+}

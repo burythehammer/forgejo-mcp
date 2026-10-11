@@ -4,8 +4,8 @@ package actions
 
 import (
 	"context"
-	"fmt"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -43,46 +43,50 @@ var (
 
 func (h handlers) CancelWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called CancelWorkflowRunFn")
-	args := req.GetArguments()
 
-	owner, repo, err := requiredRepo(args)
-	if err != nil {
+	var a repoRunArgs
+	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	runID, err := positiveIntegerArg(args, "run_id", true)
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
+	}
+	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := port.CancelWorkflowRun(ctx, owner, repo, runID); err != nil {
-		return to.ErrorResult(fmt.Errorf("cancel workflow run: %w", err))
+	if err := svc.CancelRun(ctx, a.Owner, a.Repo, runID); err != nil {
+		return to.ErrorResult(err)
 	}
 	return to.TextResult(workflowRunControlResult{RunID: runID, Status: "cancelled"})
 }
 
 func (h handlers) DeleteWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called DeleteWorkflowRunFn")
-	args := req.GetArguments()
 
-	owner, repo, err := requiredRepo(args)
-	if err != nil {
+	var a repoRunArgs
+	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	runID, err := positiveIntegerArg(args, "run_id", true)
+	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+		return to.ErrorResult(err)
+	}
+	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
 
-	port, err := h.forge.For(ctx)
+	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if err := port.DeleteWorkflowRun(ctx, owner, repo, runID); err != nil {
-		return to.ErrorResult(fmt.Errorf("delete workflow run: %w", err))
+	if err := svc.DeleteRun(ctx, a.Owner, a.Repo, runID); err != nil {
+		return to.ErrorResult(err)
 	}
 	return to.TextResult(workflowRunControlResult{RunID: runID, Status: "deleted"})
 }

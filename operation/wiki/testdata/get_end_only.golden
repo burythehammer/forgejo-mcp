@@ -1,0 +1,3 @@
+{"Result":{"title":"Home","page_name":"Home","content":"one\ntwo","commit_sha":"abc123","total_lines":3,"start_line":1,"end_line":2}}
+-- port calls --
+GetWikiPage ["octo","hello","Home"]

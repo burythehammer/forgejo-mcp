@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete a branch protection rule by name",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "rule": {
+        "description": "Branch protection rule name (the rule_name; Forgejo defaults it to branch_name)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "rule"
+    ],
+    "type": "object"
+  },
+  "name": "delete_branch_protection"
+}

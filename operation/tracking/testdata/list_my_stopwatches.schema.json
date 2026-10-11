@@ -1,0 +1,15 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List all currently running stopwatches for the authenticated user",
+  "inputSchema": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "name": "list_my_stopwatches"
+}

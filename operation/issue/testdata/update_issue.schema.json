@@ -1,0 +1,68 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Update issue. 'set_labels' replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally",
+  "inputSchema": {
+    "properties": {
+      "assignee": {
+        "description": "Assignee username (convenience for a single user; equivalent to a one-element 'assignees')",
+        "type": "string"
+      },
+      "assignees": {
+        "description": "Assignee usernames (comma-separated). Overrides 'assignee' if both are set. Pass an empty string to clear all assignees.",
+        "type": "string"
+      },
+      "body": {
+        "description": "Content body",
+        "type": "string"
+      },
+      "clear_due_date": {
+        "description": "Clear the issue's due date. Mutually exclusive with 'due_date'.",
+        "type": "boolean"
+      },
+      "due_date": {
+        "description": "Set the issue's due date (RFC3339, e.g. 2026-08-20T00:00:00Z). Mutually exclusive with 'clear_due_date'; setting both is an error.",
+        "type": "string"
+      },
+      "index": {
+        "description": "Issue index",
+        "type": "number"
+      },
+      "milestone": {
+        "description": "Milestone ID",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "ref": {
+        "description": "The branch this issue is linked to (Forgejo's issue 'ref' field, distinct from a pull request link). Passed to Forgejo as given; Forgejo decides which forms it accepts. Omit to leave it unchanged; pass an empty string to clear it.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "set_labels": {
+        "description": "Replace the issue's entire label set (comma-separated). Accepts label names or numeric IDs. A name is matched before an ID, so a label named \"123\" wins over the ID 123. An unrecognised name is an error and nothing is applied; list_repo_labels shows what exists. Pass an empty string to remove every label. To add or drop individual labels without restating the set, use add_issue_labels or remove_issue_labels.",
+        "type": "string"
+      },
+      "title": {
+        "description": "Title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue"
+}

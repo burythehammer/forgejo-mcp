@@ -1,0 +1,3 @@
+ERROR: get action job logs: invalid Content-Range "garbage": input does not match format
+-- port calls --
+GetJobLog ["octo","hello",3,0,"bytes=-32768",32768]

@@ -4,14 +4,11 @@ package repo
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -93,110 +90,56 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(GetRepoTreeTool, h.GetRepoTreeFn)
 }
 
-func (h handlers) CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CreateRepoFn")
-	name, ok := req.GetArguments()["name"].(string)
-	if !ok {
-		return to.ErrorResult(errors.New("repository name is required"))
-	}
-	description, _ := req.GetArguments()["description"].(string)
-	owner, _ := req.GetArguments()["owner"].(string)
-	private, _ := req.GetArguments()["private"].(bool)
-	issueLabels, _ := req.GetArguments()["issue_labels"].(string)
-	autoInit, _ := req.GetArguments()["auto_init"].(bool)
-	template, _ := req.GetArguments()["template"].(bool)
-	gitignores, _ := req.GetArguments()["gitignores"].(string)
-	license, _ := req.GetArguments()["license"].(string)
-	readme, _ := req.GetArguments()["readme"].(string)
-	defaultBranch, _ := req.GetArguments()["default_branch"].(string)
+type createRepoArgs struct {
+	Name          *string `json:"name" required:"true"`
+	Description   string  `json:"description"`
+	Owner         string  `json:"owner"`
+	Private       bool    `json:"private"`
+	IssueLabels   string  `json:"issue_labels"`
+	AutoInit      bool    `json:"auto_init"`
+	Template      bool    `json:"template"`
+	Gitignores    string  `json:"gitignores"`
+	License       string  `json:"license"`
+	Readme        string  `json:"readme"`
+	DefaultBranch string  `json:"default_branch"`
+}
 
-	opt := forgejo_sdk.CreateRepoOption{
-		Name:          name,
-		Description:   description,
-		Private:       private,
-		IssueLabels:   issueLabels,
-		AutoInit:      autoInit,
-		Template:      template,
-		Gitignores:    gitignores,
-		License:       license,
-		Readme:        readme,
-		DefaultBranch: defaultBranch,
-	}
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	var repo *forgejo_sdk.Repository
-	if owner != "" {
-		repo, err = f.CreateOrgRepo(ctx, owner, opt)
-	} else {
-		repo, err = f.CreateRepo(ctx, opt)
-	}
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("create repo err: %w", err))
-	}
-	return to.TextResult(repo)
+func (h handlers) CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return runAdmin(ctx, h, req, "CreateRepoFn", func(ctx context.Context, s *apprepo.AdminService, a createRepoArgs) (*mcp.CallToolResult, error) {
+		r, err := s.CreateRepo(ctx, apprepo.CreateRepoInput{
+			Owner: a.Owner, Name: a.Name, Description: a.Description, Private: a.Private,
+			IssueLabels: a.IssueLabels, AutoInit: a.AutoInit, Template: a.Template,
+			Gitignores: a.Gitignores, License: a.License, Readme: a.Readme,
+			DefaultBranch: a.DefaultBranch,
+		})
+		return mcpresult.Render(r, err)
+	})
+}
+
+type forkRepoArgs struct {
+	User         *string `json:"user" required:"true"`
+	Repo         *string `json:"repo" required:"true"`
+	Organization string  `json:"organization"`
+	Name         string  `json:"name"`
 }
 
 func (h handlers) ForkRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ForkRepoFn")
-	user, ok := req.GetArguments()["user"].(string)
-	if !ok {
-		return to.ErrorResult(errors.New("user name is required"))
-	}
-	repo, ok := req.GetArguments()["repo"].(string)
-	if !ok {
-		return to.ErrorResult(errors.New("repository name is required"))
-	}
-	organization, ok := req.GetArguments()["organization"].(string)
-	organizationPtr := ptr.To(organization)
-	if !ok || organization == "" {
-		organizationPtr = nil
-	}
-	name, ok := req.GetArguments()["name"].(string)
-	namePtr := ptr.To(name)
-	if !ok || name == "" {
-		namePtr = nil
-	}
-	opt := forgejo_sdk.CreateForkOption{
-		Organization: organizationPtr,
-		Name:         namePtr,
-	}
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	_, err = f.ForkRepo(ctx, user, repo, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("fork repository error %w", err))
-	}
-	return to.TextResult("Fork success")
+	return runAdmin(ctx, h, req, "ForkRepoFn", func(ctx context.Context, s *apprepo.AdminService, a forkRepoArgs) (*mcp.CallToolResult, error) {
+		if err := s.ForkRepo(ctx, apprepo.ForkInput{User: a.User, Repo: a.Repo, Organization: a.Organization, Name: a.Name}); err != nil {
+			return mcpresult.Fail(err)
+		}
+		return to.TextResult("Fork success")
+	})
+}
+
+type listMyReposArgs struct {
+	Page  float64 `json:"page" required:"true"`
+	Limit float64 `json:"limit" required:"true"`
 }
 
 func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListMyReposFn")
-	page, _ := to.Float64(req.GetArguments()["page"])
-	if page == 0 {
-		page = 1
-	}
-	limit, _ := to.Float64(req.GetArguments()["limit"])
-	if limit == 0 {
-		limit = 100
-	}
-	opt := forgejo_sdk.ListReposOptions{
-		ListOptions: forgejo_sdk.ListOptions{
-			Page:     int(page),
-			PageSize: int(limit),
-		},
-	}
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	repos, err := f.ListMyRepos(ctx, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list my repositories error: %w", err))
-	}
-
-	return to.TextResult(repos)
+	return runAdmin(ctx, h, req, "ListMyReposFn", func(ctx context.Context, s *apprepo.AdminService, a listMyReposArgs) (*mcp.CallToolResult, error) {
+		repos, err := s.ListMyRepos(ctx, apprepo.AdminPaging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)})
+		return mcpresult.Render(repos, err)
+	})
 }

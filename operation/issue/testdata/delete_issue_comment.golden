@@ -1,0 +1,3 @@
+{"Result":"Delete comment success"}
+-- port calls --
+DeleteIssueComment ["octo","hello",31]

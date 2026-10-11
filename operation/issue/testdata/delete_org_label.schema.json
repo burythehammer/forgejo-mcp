@@ -1,0 +1,31 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete an organization-level label. By default refuses if the label is in use; set delete_mode=force to override. Note: in-use count is best-effort over repos visible to the token and may under-count.",
+  "inputSchema": {
+    "properties": {
+      "delete_mode": {
+        "description": "safe (default): refuse if in use and report count. force: delete unconditionally.",
+        "type": "string"
+      },
+      "id": {
+        "description": "Label ID",
+        "type": "number"
+      },
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_org_label"
+}

@@ -1,0 +1,65 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create a branch protection rule (e.g. require status checks before merge)",
+  "inputSchema": {
+    "properties": {
+      "block_on_outdated_branch": {
+        "description": "Block merge when the branch is behind its base",
+        "type": "boolean"
+      },
+      "branch_name": {
+        "description": "Branch name",
+        "type": "string"
+      },
+      "dismiss_stale_approvals": {
+        "description": "Dismiss approvals when new commits are pushed",
+        "type": "boolean"
+      },
+      "enable_push": {
+        "description": "Allow direct pushes to the protected branch",
+        "type": "boolean"
+      },
+      "enable_status_check": {
+        "description": "Require status checks to pass before merging",
+        "type": "boolean"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "require_signed_commits": {
+        "description": "Require commits on the protected branch to be signed",
+        "type": "boolean"
+      },
+      "required_approvals": {
+        "description": "Number of required approving reviews before merge",
+        "minimum": 0,
+        "type": "number"
+      },
+      "rule_name": {
+        "description": "Rule name (optional; defaults to branch_name if omitted)",
+        "type": "string"
+      },
+      "status_check_contexts": {
+        "description": "Required status check contexts (comma-separated, e.g. \"ci/build,ci/test\")",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "branch_name"
+    ],
+    "type": "object"
+  },
+  "name": "create_branch_protection"
+}

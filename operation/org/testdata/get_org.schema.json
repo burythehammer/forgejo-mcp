@@ -1,0 +1,22 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get organization details",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "get_org"
+}

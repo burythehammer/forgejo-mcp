@@ -1,0 +1,3 @@
+ERROR: an issue cannot depend on itself
+-- port calls --
+

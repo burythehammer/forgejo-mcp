@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create branch",
+  "inputSchema": {
+    "properties": {
+      "branch": {
+        "description": "Branch name",
+        "type": "string"
+      },
+      "old_branch": {
+        "description": "Source branch",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "branch",
+      "old_branch"
+    ],
+    "type": "object"
+  },
+  "name": "create_branch"
+}

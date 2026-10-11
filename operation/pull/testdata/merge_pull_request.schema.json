@@ -1,0 +1,57 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Merge a pull request",
+  "inputSchema": {
+    "properties": {
+      "delete_branch_after_merge": {
+        "description": "Delete head branch after merge",
+        "type": "boolean"
+      },
+      "force_merge": {
+        "description": "Force merge even if checks have not passed",
+        "type": "boolean"
+      },
+      "index": {
+        "description": "PR index",
+        "type": "number"
+      },
+      "merge_when_checks_succeed": {
+        "description": "Schedule merge for when all checks succeed",
+        "type": "boolean"
+      },
+      "message": {
+        "description": "Merge commit message",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "style": {
+        "description": "Merge style (merge, rebase, rebase-merge, squash)",
+        "type": "string"
+      },
+      "title": {
+        "description": "Merge commit title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "style"
+    ],
+    "type": "object"
+  },
+  "name": "merge_pull_request"
+}

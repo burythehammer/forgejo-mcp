@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create pull request",
+  "inputSchema": {
+    "properties": {
+      "base": {
+        "description": "Base branch",
+        "type": "string"
+      },
+      "body": {
+        "description": "Content body",
+        "type": "string"
+      },
+      "head": {
+        "description": "Head branch",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "Title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "head",
+      "base",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "create_pull_request"
+}

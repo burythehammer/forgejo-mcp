@@ -1,0 +1,3 @@
+ERROR: create issue comment err: boom
+-- port calls --
+CreateIssueComment ["octo","hello",7,"hi"]

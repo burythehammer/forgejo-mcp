@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete one package version. Removes that version only, not every version of the name. No preflight GET. HTTP 204 returns {owner, type, name, version, status: \"deleted\"}; 4xx/5xx stay errors.",
+  "inputSchema": {
+    "properties": {
+      "name": {
+        "description": "Package name (container names may contain /)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "type": {
+        "description": "Package type (container, generic, npm, maven, …). Omit on list to include every type",
+        "type": "string"
+      },
+      "version": {
+        "description": "Package version",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "type",
+      "name",
+      "version"
+    ],
+    "type": "object"
+  },
+  "name": "delete_package"
+}

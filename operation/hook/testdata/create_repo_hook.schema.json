@@ -1,0 +1,60 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create a repository webhook. The secret is accepted but never echoed in the response.",
+  "inputSchema": {
+    "properties": {
+      "active": {
+        "description": "Whether the webhook is active (default true)",
+        "type": "boolean"
+      },
+      "branch_filter": {
+        "description": "Branch filter glob (e.g. main, release/*)",
+        "type": "string"
+      },
+      "content_type": {
+        "description": "Content type: \"json\" or \"form\" (default \"json\")",
+        "type": "string"
+      },
+      "events": {
+        "description": "Webhook events (comma-separated, e.g. \"push,pull_request\")",
+        "type": "string"
+      },
+      "http_method": {
+        "description": "HTTP method: \"POST\" or \"GET\" (default \"POST\")",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "secret": {
+        "description": "HMAC secret for payload signing (write-only; not returned)",
+        "type": "string"
+      },
+      "type": {
+        "description": "Webhook type (default \"forgejo\"; only \"forgejo\" is supported for repository hooks)",
+        "type": "string"
+      },
+      "url": {
+        "description": "Payload URL for the webhook",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "url"
+    ],
+    "type": "object"
+  },
+  "name": "create_repo_hook"
+}

@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Request reviews from specific users or teams",
+  "inputSchema": {
+    "properties": {
+      "index": {
+        "description": "PR index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "reviewers": {
+        "description": "Reviewer usernames (comma-separated)",
+        "type": "string"
+      },
+      "team_reviewers": {
+        "description": "Team reviewer names (comma-separated)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index"
+    ],
+    "type": "object"
+  },
+  "name": "create_review_requests"
+}

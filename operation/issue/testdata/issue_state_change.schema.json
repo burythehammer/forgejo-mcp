@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Change issue state",
+  "inputSchema": {
+    "properties": {
+      "index": {
+        "description": "Issue index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "State (open|closed)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "state"
+    ],
+    "type": "object"
+  },
+  "name": "issue_state_change"
+}

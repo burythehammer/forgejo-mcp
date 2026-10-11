@@ -1,0 +1,60 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Edit a repository webhook. Only fields you pass are changed; omitted fields are left untouched.",
+  "inputSchema": {
+    "properties": {
+      "active": {
+        "description": "Whether the webhook is active",
+        "type": "boolean"
+      },
+      "branch_filter": {
+        "description": "Branch filter glob",
+        "type": "string"
+      },
+      "content_type": {
+        "description": "Content type: \"json\" or \"form\"",
+        "type": "string"
+      },
+      "events": {
+        "description": "Webhook events (comma-separated)",
+        "type": "string"
+      },
+      "http_method": {
+        "description": "HTTP method: \"POST\" or \"GET\"",
+        "type": "string"
+      },
+      "id": {
+        "description": "Webhook ID",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "secret": {
+        "description": "New HMAC secret (write-only; not returned)",
+        "type": "string"
+      },
+      "url": {
+        "description": "New payload URL",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "edit_repo_hook"
+}

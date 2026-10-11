@@ -1,0 +1,22 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete an organization. WARNING: This is destructive and irreversible — all repos, teams, and data will be permanently removed",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "delete_org"
+}

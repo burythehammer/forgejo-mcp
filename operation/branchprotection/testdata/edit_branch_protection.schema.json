@@ -1,0 +1,85 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Edit a branch protection rule. Only fields you pass are changed; omitted fields are left untouched.",
+  "inputSchema": {
+    "properties": {
+      "approvals_whitelist_usernames": {
+        "description": "Usernames whose approving reviews count toward required approvals (comma-separated). Replaces the existing list.",
+        "type": "string"
+      },
+      "block_on_outdated_branch": {
+        "description": "Block merge when the branch is behind its base",
+        "type": "boolean"
+      },
+      "dismiss_stale_approvals": {
+        "description": "Dismiss approvals when new commits are pushed",
+        "type": "boolean"
+      },
+      "enable_approvals_whitelist": {
+        "description": "Restrict whose reviews count toward required approvals to the approvals whitelist",
+        "type": "boolean"
+      },
+      "enable_merge_whitelist": {
+        "description": "Restrict who may merge pull requests to the merge whitelist",
+        "type": "boolean"
+      },
+      "enable_push": {
+        "description": "Allow direct pushes to the protected branch",
+        "type": "boolean"
+      },
+      "enable_push_whitelist": {
+        "description": "Restrict direct pushes to the push whitelist (users/teams) instead of all writers",
+        "type": "boolean"
+      },
+      "enable_status_check": {
+        "description": "Require status checks to pass before merging",
+        "type": "boolean"
+      },
+      "merge_whitelist_usernames": {
+        "description": "Usernames allowed to merge pull requests (comma-separated). Replaces the existing list.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "push_whitelist_usernames": {
+        "description": "Usernames allowed to push to the protected branch (comma-separated, e.g. \"alice,bot\"). Each must be a collaborator with write access. Replaces the existing list.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "require_signed_commits": {
+        "description": "Require commits on the protected branch to be signed",
+        "type": "boolean"
+      },
+      "required_approvals": {
+        "description": "Number of required approving reviews before merge",
+        "minimum": 0,
+        "type": "number"
+      },
+      "rule": {
+        "description": "Branch protection rule name (the rule_name; Forgejo defaults it to branch_name)",
+        "type": "string"
+      },
+      "status_check_contexts": {
+        "description": "Required status check contexts (comma-separated, e.g. \"ci/build,ci/test\")",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "rule"
+    ],
+    "type": "object"
+  },
+  "name": "edit_branch_protection"
+}

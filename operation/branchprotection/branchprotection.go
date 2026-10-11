@@ -9,15 +9,16 @@ package branchprotection
 import (
 	"context"
 	"fmt"
-	"strings"
 
+	appbp "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/branchprotection"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/branchprotectionadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -106,216 +107,122 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 
 // handlers serve the branch protection tools and resources. They hold the
 // factory rather than a port so each call is bound to the credential of its
-// own request.
+// own request. Each tool handler is the MCP adapter of one use case in
+// app/branchprotection: decode the arguments, run the use case, render the
+// result.
 type handlers struct{ forge forge.Factory }
 
-// listBranchProtectionsResult wraps the rules with the page echo so callers can
-// resume pagination (output-bounding sub-rule 3).
-type listBranchProtectionsResult struct {
-	Page              int                             `json:"page"`
-	Limit             int                             `json:"limit"`
-	Count             int                             `json:"count"`
-	BranchProtections []*forgejo_sdk.BranchProtection `json:"branch_protections"`
+// Argument structs, one per tool. `json` names the MCP argument and
+// `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps
+// them in agreement with the tool definitions. Optional fields that must tell
+// "not passed" from a zero value are pointers.
+
+type listArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Page  float64 `json:"page" required:"true"`
+	Limit float64 `json:"limit" required:"true"`
+}
+
+type ruleArgs struct {
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Rule  string `json:"rule" required:"true"`
+}
+
+type createArgs struct {
+	Owner                 string  `json:"owner" required:"true"`
+	Repo                  string  `json:"repo" required:"true"`
+	BranchName            string  `json:"branch_name" required:"true"`
+	RuleName              string  `json:"rule_name"`
+	EnablePush            bool    `json:"enable_push"`
+	EnableStatusCheck     bool    `json:"enable_status_check"`
+	StatusCheckContexts   *string `json:"status_check_contexts"`
+	RequiredApprovals     float64 `json:"required_approvals"`
+	BlockOnOutdatedBranch bool    `json:"block_on_outdated_branch"`
+	RequireSignedCommits  bool    `json:"require_signed_commits"`
+	DismissStaleApprovals bool    `json:"dismiss_stale_approvals"`
+}
+
+type editArgs struct {
+	Owner                       string   `json:"owner" required:"true"`
+	Repo                        string   `json:"repo" required:"true"`
+	Rule                        string   `json:"rule" required:"true"`
+	EnablePush                  *bool    `json:"enable_push"`
+	EnablePushWhitelist         *bool    `json:"enable_push_whitelist"`
+	PushWhitelistUsernames      *string  `json:"push_whitelist_usernames"`
+	EnableMergeWhitelist        *bool    `json:"enable_merge_whitelist"`
+	MergeWhitelistUsernames     *string  `json:"merge_whitelist_usernames"`
+	EnableStatusCheck           *bool    `json:"enable_status_check"`
+	StatusCheckContexts         *string  `json:"status_check_contexts"`
+	RequiredApprovals           *float64 `json:"required_approvals" numeric:"string"`
+	EnableApprovalsWhitelist    *bool    `json:"enable_approvals_whitelist"`
+	ApprovalsWhitelistUsernames *string  `json:"approvals_whitelist_usernames"`
+	BlockOnOutdatedBranch       *bool    `json:"block_on_outdated_branch"`
+	DismissStaleApprovals       *bool    `json:"dismiss_stale_approvals"`
+	RequireSignedCommits        *bool    `json:"require_signed_commits"`
+}
+
+// run is the shared shape of a tool call: decode the arguments into A, take the
+// use cases bound to this request's credential, and hand both to do, which
+// runs one use case and renders its result.
+func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
+	do func(context.Context, *appbp.Service, A) (*mcp.CallToolResult, error),
+) (*mcp.CallToolResult, error) {
+	log.Debugf("Called %s", name)
+	var args A
+	if err := decode.Lax(req, &args); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return do(ctx, appbp.New(branchprotectionadapter.New(port)), args)
 }
 
 func (h handlers) ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListBranchProtectionsFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
-	page, _ := to.Float64(args["page"])
-	if page == 0 {
-		page = 1
-	}
-	limit, _ := to.Float64(args["limit"])
-	if limit == 0 {
-		limit = 100
-	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	bps, err := port.ListBranchProtections(ctx, owner, repo, forgejo_sdk.ListBranchProtectionsOptions{
-		ListOptions: forgejo_sdk.ListOptions{Page: int(page), PageSize: int(limit)},
-	})
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list branch protections err: %w", err))
-	}
-	return to.TextResult(listBranchProtectionsResult{
-		Page:              int(page),
-		Limit:             int(limit),
-		Count:             len(bps),
-		BranchProtections: bps,
+	return run(ctx, h, req, "ListBranchProtectionsFn", func(ctx context.Context, s *appbp.Service, a listArgs) (*mcp.CallToolResult, error) {
+		return mcpresult.Render(s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
 	})
 }
 
 func (h handlers) GetBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetBranchProtectionFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rule, _ := args["rule"].(string)
-	if owner == "" || repo == "" || rule == "" {
-		return to.ErrorResult(fmt.Errorf("owner, repo and rule are required"))
-	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	bp, err := port.GetBranchProtection(ctx, owner, repo, rule)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("get branch protection err: %w", err))
-	}
-	return to.TextResult(bp)
+	return run(ctx, h, req, "GetBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a ruleArgs) (*mcp.CallToolResult, error) {
+		return mcpresult.Render(s.Get(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}))
+	})
 }
 
 func (h handlers) CreateBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CreateBranchProtectionFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
-	branchName, _ := args["branch_name"].(string)
-	if branchName == "" {
-		return to.ErrorResult(fmt.Errorf("branch_name is required"))
-	}
-
-	opt := forgejo_sdk.CreateBranchProtectionOption{BranchName: branchName}
-	if v, ok := args["rule_name"].(string); ok {
-		opt.RuleName = v
-	}
-	if v, ok := args["enable_push"].(bool); ok {
-		opt.EnablePush = v
-	}
-	if v, ok := args["enable_status_check"].(bool); ok {
-		opt.EnableStatusCheck = v
-	}
-	if v, ok := args["status_check_contexts"].(string); ok {
-		opt.StatusCheckContexts = splitContexts(v)
-	}
-	if v, ok := to.Float64Ok(args["required_approvals"]); ok {
-		opt.RequiredApprovals = int64(v)
-	}
-	if v, ok := args["block_on_outdated_branch"].(bool); ok {
-		opt.BlockOnOutdatedBranch = v
-	}
-	if v, ok := args["require_signed_commits"].(bool); ok {
-		opt.RequireSignedCommits = v
-	}
-	if v, ok := args["dismiss_stale_approvals"].(bool); ok {
-		opt.DismissStaleApprovals = v
-	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	bp, err := port.CreateBranchProtection(ctx, owner, repo, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("create branch protection err: %w", err))
-	}
-	return to.TextResult(bp)
+	return run(ctx, h, req, "CreateBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a createArgs) (*mcp.CallToolResult, error) {
+		return mcpresult.Render(s.Create(ctx, appbp.CreateRequest{
+			Owner: a.Owner, Repo: a.Repo, BranchName: a.BranchName, RuleName: a.RuleName,
+			EnablePush: a.EnablePush, EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts,
+			RequiredApprovals: a.RequiredApprovals, BlockOnOutdatedBranch: a.BlockOnOutdatedBranch,
+			RequireSignedCommits: a.RequireSignedCommits, DismissStaleApprovals: a.DismissStaleApprovals,
+		}))
+	})
 }
 
 func (h handlers) EditBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called EditBranchProtectionFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rule, _ := args["rule"].(string)
-	if owner == "" || repo == "" || rule == "" {
-		return to.ErrorResult(fmt.Errorf("owner, repo and rule are required"))
-	}
-
-	// PATCH semantics: only set a field when the caller supplied it, so omitted
-	// fields are left unchanged server-side.
-	var opt forgejo_sdk.EditBranchProtectionOption
-	if v, ok := args["enable_push"].(bool); ok {
-		opt.EnablePush = ptr.To(v)
-	}
-	if v, ok := args["enable_status_check"].(bool); ok {
-		opt.EnableStatusCheck = ptr.To(v)
-	}
-	if v, ok := args["status_check_contexts"].(string); ok {
-		opt.StatusCheckContexts = splitContexts(v)
-	}
-	if v, ok := to.Float64Ok(args["required_approvals"]); ok {
-		opt.RequiredApprovals = ptr.To(int64(v))
-	}
-	if v, ok := args["block_on_outdated_branch"].(bool); ok {
-		opt.BlockOnOutdatedBranch = ptr.To(v)
-	}
-	if v, ok := args["require_signed_commits"].(bool); ok {
-		opt.RequireSignedCommits = ptr.To(v)
-	}
-	if v, ok := args["dismiss_stale_approvals"].(bool); ok {
-		opt.DismissStaleApprovals = ptr.To(v)
-	}
-	if v, ok := args["enable_push_whitelist"].(bool); ok {
-		opt.EnablePushWhitelist = ptr.To(v)
-	}
-	if v, ok := args["push_whitelist_usernames"].(string); ok {
-		opt.PushWhitelistUsernames = splitContexts(v)
-	}
-	if v, ok := args["enable_merge_whitelist"].(bool); ok {
-		opt.EnableMergeWhitelist = ptr.To(v)
-	}
-	if v, ok := args["merge_whitelist_usernames"].(string); ok {
-		opt.MergeWhitelistUsernames = splitContexts(v)
-	}
-	if v, ok := args["enable_approvals_whitelist"].(bool); ok {
-		opt.EnableApprovalsWhitelist = ptr.To(v)
-	}
-	if v, ok := args["approvals_whitelist_usernames"].(string); ok {
-		opt.ApprovalsWhitelistUsernames = splitContexts(v)
-	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	bp, err := port.EditBranchProtection(ctx, owner, repo, rule, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("edit branch protection err: %w", err))
-	}
-	return to.TextResult(bp)
+	return run(ctx, h, req, "EditBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a editArgs) (*mcp.CallToolResult, error) {
+		return mcpresult.Render(s.Edit(ctx, appbp.EditRequest{
+			RuleRef:    appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule},
+			EnablePush: a.EnablePush, EnablePushWhitelist: a.EnablePushWhitelist, PushWhitelistUsernames: a.PushWhitelistUsernames,
+			EnableMergeWhitelist: a.EnableMergeWhitelist, MergeWhitelistUsernames: a.MergeWhitelistUsernames,
+			EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts, RequiredApprovals: a.RequiredApprovals,
+			EnableApprovalsWhitelist: a.EnableApprovalsWhitelist, ApprovalsWhitelistUsernames: a.ApprovalsWhitelistUsernames,
+			BlockOnOutdatedBranch: a.BlockOnOutdatedBranch, DismissStaleApprovals: a.DismissStaleApprovals,
+			RequireSignedCommits: a.RequireSignedCommits,
+		}))
+	})
 }
 
 func (h handlers) DeleteBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteBranchProtectionFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	rule, _ := args["rule"].(string)
-	if owner == "" || repo == "" || rule == "" {
-		return to.ErrorResult(fmt.Errorf("owner, repo and rule are required"))
-	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	if err := port.DeleteBranchProtection(ctx, owner, repo, rule); err != nil {
-		return to.ErrorResult(fmt.Errorf("delete branch protection err: %w", err))
-	}
-	return to.TextResult(fmt.Sprintf("Deleted branch protection rule %q on %s/%s", rule, owner, repo))
-}
-
-// splitContexts parses a comma-separated status-check context list into a
-// trimmed, empty-free slice. Returns an empty (non-nil) slice for "".
-func splitContexts(csv string) []string {
-	out := make([]string, 0)
-	for _, p := range strings.Split(csv, ",") {
-		if s := strings.TrimSpace(p); s != "" {
-			out = append(out, s)
+	return run(ctx, h, req, "DeleteBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a ruleArgs) (*mcp.CallToolResult, error) {
+		if err := s.Delete(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}); err != nil {
+			return mcpresult.Fail(err)
 		}
-	}
-	return out
+		return to.TextResult(fmt.Sprintf("Deleted branch protection rule %q on %s/%s", a.Rule, a.Owner, a.Repo))
+	})
 }
