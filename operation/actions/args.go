@@ -89,15 +89,3 @@ func optionalNonNegativeIntegerArg(args map[string]any, name string) (int64, boo
 	}
 	return int64(number), true, nil
 }
-
-func boundedIntegerArg(args map[string]any, name string, defaultValue, minimum, maximum int) (int, error) {
-	value, exists := args[name]
-	if !exists || value == nil || value == "" {
-		return defaultValue, nil
-	}
-	number, err := to.Float64(value)
-	if err != nil || math.Trunc(number) != number || number < float64(minimum) || number > float64(maximum) {
-		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, minimum, maximum)
-	}
-	return int(number), nil
-}

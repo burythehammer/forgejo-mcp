@@ -35,11 +35,11 @@ func (h handlers) ListPackageFilesFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntegerArg(args, "page", 1, 1, math.MaxInt32)
+	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntegerArg(args, "limit", defaultPackagesLimit, 1, maxPackagesLimit)
+	limit, err := to.BoundedInt(args, "limit", defaultPackagesLimit, 1, maxPackagesLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

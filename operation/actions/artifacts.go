@@ -53,11 +53,11 @@ func (h handlers) ListActionRunArtifactsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntegerArg(args, "page", 1, 1, math.MaxInt32)
+	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntegerArg(args, "limit", defaultActionArtifactsLimit, 1, maxActionArtifactsLimit)
+	limit, err := to.BoundedInt(args, "limit", defaultActionArtifactsLimit, 1, maxActionArtifactsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

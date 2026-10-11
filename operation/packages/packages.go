@@ -5,8 +5,6 @@ package packages
 import (
 	"context"
 	"errors"
-	"fmt"
-	"math"
 
 	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
@@ -135,16 +133,4 @@ func requiredPackageCoords(args map[string]any) (owner, packageType, name, versi
 		return "", "", "", "", errors.New("version is required")
 	}
 	return owner, packageType, name, version, nil
-}
-
-func boundedIntegerArg(args map[string]any, name string, defaultValue, minimum, maximum int) (int, error) {
-	value, exists := args[name]
-	if !exists || value == nil || value == "" {
-		return defaultValue, nil
-	}
-	number, err := to.Float64(value)
-	if err != nil || math.Trunc(number) != number || number < float64(minimum) || number > float64(maximum) {
-		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, minimum, maximum)
-	}
-	return int(number), nil
 }

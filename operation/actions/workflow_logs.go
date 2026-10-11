@@ -59,11 +59,11 @@ func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolReque
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntegerArg(args, "page", 1, 1, math.MaxInt32)
+	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntegerArg(args, "limit", defaultActionJobsLimit, 1, maxActionJobsLimit)
+	limit, err := to.BoundedInt(args, "limit", defaultActionJobsLimit, 1, maxActionJobsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -95,7 +95,7 @@ func (h handlers) GetActionJobLogsFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	maxBytes, err := boundedIntegerArg(args, "max_bytes", defaultActionLogBytes, 1, maxActionLogBytes)
+	maxBytes, err := to.BoundedInt(args, "max_bytes", defaultActionLogBytes, 1, maxActionLogBytes)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

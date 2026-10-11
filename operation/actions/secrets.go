@@ -95,11 +95,11 @@ func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolR
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntegerArg(args, "page", 1, 1, math.MaxInt32)
+	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntegerArg(args, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
+	limit, err := to.BoundedInt(args, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -183,11 +183,11 @@ func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRe
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntegerArg(args, "page", 1, 1, math.MaxInt32)
+	page, err := to.BoundedInt(args, "page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntegerArg(args, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
+	limit, err := to.BoundedInt(args, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
