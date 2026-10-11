@@ -1,0 +1,3 @@
+{"Result":{"status":"added","topic":"ci"}}
+-- port calls --
+AddRepoTopic ["octo","hello","ci"]

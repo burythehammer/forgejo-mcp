@@ -1,0 +1,35 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Fork repo",
+  "inputSchema": {
+    "properties": {
+      "name": {
+        "description": "Fork name",
+        "type": "string"
+      },
+      "organization": {
+        "description": "Org name",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "user": {
+        "description": "Username",
+        "type": "string"
+      }
+    },
+    "required": [
+      "user",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "fork_repo"
+}

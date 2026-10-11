@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Add one topic to a repository. The name is lowercased and must match Forgejo's topic rules.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "topic": {
+        "description": "Topic name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "topic"
+    ],
+    "type": "object"
+  },
+  "name": "add_repo_topic"
+}
