@@ -3,14 +3,7 @@
 package org
 
 import (
-	"context"
-	"errors"
-	"fmt"
-
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -44,83 +37,3 @@ var (
 		mcp.WithString("user", mcp.Required(), mcp.Description(params.User)),
 	)
 )
-
-func (h handlers) ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListOrgMembersFn")
-	orgName, ok := req.GetArguments()["org"].(string)
-	if !ok {
-		return to.ErrorResult(errors.New("organization name is required"))
-	}
-	page, ok := req.GetArguments()["page"].(float64)
-	if !ok {
-		page = 1
-	}
-	limit, ok := req.GetArguments()["limit"].(float64)
-	if !ok {
-		limit = 100
-	}
-
-	opt := forgejo_sdk.ListOrgMembershipOption{
-		ListOptions: forgejo_sdk.ListOptions{
-			Page:     int(page),
-			PageSize: int(limit),
-		},
-	}
-	fg, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	members, err := fg.ListOrgMembers(ctx, orgName, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list org members err: %w", err))
-	}
-	return to.TextResult(members)
-}
-
-func (h handlers) CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CheckOrgMembershipFn")
-	orgName, ok := req.GetArguments()["org"].(string)
-	if !ok {
-		return to.ErrorResult(errors.New("organization name is required"))
-	}
-	user, ok := req.GetArguments()["user"].(string)
-	if !ok {
-		return to.ErrorResult(errors.New("username is required"))
-	}
-
-	fg, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	isMember, err := fg.CheckOrgMembership(ctx, orgName, user)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("check org membership err: %w", err))
-	}
-	return to.TextResult(map[string]interface{}{
-		"org":       orgName,
-		"user":      user,
-		"is_member": isMember,
-	})
-}
-
-func (h handlers) RemoveOrgMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called RemoveOrgMemberFn")
-	orgName, ok := req.GetArguments()["org"].(string)
-	if !ok {
-		return to.ErrorResult(errors.New("organization name is required"))
-	}
-	user, ok := req.GetArguments()["user"].(string)
-	if !ok {
-		return to.ErrorResult(errors.New("username is required"))
-	}
-
-	fg, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	err = fg.RemoveOrgMember(ctx, orgName, user)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("remove org member err: %w", err))
-	}
-	return to.TextResult(fmt.Sprintf("User '%s' removed from organization '%s'", user, orgName))
-}
