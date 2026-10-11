@@ -20,3 +20,11 @@ _Avoid_: client, Forgejo client, API wrapper
 **Forgejo adapter**:
 An implementation of the Forgejo port. The real one talks to a Forgejo instance, using whichever transport is needed; the fake one keeps state in memory.
 _Avoid_: backend, driver
+
+**Use case**:
+The MCP-free unit of application logic behind one tool: takes plain inputs, reaches Forgejo only through the Forgejo port, and returns a repo-owned result type. It lives under `app/` and never imports mcp-go or the Forgejo SDK.
+_Avoid_: handler, service, operation
+
+**MCP adapter**:
+The thin layer that exposes a use case as an MCP tool: it owns the tool definition and input schema, decodes arguments into the tool's argument struct, calls the use case, and renders its result as MCP output. It lives under `operation/`.
+_Avoid_: handler, tool function
