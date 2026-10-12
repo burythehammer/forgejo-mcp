@@ -22,6 +22,12 @@ import (
 // across every issue-domain resource.
 const resourceTimeFormat = "2006-01-02T15:04:05Z07:00"
 
+// issueResourceURI is the forgejo:// URI of an issue. The tool path names it as
+// the subject of the resource error mapping that both paths share until #11.
+func issueResourceURI(owner, repo string, index int64) string {
+	return fmt.Sprintf("forgejo://repo/%s/%s/issue/%d", owner, repo, index)
+}
+
 // mapErr maps a port failure to the resource error, carrying the HTTP status
 // into the message when Forgejo answered with one.
 func mapErr(uri string, err error) error {

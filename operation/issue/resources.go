@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"strconv"
 
+	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/issueadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -161,46 +162,35 @@ func (h handlers) issueResourceHandler(ctx context.Context, req mcp.ReadResource
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	fg, err := h.forge.For(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	iss, err := fg.GetIssue(ctx, params.Owner, params.Repo, params.Index)
+	// The read use case fetches the issue with its first EmbeddedListCap
+	// comments, and one more so that a thread over the cap is visible.
+	read, err := apppissue.New(issueadapter.New(port)).Read(ctx,
+		apppissue.Target{Owner: params.Owner, Repo: params.Repo, Index: params.Index},
+		apppissue.ReadOptions{CommentCap: resource.EmbeddedListCap},
+	)
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
+	iss := read.Issue
 
-	// Request EmbeddedListCap+1 items so resource.Bounded can distinguish
-	// "exactly at cap" from "over cap" and surface the truncated sentinel.
-	// Forgejo's server default page size equals EmbeddedListCap (30), so
-	// leaving PageSize at zero silently caps responses at the cap and the
-	// >cap check in Bounded never fires.
-	comments, _, _ := fg.ListIssueComments(ctx, params.Owner, params.Repo, params.Index, forgejo_sdk.ListIssueCommentOptions{
-		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
-	})
-
-	items := make([]string, len(comments))
-	refs := make([]commentRef, len(comments))
-	for i, c := range comments {
+	// Comment bodies are excerpted here. The comment-thread resource carries full bodies.
+	refs := make([]commentRef, len(read.Comments))
+	for i, c := range read.Comments {
 		author := ""
 		if c.Poster != nil {
 			author = c.Poster.UserName
 		}
-		excerpt := resource.Excerpt(c.Body, 200)
 		refs[i] = commentRef{
 			ID:          c.ID,
 			Author:      author,
-			CreatedAt:   c.Created.Format("2006-01-02T15:04:05Z07:00"),
-			BodyExcerpt: excerpt,
+			CreatedAt:   c.Created.Format(resourceTimeFormat),
+			BodyExcerpt: resource.Excerpt(c.Body, 200),
 		}
-		items[i] = fmt.Sprintf("%d", c.ID)
-	}
-
-	bounded := resource.Bounded(items, resource.EmbeddedListCap, "list_issue_comments")
-	boundedRefs := refs
-	if bounded.Truncated {
-		boundedRefs = refs[:resource.EmbeddedListCap]
 	}
 
 	labels := make([]string, 0, len(iss.Labels))
@@ -222,11 +212,11 @@ func (h handlers) issueResourceHandler(ctx context.Context, req mcp.ReadResource
 	}
 	closedAt := ""
 	if iss.Closed != nil {
-		closedAt = iss.Closed.Format("2006-01-02T15:04:05Z07:00")
+		closedAt = iss.Closed.Format(resourceTimeFormat)
 	}
 	dueDate := ""
 	if iss.Deadline != nil {
-		dueDate = iss.Deadline.Format("2006-01-02T15:04:05Z07:00")
+		dueDate = iss.Deadline.Format(resourceTimeFormat)
 	}
 
 	payload := issueResourcePayload{
@@ -234,10 +224,10 @@ func (h handlers) issueResourceHandler(ctx context.Context, req mcp.ReadResource
 		Repo:           params.Repo,
 		Index:          params.Index,
 		Title:          iss.Title,
-		State:          string(iss.State),
+		State:          iss.State,
 		Author:         author,
-		CreatedAt:      iss.Created.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:      iss.Updated.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:      iss.Created.Format(resourceTimeFormat),
+		UpdatedAt:      iss.Updated.Format(resourceTimeFormat),
 		ClosedAt:       closedAt,
 		DueDate:        dueDate,
 		Ref:            iss.Ref,
@@ -245,11 +235,11 @@ func (h handlers) issueResourceHandler(ctx context.Context, req mcp.ReadResource
 		Assignees:      assignees,
 		Milestone:      milestone,
 		CommentCount:   iss.Comments,
-		RecentComments: boundedRefs,
-		Truncated:      bounded.Truncated,
+		RecentComments: refs,
+		Truncated:      read.CommentsTruncated,
 	}
-	if bounded.Truncated {
-		payload.ListTool = "list_issue_comments"
+	if read.CommentsTruncated {
+		payload.ListTool = ListIssueCommentsToolName
 	}
 
 	jsonBytes, err := json.Marshal(payload)
