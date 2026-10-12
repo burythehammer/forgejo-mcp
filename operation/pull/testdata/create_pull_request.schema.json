@@ -31,6 +31,10 @@
       "title": {
         "description": "Title",
         "type": "string"
+      },
+      "verbose": {
+        "description": "Return the full entity instead of the compact summary (number, url, title, state, labels, assignees, updated_at). Default false.",
+        "type": "boolean"
       }
     },
     "required": [

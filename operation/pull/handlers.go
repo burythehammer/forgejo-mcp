@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apppull "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/pull"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/compact"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
@@ -42,12 +43,13 @@ type listArgs struct {
 }
 
 type createArgs struct {
-	Owner string `json:"owner" required:"true"`
-	Repo  string `json:"repo" required:"true"`
-	Head  string `json:"head" required:"true"`
-	Base  string `json:"base" required:"true"`
-	Title string `json:"title" required:"true"`
-	Body  string `json:"body"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Head    string `json:"head" required:"true"`
+	Base    string `json:"base" required:"true"`
+	Title   string `json:"title" required:"true"`
+	Body    string `json:"body"`
+	Verbose bool   `json:"verbose"`
 }
 
 type updateArgs struct {
@@ -59,6 +61,7 @@ type updateArgs struct {
 	Base      string  `json:"base"`
 	Assignee  string  `json:"assignee"`
 	Milestone string  `json:"milestone"`
+	Verbose   bool    `json:"verbose"`
 }
 
 type pagedArgs struct {
@@ -171,16 +174,18 @@ func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) CreatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreatePullRequestFn", func(ctx context.Context, s *apppull.Service, a createArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Create(ctx, apppull.CreateRequest{Owner: a.Owner, Repo: a.Repo, Head: a.Head, Base: a.Base, Title: a.Title, Body: a.Body}))
+		pr, err := s.Create(ctx, apppull.CreateRequest{Owner: a.Owner, Repo: a.Repo, Head: a.Head, Base: a.Base, Title: a.Title, Body: a.Body})
+		return compact.RenderPullRequest(pr, err, a.Verbose)
 	})
 }
 
 func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdatePullRequestFn", func(ctx context.Context, s *apppull.Service, a updateArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Update(ctx, apppull.UpdateInput{
+		pr, err := s.Update(ctx, apppull.UpdateInput{
 			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
 			Title: a.Title, Body: a.Body, Base: a.Base, Assignee: a.Assignee, Milestone: a.Milestone,
-		}))
+		})
+		return compact.RenderPullRequest(pr, err, a.Verbose)
 	})
 }
 
