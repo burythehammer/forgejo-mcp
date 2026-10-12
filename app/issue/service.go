@@ -78,15 +78,6 @@ type RepoLabelsInput struct {
 	Paging
 }
 
-// Get returns one issue.
-func (s *Service) Get(ctx context.Context, t Target) (*model.Issue, error) {
-	issue, err := s.port.GetIssue(ctx, t.Owner, t.Repo, t.Index)
-	if err != nil {
-		return nil, fmt.Errorf("get issue err: %w", err)
-	}
-	return issue, nil
-}
-
 // List returns a repository's issues. The owner and repository are required,
 // and sort, when given, must be one of Forgejo's sort orders.
 func (s *Service) List(ctx context.Context, in ListInput) ([]*model.Issue, error) {

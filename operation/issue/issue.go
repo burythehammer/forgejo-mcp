@@ -388,7 +388,11 @@ func target(a issueRefArgs) apppissue.Target {
 
 func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetIssueByIndexFn", func(ctx context.Context, s *apppissue.Service, a getIssueArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Get(ctx, target(a)))
+		read, err := s.Read(ctx, target(a), apppissue.ReadOptions{})
+		if err != nil {
+			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, int64(a.Index)), err)
+		}
+		return mcpresult.Render(read.Issue, nil)
 	})
 }
 

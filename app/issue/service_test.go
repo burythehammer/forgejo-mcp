@@ -196,9 +196,9 @@ func TestUpdateIssue_UnknownLabelLeavesTheIssueUntouched(t *testing.T) {
 	if !strings.Contains(errText(err), `unknown label "nope"`) {
 		t.Fatalf("error = %q", errText(err))
 	}
-	now, err := s.Get(ctx, target(iss.Index))
-	if err != nil || now.Title != "original" {
-		t.Fatalf("title = %q (err %v), want it unchanged", now.Title, err)
+	read, err := s.Read(ctx, target(iss.Index), apppissue.ReadOptions{})
+	if err != nil || read.Issue.Title != "original" {
+		t.Fatalf("read = %+v (err %v), want the title unchanged", read.Issue, err)
 	}
 }
 
@@ -223,8 +223,8 @@ func TestUpdateIssue_ArgumentErrorsComeBeforeAnyWrite(t *testing.T) {
 			t.Errorf("error = %q, want it to contain %q", errText(err), c.want)
 		}
 	}
-	if now, _ := s.Get(ctx, target(iss.Index)); now.Title != "original" {
-		t.Fatalf("title = %q, want the original", now.Title)
+	if read, _ := s.Read(ctx, target(iss.Index), apppissue.ReadOptions{}); read.Issue.Title != "original" {
+		t.Fatalf("title = %q, want the original", read.Issue.Title)
 	}
 }
 
