@@ -1,3 +1,3 @@
-ERROR: list repo labels err: boom
+ERROR: resource "forgejo://repo/octo/hello/labels": internal error: list repo labels err: boom (code -32603)
 -- port calls --
 ListRepoLabels ["octo","hello",{"Page":1,"PageSize":100}]

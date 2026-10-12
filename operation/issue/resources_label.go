@@ -9,11 +9,13 @@ import (
 	"net/url"
 	"strconv"
 
+	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/issueadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -79,6 +81,11 @@ type labelResourcePayload struct {
 	URL         string `json:"url"`
 }
 
+// labelPayloadOf is the resource's flattened encoding of one label.
+func labelPayloadOf(l model.Label) labelResourcePayload {
+	return labelResourcePayload{ID: l.ID, Name: l.Name, Color: l.Color, Description: l.Description, URL: l.URL}
+}
+
 func (h handlers) repoLabelResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	p, err := resource.ParseLabel(uri)
@@ -91,20 +98,12 @@ func (h handlers) repoLabelResourceHandler(ctx context.Context, req mcp.ReadReso
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	label, err := fg.GetRepoLabel(ctx, p.Owner, p.Repo, p.ID)
+	label, err := apppissue.New(issueadapter.New(fg)).GetRepoLabel(ctx, p.Owner, p.Repo, p.ID)
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
 
-	payload := labelResourcePayload{
-		ID:          label.ID,
-		Name:        label.Name,
-		Color:       label.Color,
-		Description: label.Description,
-		URL:         label.URL,
-	}
-
-	jsonBytes, err := json.Marshal(payload)
+	jsonBytes, err := json.Marshal(labelPayloadOf(*label))
 	if err != nil {
 		return nil, fmt.Errorf("marshal label payload: %w", err)
 	}
@@ -139,40 +138,25 @@ func (h handlers) repoLabelsResourceHandler(ctx context.Context, req mcp.ReadRes
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	// PageSize MUST equal the caller's limit. Upstream computes the offset as
-	// (page-1)*PageSize, so requesting limit+1 rows as a truncation probe while
-	// showing only limit of them makes page N+1 start one row past the last row
-	// page N showed — and that row is returned by no page the client can ask
-	// for. The probe and the page cannot share PageSize. "More exists" comes
-	// from the response's Link header instead.
-	rawLabels, info, err := fg.ListRepoLabels(ctx, p.Owner, p.Repo, forgejo_sdk.ListLabelsOptions{
-		ListOptions: forgejo_sdk.ListOptions{Page: page, PageSize: limit},
+	// The read asks for exactly limit rows and takes "more exists" from the
+	// server, never from a limit+1 probe: see the paging note on
+	// app/issue.ReadRepoLabels. The organization's labels are not part of
+	// this resource; list_repo_labels merges them by default.
+	list, err := apppissue.New(issueadapter.New(fg)).ReadRepoLabels(ctx, apppissue.RepoLabelsInput{
+		Owner: p.Owner, Repo: p.Repo, Paging: apppissue.Paging{Page: page, Limit: limit},
 	})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
 
-	items := make([]string, len(rawLabels))
-	for i, l := range rawLabels {
-		items[i] = strconv.FormatInt(l.ID, 10)
-	}
-	bounded := resource.Bounded(items, limit, ListRepoLabelsToolName)
-	if info.HasNext {
-		bounded = bounded.WithMoreRemaining(info.TotalCount)
+	bounded := resource.Bounded(labelIDs(list.Labels), limit, ListRepoLabelsToolName)
+	if list.More {
+		bounded = bounded.WithMoreRemaining(knownTotal(list.Total))
 	}
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
-	for _, l := range rawLabels {
-		if len(labels) >= len(bounded.Items) {
-			break
-		}
-		labels = append(labels, labelResourcePayload{
-			ID:          l.ID,
-			Name:        l.Name,
-			Color:       l.Color,
-			Description: l.Description,
-			URL:         l.URL,
-		})
+	for _, l := range list.Labels[:len(bounded.Items)] {
+		labels = append(labels, labelPayloadOf(l.Label))
 	}
 
 	payload := labelsListPayload{
@@ -215,38 +199,23 @@ func (h handlers) orgLabelsResourceHandler(ctx context.Context, req mcp.ReadReso
 
 	page, limit := pageLimit(req)
 
-	// PageSize == limit, for the paging reason spelled out in
-	// repoLabelsResourceHandler above.
 	fg, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
-	rawLabels, info, err := listOrgLabels(ctx, fg, p.Org, page, limit)
+	list, err := apppissue.New(issueadapter.New(fg)).ReadOrgLabels(ctx, p.Org, apppissue.Paging{Page: page, Limit: limit})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
 
-	items := make([]string, len(rawLabels))
-	for i, l := range rawLabels {
-		items[i] = strconv.FormatInt(l.ID, 10)
-	}
-	bounded := resource.Bounded(items, limit, ListOrgLabelsToolName)
-	if info.HasNext {
-		bounded = bounded.WithMoreRemaining(info.TotalCount)
+	bounded := resource.Bounded(labelIDs(list.Labels), limit, ListOrgLabelsToolName)
+	if list.More {
+		bounded = bounded.WithMoreRemaining(knownTotal(list.Total))
 	}
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
-	for _, l := range rawLabels {
-		if len(labels) >= len(bounded.Items) {
-			break
-		}
-		labels = append(labels, labelResourcePayload{
-			ID:          l.ID,
-			Name:        l.Name,
-			Color:       l.Color,
-			Description: l.Description,
-			URL:         l.URL,
-		})
+	for _, l := range list.Labels[:len(bounded.Items)] {
+		labels = append(labels, labelPayloadOf(l.Label))
 	}
 
 	payload := orgLabelsListPayload{
@@ -267,6 +236,24 @@ func (h handlers) orgLabelsResourceHandler(ctx context.Context, req mcp.ReadReso
 	return []mcp.ResourceContents{
 		mcp.TextResourceContents{URI: uri, MIMEType: "application/json", Text: string(jsonBytes)},
 	}, nil
+}
+
+// labelIDs names each label by its ID, the items the bound counts.
+func labelIDs(labels []model.ScopedLabel) []string {
+	out := make([]string, len(labels))
+	for i, l := range labels {
+		out[i] = strconv.FormatInt(l.ID, 10)
+	}
+	return out
+}
+
+// knownTotal is the server's total when it reported one, and zero otherwise,
+// which WithMoreRemaining reads as "total unknown".
+func knownTotal(t apppissue.Total) int {
+	if !t.Known {
+		return 0
+	}
+	return t.Count
 }
 
 // pageLimit extracts page and limit from resource URI query params with
