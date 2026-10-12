@@ -124,9 +124,11 @@ func pageOf(p *float64) int {
 	return int(*p)
 }
 
+// limitOf passes an absent limit on as 0: the use case applies the default,
+// lowered to the instance ceiling.
 func limitOf(l *float64) int {
 	if l == nil {
-		return 100
+		return 0
 	}
 	return int(*l)
 }

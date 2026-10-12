@@ -26,12 +26,18 @@ import (
 type Source interface {
 	forge.RepoAdmin
 	forge.RepoFiles
+	forge.Ceilings
 }
 
 // New returns the use cases' port over s.
 func New(s Source) apprepo.AdminPort { return adapter{s: s} }
 
 type adapter struct{ s Source }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.s.MaxResponseItems(ctx)
+}
 
 var _ apprepo.AdminPort = adapter{}
 

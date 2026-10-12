@@ -55,9 +55,8 @@ func paging(page, limit float64) appsearch.Paging {
 	if page == 0 {
 		page = 1
 	}
-	if limit == 0 {
-		limit = 100
-	}
+	// An absent limit is passed on as 0: the use case applies the default,
+	// lowered to the instance ceiling.
 	return appsearch.Paging{Page: int(page), Limit: int(limit)}
 }
 

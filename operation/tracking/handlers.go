@@ -77,11 +77,10 @@ type noArgs struct{}
 // paging applies the tools' defaults to the page and limit arguments: zero
 // means the default, and a fractional number is truncated.
 func paging(page, limit float64) (int, int) {
+	// An absent limit is 0: the use case applies the default, lowered to the
+	// instance ceiling.
 	if page == 0 {
 		page = 1
-	}
-	if limit == 0 {
-		limit = 20
 	}
 	return int(page), int(limit)
 }

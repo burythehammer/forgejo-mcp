@@ -21,9 +21,21 @@ import (
 )
 
 // New returns the use cases' port over t.
-func New(t forge.Tracking) apptracking.Port { return adapter{t: t} }
+// Source is the part of the Forgejo port the tracking domain uses: its tracking
+// methods and the instance's pagination ceiling.
+type Source interface {
+	forge.Tracking
+	forge.Ceilings
+}
 
-type adapter struct{ t forge.Tracking }
+func New(t Source) apptracking.Port { return adapter{t: t} }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.t.MaxResponseItems(ctx)
+}
+
+type adapter struct{ t Source }
 
 var _ apptracking.Port = adapter{}
 

@@ -51,6 +51,6 @@ func (h handlers) ListRepoCommitsFn(ctx context.Context, req mcp.CallToolRequest
 	}
 	return gitText(svc.ListCommits(ctx, a.Owner, a.Repo, apprepo.ListCommitsInput{
 		Path: a.Path, SHA: a.SHA,
-		Page: apprepo.GitPage{Page: int(orDefault(a.Page, 1)), Limit: int(orDefault(a.Limit, 100))},
+		Page: apprepo.GitPage{Page: int(orDefault(a.Page, 1)), Limit: int(a.Limit)},
 	}))
 }

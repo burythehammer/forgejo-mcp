@@ -301,3 +301,7 @@ func TestAdminGolden(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling: the repository admin goldens pin
+// the paging contract without a ceiling, as they always have.
+func (s *stubAdmin) MaxResponseItems(context.Context) (int, bool) { return 0, false }

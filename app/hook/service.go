@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
@@ -55,28 +56,38 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.HookListResult
 	if r.Owner == "" || r.Repo == "" {
 		return model.HookListResult{}, fmt.Errorf("owner and repo are required")
 	}
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
 	page := r.Page
 	if page == 0 {
 		page = 1
 	}
 	limit := r.Limit
 	if limit == 0 {
-		limit = 30
+		limit = float64(list.DefaultLimit(30, c))
 	}
-	p := Paging{Page: int(page), Limit: int(limit)}
-	list, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, p)
+	p := list.Paging{Page: int(page), Limit: int(limit)}
+	var total *int
+	hooks, err := list.Items(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.Hook], error) {
+		got, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
+		if err != nil {
+			return list.Batch[*model.Hook]{}, fmt.Errorf("list repo hooks: %w", err)
+		}
+		total = got.TotalCount
+		return list.Batch[*model.Hook]{Items: got.Hooks}, nil
+	})
 	if err != nil {
-		return model.HookListResult{}, fmt.Errorf("list repo hooks: %w", err)
+		return model.HookListResult{}, err
 	}
-	payloads := make([]model.HookPayload, len(list.Hooks))
-	for i, hk := range list.Hooks {
+	payloads := make([]model.HookPayload, len(hooks))
+	for i, hk := range hooks {
 		payloads[i] = model.SafeHook(hk)
 	}
 	return model.HookListResult{
 		Page:       p.Page,
 		Limit:      p.Limit,
 		Count:      len(payloads),
-		TotalCount: list.TotalCount,
+		TotalCount: total,
 		Hooks:      payloads,
 	}, nil
 }

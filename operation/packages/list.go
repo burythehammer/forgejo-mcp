@@ -53,14 +53,15 @@ func (h handlers) ListPackagesFn(ctx context.Context, req mcp.CallToolRequest) (
 	}))
 }
 
-// pageAndLimit reads the paging arguments as the tools always have: page
-// defaults to 1 and limit to 30, and each must be a whole number in range.
+// pageAndLimit reads the paging arguments. An absent limit is 0, which the use
+// case replaces with the default lowered to the instance ceiling; page
+// defaults to 1. A given value must be a whole number in range.
 func pageAndLimit(page, limit decode.Arg) (int, int, error) {
 	p, err := page.Int("page", 1, 1, math.MaxInt32)
 	if err != nil {
 		return 0, 0, err
 	}
-	l, err := limit.Int("limit", defaultPackagesLimit, 1, maxPackagesLimit)
+	l, err := limit.Int("limit", 0, 1, maxPackagesLimit)
 	if err != nil {
 		return 0, 0, err
 	}

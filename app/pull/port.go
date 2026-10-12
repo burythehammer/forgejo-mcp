@@ -18,6 +18,9 @@ import (
 // so over the in-memory fake in tests and the real adapter in production).
 // Failures from Forgejo come back as ordinary errors for the use case to wrap.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	GetPullRequest(ctx context.Context, owner, repo string, index int64) (*model.PullRequest, error)
 	ListPullRequests(ctx context.Context, owner, repo string, q ListQuery) ([]*model.PullRequest, error)
 	CreatePullRequest(ctx context.Context, owner, repo string, in CreateInput) (*model.PullRequest, error)

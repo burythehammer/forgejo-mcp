@@ -77,7 +77,7 @@ func (h handlers) ListActionRunArtifactsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntArg(a.Limit, "limit", defaultActionArtifactsLimit, 1, maxActionArtifactsLimit)
+	limit, err := boundedIntArg(a.Limit, "limit", 0, 1, maxActionArtifactsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

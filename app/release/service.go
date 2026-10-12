@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -26,16 +27,28 @@ type ListQuery struct {
 // ListReleases returns one page of releases, filtered by state after Forgejo
 // has paged them. The result is never nil.
 func (s *Service) ListReleases(ctx context.Context, owner, repo string, q ListQuery) ([]*model.Release, error) {
-	rels, err := s.p.ListReleases(ctx, owner, repo, q.Paging)
+	ceiling, known := s.p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	rels, err := list.Items(ctx, list.Normalize(list.Paging(q.Paging), list.DefaultLimit(defaultLimit, c)), c,
+		func(ctx context.Context, p list.Paging) (list.Batch[*model.Release], error) {
+			got, err := s.p.ListReleases(ctx, owner, repo, Paging(p))
+			if err != nil {
+				return list.Batch[*model.Release]{}, fmt.Errorf("list releases err: %w", err)
+			}
+			// The state filter applies to the page Forgejo returned, as it always has.
+			return list.Batch[*model.Release]{Items: filterByState(got, q.State)}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list releases err: %w", err)
+		return nil, err
 	}
-	filtered := filterByState(rels, q.State)
-	if filtered == nil {
-		filtered = []*model.Release{}
+	if rels == nil {
+		rels = []*model.Release{}
 	}
-	return filtered, nil
+	return rels, nil
 }
+
+// defaultLimit is the page size a release list uses when the caller gives none.
+const defaultLimit = 20
 
 func filterByState(rels []*model.Release, state string) []*model.Release {
 	if state == "" || state == StateAll {
@@ -133,20 +146,28 @@ func (s *Service) DeleteReleaseByTag(ctx context.Context, owner, repo, tag strin
 // ListAttachments returns one page of a release's assets. Forgejo does not
 // page this endpoint, so the page is cut here.
 func (s *Service) ListAttachments(ctx context.Context, owner, repo string, releaseID int64, p Paging) ([]*model.Attachment, error) {
-	all, err := s.p.ListAttachments(ctx, owner, repo, releaseID)
+	ceiling, known := s.p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	out, err := list.Items(ctx, list.Normalize(list.Paging(p), list.DefaultLimit(defaultLimit, c)), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.Attachment], error) {
+			all, err := s.p.ListAttachments(ctx, owner, repo, releaseID)
+			if err != nil {
+				return list.Batch[*model.Attachment]{}, fmt.Errorf("list release attachments err: %w", err)
+			}
+			// Forgejo does not page the attachment list, so the window is cut here.
+			return list.Batch[*model.Attachment]{Items: slice(all, q.Page, q.Limit)}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list release attachments err: %w", err)
+		return nil, err
 	}
-	return slice(all, p.Page, p.Limit), nil
+	if out == nil {
+		out = []*model.Attachment{}
+	}
+	return out, nil
 }
 
+// slice is the window of page and limit over all, empty past its end.
 func slice(all []*model.Attachment, page, limit int) []*model.Attachment {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 20
-	}
 	offset := (page - 1) * limit
 	if offset >= len(all) {
 		return []*model.Attachment{}

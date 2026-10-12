@@ -194,3 +194,6 @@ func (u *uploadPort) CreateAttachment(_ context.Context, _, _ string, _ int64, u
 	*u.seen = up
 	return model.Attachment{}, nil
 }
+
+// MaxResponseItems reports an unknown ceiling for the test double.
+func (*stubPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -54,11 +55,13 @@ func (s *Service) Notifications(ctx context.Context, in NotificationsInput) ([]*
 	if err != nil {
 		return nil, err
 	}
-	threads, err := p.ListNotifications(ctx, q)
-	if err != nil {
-		return nil, fmt.Errorf("list notifications err: %w", err)
-	}
-	return threads, nil
+	return listWindow(ctx, p, q, func(ctx context.Context, q NotificationQuery) ([]*model.NotificationThread, error) {
+		threads, err := p.ListNotifications(ctx, q)
+		if err != nil {
+			return nil, fmt.Errorf("list notifications err: %w", err)
+		}
+		return threads, nil
+	})
 }
 
 // RepoNotifications lists the notifications of one repository.
@@ -71,11 +74,29 @@ func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInp
 	if err != nil {
 		return nil, err
 	}
-	threads, err := p.ListRepoNotifications(ctx, in.Owner, in.Repo, q)
-	if err != nil {
-		return nil, fmt.Errorf("list repo notifications err: %w", err)
-	}
-	return threads, nil
+	return listWindow(ctx, p, q, func(ctx context.Context, q NotificationQuery) ([]*model.NotificationThread, error) {
+		threads, err := p.ListRepoNotifications(ctx, in.Owner, in.Repo, q)
+		if err != nil {
+			return nil, fmt.Errorf("list repo notifications err: %w", err)
+		}
+		return threads, nil
+	})
+}
+
+// listWindow reads one page of a notification list through the list module, so
+// the instance ceiling applies and a default limit is lowered to it. The
+// notification list has no continuation marker, so no probe is made.
+func listWindow(ctx context.Context, p Port, q NotificationQuery,
+	fetch func(context.Context, NotificationQuery) ([]*model.NotificationThread, error),
+) ([]*model.NotificationThread, error) {
+	ceiling, known := p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	return list.Items(ctx, list.Normalize(list.Paging{Page: q.Page, Limit: q.Limit}, list.DefaultLimit(20, c)), c,
+		func(ctx context.Context, lp list.Paging) (list.Batch[*model.NotificationThread], error) {
+			q.Page, q.Limit = lp.Page, lp.Limit
+			threads, err := fetch(ctx, q)
+			return list.Batch[*model.NotificationThread]{Items: threads}, err
+		})
 }
 
 // Thread returns one notification thread.

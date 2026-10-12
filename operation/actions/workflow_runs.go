@@ -85,7 +85,7 @@ func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolReques
 	if p, ok := number(a.Page); ok {
 		page = int(p)
 	}
-	limit := 30
+	limit := 0
 	if l, ok := number(a.Limit); ok {
 		limit = int(l)
 	}

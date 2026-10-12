@@ -18,6 +18,9 @@ import (
 // types. pkg/forge/packagesadapter implements it over forge.Packages. Failures
 // from Forgejo come back as ordinary errors for the use case to wrap.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListPackages(ctx context.Context, owner string, q ListQuery) (model.PackageList, error)
 	GetPackage(ctx context.Context, owner, packageType, name, version string) (*model.PackageVersion, error)
 	DeletePackage(ctx context.Context, owner, packageType, name, version string) error

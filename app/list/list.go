@@ -36,6 +36,26 @@ type Ceiling struct {
 	Known bool
 }
 
+// Given is the paging a list fetches with when the page is passed on exactly as
+// the caller gave it: some tools pin page 0 reaching the server, so the page is
+// not normalized here. A limit below 1 takes def, lowered to a known ceiling.
+func Given(p Paging, def int, c Ceiling) Paging {
+	if p.Limit < 1 {
+		p.Limit = DefaultLimit(def, c)
+	}
+	return p
+}
+
+// DefaultLimit is a tool's default limit, lowered to a known ceiling when the
+// default is larger. A default is never refused by the ceiling: only a limit
+// the caller asked for is.
+func DefaultLimit(def int, c Ceiling) int {
+	if c.Known && def > c.Max {
+		return c.Max
+	}
+	return def
+}
+
 // OverCeilingError reports a limit above a known ceiling. The request is
 // refused rather than clamped, so the caller never receives fewer items than
 // it asked for without being told.

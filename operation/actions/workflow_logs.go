@@ -85,7 +85,7 @@ func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolReque
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntArg(a.Limit, "limit", defaultActionJobsLimit, 1, maxActionJobsLimit)
+	limit, err := boundedIntArg(a.Limit, "limit", 0, 1, maxActionJobsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

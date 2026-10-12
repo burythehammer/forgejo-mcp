@@ -20,9 +20,21 @@ import (
 )
 
 // New returns the use cases' port over o.
-func New(o forge.Orgs) apporg.Port { return adapter{o: o} }
+// Source is the part of the Forgejo port the organization domain uses: its org
+// methods and the instance's pagination ceiling.
+type Source interface {
+	forge.Orgs
+	forge.Ceilings
+}
 
-type adapter struct{ o forge.Orgs }
+func New(o Source) apporg.Port { return adapter{o: o} }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.o.MaxResponseItems(ctx)
+}
+
+type adapter struct{ o Source }
 
 var _ apporg.Port = adapter{}
 

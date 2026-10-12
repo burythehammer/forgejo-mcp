@@ -117,12 +117,8 @@ type repoMarkArgs struct {
 
 // paging applies the tools' defaults to the page and limit arguments.
 func paging(page, limit float64) (int, int) {
-	if page == 0 {
-		page = 1
-	}
-	if limit == 0 {
-		limit = 20
-	}
+	// An absent page or limit is passed on as 0: the use case applies the
+	// defaults, lowering the default limit to the instance ceiling.
 	return int(page), int(limit)
 }
 

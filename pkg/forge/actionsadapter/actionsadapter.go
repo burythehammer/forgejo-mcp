@@ -19,9 +19,21 @@ import (
 )
 
 // New returns the use cases' port over p.
-func New(p forge.Actions) actions.Port { return adapter{p: p} }
+// Source is the part of the Forgejo port the actions domain uses: its actions
+// methods and the instance's pagination ceiling.
+type Source interface {
+	forge.Actions
+	forge.Ceilings
+}
 
-type adapter struct{ p forge.Actions }
+func New(p Source) actions.Port { return adapter{p: p} }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.p.MaxResponseItems(ctx)
+}
+
+type adapter struct{ p Source }
 
 var _ actions.Port = adapter{}
 

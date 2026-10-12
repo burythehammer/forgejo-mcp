@@ -20,9 +20,21 @@ import (
 )
 
 // New returns the use cases' port over s.
-func New(s forge.Search) appsearch.Port { return adapter{s: s} }
+// Source is the part of the Forgejo port the search domain uses: its search
+// methods and the instance's pagination ceiling.
+type Source interface {
+	forge.Search
+	forge.Ceilings
+}
 
-type adapter struct{ s forge.Search }
+func New(s Source) appsearch.Port { return adapter{s: s} }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.s.MaxResponseItems(ctx)
+}
+
+type adapter struct{ s Source }
 
 var _ appsearch.Port = adapter{}
 

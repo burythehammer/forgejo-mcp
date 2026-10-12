@@ -225,3 +225,7 @@ func TestGolden(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling: the tracked-time goldens pin the
+// paging contract without a ceiling, as they always have.
+func (s *stubTracking) MaxResponseItems(context.Context) (int, bool) { return 0, false }

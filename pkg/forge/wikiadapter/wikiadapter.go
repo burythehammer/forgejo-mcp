@@ -14,10 +14,23 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 )
 
-// New returns the use cases' port over p.
-func New(p forge.Wiki) appwiki.Port { return adapter{p: p} }
+// Source is the part of the Forgejo port the wiki domain uses: its wiki methods
+// and the instance's pagination ceiling. *fake.Forgejo and the composed Forgejo
+// port both satisfy it.
+type Source interface {
+	forge.Wiki
+	forge.Ceilings
+}
 
-type adapter struct{ p forge.Wiki }
+// New returns the use cases' port over p.
+func New(p Source) appwiki.Port { return adapter{p: p} }
+
+type adapter struct{ p Source }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.p.MaxResponseItems(ctx)
+}
 
 var _ appwiki.Port = adapter{}
 

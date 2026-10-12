@@ -191,3 +191,6 @@ func TestFailuresAreWrapped(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling for the test double.
+func (*stubPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }

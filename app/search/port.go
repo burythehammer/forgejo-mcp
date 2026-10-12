@@ -16,6 +16,9 @@ import (
 // Port is the search domain as the use cases need it, in repo-owned types.
 // pkg/forge/searchadapter implements it over forge.Search.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	SearchUsers(ctx context.Context, q UserQuery) ([]*model.User, error)
 	SearchOrgTeams(ctx context.Context, org string, q TeamQuery) ([]*model.Team, error)
 	SearchRepos(ctx context.Context, q RepoQuery) ([]*model.Repository, error)
