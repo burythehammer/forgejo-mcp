@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repogitadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -47,7 +49,7 @@ func (h handlers) commitResourceHandler(ctx context.Context, req mcp.ReadResourc
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	commit, err := port.GetCommit(ctx, params.Owner, params.Repo, params.SHA)
+	commit, err := apprepo.NewGitService(repogitadapter.New(port)).ReadCommit(ctx, params.Owner, params.Repo, params.SHA)
 	if err != nil {
 		if code := forge.StatusCode(err); code != 0 {
 			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))

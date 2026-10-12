@@ -24,6 +24,8 @@ type GitPort interface {
 	DeleteBranch(ctx context.Context, owner, repo, branch string) (bool, error)
 
 	ListCommits(ctx context.Context, owner, repo string, q ListCommitsInput) ([]*model.Commit, error)
+	// GetCommit returns one commit by its full SHA.
+	GetCommit(ctx context.Context, owner, repo, sha string) (*model.Commit, error)
 
 	ListContents(ctx context.Context, owner, repo, ref, path string) ([]*model.ContentsResponse, error)
 	GetTree(ctx context.Context, owner, repo, ref string, q TreeInput) (*model.GitTreeResponse, error)

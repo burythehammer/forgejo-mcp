@@ -6,37 +6,31 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repoadminadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 const statusResourceURITemplate = "forgejo://repo/{owner}/{repo}/commit/{sha}/status"
 
-// statusItem is the per-context CI status shared by the commit status
-// resource and get_commit_statuses.
-type statusItem struct {
-	Context     string `json:"context"`
-	State       string `json:"state"`
-	TargetURL   string `json:"target_url,omitempty"`
-	Description string `json:"description,omitempty"`
-	CreatedAt   string `json:"created_at,omitempty"`
-}
-
 // statusResourcePayload is the JSON body returned as the primary content block.
 type statusResourcePayload struct {
-	SHA        string       `json:"sha"`
-	State      string       `json:"state"`
-	TotalCount int          `json:"total_count"`
-	Statuses   []statusItem `json:"statuses"`
-	Truncated  bool         `json:"truncated,omitempty"`
-	ListTool   string       `json:"list_tool,omitempty"`
+	SHA   string `json:"sha"`
+	State string `json:"state"`
+	// TotalCount is the number of statuses the read fetched (at most the
+	// embedded cap plus one), not Forgejo's grand total. It is kept as it was
+	// shipped; get_commit_statuses carries the grand total.
+	TotalCount int                `json:"total_count"`
+	Statuses   []model.StatusItem `json:"statuses"`
+	Truncated  bool               `json:"truncated,omitempty"`
+	ListTool   string             `json:"list_tool,omitempty"`
 }
 
 // RegisterStatusResource registers the forgejo://repo/{owner}/{repo}/commit/{sha}/status
@@ -75,46 +69,34 @@ func (h handlers) statusResourceHandler(ctx context.Context, req mcp.ReadResourc
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	// Request EmbeddedListCap+1 items so resource.Bounded can distinguish
-	// "exactly at cap" from "over cap" and surface the truncated sentinel.
-	// Forgejo's server default page size equals EmbeddedListCap (30), so
-	// leaving PageSize at zero silently caps responses at the cap and the
-	// >cap check in Bounded never fires.
-	page, err := port.ListCommitStatuses(ctx, params.Owner, params.Repo, params.SHA, forgejo_sdk.ListStatusesOption{
-		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
-	})
+	// The first page, one row over the embedded cap, so that resource.Bounded can
+	// tell "exactly at cap" from "over cap". The read computes the aggregate
+	// state over the rows it fetched.
+	read, err := apprepo.NewAdmin(repoadminadapter.New(port)).ReadCommitStatuses(ctx, params.Owner, params.Repo, params.SHA, 1, resource.EmbeddedListCap+1)
 	if err != nil {
 		if code := forge.StatusCode(err); code != 0 {
 			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
 		}
 		return nil, resource.MapForgejoError(uri, err)
 	}
-	statuses := page.Statuses
+	statuses := read.Statuses
 
 	items := make([]string, 0, len(statuses))
-	itemData := make([]statusItem, 0, len(statuses))
 	for _, s := range statuses {
-		item, ok := toStatusItem(s)
-		if !ok {
-			continue
-		}
-		itemData = append(itemData, item)
-		items = append(items, item.State)
+		items = append(items, s.State)
 	}
 
 	bounded := resource.Bounded(items, resource.EmbeddedListCap, "get_commit_statuses")
 
-	boundedItems := itemData
+	boundedItems := statuses
 	if bounded.Truncated {
-		boundedItems = itemData[:resource.EmbeddedListCap]
+		boundedItems = statuses[:resource.EmbeddedListCap]
 	}
-
-	state := computeAggregateState(statuses)
 
 	payload := statusResourcePayload{
 		SHA:        params.SHA,
-		State:      state,
-		TotalCount: len(itemData),
+		State:      read.State,
+		TotalCount: len(statuses),
 		Statuses:   boundedItems,
 		Truncated:  bounded.Truncated,
 	}
@@ -134,55 +116,4 @@ func (h handlers) statusResourceHandler(ctx context.Context, req mcp.ReadResourc
 			Text:     string(jsonBytes),
 		},
 	}, nil
-}
-
-func toStatusItem(s *forgejo_sdk.Status) (statusItem, bool) {
-	if s == nil {
-		return statusItem{}, false
-	}
-	return statusItem{
-		Context:     s.Context,
-		State:       string(s.State),
-		TargetURL:   s.TargetURL,
-		Description: s.Description,
-		CreatedAt:   s.Created.Format(time.RFC3339),
-	}, true
-}
-
-func computeAggregateState(statuses []*forgejo_sdk.Status) string {
-	hasFailure := false
-	hasPending := false
-	allSuccess := true
-	seen := 0
-	for _, s := range statuses {
-		if s == nil {
-			continue
-		}
-		seen++
-		switch s.State {
-		case forgejo_sdk.StatusFailure, forgejo_sdk.StatusError:
-			hasFailure = true
-			allSuccess = false
-		case forgejo_sdk.StatusPending:
-			hasPending = true
-			allSuccess = false
-		case forgejo_sdk.StatusSuccess:
-			// counted by allSuccess default
-		default:
-			allSuccess = false
-		}
-	}
-	if seen == 0 {
-		return "unknown"
-	}
-	switch {
-	case hasFailure:
-		return "failure"
-	case hasPending:
-		return "pending"
-	case allSuccess:
-		return "success"
-	default:
-		return "unknown"
-	}
 }
