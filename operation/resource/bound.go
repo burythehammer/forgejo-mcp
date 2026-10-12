@@ -59,14 +59,21 @@ func (b BoundedResult) WithMoreRemaining(total int) BoundedResult {
 }
 
 // Sentinel returns a truncation marker string when the list was truncated, or empty string otherwise.
+// The pointer names ListTool only when it is a registered tool (see ToolRef).
 func (b BoundedResult) Sentinel() string {
 	if !b.Truncated {
 		return ""
 	}
+	var head string
 	if b.Total <= b.Cap {
 		// Truncation known, total not. Saying "N of N items shown" here would
 		// be worse than saying nothing about the total.
-		return fmt.Sprintf("[truncated: %d items shown, more remain. Use %s tool to fetch more.]", b.Cap, b.ListTool)
+		head = fmt.Sprintf("%d items shown, more remain", b.Cap)
+	} else {
+		head = fmt.Sprintf("%d of %d items shown", b.Cap, b.Total)
 	}
-	return fmt.Sprintf("[truncated: %d of %d items shown. Use %s tool to fetch more.]", b.Cap, b.Total, b.ListTool)
+	if ref := ToolRef(b.ListTool); ref != "" {
+		return fmt.Sprintf("[truncated: %s. Use %s tool to fetch more.]", head, ref)
+	}
+	return fmt.Sprintf("[truncated: %s.]", head)
 }

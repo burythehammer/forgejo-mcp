@@ -30,6 +30,9 @@ func (f *fakeGit) DeleteBranch(context.Context, string, string, string) (bool, e
 func (f *fakeGit) ListCommits(context.Context, string, string, ListCommitsInput) ([]*model.Commit, error) {
 	return nil, f.err
 }
+func (f *fakeGit) GetCommit(context.Context, string, string, string) (*model.Commit, error) {
+	return nil, f.err
+}
 func (f *fakeGit) ListContents(context.Context, string, string, string, string) ([]*model.ContentsResponse, error) {
 	return nil, f.err
 }

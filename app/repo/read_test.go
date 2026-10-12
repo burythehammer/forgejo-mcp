@@ -1,0 +1,171 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package repo_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repoadminadapter"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repogitadapter"
+)
+
+const (
+	readOwner = "octo"
+	readRepo  = "hello"
+	readSHA   = "a3f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9"
+)
+
+// topicsFail is an admin port whose topic listing fails. A read that does not
+// ask for topics must never list them.
+type topicsFail struct{ apprepo.AdminPort }
+
+func (topicsFail) ListRepoTopics(context.Context, string, string, apprepo.AdminPaging) ([]string, error) {
+	return nil, fmt.Errorf("topics boom")
+}
+
+func readFixture(t *testing.T) (*apprepo.AdminService, *fake.Forgejo) {
+	t.Helper()
+	f := fake.New()
+	f.AddRepo(readOwner, readRepo)
+	return apprepo.NewAdmin(repoadminadapter.New(f)), f
+}
+
+// seedCommit makes readSHA a known commit with the given message.
+func seedCommit(t *testing.T, f *fake.Forgejo, sha, message string) {
+	t.Helper()
+	if err := f.AddCommit(readOwner, readRepo, sha, message); err != nil {
+		t.Fatalf("seeding commit: %v", err)
+	}
+}
+
+func TestReadRepo_TopicsNotListedUnlessAsked(t *testing.T) {
+	t.Parallel()
+	_, f := readFixture(t)
+	s := apprepo.NewAdmin(topicsFail{repoadminadapter.New(f)})
+
+	read, err := s.ReadRepo(context.Background(), readOwner, readRepo, apprepo.RepoReadOptions{})
+	if err != nil {
+		t.Fatalf("ReadRepo: %v", err)
+	}
+	if read.Repo == nil || read.Repo.Name != readRepo {
+		t.Fatalf("repo = %+v", read.Repo)
+	}
+	if read.Topics != nil {
+		t.Fatalf("topics = %v, want none", read.Topics)
+	}
+}
+
+func TestReadRepo_TopicsWhenAsked(t *testing.T) {
+	t.Parallel()
+	s, f := readFixture(t)
+	if err := f.SetRepoTopics(context.Background(), readOwner, readRepo, []string{"go", "mcp"}); err != nil {
+		t.Fatal(err)
+	}
+
+	read, err := s.ReadRepo(context.Background(), readOwner, readRepo, apprepo.RepoReadOptions{Topics: true})
+	if err != nil {
+		t.Fatalf("ReadRepo: %v", err)
+	}
+	if len(read.Topics) != 2 || read.Topics[0] != "go" || read.Topics[1] != "mcp" {
+		t.Fatalf("topics = %v, want [go mcp]", read.Topics)
+	}
+}
+
+func TestReadRepo_MissingRepoIsAnError(t *testing.T) {
+	t.Parallel()
+	s, _ := readFixture(t)
+	if _, err := s.ReadRepo(context.Background(), readOwner, "nope", apprepo.RepoReadOptions{}); err == nil {
+		t.Fatal("want an error for a missing repository")
+	}
+}
+
+func TestReadCommitStatuses_AggregateState(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		states []string
+		want   string
+	}{
+		{"none is unknown", nil, "unknown"},
+		{"all success", []string{"success", "success"}, "success"},
+		{"pending beats success", []string{"success", "pending"}, "pending"},
+		{"failure beats pending", []string{"pending", "failure"}, "failure"},
+		{"error counts as failure", []string{"success", "error"}, "failure"},
+		{"warning is unknown", []string{"success", "warning"}, "unknown"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s, f := readFixture(t)
+			seedCommit(t, f, readSHA, "msg")
+			for i, st := range tc.states {
+				if err := f.AddCommitStatusState(readOwner, readRepo, readSHA, fmt.Sprint("ci/", i), st, "d"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			read, err := s.ReadCommitStatuses(context.Background(), readOwner, readRepo, readSHA, 1, 31)
+			if err != nil {
+				t.Fatalf("ReadCommitStatuses: %v", err)
+			}
+			if read.State != tc.want {
+				t.Fatalf("state = %q, want %q", read.State, tc.want)
+			}
+		})
+	}
+}
+
+func TestReadCommitStatuses_PageAndTotal(t *testing.T) {
+	t.Parallel()
+	s, f := readFixture(t)
+	seedCommit(t, f, readSHA, "msg")
+	for i := 0; i < 40; i++ {
+		if err := f.AddCommitStatusState(readOwner, readRepo, readSHA, fmt.Sprint("ci/", i), "success", "d"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	read, err := s.ReadCommitStatuses(context.Background(), readOwner, readRepo, readSHA, 1, 31)
+	if err != nil {
+		t.Fatalf("ReadCommitStatuses: %v", err)
+	}
+	if len(read.Statuses) != 31 {
+		t.Fatalf("statuses = %d, want the 31 asked for", len(read.Statuses))
+	}
+	if read.TotalCount == nil || *read.TotalCount != 40 {
+		t.Fatalf("total = %v, want 40 (the grand total, not the page)", read.TotalCount)
+	}
+	if read.SHA != readSHA || read.Page != 1 || read.Limit != 31 {
+		t.Fatalf("envelope = sha %q page %d limit %d", read.SHA, read.Page, read.Limit)
+	}
+}
+
+func TestReadCommit_ReturnsTheCommit(t *testing.T) {
+	t.Parallel()
+	_, f := readFixture(t)
+	seedCommit(t, f, readSHA, "fix: resolve race")
+	g := apprepo.NewGitService(repogitadapter.New(f))
+
+	c, err := g.ReadCommit(context.Background(), readOwner, readRepo, readSHA)
+	if err != nil {
+		t.Fatalf("ReadCommit: %v", err)
+	}
+	if c.SHA != readSHA {
+		t.Fatalf("sha = %q, want %q", c.SHA, readSHA)
+	}
+	if c.RepoCommit == nil || c.RepoCommit.Message != "fix: resolve race" {
+		t.Fatalf("commit = %+v, want the seeded message", c.RepoCommit)
+	}
+}
+
+func TestReadCommit_UnknownIsAnError(t *testing.T) {
+	t.Parallel()
+	_, f := readFixture(t)
+	g := apprepo.NewGitService(repogitadapter.New(f))
+	if _, err := g.ReadCommit(context.Background(), readOwner, readRepo, readSHA); err == nil {
+		t.Fatal("want an error for an unknown commit")
+	}
+}

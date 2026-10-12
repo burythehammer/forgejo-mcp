@@ -7,8 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repogitadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -35,6 +38,33 @@ func RegisterCommitResource(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered commit resource template")
 }
 
+// commitMessageCap bounds the commit message in both content blocks, so a
+// pathological message cannot fill the context (docs/design/output-bounding.md).
+const commitMessageCap = 16 * 1024
+
+// marshalBoundedCommit encodes a copy of c with its message capped at
+// commitMessageCap and its file list capped at resource.EmbeddedListCap. When
+// the list is cut, files_total and files_truncated are appended after the
+// commit's own keys, so a commit that fits encodes byte-for-byte as before.
+func marshalBoundedCommit(c *model.Commit) ([]byte, error) {
+	cp := *c
+	if cp.RepoCommit != nil {
+		rc := *cp.RepoCommit
+		rc.Message = resource.Excerpt(rc.Message, commitMessageCap)
+		cp.RepoCommit = &rc
+	}
+	truncated := len(cp.Files) > resource.EmbeddedListCap
+	total := len(cp.Files)
+	if truncated {
+		cp.Files = cp.Files[:resource.EmbeddedListCap]
+	}
+	b, err := json.Marshal(&cp)
+	if err != nil || !truncated {
+		return b, err
+	}
+	return append(b[:len(b)-1], fmt.Sprintf(`,"files_total":%d,"files_truncated":true}`, total)...), nil
+}
+
 func (h handlers) commitResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := req.Params.URI
 	params, err := resource.ParseCommit(uri)
@@ -47,7 +77,7 @@ func (h handlers) commitResourceHandler(ctx context.Context, req mcp.ReadResourc
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	commit, err := port.GetCommit(ctx, params.Owner, params.Repo, params.SHA)
+	commit, err := apprepo.NewGitService(repogitadapter.New(port)).ReadCommit(ctx, params.Owner, params.Repo, params.SHA)
 	if err != nil {
 		if code := forge.StatusCode(err); code != 0 {
 			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
@@ -55,7 +85,7 @@ func (h handlers) commitResourceHandler(ctx context.Context, req mcp.ReadResourc
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	jsonBytes, err := json.Marshal(commit)
+	jsonBytes, err := marshalBoundedCommit(commit)
 	if err != nil {
 		return nil, fmt.Errorf("marshal commit: %w", err)
 	}
@@ -69,10 +99,11 @@ func (h handlers) commitResourceHandler(ctx context.Context, req mcp.ReadResourc
 	}
 
 	if commit.RepoCommit != nil && commit.RepoCommit.Message != "" {
+		message := resource.Excerpt(commit.RepoCommit.Message, commitMessageCap)
 		contents = append(contents, mcp.TextResourceContents{
 			URI:      uri,
 			MIMEType: "text/markdown",
-			Text:     commit.RepoCommit.Message,
+			Text:     message,
 		})
 	}
 

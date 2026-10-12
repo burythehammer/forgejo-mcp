@@ -1,3 +1,3 @@
-ERROR: list org labels err: status
+ERROR: resource "forgejo://org/denied/labels": access denied: 403 list org labels err: status (code -32002)
 -- port calls --
 ListOrgLabels ["denied",1,100]

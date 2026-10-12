@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	appbp "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/branchprotection"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/branchprotectionadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -23,12 +25,16 @@ const (
 
 // bpCollectionPayload is the JSON body for the branch_protections collection resource.
 type bpCollectionPayload struct {
-	Owner             string                          `json:"owner"`
-	Repo              string                          `json:"repo"`
-	TotalCount        int                             `json:"total_count"`
-	BranchProtections []*forgejo_sdk.BranchProtection `json:"branch_protections"`
-	Truncated         bool                            `json:"truncated,omitempty"`
-	ListTool          string                          `json:"list_tool,omitempty"`
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+	// TotalCount is the number of rules embedded here, at most the cap. The
+	// listing does not report a repository total, so Truncated says whether
+	// there are more.
+	TotalCount        int                       `json:"total_count"`
+	BranchProtections []*model.BranchProtection `json:"branch_protections"`
+	Truncated         bool                      `json:"truncated,omitempty"`
+	ListTool          string                    `json:"list_tool,omitempty"`
+	Sentinel          string                    `json:"sentinel,omitempty"`
 }
 
 // RegisterResource registers the branch protection collection and single-rule
@@ -89,34 +95,23 @@ func (h handlers) branchProtectionsResourceHandler(ctx context.Context, req mcp.
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	// Request EmbeddedListCap+1 so Bounded can distinguish "at cap" from "over cap".
-	bps, err := port.ListBranchProtections(ctx, p.Owner, p.Repo, forgejo_sdk.ListBranchProtectionsOptions{
-		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
-	})
+	col, err := appbp.New(branchprotectionadapter.New(port)).ReadCollection(ctx, p.Owner, p.Repo, resource.EmbeddedListCap)
 	if err != nil {
 		return nil, mapErr(uri, err)
-	}
-
-	names := make([]string, len(bps))
-	for i, bp := range bps {
-		names[i] = bp.RuleName
-	}
-	bounded := resource.Bounded(names, resource.EmbeddedListCap, "list_branch_protections")
-
-	shown := bps
-	if bounded.Truncated {
-		shown = bps[:resource.EmbeddedListCap]
 	}
 
 	payload := bpCollectionPayload{
 		Owner:             p.Owner,
 		Repo:              p.Repo,
-		TotalCount:        len(bps),
-		BranchProtections: shown,
-		Truncated:         bounded.Truncated,
+		TotalCount:        len(col.Rules),
+		BranchProtections: col.Rules,
+		Truncated:         col.Truncated,
 	}
-	if bounded.Truncated {
-		payload.ListTool = "list_branch_protections"
+	if col.Truncated {
+		// The note names the list tool only when the registry has it.
+		bounded := resource.BoundedResult{Cap: resource.EmbeddedListCap, ListTool: ListBranchProtectionsToolName, Truncated: true}
+		payload.Sentinel = bounded.Sentinel()
+		payload.ListTool = resource.ToolRef(ListBranchProtectionsToolName)
 	}
 
 	jsonBytes, err := json.Marshal(payload)
@@ -140,7 +135,7 @@ func (h handlers) branchProtectionResourceHandler(ctx context.Context, req mcp.R
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	bp, err := port.GetBranchProtection(ctx, p.Owner, p.Repo, p.Rule)
+	bp, err := appbp.New(branchprotectionadapter.New(port)).Get(ctx, appbp.RuleRef{Owner: p.Owner, Repo: p.Repo, Rule: p.Rule})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}

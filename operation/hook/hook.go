@@ -18,7 +18,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -117,15 +116,6 @@ type handlers struct{ forge forge.Factory }
 // hookPayload is the safe form of a webhook, shared by the tools and the
 // resources. Config.secret is never included (see model.SafeHook).
 type hookPayload = model.HookPayload
-
-// safeHook projects an SDK webhook onto its safe form for the resources, which
-// still read through the SDK-typed port.
-func safeHook(h *forgejo_sdk.Hook) hookPayload {
-	return model.SafeHook(&model.Hook{
-		ID: h.ID, Type: h.Type, Config: h.Config, Events: h.Events,
-		Active: h.Active, Updated: h.Updated, Created: h.Created,
-	})
-}
 
 // Argument structs, one per tool. `json` names the MCP argument and
 // `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps

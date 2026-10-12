@@ -56,6 +56,11 @@ func (a adapter) DeleteBranch(ctx context.Context, owner, repo, branch string) (
 	return a.p.DeleteBranch(ctx, owner, repo, branch)
 }
 
+func (a adapter) GetCommit(ctx context.Context, owner, repo, sha string) (*model.Commit, error) {
+	c, err := a.p.GetCommit(ctx, owner, repo, sha)
+	return bridge.Convert[*model.Commit](c, err)
+}
+
 func (a adapter) ListCommits(ctx context.Context, owner, repo string, q apprepo.ListCommitsInput) ([]*model.Commit, error) {
 	cs, err := a.p.ListCommits(ctx, owner, repo, forgejo_sdk.ListCommitOptions{Path: q.Path, SHA: q.SHA, ListOptions: listOptions(q.Page)})
 	return bridge.Convert[[]*model.Commit](cs, err)

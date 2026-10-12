@@ -561,3 +561,9 @@ func (f *Forgejo) ListCommitStatuses(_ context.Context, owner, repo, sha string,
 	total := len(all)
 	return forge.CommitStatuses{Statuses: append([]*forgejo_sdk.Status(nil), all[lo:hi]...), TotalCount: &total}, nil
 }
+
+// AddCommitStatusState is AddCommitStatus with the state given as a plain
+// string, for callers (use-case tests under app/) that may not import the SDK.
+func (f *Forgejo) AddCommitStatusState(owner, repo, sha, statusContext, state, description string) error {
+	return f.AddCommitStatus(owner, repo, sha, statusContext, forgejo_sdk.StatusState(state), description)
+}
