@@ -18,6 +18,9 @@ import (
 // over forge.RepoAdmin and forge.RepoFiles. Failures from Forgejo come back as
 // ordinary errors for the use case to wrap.
 type GitPort interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListBranches(ctx context.Context, owner, repo string, p GitPage) ([]*model.Branch, error)
 	CreateBranch(ctx context.Context, owner, repo string, in CreateBranchInput) error
 	// DeleteBranch reports whether Forgejo deleted the branch (HTTP 204).

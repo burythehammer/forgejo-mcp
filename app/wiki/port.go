@@ -20,6 +20,9 @@ import (
 // owns that mapping. Failures from Forgejo come back as ordinary errors for the
 // use case to wrap.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListWikiPages(ctx context.Context, owner, repo string, page, limit int) (model.WikiPageList, error)
 	GetWikiPage(ctx context.Context, owner, repo, pageName string) (*model.WikiPage, error)
 	GetWikiPageRevisions(ctx context.Context, owner, repo, pageName string, page, limit int) (*model.WikiRevisions, error)

@@ -20,6 +20,9 @@ type Port interface {
 	GetOrg(ctx context.Context, org string) (*model.Organization, error)
 	EditOrg(ctx context.Context, org string, in EditOrgInput) error
 	DeleteOrg(ctx context.Context, org string) error
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListMyOrgs(ctx context.Context, p Paging) ([]*model.Organization, error)
 	ListUserOrgs(ctx context.Context, user string, p Paging) ([]*model.Organization, error)
 

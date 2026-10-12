@@ -253,3 +253,7 @@ func TestGolden(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling: the wiki goldens pin the paging
+// contract without a ceiling, as they always have.
+func (s *stubWiki) MaxResponseItems(context.Context) (int, bool) { return 0, false }

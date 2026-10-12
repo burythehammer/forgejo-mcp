@@ -20,9 +20,21 @@ import (
 )
 
 // New returns the use cases' port over p.
-func New(p forge.Hooks) apphook.Port { return adapter{p: p} }
+func New(p Source) apphook.Port { return adapter{p: p} }
 
-type adapter struct{ p forge.Hooks }
+// Source is the part of the Forgejo port the webhook domain uses: its hook
+// methods and the instance's pagination ceiling.
+type Source interface {
+	forge.Hooks
+	forge.Ceilings
+}
+
+type adapter struct{ p Source }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.p.MaxResponseItems(ctx)
+}
 
 var _ apphook.Port = adapter{}
 

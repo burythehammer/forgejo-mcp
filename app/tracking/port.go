@@ -17,6 +17,9 @@ import (
 // Port is the time-tracking domain as the use cases need it, in repo-owned
 // types. pkg/forge/trackingadapter implements it over forge.Tracking.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListIssueTrackedTimes(ctx context.Context, owner, repo string, index int64, q TimeQuery) ([]*model.TrackedTime, error)
 	ListRepoTrackedTimes(ctx context.Context, owner, repo string, q TimeQuery) ([]*model.TrackedTime, error)
 	ListMyTrackedTimes(ctx context.Context) ([]*model.TrackedTime, error)

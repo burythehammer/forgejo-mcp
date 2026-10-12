@@ -135,3 +135,6 @@ func TestSliceLines(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling for the test double.
+func (*fakeGit) MaxResponseItems(context.Context) (int, bool) { return 0, false }

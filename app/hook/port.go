@@ -22,6 +22,9 @@ const DefaultType = "forgejo"
 // Forgejo come back as ordinary errors for the use case to wrap, except a
 // Forgejo status failure on an edit, which comes back as a *StatusError.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListRepoHooks(ctx context.Context, owner, repo string, p Paging) (model.HookList, error)
 	GetRepoHook(ctx context.Context, owner, repo string, id int64) (*model.Hook, error)
 	CreateRepoHook(ctx context.Context, owner, repo string, in CreateInput) (*model.Hook, error)

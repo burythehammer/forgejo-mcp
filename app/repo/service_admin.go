@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
@@ -140,14 +141,21 @@ func (s *AdminService) ListRepoTopics(ctx context.Context, owner, repo string, p
 	if owner == "" || repo == "" {
 		return model.TopicPage{}, errors.New("owner and repo are required")
 	}
-	topics, err := s.port.ListRepoTopics(ctx, owner, repo, p)
+	topics, used, err := window(ctx, s.port, list.Paging(p), defaultListLimit,
+		func(ctx context.Context, q list.Paging) ([]string, error) {
+			topics, err := s.port.ListRepoTopics(ctx, owner, repo, AdminPaging(q))
+			if err != nil {
+				return nil, fmt.Errorf("list repo topics: %w", err)
+			}
+			return topics, nil
+		})
 	if err != nil {
-		return model.TopicPage{}, fmt.Errorf("list repo topics: %w", err)
+		return model.TopicPage{}, err
 	}
 	if topics == nil {
 		topics = []string{}
 	}
-	return model.TopicPage{Topics: topics, Page: p.Page, Limit: p.Limit, Count: len(topics)}, nil
+	return model.TopicPage{Topics: topics, Page: used.Page, Limit: used.Limit, Count: len(topics)}, nil
 }
 
 // SetRepoTopics replaces every topic of a repository with the comma-separated

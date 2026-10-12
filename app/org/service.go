@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -79,12 +80,30 @@ func (s *Service) MyOrgs(ctx context.Context, pg Paging) ([]*model.Organization,
 	if err != nil {
 		return nil, err
 	}
-	orgs, err := p.ListMyOrgs(ctx, pg)
-	if err != nil {
-		return nil, fmt.Errorf("list my orgs err: %w", err)
-	}
-	return orgs, nil
+	return window(ctx, p, pg, func(ctx context.Context, q Paging) ([]*model.Organization, error) {
+		orgs, err := p.ListMyOrgs(ctx, q)
+		if err != nil {
+			return nil, fmt.Errorf("list my orgs err: %w", err)
+		}
+		return orgs, nil
+	})
 }
+
+// window reads one page of a list through the list module: the instance ceiling
+// applies, and a default limit is lowered to it.
+func window[T any](ctx context.Context, p Port, pg Paging, fetch func(context.Context, Paging) ([]T, error)) ([]T, error) {
+	ceiling, known := p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	return list.Items(ctx, list.Given(list.Paging(pg), defaultLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[T], error) {
+			items, err := fetch(ctx, Paging(q))
+			return list.Batch[T]{Items: items}, err
+		})
+}
+
+// defaultLimit is the page size an organization list uses when the caller gives
+// none.
+const defaultLimit = 100
 
 // UserOrgs lists the organizations of a user.
 func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) ([]*model.Organization, error) {
@@ -92,11 +111,13 @@ func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) ([]*mode
 	if err != nil {
 		return nil, err
 	}
-	orgs, err := p.ListUserOrgs(ctx, user, pg)
-	if err != nil {
-		return nil, fmt.Errorf("list user orgs err: %w", err)
-	}
-	return orgs, nil
+	return window(ctx, p, pg, func(ctx context.Context, q Paging) ([]*model.Organization, error) {
+		orgs, err := p.ListUserOrgs(ctx, user, q)
+		if err != nil {
+			return nil, fmt.Errorf("list user orgs err: %w", err)
+		}
+		return orgs, nil
+	})
 }
 
 // Members lists the members of an organization.
@@ -105,11 +126,13 @@ func (s *Service) Members(ctx context.Context, org string, pg Paging) ([]*model.
 	if err != nil {
 		return nil, err
 	}
-	members, err := p.ListOrgMembers(ctx, org, pg)
-	if err != nil {
-		return nil, fmt.Errorf("list org members err: %w", err)
-	}
-	return members, nil
+	return window(ctx, p, pg, func(ctx context.Context, q Paging) ([]*model.User, error) {
+		members, err := p.ListOrgMembers(ctx, org, q)
+		if err != nil {
+			return nil, fmt.Errorf("list org members err: %w", err)
+		}
+		return members, nil
+	})
 }
 
 // IsMember reports whether user is a member of org.
@@ -143,11 +166,13 @@ func (s *Service) Teams(ctx context.Context, org string, pg Paging) ([]*model.Te
 	if err != nil {
 		return nil, err
 	}
-	teams, err := p.ListOrgTeams(ctx, org, pg)
-	if err != nil {
-		return nil, fmt.Errorf("list org teams err: %w", err)
-	}
-	return teams, nil
+	return window(ctx, p, pg, func(ctx context.Context, q Paging) ([]*model.Team, error) {
+		teams, err := p.ListOrgTeams(ctx, org, q)
+		if err != nil {
+			return nil, fmt.Errorf("list org teams err: %w", err)
+		}
+		return teams, nil
+	})
 }
 
 // CreateTeam creates a team in an organization. An empty permission is read.

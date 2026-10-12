@@ -18,6 +18,9 @@ import (
 // the Forgejo port. A 404 from Forgejo on a topic list comes back as a
 // *NotFoundError; other failures are ordinary errors for the use case to wrap.
 type AdminPort interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	// CreateRepo creates a repository owned by owner, or by the credential's
 	// user when owner is empty.
 	CreateRepo(ctx context.Context, owner string, in NewRepo) (*model.Repository, error)

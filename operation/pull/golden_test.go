@@ -274,3 +274,7 @@ func TestGolden(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling: the pull goldens pin the paging
+// contract without a ceiling, as they always have.
+func (s *stubPulls) MaxResponseItems(context.Context) (int, bool) { return 0, false }

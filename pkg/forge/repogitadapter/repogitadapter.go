@@ -25,12 +25,18 @@ import (
 type Ports interface {
 	forge.RepoAdmin
 	forge.RepoFiles
+	forge.Ceilings
 }
 
 // New returns the use cases' port over p.
 func New(p Ports) apprepo.GitPort { return adapter{p: p} }
 
 type adapter struct{ p Ports }
+
+// MaxResponseItems reads the instance's pagination ceiling through the port.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.p.MaxResponseItems(ctx)
+}
 
 var _ apprepo.GitPort = adapter{}
 

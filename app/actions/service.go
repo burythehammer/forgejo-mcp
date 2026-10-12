@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -36,12 +37,32 @@ func (s *Service) Dispatch(ctx context.Context, owner, repo, workflow string, in
 
 // ListRuns returns one page of workflow runs.
 func (s *Service) ListRuns(ctx context.Context, owner, repo string, q RunQuery) (model.WorkflowRunList, error) {
-	list, err := s.p.ListWorkflowRuns(ctx, owner, repo, q)
+	var total int64
+	runs, _, err := window(ctx, s.p, list.Paging(q.Paging), defaultRunsLimit,
+		func(ctx context.Context, p list.Paging) ([]model.WorkflowRun, error) {
+			qq := q
+			qq.Paging = Paging(p)
+			got, err := s.p.ListWorkflowRuns(ctx, owner, repo, qq)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list workflow runs: %w", err)
+			}
+			total = got.TotalCount
+			return got.WorkflowRuns, nil
+		})
 	if err != nil {
-		return model.WorkflowRunList{}, fmt.Errorf("failed to list workflow runs: %w", err)
+		return model.WorkflowRunList{}, err
 	}
-	return list, nil
+	return model.WorkflowRunList{TotalCount: total, WorkflowRuns: runs}, nil
 }
+
+// Page sizes the actions lists use when the caller gives none. The ceiling
+// lowers them when the instance's ceiling is smaller.
+const (
+	defaultRunsLimit      = 30
+	defaultJobsLimit      = 30
+	defaultArtifactsLimit = 30
+	defaultSecretsLimit   = 30
+)
 
 // GetRun returns one workflow run.
 func (s *Service) GetRun(ctx context.Context, owner, repo string, runID int64) (model.WorkflowRun, error) {
@@ -71,26 +92,37 @@ func (s *Service) DeleteRun(ctx context.Context, owner, repo string, runID int64
 // ListJobs returns one page of a run's jobs. Forgejo does not page jobs, so
 // the page is cut here.
 func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64, p Paging) (model.JobPage, error) {
-	all, err := s.p.ListRunJobs(ctx, owner, repo, runID)
+	var total int
+	var hasNext bool
+	jobs, used, err := window(ctx, s.p, list.Paging(p), defaultJobsLimit,
+		func(ctx context.Context, q list.Paging) ([]model.ActionRunJob, error) {
+			all, err := s.p.ListRunJobs(ctx, owner, repo, runID)
+			if err != nil {
+				return nil, fmt.Errorf("list action run jobs: %w", err)
+			}
+			// Forgejo does not page the job list, so the window is cut here.
+			start64 := int64(q.Page-1) * int64(q.Limit)
+			start := len(all)
+			if start64 < int64(len(all)) {
+				start = int(start64)
+			}
+			end := min(start+q.Limit, len(all))
+			total, hasNext = len(all), end < len(all)
+			return all[start:end], nil
+		})
 	if err != nil {
-		return model.JobPage{}, fmt.Errorf("list action run jobs: %w", err)
+		return model.JobPage{}, err
 	}
-	start64 := int64(p.Page-1) * int64(p.Limit)
-	start := len(all)
-	if start64 < int64(len(all)) {
-		start = int(start64)
-	}
-	end := min(start+p.Limit, len(all))
 	result := model.JobPage{
 		RunID:      runID,
-		Jobs:       all[start:end],
-		Page:       p.Page,
-		Limit:      p.Limit,
-		TotalCount: len(all),
-		HasNext:    end < len(all),
+		Jobs:       jobs,
+		Page:       used.Page,
+		Limit:      used.Limit,
+		TotalCount: total,
+		HasNext:    hasNext,
 	}
 	if result.HasNext {
-		result.NextPage = p.Page + 1
+		result.NextPage = used.Page + 1
 	}
 	return result, nil
 }
@@ -149,17 +181,28 @@ func (s *Service) JobLog(ctx context.Context, owner, repo string, q JobLogQuery)
 
 // ListArtifacts returns one page of a run's artifacts.
 func (s *Service) ListArtifacts(ctx context.Context, owner, repo string, runID int64, q ArtifactQuery) (model.ArtifactPage, error) {
-	list, err := s.p.ListRunArtifacts(ctx, owner, repo, runID, q)
+	var total *int
+	artifacts, used, err := window(ctx, s.p, list.Paging(q.Paging), defaultArtifactsLimit,
+		func(ctx context.Context, p list.Paging) ([]model.ActionArtifact, error) {
+			qq := q
+			qq.Paging = Paging(p)
+			got, err := s.p.ListRunArtifacts(ctx, owner, repo, runID, qq)
+			if err != nil {
+				return nil, fmt.Errorf("list action run artifacts: %w", err)
+			}
+			total = got.TotalCount
+			return got.Artifacts, nil
+		})
 	if err != nil {
-		return model.ArtifactPage{}, fmt.Errorf("list action run artifacts: %w", err)
+		return model.ArtifactPage{}, err
 	}
 	return model.ArtifactPage{
 		RunID:      runID,
-		Artifacts:  list.Artifacts,
-		Page:       q.Page,
-		Limit:      q.Limit,
-		Count:      len(list.Artifacts),
-		TotalCount: list.TotalCount,
+		Artifacts:  artifacts,
+		Page:       used.Page,
+		Limit:      used.Limit,
+		Count:      len(artifacts),
+		TotalCount: total,
 	}, nil
 }
 
@@ -174,17 +217,24 @@ func (s *Service) GetArtifact(ctx context.Context, owner, repo string, artifactI
 
 // ListRepoSecrets returns one page of a repository's secret names.
 func (s *Service) ListRepoSecrets(ctx context.Context, owner, repo string, p Paging) (model.RepoSecretPage, error) {
-	secrets, err := s.p.ListRepoSecrets(ctx, owner, repo, p)
+	secrets, used, err := window(ctx, s.p, list.Paging(p), defaultSecretsLimit,
+		func(ctx context.Context, q list.Paging) ([]model.Secret, error) {
+			got, err := s.p.ListRepoSecrets(ctx, owner, repo, Paging(q))
+			if err != nil {
+				return nil, fmt.Errorf("list repo action secrets: %w", err)
+			}
+			return got, nil
+		})
 	if err != nil {
-		return model.RepoSecretPage{}, fmt.Errorf("list repo action secrets: %w", err)
+		return model.RepoSecretPage{}, err
 	}
 	summaries := toSummaries(secrets)
 	return model.RepoSecretPage{
 		Owner:   owner,
 		Repo:    repo,
 		Secrets: summaries,
-		Page:    p.Page,
-		Limit:   p.Limit,
+		Page:    used.Page,
+		Limit:   used.Limit,
 		Count:   len(summaries),
 	}, nil
 }
@@ -207,16 +257,23 @@ func (s *Service) DeleteRepoSecret(ctx context.Context, owner, repo, name string
 
 // ListOrgSecrets returns one page of an organization's secret names.
 func (s *Service) ListOrgSecrets(ctx context.Context, org string, p Paging) (model.OrgSecretPage, error) {
-	secrets, err := s.p.ListOrgSecrets(ctx, org, p)
+	secrets, used, err := window(ctx, s.p, list.Paging(p), defaultSecretsLimit,
+		func(ctx context.Context, q list.Paging) ([]model.Secret, error) {
+			got, err := s.p.ListOrgSecrets(ctx, org, Paging(q))
+			if err != nil {
+				return nil, fmt.Errorf("list org action secrets: %w", err)
+			}
+			return got, nil
+		})
 	if err != nil {
-		return model.OrgSecretPage{}, fmt.Errorf("list org action secrets: %w", err)
+		return model.OrgSecretPage{}, err
 	}
 	summaries := toSummaries(secrets)
 	return model.OrgSecretPage{
 		Org:     org,
 		Secrets: summaries,
-		Page:    p.Page,
-		Limit:   p.Limit,
+		Page:    used.Page,
+		Limit:   used.Limit,
 		Count:   len(summaries),
 	}, nil
 }

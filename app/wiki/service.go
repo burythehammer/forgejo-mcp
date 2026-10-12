@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 )
@@ -74,13 +75,30 @@ func paging(page, limit float64) (int, int) {
 }
 
 // List returns one page of a wiki's pages, and whether another page follows.
+// The ceiling check and the default limit come from the list module. The
+// continuation probe stays here: the wiki list has always probed only after a
+// full page, and its goldens pin that port-call sequence, which the module's
+// probe under an unknown ceiling would change.
 func (s *Service) List(ctx context.Context, r ListRequest) (model.WikiPageListResult, error) {
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
 	page, limit := paging(r.Page, r.Limit)
-	listed, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, page, limit)
-	if err != nil {
-		return model.WikiPageListResult{}, fmt.Errorf("list wiki pages: %w", err)
+	if r.Limit <= 0 {
+		limit = list.DefaultLimit(defaultLimit, c)
 	}
-	pages := listed.Pages
+	var total *int
+	pages, err := list.Items(ctx, list.Paging{Page: page, Limit: limit}, c,
+		func(ctx context.Context, p list.Paging) (list.Batch[model.WikiPageMeta], error) {
+			listed, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, p.Page, p.Limit)
+			if err != nil {
+				return list.Batch[model.WikiPageMeta]{}, fmt.Errorf("list wiki pages: %w", err)
+			}
+			total = listed.TotalCount
+			return list.Batch[model.WikiPageMeta]{Items: listed.Pages}, nil
+		})
+	if err != nil {
+		return model.WikiPageListResult{}, err
+	}
 	hasNext := false
 	if len(pages) == limit {
 		next, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, page+1, limit)
@@ -93,7 +111,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.WikiPageListRe
 	for i, p := range pages {
 		summaries[i] = model.WikiPageSummary{Title: p.Title, PageName: p.SubURL, SubURL: p.SubURL}
 	}
-	return model.WikiPageListResult{Pages: summaries, Page: page, HasNext: hasNext, TotalCount: listed.TotalCount}, nil
+	return model.WikiPageListResult{Pages: summaries, Page: page, HasNext: hasNext, TotalCount: total}, nil
 }
 
 // Get returns a page's content, cut to the requested line range when one is

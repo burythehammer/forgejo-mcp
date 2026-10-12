@@ -212,3 +212,50 @@ func TestItems_OverKnownCeilingRejects(t *testing.T) {
 		t.Fatalf("err = %v, want *OverCeilingError", err)
 	}
 }
+
+// DefaultLimit lowers a tool's default to a known ceiling, so a default call
+// never trips the ceiling, while an unknown or larger ceiling leaves it alone.
+func TestDefaultLimit_ClampsToKnownCeiling(t *testing.T) {
+	cases := []struct {
+		name string
+		def  int
+		c    Ceiling
+		want int
+	}{
+		{"known ceiling below default", 30, Ceiling{Max: 10, Known: true}, 10},
+		{"known ceiling above default", 30, Ceiling{Max: 50, Known: true}, 30},
+		{"unknown ceiling", 30, Ceiling{Max: 0, Known: false}, 30},
+		{"known ceiling equal to default", 30, Ceiling{Max: 30, Known: true}, 30},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := DefaultLimit(tc.def, tc.c); got != tc.want {
+				t.Fatalf("DefaultLimit(%d, %+v) = %d, want %d", tc.def, tc.c, got, tc.want)
+			}
+		})
+	}
+}
+
+// Given keeps the page exactly as the caller gave it, because some tools pin
+// page 0 reaching the server, and takes a limit below 1 as the default lowered
+// to a known ceiling.
+func TestGiven_KeepsPageAndDefaultsLimit(t *testing.T) {
+	cases := []struct {
+		name string
+		p    Paging
+		c    Ceiling
+		want Paging
+	}{
+		{"page 0 is kept", Paging{Page: 0, Limit: 5}, Ceiling{}, Paging{Page: 0, Limit: 5}},
+		{"absent limit takes default", Paging{Page: 2}, Ceiling{}, Paging{Page: 2, Limit: 100}},
+		{"absent limit lowered to known ceiling", Paging{Page: 1}, Ceiling{Max: 10, Known: true}, Paging{Page: 1, Limit: 10}},
+		{"explicit limit is not defaulted", Paging{Page: 1, Limit: 7}, Ceiling{Max: 10, Known: true}, Paging{Page: 1, Limit: 7}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Given(tc.p, 100, tc.c); got != tc.want {
+				t.Fatalf("Given(%+v) = %+v, want %+v", tc.p, got, tc.want)
+			}
+		})
+	}
+}

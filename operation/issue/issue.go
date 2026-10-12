@@ -420,7 +420,7 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 		return mcpresult.Render(s.List(ctx, apppissue.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
 			Milestones: a.Milestones, Labels: a.Labels,
-			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 20)},
+			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: int(a.Limit)},
 		}))
 	})
 }

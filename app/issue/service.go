@@ -98,7 +98,8 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*model.Issue, error
 		return nil, fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
-	return list.Items(ctx, list.Normalize(list.Paging(in.Paging), defaultLimit), list.Ceiling{Max: ceiling, Known: known},
+	c := list.Ceiling{Max: ceiling, Known: known}
+	return list.Items(ctx, list.Normalize(list.Paging(in.Paging), list.DefaultLimit(defaultLimit, c)), c,
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
 			issues, err := s.port.ListIssues(ctx, in.Owner, in.Repo, IssueList{
 				State: in.State, Type: in.Type, Sort: in.Sort,
@@ -154,7 +155,7 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (model.IssueSearch
 		state = "open"
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
-	page, err := list.Run(ctx, list.Normalize(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit),
+	page, err := list.Run(ctx, list.Normalize(list.Paging{Page: in.Page, Limit: in.Limit}, list.DefaultLimit(defaultLimit, list.Ceiling{Max: ceiling, Known: known})),
 		list.Ceiling{Max: ceiling, Known: known},
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
 			issues, total, err := s.port.SearchIssues(ctx, SearchQuery{

@@ -281,3 +281,7 @@ func TestEditBranchFilterThroughTheFake(t *testing.T) {
 		t.Fatalf("explicit empty branch filter left %q", got.BranchFilter)
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling for the test doubles.
+func (stubPort) MaxResponseItems(context.Context) (int, bool)  { return 0, false }
+func (*editPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }

@@ -20,14 +20,27 @@ import (
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
+// ReleaseSource is the part of the Forgejo port the release domain reads
+// releases through: its release methods and the instance's pagination ceiling.
+type ReleaseSource interface {
+	forge.Releases
+	forge.Ceilings
+}
+
 // New returns the use cases' port over the release and attachment ports.
-func New(rel forge.Releases, att forge.Attachments) apprelease.Port {
+func New(rel ReleaseSource, att forge.Attachments) apprelease.Port {
 	return adapter{rel: rel, att: att}
 }
 
 type adapter struct {
-	rel forge.Releases
+	rel ReleaseSource
 	att forge.Attachments
+}
+
+// MaxResponseItems reads the instance's pagination ceiling through the release
+// source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.rel.MaxResponseItems(ctx)
 }
 
 var _ apprelease.Port = adapter{}

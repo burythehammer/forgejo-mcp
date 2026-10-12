@@ -20,9 +20,21 @@ import (
 )
 
 // New returns the use cases' port over u.
-func New(u forge.Users) appuser.Port { return adapter{u: u} }
+// Source is the part of the Forgejo port the user domain uses: its user methods
+// and the instance's pagination ceiling.
+type Source interface {
+	forge.Users
+	forge.Ceilings
+}
 
-type adapter struct{ u forge.Users }
+func New(u Source) appuser.Port { return adapter{u: u} }
+
+type adapter struct{ u Source }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.u.MaxResponseItems(ctx)
+}
 
 var _ appuser.Port = adapter{}
 
