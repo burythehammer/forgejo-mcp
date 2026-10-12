@@ -1,0 +1,4 @@
+{"Result":{"id":6,"username":"octo-org","full_name":"Octo Org","avatar_url":"https://f.example/a.png","description":"d","website":"https://o.example","location":"here","visibility":"public"}}
+-- port calls --
+EditOrg ["octo-org",{"full_name":"","description":"","website":"","location":"","visibility":""}]
+GetOrg ["octo-org"]

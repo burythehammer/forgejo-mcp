@@ -1,0 +1,22 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Mark a single notification thread as read",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Notification ID",
+        "type": "number"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "mark_notification_read"
+}

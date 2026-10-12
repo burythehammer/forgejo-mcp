@@ -1,0 +1,4 @@
+{"Result":{"title":"Home","page_name":"Home","commit_sha":"abc123"}}
+-- port calls --
+GetWikiPage ["octo","hello","Home"]
+EditWikiPage ["octo","hello","Home","Home","Ym9keQ==","Update wiki page 'Home'"]

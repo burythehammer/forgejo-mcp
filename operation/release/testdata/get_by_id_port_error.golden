@@ -1,0 +1,3 @@
+ERROR: get release err: boom
+-- port calls --
+GetRelease ["octo","hello",3]

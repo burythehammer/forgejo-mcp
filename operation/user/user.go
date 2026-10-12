@@ -4,11 +4,12 @@ package user
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
+	appuser "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/user"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/useradapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -25,10 +26,24 @@ var GetMyUserInfoTool = mcp.NewTool(
 	mcp.WithDescription("Get user info"),
 )
 
-// handlers serve the user tools from the Forgejo port. The port is resolved per
-// request, so each request is served under its own credential.
+// handlers serve the user tools. They hold the factory rather than a port so
+// each call is bound to the credential of its own request. Each handler is the
+// MCP adapter of one use case in app/user: decode the arguments, run the use
+// case, render the result and log the call.
 type handlers struct {
 	forge forge.Factory
+}
+
+// service returns the use cases for one request. The port is looked up only
+// once a use case has checked its input.
+func (h handlers) service() *appuser.Service {
+	return appuser.New(func(ctx context.Context) (appuser.Port, error) {
+		port, err := h.forge.For(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return useradapter.New(port), nil
+	})
 }
 
 // apiStatus is the HTTP status to log for an API call: the one Forgejo
@@ -38,6 +53,16 @@ func apiStatus(err error) int {
 		return http.StatusOK
 	}
 	return forge.StatusCode(err)
+}
+
+// logAPICall records an API call that reached Forgejo: one that succeeded, or
+// one Forgejo answered with an HTTP status. A request refused before the call
+// (bad input, no credential) is not an API call and is not logged as one.
+func logAPICall(ctx context.Context, method, endpoint string, start time.Time, err error) {
+	if err != nil && forge.StatusCode(err) == 0 {
+		return
+	}
+	forge.LogAPICall(ctx, method, endpoint, time.Since(start), apiStatus(err), err)
 }
 
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
@@ -57,22 +82,14 @@ func (h handlers) GetUserInfoFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 	log.LogMCPToolStart(ctx, GetMyUserInfoToolName, map[string]interface{}{})
 
-	fg, err := h.forge.For(ctx)
+	user, err := h.service().MyInfo(ctx)
+	logAPICall(ctx, "GET", "/user", start, err)
 	if err != nil {
+		log.LogMCPToolError(ctx, GetMyUserInfoToolName, time.Since(start), err)
 		return to.ErrorResult(err)
 	}
-	user, err := fg.GetMyUserInfo(ctx)
-	duration := time.Since(start)
 
-	statusCode := apiStatus(err)
-	forge.LogAPICall(ctx, "GET", "/user", duration, statusCode, err)
-
-	if err != nil {
-		log.LogMCPToolError(ctx, GetMyUserInfoToolName, duration, err)
-		return to.ErrorResult(fmt.Errorf("get user info err: %w", err))
-	}
-
-	log.LogMCPToolComplete(ctx, GetMyUserInfoToolName, duration, fmt.Sprintf("Retrieved info for user: %s", user.UserName))
+	log.LogMCPToolComplete(ctx, GetMyUserInfoToolName, time.Since(start), "Retrieved info for user: "+user.UserName)
 
 	return to.TextResult(user)
 }

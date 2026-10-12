@@ -4,11 +4,14 @@ package packages
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math"
 
+	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/packagesadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
@@ -25,45 +28,41 @@ var ListPackagesTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(defaultPackagesLimit), mcp.Min(1), mcp.Max(maxPackagesLimit)),
 )
 
+// ListPackagesFn validates the arguments, then runs the list use case. The
+// validation comes before the credential lookup, as it always has.
 func (h handlers) ListPackagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Debugf("Called ListPackagesFn")
-	args := req.GetArguments()
-
-	owner, err := requiredOwner(args)
+	var a listPackagesArgs
+	if err := decode.Lax(req, &a); err != nil {
+		return to.ErrorResult(err)
+	}
+	if a.Owner == "" {
+		return to.ErrorResult(errors.New("owner is required"))
+	}
+	page, limit, err := pageAndLimit(a.Page, a.Limit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntegerArg(args, "page", 1, 1, math.MaxInt32)
+
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntegerArg(args, "limit", defaultPackagesLimit, 1, maxPackagesLimit)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	packageType, _ := args["type"].(string)
-	q, _ := args["q"].(string)
+	return mcpresult.Render(apppkg.New(packagesadapter.New(port)).List(ctx, apppkg.ListRequest{
+		Owner: a.Owner, Type: a.Type, Query: a.Q, Page: page, Limit: limit,
+	}))
+}
 
-	f, err := h.forge.For(ctx)
+// pageAndLimit reads the paging arguments as the tools always have: page
+// defaults to 1 and limit to 30, and each must be a whole number in range.
+func pageAndLimit(page, limit decode.Arg) (int, int, error) {
+	p, err := page.Int("page", 1, 1, math.MaxInt32)
 	if err != nil {
-		return to.ErrorResult(err)
+		return 0, 0, err
 	}
-	list, err := f.ListPackages(ctx, owner, forge.ListPackagesOptions{Type: packageType, Query: q, Page: page, Limit: limit})
+	l, err := limit.Int("limit", defaultPackagesLimit, 1, maxPackagesLimit)
 	if err != nil {
-		return to.ErrorResult(fmt.Errorf("list packages: %w", err))
+		return 0, 0, err
 	}
-
-	packages := make([]packageVersion, 0, len(list.Packages))
-	for _, row := range list.Packages {
-		packages = append(packages, projectPackageVersion(row))
-	}
-
-	return to.TextResult(listPackagesResult{
-		Packages:   packages,
-		Page:       page,
-		Limit:      limit,
-		Count:      len(packages),
-		HasNext:    list.HasNext,
-		TotalCount: list.TotalCount,
-	})
+	return p, l, nil
 }

@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete a release attachment. Destructive.",
+  "inputSchema": {
+    "properties": {
+      "attachment_id": {
+        "description": "Attachment ID",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "release_id": {
+        "description": "Release ID",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "release_id",
+      "attachment_id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_release_attachment"
+}

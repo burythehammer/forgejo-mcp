@@ -1,0 +1,3 @@
+ERROR: test repo hook: boom
+-- port calls --
+TestRepoHook ["octo","hello",7]

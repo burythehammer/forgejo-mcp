@@ -1,0 +1,3 @@
+{"Result":"Removed dependency on octo/hello#9 from issue #7"}
+-- port calls --
+RemoveIssueDependency ["octo","hello",7,{"Owner":"octo","Repo":"hello","Index":9}]

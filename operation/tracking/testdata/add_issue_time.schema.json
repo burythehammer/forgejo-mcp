@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Log time against an issue or pull request. Provide exactly one of 'seconds' or 'duration'.",
+  "inputSchema": {
+    "properties": {
+      "created_at": {
+        "description": "Optional RFC3339 timestamp for when the work happened (defaults to server time)",
+        "type": "string"
+      },
+      "duration": {
+        "description": "Time as a duration string, e.g. \"15m\", \"1h30m\", \"45s\". Provide exactly one of seconds or duration.",
+        "type": "string"
+      },
+      "index": {
+        "description": "Issue or pull request index (Forgejo shares index namespace between the two)",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "seconds": {
+        "description": "Time in seconds to log (positive integer). Provide exactly one of seconds or duration.",
+        "type": "number"
+      },
+      "user_name": {
+        "description": "Optional username to log time on behalf of (requires admin; omit for self)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index"
+    ],
+    "type": "object"
+  },
+  "name": "add_issue_time"
+}

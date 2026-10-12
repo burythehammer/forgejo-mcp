@@ -1,0 +1,3 @@
+ERROR: delete issue attachment err: boom
+-- port calls --
+DeleteIssueAttachment ["octo","hello",4,7]

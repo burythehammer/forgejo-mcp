@@ -1,0 +1,5 @@
+ERROR: get repo hook after edit: gone
+-- port calls --
+GetRepoHook ["octo","hello",7]
+EditRepoHook ["octo","hello",7,{}]
+GetRepoHook ["octo","hello",7]

@@ -1,0 +1,27 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get a single organization-level label by ID.",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Label ID",
+        "type": "number"
+      },
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "get_org_label"
+}

@@ -1,0 +1,43 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List package versions for a user or org (Forgejo SearchVersions: one row per version, not one per name). Optional type and q filter; page (default 1) and limit (default 30, maximum 50) are sent as query parameters. Returns {packages, page, limit, count, has_next} and total_count when Forgejo sets X-Total-Count. has_next is Link rel=next. A missing owner is an error, not an empty list.",
+  "inputSchema": {
+    "properties": {
+      "limit": {
+        "default": 30,
+        "description": "Page size",
+        "maximum": 50,
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "q": {
+        "description": "Filter by package name (Forgejo q substring)",
+        "type": "string"
+      },
+      "type": {
+        "description": "Package type (container, generic, npm, maven, …). Omit on list to include every type",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "list_packages"
+}

@@ -1,0 +1,4 @@
+{"Result":[{"id":3,"name":"bug","color":"ff0000","description":"broken","url":"https://f.example/l/3","scope":"repo"},{"id":4,"name":"ui","color":"00ff00","description":"look","url":"https://f.example/l/4","scope":"repo"}]}
+-- port calls --
+ListRepoLabels ["octo","hello",{"Page":1,"PageSize":100}]
+ListOrgLabels ["octo",1,100]

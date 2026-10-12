@@ -1,0 +1,3 @@
+ERROR: remove issue dependency err: boom
+-- port calls --
+RemoveIssueDependency ["octo","hello",7,{"Owner":"octo","Repo":"hello","Index":9}]

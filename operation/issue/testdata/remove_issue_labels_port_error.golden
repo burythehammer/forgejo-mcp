@@ -1,0 +1,5 @@
+ERROR: remove issue label err: boom
+-- port calls --
+ListRepoLabels ["octo","hello",{"Page":1,"PageSize":100}]
+ListOrgLabels ["octo",1,100]
+RemoveIssueLabel ["octo","hello",7,3]

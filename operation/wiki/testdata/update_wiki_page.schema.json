@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Update a wiki page. Writes are last-writer-wins; Forgejo provides no optimistic concurrency precondition.",
+  "inputSchema": {
+    "properties": {
+      "content": {
+        "description": "Wiki page content",
+        "type": "string"
+      },
+      "message": {
+        "description": "Commit message",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page_name": {
+        "description": "Wiki page name",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "Wiki page title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "page_name",
+      "content"
+    ],
+    "type": "object"
+  },
+  "name": "update_wiki_page"
+}

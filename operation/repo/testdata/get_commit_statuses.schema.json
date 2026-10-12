@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "List per-context commit statuses for a full 40-character SHA. Bounded by page (default 1) and limit (default 30, maximum 50); returns {sha, statuses, page, limit, count, total_count}. total_count is present only when Forgejo reports X-Total-Count. Combined aggregate stays on forgejo://repo/{owner}/{repo}/commit/{sha}/status. Commit statuses are CI context checks, not Actions workflow runs (list_workflow_runs).",
+  "inputSchema": {
+    "properties": {
+      "limit": {
+        "default": 30,
+        "description": "Page size",
+        "maximum": 50,
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sha": {
+        "description": "Full 40-character hex commit SHA",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "sha"
+    ],
+    "type": "object"
+  },
+  "name": "get_commit_statuses"
+}

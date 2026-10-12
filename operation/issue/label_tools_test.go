@@ -5,6 +5,7 @@ package issue
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -175,3 +176,5 @@ func TestRemoveIssueLabelsFn_ByName(t *testing.T) {
 		t.Fatalf("labels on the issue: %v", got)
 	}
 }
+
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }

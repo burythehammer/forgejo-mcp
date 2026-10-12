@@ -1,0 +1,3 @@
+{"Result":"Deleted webhook 7 on octo/hello"}
+-- port calls --
+DeleteRepoHook ["octo","hello",7]

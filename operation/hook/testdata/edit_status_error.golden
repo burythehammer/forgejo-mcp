@@ -1,0 +1,4 @@
+ERROR: edit repo hook 404 hook not found
+-- port calls --
+GetRepoHook ["octo","hello",7]
+EditRepoHook ["octo","hello",7,{"config":{"branch_filter":"main","content_type":"json","http_method":"POST","secret":"s3cr3t","url":"https://hooks.example/new"}}]

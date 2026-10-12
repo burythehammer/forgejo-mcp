@@ -1,0 +1,3 @@
+{"Result":[{"id":5,"name":"core","description":"the core","organization":{"id":6,"username":"octo-org","full_name":"Octo Org","avatar_url":"https://f.example/a.png","description":"d","website":"https://o.example","location":"here","visibility":"public"},"permission":"write","can_create_org_repo":true,"includes_all_repositories":false,"units_map":null,"units":null}]}
+-- port calls --
+ListOrgTeams ["octo-org",{"Page":3,"PageSize":7}]

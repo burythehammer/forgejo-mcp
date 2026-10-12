@@ -1,0 +1,3 @@
+ERROR: clear issue labels err: boom
+-- port calls --
+ClearIssueLabels ["octo","hello",7]

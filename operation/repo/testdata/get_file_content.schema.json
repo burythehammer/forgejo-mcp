@@ -1,0 +1,49 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get file content as plain text by default. Set `with_metadata=true` for binary files, or when you need the SHA/encoding/links from the full `ContentsResponse` (e.g. before a follow-up `update_file` call). Optional `start_line` and `end_line` request a 1-indexed inclusive line range; out-of-range values clamp to the file extent. Range parameters are ignored when `with_metadata=true`.",
+  "inputSchema": {
+    "properties": {
+      "end_line": {
+        "description": "Optional 1-indexed last line of the slice (inclusive). Defaults to the file's last line when only start_line is set.",
+        "type": "number"
+      },
+      "filePath": {
+        "description": "File path",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "ref": {
+        "description": "Ref (branch/tag/commit)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "start_line": {
+        "description": "Optional 1-indexed first line of the slice (inclusive). Defaults to 1 when only end_line is set.",
+        "type": "number"
+      },
+      "with_metadata": {
+        "description": "Return the full ContentsResponse (sha, encoding, links, type, size, base64 content) instead of plain text.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "ref",
+      "filePath"
+    ],
+    "type": "object"
+  },
+  "name": "get_file_content"
+}

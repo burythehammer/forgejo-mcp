@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create issue comment",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Content body",
+        "type": "string"
+      },
+      "index": {
+        "description": "Issue/PR index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "create_issue_comment"
+}

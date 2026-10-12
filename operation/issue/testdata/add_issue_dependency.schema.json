@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Make one issue depend on another issue. The issue identified by index will depend on depends_on_index. The dependency may live in a different repository (cross-repo): pass depends_on_owner/depends_on_repo, which default to owner/repo. This tool fails if the repository has disabled issue dependencies.",
+  "inputSchema": {
+    "properties": {
+      "depends_on_index": {
+        "description": "Issue index that the given issue should depend on",
+        "type": "number"
+      },
+      "depends_on_owner": {
+        "description": "Owner of the repository the dependency issue lives in (defaults to owner)",
+        "type": "string"
+      },
+      "depends_on_repo": {
+        "description": "Repository the dependency issue lives in (defaults to repo)",
+        "type": "string"
+      },
+      "index": {
+        "description": "Issue index",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "depends_on_index"
+    ],
+    "type": "object"
+  },
+  "name": "add_issue_dependency"
+}

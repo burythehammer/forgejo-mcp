@@ -1,0 +1,52 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create issue, optionally with labels (by name or ID), assignees and a milestone in the same call",
+  "inputSchema": {
+    "properties": {
+      "assignees": {
+        "description": "Assignee usernames (comma-separated)",
+        "type": "string"
+      },
+      "body": {
+        "description": "Content body",
+        "type": "string"
+      },
+      "labels": {
+        "description": "Labels for the new issue (comma-separated). Accepts label names or numeric IDs. A name is matched before an ID, so a label named \"123\" wins over the ID 123. An unrecognised name is an error and nothing is applied; list_repo_labels shows what exists.",
+        "type": "string"
+      },
+      "milestone": {
+        "description": "Milestone ID",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "ref": {
+        "description": "The branch this issue is linked to (Forgejo's issue 'ref' field, distinct from a pull request link). Passed to Forgejo as given; Forgejo decides which forms it accepts.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "Title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "create_issue"
+}

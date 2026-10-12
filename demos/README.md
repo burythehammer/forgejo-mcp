@@ -185,7 +185,7 @@ with its spec under `openspec/`, not in this folder.
 
 | Demo | Tools | What it shows |
 |------|-------|---------------|
-| [../openspec/changes/repo-webhook-tools/specs/repo-webhook-tools/repo-webhook-tools.demo.md](../openspec/changes/repo-webhook-tools/specs/repo-webhook-tools/repo-webhook-tools.demo.md) | 6 tools — `list`/`get`/`create`/`edit`/`delete_repo_hook` + `test_repo_hook`; 2 resources — `forgejo://repo/{owner}/{repo}/hooks` + `.../hook/{id}` | Tool registration, required-param guards (all 6 tools), `safeHook()` explicit-allowlist proof that `secret` is never echoed, `test_repo_hook` live-delivery warning, URI parser `invalid-params` vs `not-found` distinction |
+| [../openspec/changes/repo-webhook-tools/specs/repo-webhook-tools/repo-webhook-tools.demo.md](../openspec/changes/repo-webhook-tools/specs/repo-webhook-tools/repo-webhook-tools.demo.md) | 6 tools — `list`/`get`/`create`/`edit`/`delete_repo_hook` + `test_repo_hook`; 2 resources — `forgejo://repo/{owner}/{repo}/hooks` + `.../hook/{id}` | Tool registration, required-param guards (all 6 tools), `model.SafeHook()` explicit-allowlist proof that `secret` is never echoed, `test_repo_hook` live-delivery warning, URI parser `invalid-params` vs `not-found` distinction |
 
 **Use case.** An automation agent that registers a CI notification hook on
 every newly created repository, tests the delivery to confirm the endpoint is

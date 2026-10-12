@@ -1,0 +1,3 @@
+ERROR: get action job logs: boom
+-- port calls --
+GetJobLog ["octo","hello",3,0,"bytes=-32768",32768]

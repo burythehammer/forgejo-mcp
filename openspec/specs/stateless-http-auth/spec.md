@@ -140,7 +140,7 @@ request, so the factory takes the ephemeral path for every call. The operator's 
 constructed: that mode refuses to start with an operator token or the fallback flag, so
 there is no credential for it to hold.
 
-The same rule SHALL apply to the raw-HTTP calls of the real adapter, which SHALL refuse rather than send
+The same rule SHALL apply to the raw-HTTP calls of the Forgejo adapter (the real one), which SHALL refuse rather than send
 the server's own credential. The decision SHALL live in one place shared by both, so a
 future call path cannot reach a fallback that skipped it.
 
@@ -216,11 +216,11 @@ Two concurrent requests carrying distinct tokens `T_A` and `T_B` SHALL produce t
 
 ### Requirement: Raw HTTP path respects per-request token
 
-The raw-HTTP calls made by the real adapter (`pkg/forge/sdk`) SHALL carry the credential `Factory.For` resolved for the request, taken from the one function (`tokenFor`) that applies the policy, and SHALL NOT re-derive it. The token carried in `ctx` is preferred over the operator's configured token when setting the `Authorization` header.
+The raw-HTTP calls made by the Forgejo adapter (`pkg/forge/sdk`) SHALL carry the credential `Factory.For` resolved for the request, taken from the one function (`tokenFor`) that applies the policy, and SHALL NOT re-derive it. The token carried in `ctx` is preferred over the operator's configured token when setting the `Authorization` header.
 
 When no token is present in `ctx`, the operator's configured token is used only where the policy allows. Otherwise `Factory.For` SHALL return `forge.ErrNoRequestToken` so no raw request is built or sent.
 
-Attachment tool handlers in `operation/attachment/` SHALL obtain their port from
+Attachment MCP adapters in `operation/attachment/` SHALL obtain their port from
 `Factory.For` with their request `ctx`, so per-request identity is honored for binary operations.
 
 #### Scenario: Attachment upload uses per-request token

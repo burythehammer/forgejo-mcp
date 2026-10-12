@@ -1,0 +1,3 @@
+{"Result":{"deleted":true,"id":3}}
+-- port calls --
+DeleteRepoLabel ["octo","hello",3]

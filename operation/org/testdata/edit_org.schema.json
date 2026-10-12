@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Edit organization settings",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "Description",
+        "type": "string"
+      },
+      "full_name": {
+        "description": "Display name",
+        "type": "string"
+      },
+      "location": {
+        "description": "Location",
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "visibility": {
+        "description": "Visibility: public, limited, or private",
+        "type": "string"
+      },
+      "website": {
+        "description": "Website URL",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "edit_org"
+}

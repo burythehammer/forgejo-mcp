@@ -1,0 +1,3 @@
+ERROR: delete repo hook: boom
+-- port calls --
+DeleteRepoHook ["octo","hello",7]

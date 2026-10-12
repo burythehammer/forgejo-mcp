@@ -1,0 +1,4 @@
+ERROR: download body err: boom
+-- port calls --
+GetCommentAttachment ["octo","hello",9,7]
+DownloadAttachment ["https://f.example/dl/7"]

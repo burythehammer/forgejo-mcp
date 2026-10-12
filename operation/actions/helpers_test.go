@@ -79,8 +79,8 @@ func callErr(t *testing.T, fn toolFn, args map[string]any) error {
 	return err
 }
 
-// decode runs a tool and decodes the {"Result": ...} envelope of its output.
-func decode[T any](t *testing.T, fn toolFn, args map[string]any) T {
+// resultOf runs a tool and decodes the {"Result": ...} envelope of its output.
+func resultOf[T any](t *testing.T, fn toolFn, args map[string]any) T {
 	t.Helper()
 	var envelope struct {
 		Result T `json:"Result"`

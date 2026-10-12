@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Add a repository to a team",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "team_id": {
+        "description": "Team ID",
+        "type": "number"
+      }
+    },
+    "required": [
+      "team_id",
+      "org",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "add_team_repo"
+}

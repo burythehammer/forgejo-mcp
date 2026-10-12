@@ -1,0 +1,7 @@
+{"Result":{"deleted":true,"id":12}}
+-- port calls --
+GetOrgLabel ["acme",12]
+ListOrgRepoNames ["acme",1,50]
+ListRepoIssues ["acme","hello",{"Page":1,"PageSize":1,"State":"all","Type":"","Labels":["infra"],"Milestones":null,"KeyWord":"","Since":"0001-01-01T00:00:00Z","Before":"0001-01-01T00:00:00Z","CreatedBy":"","AssignedBy":"","MentionedBy":"","Owner":"","Team":"","Sort":""}]
+ListOrgRepoNames ["acme",2,50]
+DeleteOrgLabel ["acme",12]

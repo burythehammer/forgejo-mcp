@@ -1,0 +1,36 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Search org teams",
+  "inputSchema": {
+    "properties": {
+      "keyword": {
+        "description": "Search keyword",
+        "type": "string"
+      },
+      "limit": {
+        "default": 100,
+        "description": "Page size",
+        "type": "number"
+      },
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
+      }
+    },
+    "required": [
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "search_org_teams"
+}

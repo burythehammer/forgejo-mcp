@@ -1,0 +1,41 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Trigger a workflow run",
+  "inputSchema": {
+    "properties": {
+      "inputs": {
+        "description": "Workflow inputs as JSON object (e.g. {\"key\": \"value\"})",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "ref": {
+        "description": "Ref (branch/tag/commit)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "workflow": {
+        "description": "Workflow file or ID (e.g. main.yml)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "workflow",
+      "ref"
+    ],
+    "type": "object"
+  },
+  "name": "dispatch_workflow"
+}

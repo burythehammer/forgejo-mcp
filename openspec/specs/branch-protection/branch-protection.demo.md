@@ -9,6 +9,10 @@
 <!-- captured-against: 0826172 (feat/branch-protection-impl-uc6) -->
 <!-- updated-for: push/merge/approvals whitelist params on edit_branch_protection (feat/bp-whitelist-params) -->
 <!-- updated-at: 2026-06-02 -->
+<!-- regenerated-for: test names and module path after the #8 split (impl/85-86-lint-demo, 039e49f) -->
+<!-- regenerated-at: 2026-10-11 -->
+<!-- regenerated-by: hand-edit; showboat and openspec are not installed here, so the outputs were re-run with go test and the CLI -->
+
 
 Proves the `branch-protection` capability — spec [`spec.md`](./spec.md) (archived change `2026-06-02-branch-protection-management`), issue `forgejo-mcp-uc6` (discovered from `forgejo-mcp-f6h`: a repo with no protection let Renovate automerge before CI was green).
 
@@ -68,51 +72,45 @@ the whitelist filters *which writers* may push, it does not grant access.
 
 PATCH null-safety extends to the whitelists: an unpassed list serializes as
 `null` (leave-unchanged), never `[]` (which would silently wipe an existing
-whitelist). This is asserted by `TestEditBranchProtectionFn_PushWhitelistRoundTrip`
-below, which sends `enable_push_whitelist: true` + `push_whitelist_usernames:
+whitelist). This is asserted by the `edit_whitelists` golden pin in
+`operation/branchprotection/testdata/`, which sends `enable_push_whitelist: true` + `push_whitelist_usernames:
 ["goern","op1st-gitops"]` and verifies the unpassed merge whitelist stays `null`.
 
 ## Scenario coverage via the executable spec
 
-Each spec scenario is a test against an in-process `httptest` Forgejo (real request/response, no network, no token). The names map 1:1 to the spec: `status_check_contexts` round-trip, edit PATCH null-safety, push-whitelist round-trip, list/collection bounding + truncation sentinel, get/collection 404 → resource error, single-resource happy path, malformed URI → invalid-params, and the slash-glob rule URI.
+Each spec scenario is a test against an in-process `httptest` Forgejo (real request/response, no network, no token). The names map 1:1 to the spec: `status_check_contexts` round-trip, edit PATCH null-safety, push-whitelist round-trip, list/collection bounding + truncation sentinel, get/collection 404 → resource error, single-resource happy path, malformed URI → invalid-params, and the slash-glob rule URI. The tool-level cases moved from per-tool `*Fn` tests to the app service tests (`app/branchprotection`) and the golden table (`operation/branchprotection`, subtest `edit_whitelists`).
 
 ```bash
-go test -v -run "BranchProtection|ParseBranchProtection|SplitContexts" ./operation/branchprotection/ ./operation/resource/ 2>&1 | grep -E "^(=== RUN|--- PASS|--- FAIL|PASS|FAIL|ok)" | sed -E "s#\t# #g"
+go test -v -count=1 -run "BranchProtection|ParseBranchProtection|CreateRoundTripsStatusChecks|CreateNeedsBranchName|EditChangesOnlyTheFieldsPassed|EditEmptyListClearsIt|TestGolden/edit_whitelists" ./app/branchprotection/ ./operation/branchprotection/ ./operation/resource/ 2>&1 | grep -E "^\s*(=== RUN|--- PASS|--- FAIL|PASS|FAIL|ok)" | sed -E "s#\t# #g"
 ```
 
 ```output
-=== RUN   TestListBranchProtectionsFn
---- PASS: TestListBranchProtectionsFn (0.00s)
-=== RUN   TestGetBranchProtectionFn_OK
---- PASS: TestGetBranchProtectionFn_OK (0.00s)
-=== RUN   TestGetBranchProtectionFn_NotFound
---- PASS: TestGetBranchProtectionFn_NotFound (0.00s)
-=== RUN   TestCreateBranchProtectionFn_StatusCheckRoundTrip
---- PASS: TestCreateBranchProtectionFn_StatusCheckRoundTrip (0.00s)
-=== RUN   TestCreateBranchProtectionFn_MissingBranchName
---- PASS: TestCreateBranchProtectionFn_MissingBranchName (0.00s)
-=== RUN   TestEditBranchProtectionFn_OnlyPassedFields
---- PASS: TestEditBranchProtectionFn_OnlyPassedFields (0.00s)
-=== RUN   TestEditBranchProtectionFn_ContextsRoundTrip
---- PASS: TestEditBranchProtectionFn_ContextsRoundTrip (0.00s)
-=== RUN   TestEditBranchProtectionFn_PushWhitelistRoundTrip
---- PASS: TestEditBranchProtectionFn_PushWhitelistRoundTrip (0.00s)
-=== RUN   TestDeleteBranchProtectionFn_OK
---- PASS: TestDeleteBranchProtectionFn_OK (0.00s)
-=== RUN   TestSplitContexts
---- PASS: TestSplitContexts (0.00s)
-=== RUN   TestBranchProtectionsResource_HappyPath
---- PASS: TestBranchProtectionsResource_HappyPath (0.00s)
-=== RUN   TestBranchProtectionsResource_Truncation
---- PASS: TestBranchProtectionsResource_Truncation (0.00s)
-=== RUN   TestBranchProtectionsResource_NotFound
---- PASS: TestBranchProtectionsResource_NotFound (0.00s)
-=== RUN   TestBranchProtectionResource_HappyPath
---- PASS: TestBranchProtectionResource_HappyPath (0.00s)
-=== RUN   TestBranchProtectionResource_MalformedURI
---- PASS: TestBranchProtectionResource_MalformedURI (0.00s)
+=== RUN   TestCreateRoundTripsStatusChecks
+=== RUN   TestCreateNeedsBranchName
+=== RUN   TestEditChangesOnlyTheFieldsPassed
+=== RUN   TestEditEmptyListClearsIt
+--- PASS: TestCreateNeedsBranchName (0.00s)
+--- PASS: TestCreateRoundTripsStatusChecks (0.00s)
+--- PASS: TestEditEmptyListClearsIt (0.00s)
+--- PASS: TestEditChangesOnlyTheFieldsPassed (0.00s)
 PASS
-ok   codeberg.org/goern/forgejo-mcp/v2/operation/branchprotection (cached)
+ok   git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/branchprotection 0.003s
+=== RUN   TestGolden
+=== RUN   TestBranchProtectionsResource_HappyPath
+=== RUN   TestBranchProtectionsResource_Truncation
+=== RUN   TestBranchProtectionsResource_NotFound
+=== RUN   TestBranchProtectionResource_HappyPath
+=== RUN   TestBranchProtectionResource_MalformedURI
+=== RUN   TestGolden/edit_whitelists
+--- PASS: TestBranchProtectionsResource_NotFound (0.00s)
+--- PASS: TestBranchProtectionResource_MalformedURI (0.00s)
+--- PASS: TestBranchProtectionsResource_HappyPath (0.00s)
+--- PASS: TestBranchProtectionResource_HappyPath (0.00s)
+--- PASS: TestBranchProtectionsResource_Truncation (0.00s)
+--- PASS: TestGolden (0.00s)
+    --- PASS: TestGolden/edit_whitelists (0.00s)
+PASS
+ok   git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/branchprotection 0.008s
 === RUN   TestParseBranchProtections
 --- PASS: TestParseBranchProtections (0.00s)
 === RUN   TestParseBranchProtections_Invalid
@@ -121,10 +119,12 @@ ok   codeberg.org/goern/forgejo-mcp/v2/operation/branchprotection (cached)
 --- PASS: TestParseBranchProtection (0.00s)
 === RUN   TestParseBranchProtection_GlobRuleWithSlash
 --- PASS: TestParseBranchProtection_GlobRuleWithSlash (0.00s)
+=== RUN   TestBranchProtectionRuleEncoding
+--- PASS: TestBranchProtectionRuleEncoding (0.00s)
 === RUN   TestParseBranchProtection_Invalid
 --- PASS: TestParseBranchProtection_Invalid (0.00s)
 PASS
-ok   codeberg.org/goern/forgejo-mcp/v2/operation/resource (cached)
+ok   git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource 0.006s
 ```
 
 ## What this demo does not show (by design)

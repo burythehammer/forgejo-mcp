@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Delete a repository webhook by ID",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Webhook ID",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_repo_hook"
+}

@@ -1,0 +1,62 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create repo",
+  "inputSchema": {
+    "properties": {
+      "auto_init": {
+        "description": "Auto-initialize",
+        "type": "boolean"
+      },
+      "default_branch": {
+        "description": "Default branch",
+        "type": "string"
+      },
+      "description": {
+        "description": "Description",
+        "type": "string"
+      },
+      "gitignores": {
+        "description": "Gitignore templates",
+        "type": "string"
+      },
+      "issue_labels": {
+        "description": "Issue label set",
+        "type": "string"
+      },
+      "license": {
+        "description": "License",
+        "type": "string"
+      },
+      "name": {
+        "description": "Repo name",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Owner/org name",
+        "type": "string"
+      },
+      "private": {
+        "description": "Private repo",
+        "type": "boolean"
+      },
+      "readme": {
+        "description": "README content",
+        "type": "string"
+      },
+      "template": {
+        "description": "Template repo",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "create_repo"
+}

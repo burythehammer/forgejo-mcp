@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Check and list user notifications",
+  "inputSchema": {
+    "properties": {
+      "all": {
+        "description": "Include read notifications (default: false)",
+        "type": "boolean"
+      },
+      "before": {
+        "description": "Before time (RFC3339)",
+        "type": "string"
+      },
+      "limit": {
+        "default": 20,
+        "description": "Page size",
+        "type": "number"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
+      },
+      "since": {
+        "description": "After time (RFC3339)",
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  },
+  "name": "check_notifications"
+}

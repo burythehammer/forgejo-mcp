@@ -1,0 +1,3 @@
+{"Result":"review deleted successfully"}
+-- port calls --
+DeletePullReview ["octo","hello",7,21]

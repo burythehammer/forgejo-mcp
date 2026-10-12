@@ -4,14 +4,10 @@ package repo
 
 import (
 	"context"
-	"fmt"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -46,133 +42,49 @@ var (
 	)
 )
 
-// repositoryView is GetRepo plus topics. SDK Repository has no Topics field.
-type repositoryView struct {
-	*forgejo_sdk.Repository
-	Topics []string `json:"topics"`
-}
-
-func (h handlers) loadRepo(ctx context.Context, owner, repo string) (*repositoryView, error) {
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return nil, err
-	}
-	r, err := f.GetRepo(ctx, owner, repo)
-	if err != nil {
-		return nil, fmt.Errorf("get repo: %w", err)
-	}
-	topics, err := f.ListRepoTopics(ctx, owner, repo, forgejo_sdk.ListRepoTopicsOptions{
-		ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: maxRepoTopics},
-	})
-	if err != nil {
-		if forge.IsNotFound(err) {
-			topics = []string{}
-		} else {
-			return nil, fmt.Errorf("list repo topics: %w", err)
-		}
-	}
-	if topics == nil {
-		topics = []string{}
-	}
-	return &repositoryView{Repository: r, Topics: topics}, nil
+type getRepoArgs struct {
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
 }
 
 func (h handlers) GetRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetRepoFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
+	return runAdmin(ctx, h, req, "GetRepoFn", func(ctx context.Context, s *apprepo.AdminService, a getRepoArgs) (*mcp.CallToolResult, error) {
+		r, err := s.GetRepo(ctx, a.Owner, a.Repo)
+		return mcpresult.Render(r, err)
+	})
+}
 
-	r, err := h.loadRepo(ctx, owner, repo)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	return to.TextResult(r)
+// editRepoArgs leaves a setting nil when it was not given (or was given with
+// the wrong type), so the use case can tell "not given" from "given as false"
+// or "given as empty".
+type editRepoArgs struct {
+	Owner           string  `json:"owner" required:"true"`
+	Repo            string  `json:"repo" required:"true"`
+	Name            *string `json:"name"`
+	Description     *string `json:"description"`
+	Website         *string `json:"website"`
+	DefaultBranch   *string `json:"default_branch"`
+	Private         *bool   `json:"private"`
+	Template        *bool   `json:"template"`
+	Archived        *bool   `json:"archived"`
+	HasIssues       *bool   `json:"has_issues"`
+	HasWiki         *bool   `json:"has_wiki"`
+	HasPullRequests *bool   `json:"has_pull_requests"`
+	HasProjects     *bool   `json:"has_projects"`
+	HasReleases     *bool   `json:"has_releases"`
+	HasPackages     *bool   `json:"has_packages"`
+	HasActions      *bool   `json:"has_actions"`
 }
 
 func (h handlers) EditRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called EditRepoFn")
-	args := req.GetArguments()
-	owner, _ := args["owner"].(string)
-	repo, _ := args["repo"].(string)
-	if owner == "" || repo == "" {
-		return to.ErrorResult(fmt.Errorf("owner and repo are required"))
-	}
-
-	opt := forgejo_sdk.EditRepoOption{}
-	hasField := false
-
-	if v, ok := args["name"].(string); ok && v != "" {
-		opt.Name = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["description"].(string); ok {
-		opt.Description = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["website"].(string); ok {
-		opt.Website = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["default_branch"].(string); ok && v != "" {
-		opt.DefaultBranch = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["private"].(bool); ok {
-		opt.Private = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["template"].(bool); ok {
-		opt.Template = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["archived"].(bool); ok {
-		opt.Archived = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["has_issues"].(bool); ok {
-		opt.HasIssues = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["has_wiki"].(bool); ok {
-		opt.HasWiki = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["has_pull_requests"].(bool); ok {
-		opt.HasPullRequests = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["has_projects"].(bool); ok {
-		opt.HasProjects = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["has_releases"].(bool); ok {
-		opt.HasReleases = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["has_packages"].(bool); ok {
-		opt.HasPackages = ptr.To(v)
-		hasField = true
-	}
-	if v, ok := args["has_actions"].(bool); ok {
-		opt.HasActions = ptr.To(v)
-		hasField = true
-	}
-
-	if !hasField {
-		return to.ErrorResult(fmt.Errorf("edit_repo: at least one setting field must be provided"))
-	}
-
-	f, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	r, err := f.EditRepo(ctx, owner, repo, opt)
-	if err != nil {
-		return to.ErrorResult(fmt.Errorf("edit repo: %w", err))
-	}
-	return to.TextResult(r)
+	return runAdmin(ctx, h, req, "EditRepoFn", func(ctx context.Context, s *apprepo.AdminService, a editRepoArgs) (*mcp.CallToolResult, error) {
+		r, err := s.EditRepo(ctx, apprepo.EditRepoInput{Owner: a.Owner, Repo: a.Repo, Edit: apprepo.RepoEdit{
+			Name: a.Name, Description: a.Description, Website: a.Website, DefaultBranch: a.DefaultBranch,
+			Private: a.Private, Template: a.Template, Archived: a.Archived,
+			HasIssues: a.HasIssues, HasWiki: a.HasWiki, HasPullRequests: a.HasPullRequests,
+			HasProjects: a.HasProjects, HasReleases: a.HasReleases, HasPackages: a.HasPackages,
+			HasActions: a.HasActions,
+		}})
+		return mcpresult.Render(r, err)
+	})
 }

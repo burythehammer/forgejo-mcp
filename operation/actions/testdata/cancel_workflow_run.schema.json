@@ -1,0 +1,33 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Cancel a pending or running workflow run. Forgejo also returns 204 for a run that has already finished and leaves that run unchanged; that is success, not an error. Same Actions write as dispatch_workflow; a read-only token returns 403.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "run_id": {
+        "description": "Run ID",
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ],
+    "type": "object"
+  },
+  "name": "cancel_workflow_run"
+}

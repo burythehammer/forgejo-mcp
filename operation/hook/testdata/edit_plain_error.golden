@@ -1,0 +1,4 @@
+ERROR: edit repo hook: write failed
+-- port calls --
+GetRepoHook ["octo","hello",7]
+EditRepoHook ["octo","hello",7,{}]

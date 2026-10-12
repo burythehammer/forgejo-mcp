@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Dismiss a pull request review",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Review ID",
+        "type": "number"
+      },
+      "index": {
+        "description": "PR index",
+        "type": "number"
+      },
+      "message": {
+        "description": "Dismissal message",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "index",
+      "id",
+      "message"
+    ],
+    "type": "object"
+  },
+  "name": "dismiss_pull_review"
+}

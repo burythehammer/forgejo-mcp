@@ -1,0 +1,39 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Edit an organization-level label (PATCH — only supplied fields change). Providing no fields is an error.",
+  "inputSchema": {
+    "properties": {
+      "color": {
+        "description": "New label color as 6-digit hex (e.g. #0088ff or 0088ff)",
+        "type": "string"
+      },
+      "description": {
+        "description": "New label description",
+        "type": "string"
+      },
+      "id": {
+        "description": "Label ID",
+        "type": "number"
+      },
+      "name": {
+        "description": "New label name",
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "edit_org_label"
+}

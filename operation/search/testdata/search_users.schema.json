@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Search users",
+  "inputSchema": {
+    "properties": {
+      "keyword": {
+        "description": "Search keyword",
+        "type": "string"
+      },
+      "limit": {
+        "default": 100,
+        "description": "Page size",
+        "type": "number"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
+      }
+    },
+    "required": [],
+    "type": "object"
+  },
+  "name": "search_users"
+}
