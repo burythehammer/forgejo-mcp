@@ -47,6 +47,8 @@ type Seeder interface {
 	AddPackage(owner string, v forge.PackageVersion, files ...forge.PackageFile) forge.PackageVersion
 	AddAttachmentIssue(owner, repo string, index int64)
 	AddAttachmentComment(owner, repo string, commentID int64)
+	// FailIssues makes every issue call answer with an HTTP status (0 clears it).
+	FailIssues(status int)
 
 	// Actions.
 	AddActionsOrg(org string)

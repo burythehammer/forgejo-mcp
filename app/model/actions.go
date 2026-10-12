@@ -65,13 +65,14 @@ type ArtifactList struct {
 	TotalCount *int
 }
 
-// JobLog is a raw bounded read of a job log, as Forgejo returned it.
+// JobLog is a raw bounded read of a job log, as Forgejo returned it. Partial
+// says Forgejo answered with only the requested range.
 type JobLog struct {
 	Body          []byte
 	ContentType   string
 	ContentRange  string
 	ContentLength int64
-	StatusCode    int
+	Partial       bool
 }
 
 // Secret is an action secret's metadata. Forgejo never returns a value.

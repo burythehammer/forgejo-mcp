@@ -5,7 +5,8 @@ package resource
 import (
 	"errors"
 	"fmt"
-	"strings"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 )
 
 // ResourceError wraps a forgejo URI and an HTTP status code into a structured error
@@ -20,12 +21,14 @@ func (e *ResourceError) Error() string {
 	return fmt.Sprintf("resource %q: %s (code %d)", e.URI, e.Message, e.Code)
 }
 
-// MapForgejoError maps a forgejo SDK error to a ResourceError using the error
-// message to detect HTTP status codes. Returns a *ResourceError with:
-//   - Code -32002 for HTTP 403 access-denied responses
-//   - Code -32003 for HTTP 404 not-found responses
-//   - Code -32602 for invalid-params errors (ErrInvalidParams sentinel or parser phrases)
-//   - Code -32603 (internal error) for all other errors
+// MapForgejoError maps a port error to a ResourceError by its domain kind
+// (forge.ErrUnauthorized and friends), never by reading its message or status.
+// The message carries the HTTP status in front when Forgejo gave one. Returns a
+// *ResourceError with:
+//   - Code -32002 for unauthorized (401, 403)
+//   - Code -32003 for not found (404)
+//   - Code -32602 for invalid params (ErrInvalidParams, or a refused input from Forgejo)
+//   - Code -32603 (internal error) for upstream failures and anything else
 func MapForgejoError(uri string, err error) *ResourceError {
 	if err == nil {
 		return nil
@@ -34,12 +37,14 @@ func MapForgejoError(uri string, err error) *ResourceError {
 	if errors.Is(err, ErrInvalidParams) {
 		return &ResourceError{URI: uri, Code: -32602, Message: "invalid params: " + err.Error()}
 	}
-	msg := err.Error()
+	msg := forge.Detail(err)
 	switch {
-	case strings.Contains(msg, "403") || strings.Contains(msg, "Forbidden") || strings.Contains(msg, "forbidden"):
+	case errors.Is(err, forge.ErrUnauthorized):
 		return &ResourceError{URI: uri, Code: -32002, Message: "access denied: " + msg}
-	case strings.Contains(msg, "404") || strings.Contains(msg, "Not Found") || strings.Contains(msg, "not found"):
+	case errors.Is(err, forge.ErrNotFound):
 		return &ResourceError{URI: uri, Code: -32003, Message: "not found: " + msg}
+	case errors.Is(err, forge.ErrValidation):
+		return &ResourceError{URI: uri, Code: -32602, Message: "invalid params: " + msg}
 	default:
 		return &ResourceError{URI: uri, Code: -32603, Message: "internal error: " + msg}
 	}

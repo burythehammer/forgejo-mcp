@@ -73,9 +73,6 @@ func mapErr(uri string, err error) error {
 	if errors.Is(err, apphook.ErrRequired) {
 		return resource.MapForgejoError(uri, fmt.Errorf("%w: %s", resource.ErrInvalidParams, err))
 	}
-	if code := forge.StatusCode(err); code != 0 {
-		return resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
-	}
 	return resource.MapForgejoError(uri, err)
 }
 

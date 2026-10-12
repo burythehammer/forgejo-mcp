@@ -5,6 +5,7 @@ package fake
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ type issueState struct {
 	nextLabel int64                                   // label IDs are unique across the instance
 	orgLabels map[string]map[int64]*forgejo_sdk.Label // by org
 	deps      [][2]depKey                             // issue -> issue it depends on
+	fault     int                                     // HTTP status every issue call answers with; 0 = none
 }
 
 type issueRepo struct {
@@ -50,9 +52,22 @@ func (f *Forgejo) repoKnown(owner, repo string) bool {
 	return ok
 }
 
+// FailIssues makes every issue call answer with status, as a Forgejo that is
+// down or broken would. Zero clears it. The contract suite uses it to reach
+// the upstream error kind; every issue method looks its repository up through
+// issueRepo, so none is left out.
+func (f *Forgejo) FailIssues(status int) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	f.issues.fault = status
+}
+
 // issueRepo returns the repository's issue state, 404 if it does not exist.
 // The caller holds f.issues.mu.
 func (f *Forgejo) issueRepo(owner, repo string) (*issueRepo, error) {
+	if f.issues.fault != 0 {
+		return nil, statusErr(f.issues.fault, "issue service failed")
+	}
 	key := owner + "/" + repo
 	if r, ok := f.issues.repos[key]; ok {
 		return r, nil
@@ -348,7 +363,7 @@ func (f *Forgejo) CreateIssue(_ context.Context, owner, repo string, opt forgejo
 		return nil, err
 	}
 	if strings.TrimSpace(opt.Title) == "" {
-		return nil, fmt.Errorf("title is empty")
+		return nil, statusErr(http.StatusUnprocessableEntity, "title is empty")
 	}
 	r.next++
 	now := f.Now()
@@ -401,7 +416,7 @@ func (f *Forgejo) EditIssue(_ context.Context, owner, repo string, index int64, 
 		return nil, err
 	}
 	if opt.Title != "" && strings.TrimSpace(opt.Title) == "" {
-		return nil, fmt.Errorf("title is empty")
+		return nil, statusErr(http.StatusUnprocessableEntity, "title is empty")
 	}
 	rec, err := r.issue(index)
 	if err != nil {

@@ -74,6 +74,7 @@ func (a *Adapter) GetJobLog(ctx context.Context, owner, repo string, jobID, atte
 		ContentRange:  raw.ContentRange,
 		ContentLength: raw.ContentLength,
 		StatusCode:    raw.StatusCode,
+		Partial:       raw.StatusCode == http.StatusPartialContent,
 	}, nil
 }
 

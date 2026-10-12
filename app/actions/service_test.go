@@ -123,7 +123,7 @@ func TestJobLogRejectsOverflowBeforeReading(t *testing.T) {
 func TestJobLogPagesBackwardsAndForwards(t *testing.T) {
 	t.Parallel()
 	// A 100-byte log; the window is bytes 10-13 (4 bytes).
-	p := &stubPort{log: model.JobLog{Body: []byte("abcd"), StatusCode: 206, ContentRange: "bytes 10-13/100", ContentLength: 4}}
+	p := &stubPort{log: model.JobLog{Body: []byte("abcd"), Partial: true, ContentRange: "bytes 10-13/100", ContentLength: 4}}
 	page, err := app.New(p).JobLog(context.Background(), "o", "r", app.JobLogQuery{
 		JobID: 1, HasOffset: true, Offset: 10, MaxBytes: 4,
 	})
@@ -146,7 +146,7 @@ func TestJobLogPagesBackwardsAndForwards(t *testing.T) {
 
 func TestJobLogRejectsInconsistentContentRange(t *testing.T) {
 	t.Parallel()
-	p := &stubPort{log: model.JobLog{Body: []byte("short"), StatusCode: 206, ContentRange: "bytes 0-99/100"}}
+	p := &stubPort{log: model.JobLog{Body: []byte("short"), Partial: true, ContentRange: "bytes 0-99/100"}}
 	_, err := app.New(p).JobLog(context.Background(), "o", "r", app.JobLogQuery{JobID: 1, MaxBytes: 5})
 	if err == nil || !strings.HasPrefix(err.Error(), "get action job logs: inconsistent Content-Range") {
 		t.Fatalf("got %v", err)

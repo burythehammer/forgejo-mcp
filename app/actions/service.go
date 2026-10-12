@@ -13,9 +13,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
-// httpPartialContent is the status Forgejo answers a ranged log read with.
-const httpPartialContent = 206
-
 // ErrLogRangeOverflow is returned when offset and max_bytes together exceed
 // the integer range.
 var ErrLogRangeOverflow = errors.New("offset and max_bytes exceed the supported integer range")
@@ -240,7 +237,7 @@ func (s *Service) DeleteOrgSecret(ctx context.Context, org, name string) error {
 // responseByteRange works out which bytes of the job log a response carried:
 // the start and end offsets (inclusive) and the log's total size.
 func responseByteRange(resp model.JobLog) (int64, int64, int64, error) {
-	if resp.StatusCode == httpPartialContent {
+	if resp.Partial {
 		var start, end, total int64
 		if _, err := fmt.Sscanf(resp.ContentRange, "bytes %d-%d/%d", &start, &end, &total); err != nil {
 			return 0, 0, 0, fmt.Errorf("invalid Content-Range %q: %w", resp.ContentRange, err)

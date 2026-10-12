@@ -74,9 +74,6 @@ func (h handlers) statusResourceHandler(ctx context.Context, req mcp.ReadResourc
 	// state over the rows it fetched.
 	read, err := apprepo.NewAdmin(repoadminadapter.New(port)).ReadCommitStatuses(ctx, params.Owner, params.Repo, params.SHA, 1, resource.EmbeddedListCap+1)
 	if err != nil {
-		if code := forge.StatusCode(err); code != 0 {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
-		}
 		return nil, resource.MapForgejoError(uri, err)
 	}
 	statuses := read.Statuses
