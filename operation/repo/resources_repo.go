@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repoadminadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -64,18 +66,21 @@ func (h handlers) repoResourceHandler(ctx context.Context, req mcp.ReadResourceR
 		return nil, resource.MapForgejoError(uri, err)
 	}
 
-	f, err := h.forge.For(ctx)
+	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	r, err := f.GetRepo(ctx, params.Owner, params.Repo)
+	// The counts-only summary: the read asks for no topics, which is the one
+	// intentional difference from get_repo.
+	read, err := apprepo.NewAdmin(repoadminadapter.New(port)).ReadRepo(ctx, params.Owner, params.Repo, apprepo.RepoReadOptions{})
 	if err != nil {
 		if code := forge.StatusCode(err); code != 0 {
 			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
 		}
 		return nil, resource.MapForgejoError(uri, err)
 	}
+	r := read.Repo
 
 	ownerLogin := params.Owner
 	if r.Owner != nil {

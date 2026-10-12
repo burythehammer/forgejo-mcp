@@ -104,25 +104,11 @@ func (s *AdminService) ListMyRepos(ctx context.Context, p AdminPaging) ([]*model
 // GetRepo returns a repository with its topics. A repository with no topics
 // list, or one whose topic list Forgejo reports as missing, has an empty list.
 func (s *AdminService) GetRepo(ctx context.Context, owner, repo string) (*model.RepositoryView, error) {
-	if owner == "" || repo == "" {
-		return nil, errors.New("owner and repo are required")
-	}
-	r, err := s.port.GetRepo(ctx, owner, repo)
+	read, err := s.ReadRepo(ctx, owner, repo, RepoReadOptions{Topics: true})
 	if err != nil {
-		return nil, fmt.Errorf("get repo: %w", err)
+		return nil, err
 	}
-	topics, err := s.port.ListRepoTopics(ctx, owner, repo, AdminPaging{Page: 1, Limit: maxRepoTopics})
-	if err != nil {
-		var nf *NotFoundError
-		if !errors.As(err, &nf) {
-			return nil, fmt.Errorf("list repo topics: %w", err)
-		}
-		topics = nil
-	}
-	if topics == nil {
-		topics = []string{}
-	}
-	return &model.RepositoryView{Repository: r, Topics: topics}, nil
+	return &model.RepositoryView{Repository: read.Repo, Topics: read.Topics}, nil
 }
 
 // EditRepo changes the settings given and returns the repository. It is an
@@ -217,37 +203,11 @@ func (s *AdminService) DeleteRepoTopic(ctx context.Context, owner, repo, raw str
 // commit SHA. A page below 1 is 1; a limit below 1 is the default, and above
 // the maximum it is the maximum.
 func (s *AdminService) GetCommitStatuses(ctx context.Context, owner, repo, sha string, page, limit int) (model.CommitStatuses, error) {
-	if owner == "" || repo == "" {
-		return model.CommitStatuses{}, errors.New("owner and repo are required")
-	}
-	if err := validateSHA(sha); err != nil {
+	read, err := s.ReadCommitStatuses(ctx, owner, repo, sha, page, limit)
+	if err != nil {
 		return model.CommitStatuses{}, err
 	}
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = defaultStatusesLimit
-	}
-	if limit > maxStatusesLimit {
-		limit = maxStatusesLimit
-	}
-	res, err := s.port.ListCommitStatuses(ctx, owner, repo, sha, AdminPaging{Page: page, Limit: limit})
-	if err != nil {
-		return model.CommitStatuses{}, fmt.Errorf("get commit statuses: %w", err)
-	}
-	items := res.Items
-	if items == nil {
-		items = []model.StatusItem{}
-	}
-	return model.CommitStatuses{
-		SHA:        sha,
-		Statuses:   items,
-		Page:       page,
-		Limit:      limit,
-		Count:      len(items),
-		TotalCount: res.TotalCount,
-	}, nil
+	return read.CommitStatuses, nil
 }
 
 // any reports whether an edit changes at least one setting.
