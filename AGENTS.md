@@ -21,7 +21,7 @@ Key directories:
 
 - `operation/` - MCP adapters by domain: tool definitions, argument decoding, rendering
 - `app/` - Use cases by domain: MCP-free and SDK-free (`scripts/ci/check-app-boundary.sh`)
-- `pkg/forge/` - The Forgejo port (interfaces, no SDK client); `pkg/forge/sdk/` is the Forgejo adapter (the real one); `pkg/forge/<domain>adapter/` is a port bridge from a use case's port to it
+- `pkg/forge/` - The Forgejo port (interfaces, no SDK client; SDK types still appear as data in its signatures until #8, see `docs/adr/0002-forgejo-port-per-domain-over-sdk-types.md`); `pkg/forge/sdk/` is the Forgejo adapter (the real one); `pkg/forge/<domain>adapter/` is a port bridge from a use case's port to it
 - `pkg/to/` - Response formatting helpers
 - `pkg/params/` - Shared parameter descriptions
 
@@ -32,7 +32,7 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 ## Adding a New Tool
 
 1. Put the logic in a use case in `app/{domain}/` (typed input, repo-owned result). `app/**` must not import mcp-go or the Forgejo SDK (`scripts/ci/check-app-boundary.sh`); reach Forgejo through the port in `pkg/forge/`, bridged by `pkg/forge/<domain>adapter/`
-2. Put the MCP adapter in `operation/{domain}/`: a `mcp.NewTool()` definition, an argument struct (`json:"name"`, `required:"true"`) decoded with `decode.Lax`, then a call to the use case. Numbers are `float64`
+2. Put the MCP adapter in `operation/{domain}/`: a `mcp.NewTool()` definition, an argument struct (`json:"name"`, `required:"true"`) decoded with `decode.Lax`, then a call to the use case. Numbers are `float64`, except where a tool's error text depends on how the number was given (`operation/actions`, a few others): those type it `any` and read it with a helper, see `operation/actions/args.go` and DEVELOPER.md
 3. Register in the domain's `RegisterTool(s *server.MCPServer, f forge.Factory)` function
 4. If new domain, import and call in `operation/operation.go`
 5. **Pin it with tests.** `mcptest.SchemaSnapshot` and `mcptest.Golden` per tool, `mcptest.ArgsMatchSchema` per argument struct (`go test ./operation/{domain} -update` writes the files), and use-case tests in `app/{domain}/`
