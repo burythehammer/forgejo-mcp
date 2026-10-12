@@ -9,17 +9,23 @@ import (
 	"strings"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/labelresolve"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
 
 // Service runs the issue, label and dependency use cases over a Port. Build
 // one per request from the port the request's credential selects; it holds no
 // other state.
-type Service struct{ port Port }
+type Service struct {
+	port   Port
+	labels *labelresolve.Resolver
+}
 
 // New returns the use cases bound to port.
-func New(port Port) *Service { return &Service{port: port} }
+func New(port Port) *Service {
+	return &Service{port: port, labels: labelresolve.New(catalog{port})}
+}
 
 // The inputs below are what an MCP adapter has decoded from a tool call. The
 // adapter applies the tool's defaults for an argument that was left out or
@@ -198,7 +204,7 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (model.IssueSearch
 func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Issue, error) {
 	opt := NewIssue{Title: in.Title, Body: in.Body, Ref: in.Ref}
 	if in.Labels != nil {
-		ids, err := s.resolveLabels(ctx, in.Owner, in.Repo, *in.Labels)
+		ids, err := s.labels.Resolve(ctx, in.Owner, in.Repo, *in.Labels)
 		if err != nil {
 			return nil, err
 		}
@@ -274,7 +280,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (*model.Issue, err
 		if len(split.CSV(*in.SetLabels)) == 0 {
 			clearLabels = true
 		} else {
-			ids, err := s.resolveLabels(ctx, in.Owner, in.Repo, *in.SetLabels)
+			ids, err := s.labels.Resolve(ctx, in.Owner, in.Repo, *in.SetLabels)
 			if err != nil {
 				return nil, err
 			}
