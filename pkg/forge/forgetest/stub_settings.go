@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
@@ -77,9 +79,21 @@ func (s *Stub) mountHooks(mux *http.ServeMux) {
 		reply(w, h, err)
 	})
 	mux.HandleFunc("PATCH "+hooksURL+"/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var opt forgejo_sdk.EditHookOption
-		if !decode(w, r, &opt) {
+		// Presence matters: an absent key stays nil, an explicit "" stays a
+		// non-nil pointer, as Forgejo reads a PATCH body.
+		var body struct {
+			Config              map[string]string `json:"config"`
+			Events              []string          `json:"events"`
+			BranchFilter        *string           `json:"branch_filter"`
+			Active              *bool             `json:"active"`
+			AuthorizationHeader *string           `json:"authorization_header"`
+		}
+		if !decode(w, r, &body) {
 			return
+		}
+		opt := forge.HookEdit{
+			Config: body.Config, Events: body.Events, BranchFilter: body.BranchFilter,
+			Active: body.Active, AuthorizationHeader: body.AuthorizationHeader,
 		}
 		// Forgejo answers an edit with the hook; the SDK ignores the body.
 		err := f.EditRepoHook(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "id"), opt)

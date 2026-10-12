@@ -110,7 +110,10 @@ func (f *Forgejo) CreateRepoHook(_ context.Context, owner, repo string, opt forg
 	return copyHook(h), nil
 }
 
-func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, opt forgejo_sdk.EditHookOption) error {
+// EditRepoHook follows Forgejo's partial-update rule: a field the edit leaves
+// nil keeps its stored value; a field it sets is replaced, and an explicit
+// empty branch filter clears it.
+func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, opt forge.HookEdit) error {
 	f.hooks.mu.Lock()
 	defer f.hooks.mu.Unlock()
 	hooks, err := f.hookList(owner, repo)
@@ -131,8 +134,12 @@ func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, 
 	if opt.Events != nil {
 		h.Events = opt.Events
 	}
-	if opt.BranchFilter != "" {
-		h.Config["branch_filter"] = opt.BranchFilter
+	if opt.BranchFilter != nil {
+		if *opt.BranchFilter == "" {
+			delete(h.Config, "branch_filter")
+		} else {
+			h.Config["branch_filter"] = *opt.BranchFilter
+		}
 	}
 	if opt.Active != nil {
 		h.Active = *opt.Active

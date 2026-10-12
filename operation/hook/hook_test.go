@@ -320,3 +320,61 @@ func TestHookResource_NotFound(t *testing.T) {
 		t.Fatalf("want not-found resource error, got %v", err)
 	}
 }
+
+// seedFilteredHook seeds a hook limited to a branch, as a plain edit must not widen.
+func seedFilteredHook(t *testing.T, f *fake.Forgejo) *forgejo_sdk.Hook {
+	t.Helper()
+	hk, err := f.CreateRepoHook(context.Background(), testOwner, testRepo, forgejo_sdk.CreateHookOption{
+		Type:         forgejo_sdk.HookTypeForgejo,
+		Config:       map[string]string{"url": "https://example.test/old", "content_type": "json"},
+		Events:       []string{"push"},
+		Active:       true,
+		BranchFilter: "main",
+	})
+	if err != nil {
+		t.Fatalf("seeding filtered hook: %v", err)
+	}
+	return hk
+}
+
+func TestEditRepoHookFn_UrlOnlyKeepsBranchFilterEventsAndActive(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	existing := seedFilteredHook(t, f)
+
+	if _, err := h.EditRepoHookFn(context.Background(), newHookCallToolRequest(map[string]interface{}{
+		"id": float64(existing.ID), "url": "https://example.test/new",
+	})); err != nil {
+		t.Fatalf("EditRepoHookFn err: %v", err)
+	}
+	stored, err := f.GetRepoHook(context.Background(), testOwner, testRepo, existing.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Config["url"] != "https://example.test/new" || stored.Config["branch_filter"] != "main" ||
+		!stored.Active || len(stored.Events) != 1 || stored.Events[0] != "push" {
+		t.Errorf("url-only edit changed other fields: %+v", stored)
+	}
+}
+
+func TestEditRepoHookFn_ExplicitEmptyBranchFilterClears(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	existing := seedFilteredHook(t, f)
+
+	if _, err := h.EditRepoHookFn(context.Background(), newHookCallToolRequest(map[string]interface{}{
+		"id": float64(existing.ID), "branch_filter": "",
+	})); err != nil {
+		t.Fatalf("EditRepoHookFn err: %v", err)
+	}
+	stored, err := f.GetRepoHook(context.Background(), testOwner, testRepo, existing.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := stored.Config["branch_filter"]; ok && v != "" {
+		t.Errorf("branch_filter = %q after explicit empty, want cleared", v)
+	}
+	if stored.Config["url"] != "https://example.test/old" || !stored.Active || stored.Events[0] != "push" {
+		t.Errorf("clearing the branch filter changed other fields: %+v", stored)
+	}
+}

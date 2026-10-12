@@ -281,28 +281,30 @@ func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (
 		return to.ErrorResult(fmt.Errorf("get repo hook for edit: %w", err))
 	}
 
+	// Only the fields the caller passed are filled in; the port sends nothing
+	// for the rest, so Forgejo keeps their stored values. Config is sent as a
+	// whole map, so it is only built (from the stored one) when a config key
+	// was passed.
+	var opt forge.HookEdit
 	config := existing.Config
-	if v, ok := args["url"].(string); ok && v != "" {
-		config["url"] = v
+	if config == nil {
+		config = map[string]string{}
 	}
-	if v, ok := args["content_type"].(string); ok && v != "" {
-		config["content_type"] = v
+	configTouched := false
+	for _, key := range []string{"url", "content_type", "secret", "http_method"} {
+		if v, ok := args[key].(string); ok && v != "" {
+			config[key] = v
+			configTouched = true
+		}
 	}
-	if v, ok := args["secret"].(string); ok && v != "" {
-		config["secret"] = v
-	}
-	if v, ok := args["http_method"].(string); ok && v != "" {
-		config["http_method"] = v
-	}
-
-	opt := forgejo_sdk.EditHookOption{
-		Config: config,
+	if configTouched {
+		opt.Config = config
 	}
 	if v, ok := args["events"].(string); ok && v != "" {
 		opt.Events = splitEvents(v)
 	}
 	if v, ok := args["branch_filter"].(string); ok {
-		opt.BranchFilter = v
+		opt.BranchFilter = ptr.To(v)
 	}
 	if v, ok := args["active"].(bool); ok {
 		opt.Active = ptr.To(v)
