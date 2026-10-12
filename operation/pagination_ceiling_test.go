@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/attachment"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/issue"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/pull"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/repo"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/tracking"
@@ -19,21 +18,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ceilingItems is the instance ceiling the non-issue list tools are run under.
+// ceilingItems is the instance ceiling the list tools are run under.
 const ceilingItems = 2
-
-// issueListTools are the list tools that belong to the issue domain. The
-// ceiling test below covers every other list tool in pageToolsTable.
-var issueListTools = map[string]bool{
-	issue.ListRepoIssuesToolName:        true,
-	issue.ListIssueCommentsToolName:     true,
-	issue.ListRepoMilestonesToolName:    true,
-	issue.ListRepoLabelsToolName:        true,
-	issue.ListOrgLabelsToolName:         true,
-	issue.SearchIssuesToolName:          true,
-	issue.ListIssueDependenciesToolName: true,
-	issue.ListIssueDependentsToolName:   true,
-}
 
 // unpagedListTools are list tools whose input schema has no page or limit: their
 // goldens are the same at every call shape, so there is no client-controlled
@@ -49,14 +35,14 @@ var unpagedListTools = map[string]bool{
 	repo.ListRepoContentsToolName:             true,
 }
 
-// TestCeilingNonIssueListTools pins the instance ceiling on every non-issue
-// list tool: a limit above max_response_items is refused and names the
-// ceiling, and a default call still succeeds because the default is lowered to
-// the ceiling rather than refused.
-func TestCeilingNonIssueListTools(t *testing.T) {
+// TestCeilingListTools pins the instance ceiling on every paged list tool: a
+// limit above max_response_items is refused and names the ceiling, and a
+// default call still succeeds because the default is lowered to the ceiling
+// rather than refused.
+func TestCeilingListTools(t *testing.T) {
 	t.Parallel()
 	for _, pt := range pageToolsTable {
-		if issueListTools[pt.tool] || unpagedListTools[pt.tool] {
+		if unpagedListTools[pt.tool] {
 			continue
 		}
 		t.Run(pt.tool+"/over_ceiling", func(t *testing.T) {
@@ -105,24 +91,5 @@ func ceilingInvoke(t *testing.T, pt pageTool, extra map[string]any) string {
 		return "RESULT-ERROR: " + res.Content[0].(mcp.TextContent).Text + "\n"
 	default:
 		return res.Content[0].(mcp.TextContent).Text + "\n"
-	}
-}
-
-// TestCeilingIssueListDefaultsUnderCeiling pins that the issue list tools, which
-// the list module already serves, lower their default limit to the ceiling
-// rather than refusing a call that gave no limit.
-func TestCeilingIssueListDefaultsUnderCeiling(t *testing.T) {
-	t.Parallel()
-	for _, pt := range pageToolsTable {
-		if pt.tool != issue.ListRepoIssuesToolName && pt.tool != issue.SearchIssuesToolName {
-			continue
-		}
-		t.Run(pt.tool+"/default_under_ceiling", func(t *testing.T) {
-			t.Parallel()
-			out := ceilingInvoke(t, pt, nil)
-			if strings.HasPrefix(out, "ERROR:") || strings.HasPrefix(out, "RESULT-ERROR:") {
-				t.Fatalf("default call under a ceiling of %d failed:\n%s", ceilingItems, out)
-			}
-		})
 	}
 }

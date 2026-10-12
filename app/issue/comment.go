@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"time"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
 // Comments lists an issue's (or pull request's) comments, within the optional
 // since and before window.
 func (s *Service) Comments(ctx context.Context, in CommentsInput) ([]*model.Comment, error) {
-	c := CommentList{Paging: in.Paging}
+	var c CommentList
 	if in.Since != "" {
 		t, err := time.Parse(time.RFC3339, in.Since)
 		if err != nil {
@@ -28,11 +29,17 @@ func (s *Service) Comments(ctx context.Context, in CommentsInput) ([]*model.Comm
 		}
 		c.Before = t
 	}
-	comments, err := s.port.ListIssueComments(ctx, in.Owner, in.Repo, in.Index, c)
-	if err != nil {
-		return nil, fmt.Errorf("list issue comments err: %w", err)
-	}
-	return comments, nil
+	items, _, err := list.Window(ctx, s.port, list.Paging(in.Paging), defaultLimit,
+		func(ctx context.Context, p list.Paging) ([]*model.Comment, error) {
+			q := c
+			q.Paging = Paging(p)
+			comments, err := s.port.ListIssueComments(ctx, in.Owner, in.Repo, in.Index, q)
+			if err != nil {
+				return nil, fmt.Errorf("list issue comments err: %w", err)
+			}
+			return comments, nil
+		})
+	return items, err
 }
 
 // Comment returns one comment by its ID.
