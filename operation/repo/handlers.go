@@ -35,13 +35,3 @@ func runAdmin[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, n
 	}
 	return do(ctx, apprepo.NewAdmin(repoadminadapter.New(port)), args)
 }
-
-// pageOr is a page or limit argument as the tools have always read it: an
-// absent or zero number takes the default. The test is made before the number
-// is truncated, so 0.5 is not defaulted; it truncates to 0 and is passed on.
-func pageOr(v float64, def int) int {
-	if v == 0 {
-		return def
-	}
-	return int(v)
-}

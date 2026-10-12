@@ -115,6 +115,32 @@ Those are an existing contract and are deliberately left alone. New envelopes
 MUST NOT follow them: reserve `total_count` for the server grand total and call
 a local count `count`.
 
+## Where the bound lives
+
+Bounding is code, not a checklist a tool author re-implements. The rules above
+are enforced in these places:
+
+- **List use cases** (`app/<domain>/`) hand their request to the list module,
+  `app/list`: `list.Run` for a list whose `has_next` must be derived, and
+  `list.Items` for a list with no continuation marker. The module applies the
+  instance ceiling (`list.Ceiling`, read from the port per call, never cached at
+  package level), refuses a limit above a known ceiling with `OverCeilingError`
+  rather than clamping it, and probes for a next page only when the ceiling is
+  unknown. The page/limit defaults come from `list.Normalize`,
+  `list.Given` and `list.DefaultLimit`. A new list tool calls the module and
+  adds no defaults or ceiling check of its own.
+- **Argument reading** (`operation/<domain>/handlers.go`) uses
+  `decode.PageOr` (an absent or zero number takes the default) and
+  `decode.IntOr` (the default applies to the truncated number). These are the
+  only copies of that rule; do not add a local `pageOr`.
+- **Embedded lists in resources** use `operation/resource.Bounded`, which
+  applies the `EmbeddedListCap` ceiling and writes the truncation sentinel.
+
+Some per-handler `paging` helpers in `operation/{tracking,org,user,search}` and
+in `app/{wiki,pull}` remain. Each still has callers and each differs in how it
+treats page 0, which the goldens pin. Do not copy one for a new tool; call the
+list module.
+
 ## Documentation contract
 
 Every bound parameter MUST appear in:
