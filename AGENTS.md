@@ -74,10 +74,6 @@ Some features are blocked on upstream API/SDK support. See `docs/plans/` for:
 - `wiki-support.md` - historical SDK plan, superseded by the direct REST implementation
 - `projects-support.md` - Projects/Kanban API (blocked on Gitea 1.26.0)
 
-## Attribution
-
-End every commit with an `Assisted-by: [Model Name] via [Tool Name]` footer, for example `Assisted-by: GLM 4.6 via Claude Code`.
-
 ## Releasing
 
 The release process in this repo is inherited from upstream and unverified for this fork. Do not cut a release unless asked; see [docs/legacy/upstream-release.md](docs/legacy/upstream-release.md).
