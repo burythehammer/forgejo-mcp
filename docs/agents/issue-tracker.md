@@ -1,6 +1,6 @@
 # Issue tracker: Forgejo
 
-Issues and specs live in Forgejo issues at `forgejo.burythehammer.com/burythehammer/forgejo-mcp` (account `burythehammer`). Use the `forgejo` MCP server (`.mcp.json`; tools are `mcp__forgejo__*`, with `owner: "burythehammer"`, `repo: "forgejo-mcp"`); not `gh`. It needs `FORGEJO_URL` and `FORGEJO_TOKEN` in the environment (see "MCP environment" below) and a built binary (`make build`, then install it as `forgejo-mcp` on `PATH`, or point `FORGEJO_MCP_EXEC` at it). Tool schemas are deferred: load them with `ToolSearch` (`select:mcp__forgejo__<name>`) before calling. Confirm names with `list_repo_labels` and the README tool table rather than from memory.
+Issues and specs live in Forgejo issues at `forgejo.burythehammer.com/burythehammer/forgejo-mcp` (account `burythehammer`). Use the `forgejo` MCP server (`.mcp.json`; tools are `mcp__forgejo__*`, with `owner: "burythehammer"`, `repo: "forgejo-mcp"`); not `gh`. It needs `FORGEJO_URL` and `FORGEJO_TOKEN` in the environment (see "MCP environment" below) and a built binary (`make build` in the primary checkout, then `/mcp` to reconnect; `~/.local/bin/forgejo-mcp` is a symlink to that build. Otherwise install it as `forgejo-mcp` on `PATH`, or point `FORGEJO_MCP_EXEC` at it). Tool schemas are deferred: load them with `ToolSearch` (`select:mcp__forgejo__<name>`) before calling. Confirm names with `list_repo_labels` and the README tool table rather than from memory.
 
 `upstream` (`git.b4mad.industries/agentic-forges/forgejo-mcp`) is the upstream project, not this repo's tracker.
 
