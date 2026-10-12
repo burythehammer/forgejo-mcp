@@ -375,8 +375,8 @@ List all my repositories
 | **Pull Requests** | |
 | `list_repo_pull_requests` | List pull requests in a repository |
 | `get_pull_request_by_index` | Get a specific pull request |
-| `create_pull_request` | Create a new pull request |
-| `update_pull_request` | Update an existing pull request |
+| `create_pull_request` | Create a new pull request. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, head, base); the submitted body is not echoed back. `verbose=true` returns the full pull request |
+| `update_pull_request` | Update an existing pull request. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full pull request |
 | `list_pull_reviews` | List reviews for a pull request |
 | `get_pull_review` | Get a specific pull request review |
 | `list_pull_review_comments` | List comments on a pull request review |
