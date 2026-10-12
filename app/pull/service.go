@@ -130,8 +130,8 @@ func milestoneID(s string) (int64, error) {
 	return id, nil
 }
 
-// List returns a repository's pull requests.
-func (s *Service) List(ctx context.Context, in ListInput) ([]*model.PullRequest, error) {
+// List returns one page of a repository's pull requests with its next marker.
+func (s *Service) List(ctx context.Context, in ListInput) (model.PullRequestPage, error) {
 	c := s.ceiling(ctx)
 	q := ListQuery{State: in.State, Sort: in.Sort, Paging: paging(in.Page, in.Limit, defaultLimit, c)}
 	if q.State == "" {
@@ -139,9 +139,9 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*model.PullRequest,
 	}
 	var err error
 	if q.Milestone, err = milestoneID(in.Milestone); err != nil {
-		return nil, err
+		return model.PullRequestPage{}, err
 	}
-	return list.Items(ctx, list.Paging(q.Paging), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullRequest], error) {
+	page, err := list.Run(ctx, list.Paging(q.Paging), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullRequest], error) {
 		qq := q
 		qq.Paging = Paging(p)
 		prs, err := s.port.ListPullRequests(ctx, in.Owner, in.Repo, qq)
@@ -150,6 +150,10 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*model.PullRequest,
 		}
 		return list.Batch[*model.PullRequest]{Items: prs}, nil
 	})
+	if err != nil {
+		return model.PullRequestPage{}, err
+	}
+	return model.PullRequestPage{PullRequests: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // Create opens a pull request.
@@ -195,16 +199,20 @@ func (s *Service) Merge(ctx context.Context, in MergeRequest) (MergeResult, erro
 	return MergeResult{Scheduled: in.WhenChecksSucceed}, nil
 }
 
-// Files lists the changed files of a pull request.
-func (s *Service) Files(ctx context.Context, in PagedPR) ([]*model.ChangedFile, error) {
+// Files lists one page of the changed files of a pull request with its next marker.
+func (s *Service) Files(ctx context.Context, in PagedPR) (model.ChangedFilePage, error) {
 	c := s.ceiling(ctx)
-	return list.Items(ctx, list.Paging(paging(in.Page, in.Limit, defaultFilesLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.ChangedFile], error) {
+	page, err := list.Run(ctx, list.Paging(paging(in.Page, in.Limit, defaultFilesLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.ChangedFile], error) {
 		files, err := s.port.ListPullRequestFiles(ctx, in.Owner, in.Repo, in.Index, Paging(p))
 		if err != nil {
 			return list.Batch[*model.ChangedFile]{}, fmt.Errorf("list pull request files err: %w", err)
 		}
 		return list.Batch[*model.ChangedFile]{Items: files}, nil
 	})
+	if err != nil {
+		return model.ChangedFilePage{}, err
+	}
+	return model.ChangedFilePage{Files: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // Diff returns a pull request's unified diff, or only the section for
@@ -224,16 +232,20 @@ func (s *Service) Diff(ctx context.Context, in DiffInput) (string, error) {
 	return slice, nil
 }
 
-// Reviews lists the reviews of a pull request.
-func (s *Service) Reviews(ctx context.Context, in PagedPR) ([]*model.PullReview, error) {
+// Reviews lists one page of the reviews of a pull request with its next marker.
+func (s *Service) Reviews(ctx context.Context, in PagedPR) (model.PullReviewPage, error) {
 	c := s.ceiling(ctx)
-	return list.Items(ctx, list.Paging(paging(in.Page, in.Limit, defaultLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullReview], error) {
+	page, err := list.Run(ctx, list.Paging(paging(in.Page, in.Limit, defaultLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullReview], error) {
 		reviews, err := s.port.ListPullReviews(ctx, in.Owner, in.Repo, in.Index, Paging(p))
 		if err != nil {
 			return list.Batch[*model.PullReview]{}, fmt.Errorf("list pull reviews err: %w", err)
 		}
 		return list.Batch[*model.PullReview]{Items: reviews}, nil
 	})
+	if err != nil {
+		return model.PullReviewPage{}, err
+	}
+	return model.PullReviewPage{Reviews: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // Review returns one review.

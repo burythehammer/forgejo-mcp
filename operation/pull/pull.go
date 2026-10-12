@@ -35,7 +35,7 @@ var (
 
 	ListRepoPullRequestsTool = mcp.NewTool(
 		ListRepoPullRequestsToolName,
-		mcp.WithDescription("List repo pull requests"),
+		mcp.WithDescription("List repo pull requests. Returns a response envelope {pull_requests, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open")),
@@ -73,7 +73,7 @@ var (
 
 	ListPullReviewsTool = mcp.NewTool(
 		ListPullReviewsToolName,
-		mcp.WithDescription("List reviews for a pull request"),
+		mcp.WithDescription("List reviews for a pull request. Returns a response envelope {reviews, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.PRIndex)),
@@ -101,7 +101,7 @@ var (
 
 	ListPullRequestFilesTool = mcp.NewTool(
 		ListPullRequestFilesToolName,
-		mcp.WithDescription("List changed files in a pull request"),
+		mcp.WithDescription("List changed files in a pull request. Returns a response envelope {files, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.PRIndex)),

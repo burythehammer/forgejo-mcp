@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List reviews for a pull request",
+  "description": "List reviews for a pull request. Returns a response envelope {reviews, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "index": {

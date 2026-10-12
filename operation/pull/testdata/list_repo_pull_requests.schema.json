@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List repo pull requests",
+  "description": "List repo pull requests. Returns a response envelope {pull_requests, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "limit": {

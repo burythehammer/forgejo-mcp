@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List changed files in a pull request",
+  "description": "List changed files in a pull request. Returns a response envelope {files, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "index": {

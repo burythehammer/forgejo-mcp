@@ -99,18 +99,49 @@ func TestRun_PastTheEndIsEmptyAndHasNoNext(t *testing.T) {
 	}
 }
 
-func TestRun_KnownCeilingFullPageMeansNext(t *testing.T) {
-	// With a known ceiling a full page is trusted, so no probe is made.
+func TestRun_KnownCeilingFullPageProbesOnce(t *testing.T) {
+	// A full page could be the last one: an exact multiple of the limit. The
+	// next page is probed once at the same size, so has_next is exact.
 	var calls []Paging
-	page, err := Run(context.Background(), Paging{Page: 1, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(2), &calls))
+	page, err := Run(context.Background(), Paging{Page: 1, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(4), &calls))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !page.HasNext {
-		t.Fatalf("full page with known ceiling should report next: %+v", page)
+		t.Fatalf("full page with more rows should report next: %+v", page)
+	}
+	if want := []Paging{{Page: 1, Limit: 2}, {Page: 2, Limit: 2}}; fmt.Sprint(calls) != fmt.Sprint(want) {
+		t.Fatalf("fetches = %v, want %v", calls, want)
+	}
+}
+
+func TestRun_KnownCeilingExactMultipleLastPageHasNoNext(t *testing.T) {
+	// The last page is full, so the probe finds nothing and has_next is false.
+	var calls []Paging
+	page, err := Run(context.Background(), Paging{Page: 2, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(4), &calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.HasNext {
+		t.Fatalf("exact-multiple last page should not report next: %+v", page)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("fetches = %v, want the page and one probe", calls)
+	}
+}
+
+func TestRun_KnownCeilingShortPageMakesNoProbe(t *testing.T) {
+	// A page shorter than the limit is the end under a known ceiling: no probe.
+	var calls []Paging
+	page, err := Run(context.Background(), Paging{Page: 3, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(5), &calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.HasNext || page.Count != 1 {
+		t.Fatalf("short last page: %+v", page)
 	}
 	if len(calls) != 1 {
-		t.Fatalf("known ceiling made %d fetches, want 1", len(calls))
+		t.Fatalf("fetches = %v, want the page only", calls)
 	}
 }
 
