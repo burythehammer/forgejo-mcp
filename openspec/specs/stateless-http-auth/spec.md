@@ -216,7 +216,7 @@ Two concurrent requests carrying distinct tokens `T_A` and `T_B` SHALL produce t
 
 ### Requirement: Raw HTTP path respects per-request token
 
-The raw-HTTP calls made by the Forgejo adapter (`pkg/forge/sdk`) SHALL carry the credential `Factory.For` resolved for the request, taken from the one function (`tokenFor`) that applies the policy, and SHALL NOT re-derive it. The token carried in `ctx` is preferred over the operator's configured token when setting the `Authorization` header.
+The raw-HTTP calls made by the Forgejo adapter (`pkg/forge/sdk`) SHALL carry the credential `Factory.For` resolved for the request, taken from the authentication port in `transport/authport.go`, which applies the policy and records its decision on the request's context, and SHALL NOT re-derive it. The token carried in `ctx` is preferred over the operator's configured token when setting the `Authorization` header.
 
 When no token is present in `ctx`, the operator's configured token is used only where the policy allows. Otherwise `Factory.For` SHALL return `forge.ErrNoRequestToken` so no raw request is built or sent.
 
