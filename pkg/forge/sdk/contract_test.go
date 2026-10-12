@@ -106,3 +106,8 @@ func TestDependenciesContract(t *testing.T) {
 		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
 	})
 }
+
+func TestErrorsContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunErrors(t, harness)
+}

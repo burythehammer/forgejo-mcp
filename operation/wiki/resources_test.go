@@ -130,7 +130,7 @@ func TestWikiResourceMapsPrimaryError(t *testing.T) {
 
 func TestWikiResourceMapsCredentialRefusal(t *testing.T) {
 	t.Parallel()
-	h := handlers{forge: fake.Factory{Err: errors.New("403 forbidden: no credential")}}
+	h := handlers{forge: fake.Factory{Err: forge.ErrNoRequestToken}}
 	_, err := readWiki(h, "Hello")
 	var resourceErr *resource.ResourceError
 	if !errors.As(err, &resourceErr) || resourceErr.Code != -32002 {

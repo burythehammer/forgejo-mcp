@@ -77,9 +77,6 @@ func RegisterResource(s *server.MCPServer, f forge.Factory) {
 // mapErr maps a port failure to a resource error, keeping the HTTP status in
 // the message so the mapping can tell forbidden from not found.
 func mapErr(uri string, err error) error {
-	if code := forge.StatusCode(err); code != 0 {
-		return resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
-	}
 	return resource.MapForgejoError(uri, err)
 }
 

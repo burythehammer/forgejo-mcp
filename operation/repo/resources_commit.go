@@ -79,9 +79,6 @@ func (h handlers) commitResourceHandler(ctx context.Context, req mcp.ReadResourc
 
 	commit, err := apprepo.NewGitService(repogitadapter.New(port)).ReadCommit(ctx, params.Owner, params.Repo, params.SHA)
 	if err != nil {
-		if code := forge.StatusCode(err); code != 0 {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
-		}
 		return nil, resource.MapForgejoError(uri, err)
 	}
 

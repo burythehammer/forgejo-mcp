@@ -18,14 +18,8 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 )
 
-// Error sentinels the raw failures wrap, matchable with errors.Is.
-var (
-	errUnauthorized = errors.New("unauthorized")
-	errNotFound     = errors.New("not found")
-)
-
 // httpError carries the response status and a sanitised body snippet.
-// It wraps one of the sentinels above when the status maps to one. Every
+// It wraps the domain kind (forge.KindOf) when the status maps to one. Every
 // failure leaves the raw client inside a *forge.StatusError that wraps it, so a
 // caller sees the same shape as for an SDK failure and the message is unchanged.
 type httpError struct {
@@ -158,12 +152,7 @@ func httpErrorFromResponse(req *http.Request, resp *http.Response) error {
 		Body:       readBodySnippet(resp.Body),
 		Method:     req.Method,
 		URL:        req.URL.String(),
-	}
-	switch resp.StatusCode {
-	case http.StatusUnauthorized, http.StatusForbidden:
-		e.wrapped = errUnauthorized
-	case http.StatusNotFound:
-		e.wrapped = errNotFound
+		wrapped:    forge.KindOf(resp.StatusCode),
 	}
 	return &forge.StatusError{StatusCode: resp.StatusCode, Err: e}
 }

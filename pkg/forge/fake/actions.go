@@ -309,6 +309,7 @@ func serveLog(log, byteRange string, maxBytes int64) (*forge.JobLog, error) {
 		}
 		body = log[start : end+1]
 		out.StatusCode = http.StatusPartialContent
+		out.Partial = true
 		out.ContentRange = fmt.Sprintf("bytes %d-%d/%d", start, end, total)
 	}
 	if int64(len(body)) > maxBytes {

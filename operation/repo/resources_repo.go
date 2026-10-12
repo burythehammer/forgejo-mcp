@@ -75,9 +75,6 @@ func (h handlers) repoResourceHandler(ctx context.Context, req mcp.ReadResourceR
 	// intentional difference from get_repo.
 	read, err := apprepo.NewAdmin(repoadminadapter.New(port)).ReadRepo(ctx, params.Owner, params.Repo, apprepo.RepoReadOptions{})
 	if err != nil {
-		if code := forge.StatusCode(err); code != 0 {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
-		}
 		return nil, resource.MapForgejoError(uri, err)
 	}
 	r := read.Repo
