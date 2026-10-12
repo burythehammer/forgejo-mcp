@@ -93,30 +93,25 @@ func (s *Service) Delete(ctx context.Context, c Coords) (model.DeletePackageResu
 // ListFiles returns one page of a package version's files. Forgejo does not
 // page the listing, so the page is cut here.
 func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.ListPackageFilesResult, error) {
-	ceiling, known := s.port.MaxResponseItems(ctx)
-	c := list.Ceiling{Max: ceiling, Known: known}
-	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
 	var hasNext bool
 	var total int
-	files, err := list.Items(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageFileView], error) {
-		listed, err := s.port.ListPackageFiles(ctx, r.Owner, r.Type, r.Name, r.Version)
-		if err != nil {
-			return list.Batch[model.PackageFileView]{}, fmt.Errorf("list package files: %w", err)
-		}
-		all := make([]model.PackageFileView, 0, len(listed))
-		for _, file := range listed {
-			all = append(all, model.PackageFileView(file))
-		}
-		// Forgejo does not page the listing, so the window is cut here.
-		start64 := int64(q.Page-1) * int64(q.Limit)
-		start := len(all)
-		if start64 < int64(len(all)) {
-			start = int(start64)
-		}
-		end := min(start+q.Limit, len(all))
-		hasNext, total = end < len(all), len(all)
-		return list.Batch[model.PackageFileView]{Items: all[start:end]}, nil
-	})
+	// A page below 1 is page 1; the limit default is lowered to the ceiling by
+	// list.Window.
+	files, p, err := list.Window(ctx, s.port, list.Paging{Page: max(r.Page, 1), Limit: r.Limit}, defaultLimit,
+		func(ctx context.Context, q list.Paging) ([]model.PackageFileView, error) {
+			listed, err := s.port.ListPackageFiles(ctx, r.Owner, r.Type, r.Name, r.Version)
+			if err != nil {
+				return nil, fmt.Errorf("list package files: %w", err)
+			}
+			all := make([]model.PackageFileView, 0, len(listed))
+			for _, file := range listed {
+				all = append(all, model.PackageFileView(file))
+			}
+			// Forgejo does not page the listing, so the window is cut here.
+			rows, more := list.Cut(all, q)
+			hasNext, total = more, len(all)
+			return rows, nil
+		})
 	if err != nil {
 		return model.ListPackageFilesResult{}, err
 	}

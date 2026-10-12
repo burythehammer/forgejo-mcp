@@ -122,7 +122,9 @@ are enforced in these places:
 
 - **List use cases** (`app/<domain>/`) hand their request to the list module,
   `app/list`: `list.Run` for a list whose `has_next` must be derived, and
-  `list.Items` for a list with no continuation marker. The module applies the
+  `list.Items` for a list with no continuation marker, `list.Window` for a page
+  read through a port's ceiling that reports the paging it used, and `list.Cut`
+  for a list Forgejo does not page. The module applies the
   instance ceiling (`list.Ceiling`, read from the port per call, never cached at
   package level), refuses a limit above a known ceiling with `OverCeilingError`
   rather than clamping it, and probes for a next page only when the ceiling is

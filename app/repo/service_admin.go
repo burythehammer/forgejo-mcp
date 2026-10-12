@@ -141,7 +141,7 @@ func (s *AdminService) ListRepoTopics(ctx context.Context, owner, repo string, p
 	if owner == "" || repo == "" {
 		return model.TopicPage{}, errors.New("owner and repo are required")
 	}
-	topics, used, err := window(ctx, s.port, list.Paging(p), defaultListLimit,
+	topics, used, err := list.Window(ctx, s.port, list.Paging(p), defaultListLimit,
 		func(ctx context.Context, q list.Paging) ([]string, error) {
 			topics, err := s.port.ListRepoTopics(ctx, owner, repo, AdminPaging(q))
 			if err != nil {

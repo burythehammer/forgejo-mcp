@@ -31,6 +31,10 @@ func (c catalog) ListOrgLabels(ctx context.Context, org string, p labelresolve.P
 	return c.port.ListOrgLabels(ctx, org, Paging{Page: p.Page, Limit: p.Limit})
 }
 
+func (c catalog) MaxResponseItems(ctx context.Context) (int, bool) {
+	return c.port.MaxResponseItems(ctx)
+}
+
 // RepoLabels lists a repository's labels. With IncludeOrg, an organization's
 // labels follow, each tagged with its scope.
 func (s *Service) RepoLabels(ctx context.Context, in RepoLabelsInput) ([]model.ScopedLabel, error) {
