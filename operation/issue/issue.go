@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/compact"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
@@ -82,6 +83,7 @@ var (
 		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated)")),
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
 		mcp.WithString("ref", mcp.Description(refArgDescription)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	CreateIssueCommentTool = mcp.NewTool(
@@ -108,6 +110,7 @@ var (
 		mcp.WithBoolean("clear_due_date", mcp.Description("Clear the issue's due date. Mutually exclusive with 'due_date'.")),
 		mcp.WithString("set_labels", mcp.Description(labelsArgDescription("Replace the issue's entire label set")+" Pass an empty string to remove every label. To add or drop individual labels without restating the set, use add_issue_labels or remove_issue_labels.")),
 		mcp.WithString("ref", mcp.Description(refArgDescription+" Omit to leave it unchanged; pass an empty string to clear it.")),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	AddIssueLabelsTools = mcp.NewTool(
@@ -135,6 +138,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
 		mcp.WithString("state", mcp.Required(), mcp.Description("State (open|closed)")),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ListIssueCommentsTool = mcp.NewTool(
@@ -284,6 +288,7 @@ type createIssueArgs struct {
 	Assignees *string `json:"assignees"`
 	Milestone string  `json:"milestone"`
 	Ref       string  `json:"ref"`
+	Verbose   bool    `json:"verbose"`
 }
 
 type createCommentArgs struct {
@@ -306,6 +311,7 @@ type updateIssueArgs struct {
 	ClearDueDate bool    `json:"clear_due_date"`
 	SetLabels    *string `json:"set_labels"`
 	Ref          *string `json:"ref"`
+	Verbose      bool    `json:"verbose"`
 }
 
 type labelsArgs struct {
@@ -316,10 +322,11 @@ type labelsArgs struct {
 }
 
 type stateArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
-	State string  `json:"state" required:"true"`
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	State   string  `json:"state" required:"true"`
+	Verbose bool    `json:"verbose"`
 }
 
 type listCommentsArgs struct {
@@ -420,10 +427,11 @@ func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (
 
 func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateIssueFn", func(ctx context.Context, s *apppissue.Service, a createIssueArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Create(ctx, apppissue.CreateInput{
+		iss, err := s.Create(ctx, apppissue.CreateInput{
 			Owner: a.Owner, Repo: a.Repo, Title: a.Title, Body: a.Body, Ref: a.Ref,
 			Labels: a.Labels, Assignees: a.Assignees, Milestone: a.Milestone,
-		}))
+		})
+		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
@@ -435,11 +443,12 @@ func (h handlers) CreateIssueCommentFn(ctx context.Context, req mcp.CallToolRequ
 
 func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdateIssueFn", func(ctx context.Context, s *apppissue.Service, a updateIssueArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Update(ctx, apppissue.UpdateInput{
+		iss, err := s.Update(ctx, apppissue.UpdateInput{
 			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
 			Title:  a.Title, Body: a.Body, Assignee: a.Assignee, Assignees: a.Assignees, Ref: a.Ref,
 			Milestone: a.Milestone, DueDate: a.DueDate, ClearDueDate: a.ClearDueDate, SetLabels: a.SetLabels,
-		}))
+		})
+		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
@@ -457,7 +466,8 @@ func (h handlers) RemoveIssueLabelsFn(ctx context.Context, req mcp.CallToolReque
 
 func (h handlers) IssueStateChangeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "IssueStateChangeFn", func(ctx context.Context, s *apppissue.Service, a stateArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.ChangeState(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.State))
+		iss, err := s.ChangeState(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.State)
+		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 

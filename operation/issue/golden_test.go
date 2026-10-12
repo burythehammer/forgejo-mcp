@@ -44,6 +44,15 @@ func TestSchemaSnapshots(t *testing.T) {
 	}
 }
 
+// TestCompactWriteArgsMatchSchemas keeps the write tools' argument structs,
+// including the optional verbose flag, in step with their schemas.
+func TestCompactWriteArgsMatchSchemas(t *testing.T) {
+	t.Parallel()
+	mcptest.ArgsMatchSchema(t, CreateIssueTool, createIssueArgs{})
+	mcptest.ArgsMatchSchema(t, UpdateIssueTool, updateIssueArgs{})
+	mcptest.ArgsMatchSchema(t, IssueStateChangeTool, stateArgs{})
+}
+
 var (
 	gT0  = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	gT1  = time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC)
@@ -348,6 +357,7 @@ var goldenCases = []goldenCase{
 	// create_issue
 	{name: "create_issue", tool: CreateIssueToolName, args: map[string]any{"title": "T", "body": "B", "labels": "bug,ui", "assignees": "a, b", "milestone": "4", "ref": "feat"}},
 	{name: "create_issue_plain", tool: CreateIssueToolName, args: map[string]any{"title": "T"}},
+	{name: "create_issue_verbose", tool: CreateIssueToolName, args: map[string]any{"title": "T", "body": "B", "labels": "bug,ui", "verbose": true}},
 	{name: "create_issue_numeric_label_ids", tool: CreateIssueToolName, args: map[string]any{"title": "T", "labels": "3,4"}},
 	{name: "create_issue_empty_labels", tool: CreateIssueToolName, args: map[string]any{"title": "T", "labels": ""}},
 	{name: "create_issue_unknown_label", tool: CreateIssueToolName, args: map[string]any{"title": "T", "labels": "bug,nope"}},
@@ -374,6 +384,7 @@ var goldenCases = []goldenCase{
 
 	// update_issue
 	{name: "update_issue_fields", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T", "body": "B", "assignee": "bob", "milestone": "4", "due_date": "2026-08-20T00:00:00Z", "ref": "feat"}},
+	{name: "update_issue_verbose", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T", "body": "B", "verbose": true}},
 	{name: "update_issue_assignees_win", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "assignees": "a,b", "assignee": "bob"}},
 	{name: "update_issue_clear_assignees", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "assignees": ""}},
 	{name: "update_issue_clear_ref", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "ref": ""}},
@@ -394,6 +405,7 @@ var goldenCases = []goldenCase{
 
 	// issue_state_change
 	{name: "issue_state_change_closed", tool: IssueStateChangeToolName, args: map[string]any{"index": float64(7), "state": "closed"}},
+	{name: "issue_state_change_verbose", tool: IssueStateChangeToolName, args: map[string]any{"index": float64(7), "state": "closed", "verbose": true}},
 	{name: "issue_state_change_invalid", tool: IssueStateChangeToolName, args: map[string]any{"index": float64(7), "state": "merged"}},
 	{name: "issue_state_change_port_error", tool: IssueStateChangeToolName, args: map[string]any{"index": float64(7), "state": "open"}, stub: failing("EditIssue", errBoom)},
 
