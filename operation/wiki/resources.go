@@ -4,13 +4,15 @@ package wiki
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"unicode/utf8"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	appwiki "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/wiki"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/wikiadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -30,23 +32,18 @@ func RegisterWikiResource(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered wiki resource template")
 }
 
-type wikiRevisionRef struct {
-	SHA     string `json:"sha"`
-	Author  string `json:"author"`
-	Message string `json:"message"`
-}
-
+// wikiResourcePayload is the JSON body of the wiki page resource.
 type wikiResourcePayload struct {
-	Owner           string            `json:"owner"`
-	Repo            string            `json:"repo"`
-	PageName        string            `json:"page_name"`
-	Title           string            `json:"title"`
-	CommitSHA       string            `json:"commit_sha"`
-	RecentRevisions []wikiRevisionRef `json:"recent_revisions"`
-	Truncated       bool              `json:"truncated,omitempty"`
-	RevisionCount   int               `json:"revision_count,omitempty"`
-	ListTool        string            `json:"list_tool,omitempty"`
-	Sentinel        string            `json:"sentinel,omitempty"`
+	Owner           string                      `json:"owner"`
+	Repo            string                      `json:"repo"`
+	PageName        string                      `json:"page_name"`
+	Title           string                      `json:"title"`
+	CommitSHA       string                      `json:"commit_sha"`
+	RecentRevisions []model.WikiRevisionSummary `json:"recent_revisions"`
+	Truncated       bool                        `json:"truncated,omitempty"`
+	RevisionCount   int                         `json:"revision_count,omitempty"`
+	ListTool        string                      `json:"list_tool,omitempty"`
+	Sentinel        string                      `json:"sentinel,omitempty"`
 }
 
 func (h handlers) wikiResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
@@ -59,37 +56,24 @@ func (h handlers) wikiResourceHandler(ctx context.Context, req mcp.ReadResourceR
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
-	page, err := f.GetWikiPage(ctx, p.Owner, p.Repo, p.PageName)
+	read, err := appwiki.New(wikiadapter.New(f)).ReadPage(ctx, p.Owner, p.Repo, p.PageName, resource.EmbeddedListCap)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
-	decoded, err := base64.StdEncoding.DecodeString(page.ContentBase64)
-	if err != nil {
-		return nil, resource.MapForgejoError(uri, fmt.Errorf("decode wiki page content: %w", err))
-	}
 
-	refs := make([]wikiRevisionRef, 0)
-	revisionIDs := make([]string, 0)
-	revisionCount := 0
-	if revisions, revisionErr := f.GetWikiPageRevisions(ctx, p.Owner, p.Repo, p.PageName, 1, resource.EmbeddedListCap+1); revisionErr == nil {
-		revisionCount = revisions.Count
-		for _, revision := range revisions.Commits {
-			refs = append(refs, wikiRevisionRef{SHA: revision.SHA, Author: revision.Author.Name, Message: revision.Message})
-			revisionIDs = append(revisionIDs, revision.SHA)
-		}
+	payload := wikiResourcePayload{
+		Owner:           p.Owner,
+		Repo:            p.Repo,
+		PageName:        read.PageName,
+		Title:           read.Title,
+		CommitSHA:       read.CommitSHA,
+		RecentRevisions: read.Revisions,
+		Truncated:       read.RevisionsTruncated,
 	}
-	bounded := resource.Bounded(revisionIDs, resource.EmbeddedListCap, GetWikiRevisionsToolName)
-	// The revisions endpoint returns the repository-wide count separately from the
-	// cap+1 window. Preserve that authoritative total in the shared sentinel.
-	if revisionCount > bounded.Total {
-		bounded.Total = revisionCount
-		bounded.Truncated = revisionCount > resource.EmbeddedListCap
-	}
-	if len(refs) > resource.EmbeddedListCap {
-		refs = refs[:resource.EmbeddedListCap]
-	}
-	payload := wikiResourcePayload{Owner: p.Owner, Repo: p.Repo, PageName: page.SubURL, Title: page.Title, CommitSHA: page.LastCommit.SHA, RecentRevisions: refs, Truncated: bounded.Truncated}
-	if bounded.Truncated {
+	if read.RevisionsTruncated {
+		// The sentinel is built from the shared bounded result, so it names the
+		// same tool the tool registry does.
+		bounded := resource.BoundedResult{Total: read.RevisionCount, Cap: resource.EmbeddedListCap, ListTool: GetWikiRevisionsToolName, Truncated: true}
 		payload.RevisionCount = bounded.Total
 		payload.ListTool = bounded.ListTool
 		payload.Sentinel = bounded.Sentinel()
@@ -99,7 +83,7 @@ func (h handlers) wikiResourceHandler(ctx context.Context, req mcp.ReadResourceR
 		return nil, fmt.Errorf("marshal wiki payload: %w", err)
 	}
 
-	markdown := string(decoded)
+	markdown := read.Content
 	if len(markdown) > forge.MaxInlineDownloadBytes {
 		marker := "\n\n[truncated: use get_wiki_page with start_line/end_line to retrieve the remainder.]"
 		keep := forge.MaxInlineDownloadBytes - len(marker)
