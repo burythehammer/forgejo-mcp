@@ -50,6 +50,33 @@ func (s *Stub) mountBranchProtections(mux *http.ServeMux) {
 	})
 }
 
+// hookWire is a hook as Forgejo serves it: branch_filter sits at the top level,
+// not inside config, and the SDK's Hook type has no field for it. Embedding
+// the SDK type keeps its other fields as they are on the wire.
+type hookWire struct {
+	forgejo_sdk.Hook
+	BranchFilter string `json:"branch_filter"`
+}
+
+// wireHook moves the Fake's branch filter, which it keeps in Config, to the
+// top level, as Forgejo serves it. A nil hook stays nil.
+func wireHook(h *forgejo_sdk.Hook) *hookWire {
+	if h == nil {
+		return nil
+	}
+	c := *h
+	c.Config = make(map[string]string, len(h.Config))
+	filter := ""
+	for k, v := range h.Config {
+		if k == "branch_filter" {
+			filter = v
+			continue
+		}
+		c.Config[k] = v
+	}
+	return &hookWire{Hook: c, BranchFilter: filter}
+}
+
 // mountHooks serves the repository-webhook endpoints from the Fake.
 func (s *Stub) mountHooks(mux *http.ServeMux) {
 	f := s.Fake
@@ -64,7 +91,11 @@ func (s *Stub) mountHooks(mux *http.ServeMux) {
 		if out.TotalCount != nil {
 			w.Header().Set("X-Total-Count", strconv.Itoa(*out.TotalCount))
 		}
-		writeJSON(w, http.StatusOK, out.Hooks)
+		wired := make([]*hookWire, 0, len(out.Hooks))
+		for _, h := range out.Hooks {
+			wired = append(wired, wireHook(h))
+		}
+		writeJSON(w, http.StatusOK, wired)
 	})
 	mux.HandleFunc("POST "+hooksURL, func(w http.ResponseWriter, r *http.Request) {
 		var opt forgejo_sdk.CreateHookOption
@@ -72,11 +103,11 @@ func (s *Stub) mountHooks(mux *http.ServeMux) {
 			return
 		}
 		h, err := f.CreateRepoHook(r.Context(), r.PathValue("owner"), r.PathValue("repo"), opt)
-		replyStatus(w, http.StatusCreated, h, err)
+		replyStatus(w, http.StatusCreated, wireHook(h), err)
 	})
 	mux.HandleFunc("GET "+hooksURL+"/{id}", func(w http.ResponseWriter, r *http.Request) {
 		h, err := f.GetRepoHook(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "id"))
-		reply(w, h, err)
+		reply(w, wireHook(h), err)
 	})
 	mux.HandleFunc("PATCH "+hooksURL+"/{id}", func(w http.ResponseWriter, r *http.Request) {
 		// Presence matters: an absent key stays nil, an explicit "" stays a
@@ -85,6 +116,12 @@ func (s *Stub) mountHooks(mux *http.ServeMux) {
 		var opt forge.HookEdit
 		if !decode(w, r, &opt) {
 			return
+		}
+		// Real Forgejo clears a branch filter that a PATCH omits, so the stub
+		// does too. The Fake itself keeps the port's "unset is unchanged" rule.
+		if opt.BranchFilter == nil {
+			cleared := ""
+			opt.BranchFilter = &cleared
 		}
 		// Forgejo answers an edit with the hook; the SDK ignores the body.
 		err := f.EditRepoHook(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "id"), opt)
