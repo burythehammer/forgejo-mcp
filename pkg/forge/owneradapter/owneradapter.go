@@ -9,7 +9,6 @@ package owneradapter
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	appowner "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/owner"
@@ -49,12 +48,9 @@ func (a adapter) GetOrg(ctx context.Context, name string) (*model.Organization, 
 	return bridge.Convert[*model.Organization](org, nil)
 }
 
-// isNotFound is true for a Forgejo 404, or for an error whose message says so,
-// as the owner resource has always judged it.
+// isNotFound is true only for a Forgejo 404, judged on its typed status. A
+// message that merely mentions "not found" is some other failure, and treating
+// it as a miss would send the owner read on to the org lookup.
 func isNotFound(err error) bool {
-	if forge.IsNotFound(err) {
-		return true
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "404") || strings.Contains(msg, "Not Found") || strings.Contains(msg, "not found")
+	return forge.IsNotFound(err)
 }

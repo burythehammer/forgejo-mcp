@@ -34,6 +34,7 @@ type bpCollectionPayload struct {
 	BranchProtections []*model.BranchProtection `json:"branch_protections"`
 	Truncated         bool                      `json:"truncated,omitempty"`
 	ListTool          string                    `json:"list_tool,omitempty"`
+	Sentinel          string                    `json:"sentinel,omitempty"`
 }
 
 // RegisterResource registers the branch protection collection and single-rule
@@ -107,7 +108,10 @@ func (h handlers) branchProtectionsResourceHandler(ctx context.Context, req mcp.
 		Truncated:         col.Truncated,
 	}
 	if col.Truncated {
-		payload.ListTool = "list_branch_protections"
+		// The note names the list tool only when the registry has it.
+		bounded := resource.BoundedResult{Cap: resource.EmbeddedListCap, ListTool: ListBranchProtectionsToolName, Truncated: true}
+		payload.Sentinel = bounded.Sentinel()
+		payload.ListTool = resource.ToolRef(ListBranchProtectionsToolName)
 	}
 
 	jsonBytes, err := json.Marshal(payload)

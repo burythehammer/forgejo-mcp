@@ -71,11 +71,11 @@ func (h handlers) wikiResourceHandler(ctx context.Context, req mcp.ReadResourceR
 		Truncated:       read.RevisionsTruncated,
 	}
 	if read.RevisionsTruncated {
-		// The sentinel is built from the shared bounded result, so it names the
-		// same tool the tool registry does.
-		bounded := resource.BoundedResult{Total: read.RevisionCount, Cap: resource.EmbeddedListCap, ListTool: GetWikiRevisionsToolName, Truncated: true}
-		payload.RevisionCount = bounded.Total
-		payload.ListTool = bounded.ListTool
+		// The server said more revisions exist: WithMoreRemaining takes its total
+		// as the server's count, and Sentinel names the tool only when registered.
+		bounded := resource.BoundedResult{Cap: resource.EmbeddedListCap, ListTool: GetWikiRevisionsToolName}.WithMoreRemaining(read.RevisionCount)
+		payload.RevisionCount = read.RevisionCount
+		payload.ListTool = resource.ToolRef(GetWikiRevisionsToolName)
 		payload.Sentinel = bounded.Sentinel()
 	}
 	jsonBytes, err := json.Marshal(payload)

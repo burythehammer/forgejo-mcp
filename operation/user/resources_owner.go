@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	appowner "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/owner"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
@@ -122,17 +121,4 @@ func withStatus(err error) error {
 		return fmt.Errorf("%d %s", code, err.Error())
 	}
 	return err
-}
-
-// is404 returns true if the error carries HTTP 404, or, for an error with no
-// status, if its message says so.
-func is404(err error) bool {
-	if err == nil {
-		return false
-	}
-	if forge.IsNotFound(err) {
-		return true
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "404") || strings.Contains(msg, "Not Found") || strings.Contains(msg, "not found")
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
@@ -76,5 +77,52 @@ func TestHookResource_NotFound(t *testing.T) {
 	var re *resource.ResourceError
 	if !errors.As(err, &re) || re.Code != -32003 {
 		t.Fatalf("want not-found resource error, got %v", err)
+	}
+}
+
+// The truncation note names the list tool through the registry and carries the
+// shared sentinel, as every other embedded list resource does.
+func TestHooksResource_TruncationCarriesSentinelNamingRegisteredTool(t *testing.T) {
+	resource.SetRegisteredTools([]string{"list_repo_hooks"})
+	t.Cleanup(func() { resource.SetRegisteredTools(nil) })
+
+	h, f := newFixture(t)
+	for i := 0; i < resource.EmbeddedListCap+1; i++ {
+		seedHook(t, f, "https://example.test/h")
+	}
+	contents, err := h.hooksResourceHandler(context.Background(),
+		mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/goern/forgejo-mcp/hooks"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload hooksCollectionPayload
+	if err := json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &payload); err != nil {
+		t.Fatal(err)
+	}
+	want := "[truncated: 30 items shown, more remain. Use list_repo_hooks tool to fetch more.]"
+	if payload.Sentinel != want {
+		t.Errorf("sentinel = %q, want %q", payload.Sentinel, want)
+	}
+}
+
+func TestHooksResource_TruncationOmitsUnregisteredListTool(t *testing.T) {
+	resource.SetRegisteredTools([]string{"something_else"})
+	t.Cleanup(func() { resource.SetRegisteredTools(nil) })
+
+	h, f := newFixture(t)
+	for i := 0; i < resource.EmbeddedListCap+1; i++ {
+		seedHook(t, f, "https://example.test/h")
+	}
+	contents, err := h.hooksResourceHandler(context.Background(),
+		mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: "forgejo://repo/goern/forgejo-mcp/hooks"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload hooksCollectionPayload
+	if err := json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.ListTool != "" || strings.Contains(payload.Sentinel, "list_repo_hooks") {
+		t.Errorf("list_tool=%q sentinel=%q: an unregistered tool must not be named", payload.ListTool, payload.Sentinel)
 	}
 }

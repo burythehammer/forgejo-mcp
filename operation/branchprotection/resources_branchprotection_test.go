@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
@@ -134,5 +135,52 @@ func TestBranchProtectionResource_MalformedURI(t *testing.T) {
 	}
 	if re.Code != -32602 {
 		t.Errorf("expected code -32602 (invalid params), got %d", re.Code)
+	}
+}
+
+// The truncation note carries the shared sentinel and names the list tool
+// through the registry.
+func TestBranchProtectionsResource_TruncationSentinelNamesRegisteredTool(t *testing.T) {
+	resource.SetRegisteredTools([]string{"list_branch_protections"})
+	t.Cleanup(func() { resource.SetRegisteredTools(nil) })
+
+	h, f := newFixture(t)
+	for i := 0; i < resource.EmbeddedListCap+1; i++ {
+		seedRule(t, f, forgejo_sdk.CreateBranchProtectionOption{BranchName: fmt.Sprintf("b-%d", i), RuleName: fmt.Sprintf("rule-%d", i)})
+	}
+	contents, err := h.branchProtectionsResourceHandler(context.Background(),
+		readResourceReq("forgejo://repo/goern/forgejo-mcp/branch_protections"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var payload bpCollectionPayload
+	if err := json.Unmarshal([]byte(resourceText(t, contents)), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	want := "[truncated: 30 items shown, more remain. Use list_branch_protections tool to fetch more.]"
+	if payload.Sentinel != want {
+		t.Errorf("sentinel = %q, want %q", payload.Sentinel, want)
+	}
+}
+
+func TestBranchProtectionsResource_TruncationOmitsUnregisteredListTool(t *testing.T) {
+	resource.SetRegisteredTools([]string{"something_else"})
+	t.Cleanup(func() { resource.SetRegisteredTools(nil) })
+
+	h, f := newFixture(t)
+	for i := 0; i < resource.EmbeddedListCap+1; i++ {
+		seedRule(t, f, forgejo_sdk.CreateBranchProtectionOption{BranchName: fmt.Sprintf("b-%d", i), RuleName: fmt.Sprintf("rule-%d", i)})
+	}
+	contents, err := h.branchProtectionsResourceHandler(context.Background(),
+		readResourceReq("forgejo://repo/goern/forgejo-mcp/branch_protections"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var payload bpCollectionPayload
+	if err := json.Unmarshal([]byte(resourceText(t, contents)), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.ListTool != "" || strings.Contains(payload.Sentinel, "list_branch_protections") {
+		t.Errorf("list_tool=%q sentinel=%q: an unregistered tool must not be named", payload.ListTool, payload.Sentinel)
 	}
 }

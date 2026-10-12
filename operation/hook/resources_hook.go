@@ -31,6 +31,7 @@ type hooksCollectionPayload struct {
 	Hooks     []hookPayload `json:"hooks"`
 	Truncated bool          `json:"truncated,omitempty"`
 	ListTool  string        `json:"list_tool,omitempty"`
+	Sentinel  string        `json:"sentinel,omitempty"`
 }
 
 // RegisterResources registers the webhook collection and single-hook
@@ -103,7 +104,10 @@ func (h handlers) hooksResourceHandler(ctx context.Context, req mcp.ReadResource
 		Truncated: col.Truncated,
 	}
 	if col.Truncated {
-		payload.ListTool = "list_repo_hooks"
+		// The note names the list tool only when the registry has it.
+		bounded := resource.BoundedResult{Cap: resource.EmbeddedListCap, ListTool: ListRepoHooksToolName, Truncated: true}
+		payload.Sentinel = bounded.Sentinel()
+		payload.ListTool = resource.ToolRef(ListRepoHooksToolName)
 	}
 
 	jsonBytes, err := json.Marshal(payload)

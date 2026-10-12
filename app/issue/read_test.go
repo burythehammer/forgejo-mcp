@@ -102,3 +102,31 @@ func TestRead_MissingIssueIsAnError(t *testing.T) {
 		t.Fatal("want an error for a missing issue")
 	}
 }
+
+// pagingSpy records the comment listing the read asked for, and passes it on.
+type pagingSpy struct {
+	apppissue.Port
+	asked *apppissue.CommentList
+}
+
+func (p pagingSpy) ListIssueComments(ctx context.Context, owner, repo string, index int64, c apppissue.CommentList) ([]*model.Comment, error) {
+	*p.asked = c
+	return p.Port.ListIssueComments(ctx, owner, repo, index, c)
+}
+
+// The read asks for one comment more than the cap, so "more than the cap" is
+// visible without a second call. The limit must reach the port as cap+1.
+func TestRead_AsksForOneMoreThanTheCap(t *testing.T) {
+	t.Parallel()
+	seeded, f := fixture(t)
+	idx := seedReadIssue(t, seeded, 31)
+	var asked apppissue.CommentList
+	s := apppissue.New(pagingSpy{Port: issueadapter.New(f), asked: &asked})
+
+	if _, err := s.Read(context.Background(), target(idx), apppissue.ReadOptions{CommentCap: 30}); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if asked.Paging.Limit != 31 {
+		t.Fatalf("comment listing limit = %d, want cap+1 = 31", asked.Paging.Limit)
+	}
+}

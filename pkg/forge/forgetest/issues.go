@@ -235,6 +235,30 @@ func RunIssues(t *testing.T, newHarness func(t *testing.T) Harness) {
 				t.Fatalf("issue comment count = %d, want 2", after.Comments)
 			}
 		}},
+		{"comment listing honours the page limit", func(t *testing.T, h Harness) {
+			// The bounded read asks for cap+1 rows to learn whether more exist.
+			// That only works if the adapter sends the limit through.
+			iss := newIssue(t, h, "paged")
+			for _, body := range []string{"one", "two", "three"} {
+				if _, err := h.Port.CreateIssueComment(ctx, Owner, Repo, iss.Index, body); err != nil {
+					t.Fatal(err)
+				}
+			}
+			first, _, err := h.Port.ListIssueComments(ctx, Owner, Repo, iss.Index, forgejo_sdk.ListIssueCommentOptions{
+				ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: 2},
+			})
+			must(t, err)
+			if len(first) != 2 || first[0].Body != "one" || first[1].Body != "two" {
+				t.Fatalf("page 1 of 2: got %d comments, want [one two]", len(first))
+			}
+			second, _, err := h.Port.ListIssueComments(ctx, Owner, Repo, iss.Index, forgejo_sdk.ListIssueCommentOptions{
+				ListOptions: forgejo_sdk.ListOptions{Page: 2, PageSize: 2},
+			})
+			must(t, err)
+			if len(second) != 1 || second[0].Body != "three" {
+				t.Fatalf("page 2 of 2: got %d comments, want [three]", len(second))
+			}
+		}},
 		{"comment edit and delete", func(t *testing.T, h Harness) {
 			iss := newIssue(t, h, "c")
 			c, err := h.Port.CreateIssueComment(ctx, Owner, Repo, iss.Index, "draft")

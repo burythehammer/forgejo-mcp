@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
@@ -61,6 +62,10 @@ func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Facto
 		}
 		beforeNames = afterNames
 	}
+
+	// Truncation notes may name only tools in this registry (resource.ToolRef),
+	// as operation.RegisterTool records it for the server.
+	resource.SetRegisteredTools(beforeNames)
 }
 
 func toolNames(s *server.MCPServer) []string {
