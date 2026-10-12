@@ -235,7 +235,10 @@ func Run(cfg config.Config, version string) error {
 		if err != nil {
 			return err
 		}
-		handler, err := rs.handler(newStreamableHTTPHandler(mcpServer, cfg))
+		// The listener is resolved before the handler, so the protected route's
+		// refusal lines and the door's lines draw on one budget.
+		listener := resolveTransportConfig(cfg)
+		handler, err := rs.handlerWithRefusals(newStreamableHTTPHandler(mcpServer, cfg), listener.refusals)
 		if err != nil {
 			return fmt.Errorf("refusing to start: %w", err)
 		}
@@ -244,7 +247,7 @@ func Run(cfg config.Config, version string) error {
 			log.StringField("resource", rs.resource),
 			log.StringField("authorization_server", rs.authServer),
 		)
-		if err := serveMCPOverHTTP("http", handler, cfg.Listen.HTTPPort, cfg); err != nil {
+		if err := serveMCPOverHTTP("http", handler, cfg.Listen.HTTPPort, listener); err != nil {
 			log.Error("Failed to start streamable HTTP server",
 				log.IntField("port", cfg.Listen.HTTPPort),
 				log.ErrorField(err),
@@ -286,7 +289,7 @@ func Run(cfg config.Config, version string) error {
 		log.Info("Starting MCP SSE server",
 			log.IntField("port", cfg.Listen.SSEPort),
 		)
-		if err := serveMCPOverHTTP("sse", sseServer, cfg.Listen.SSEPort, cfg); err != nil {
+		if err := serveMCPOverHTTP("sse", sseServer, cfg.Listen.SSEPort, resolveTransportConfig(cfg)); err != nil {
 			log.Error("Failed to start SSE server",
 				log.IntField("port", cfg.Listen.SSEPort),
 				log.ErrorField(err),
@@ -299,7 +302,7 @@ func Run(cfg config.Config, version string) error {
 		log.Info("Starting MCP streamable HTTP server",
 			log.IntField("port", cfg.Listen.HTTPPort),
 		)
-		if err := serveMCPOverHTTP("http", httpMux, cfg.Listen.HTTPPort, cfg); err != nil {
+		if err := serveMCPOverHTTP("http", httpMux, cfg.Listen.HTTPPort, resolveTransportConfig(cfg)); err != nil {
 			log.Error("Failed to start streamable HTTP server",
 				log.IntField("port", cfg.Listen.HTTPPort),
 				log.ErrorField(err),

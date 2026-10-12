@@ -166,9 +166,11 @@ func (l *refusalLimiter) admit(now time.Time) (bool, int) {
 // write emits one refusal line through emit unless the rate bound says otherwise,
 // and reports the lines it suppressed in the window that just closed.
 //
-// The limiter is owned by whoever creates it, one per listener and one per
-// resource-server handler, so the bound applies to what that owner writes to the
-// operator's disk. Two listeners in one process each get their own budget.
+// The limiter is owned by the listener that serves it: one per listener, created
+// with its configuration, and a resource-server handler served by that listener
+// writes through the same instance. The bound applies to what that listener
+// writes to the operator's disk. Two listeners in one process each get their own
+// budget.
 func (l *refusalLimiter) write(emit func(string, ...zap.Field), msg string, fields ...zap.Field) {
 	ok, dropped := l.admit(time.Now())
 	if dropped > 0 {
@@ -428,15 +430,15 @@ func oneFamilyHint(cfg transportConfig) string {
 }
 
 // serveMCPOverHTTP binds the listeners for a network transport and serves
-// handler on all of them.
+// handler on all of them. cfg is the listener's resolved configuration. The
+// caller resolves it once, so a handler built before this call can share the
+// listener's refusal budget.
 //
 // Both network transports go through here rather than calling the library's own
 // Start method, so that the listen address, the header checks and the
 // credential policy are decided in exactly one place. A transport that bound
 // its own listener would silently miss all three.
-func serveMCPOverHTTP(transportName string, handler http.Handler, port int, appCfg config.Config) error {
-	cfg := resolveTransportConfig(appCfg)
-
+func serveMCPOverHTTP(transportName string, handler http.Handler, port int, cfg transportConfig) error {
 	listeners, err := bindListeners(transportName, cfg, port, net.Listen)
 	if err != nil {
 		return err

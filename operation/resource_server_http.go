@@ -4,18 +4,14 @@ package operation
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
-	"unicode"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/jwtissuer"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs"
 )
 
 const (
@@ -25,25 +21,19 @@ const (
 	// issuerDocumentCacheControl lets proxies and Forgejo cache the issuer
 	// documents briefly. Forgejo applies its own cache on top.
 	issuerDocumentCacheControl = "public, max-age=300"
-
-	// maxAudienceClaimLength bounds the Forgejo audience taken from a token.
-	maxAudienceClaimLength = 256
 )
 
-// mintedTokenKey carries the Forgejo token minted for a request, from the
-// authentication layer to requestTokenContextFunc. It is unexported so that
-// nothing outside this package can place a credential in a request context.
-type mintedTokenKey struct{}
-
-type protectedResourceMetadata struct {
-	Resource               string   `json:"resource"`
-	AuthorizationServers   []string `json:"authorization_servers"`
-	BearerMethodsSupported []string `json:"bearer_methods_supported"`
-	ScopesSupported        []string `json:"scopes_supported,omitempty"`
+// handler builds the whole HTTP surface of resource-server mode around the MCP
+// transport handler. Its refusal-log budget is its own; a listener that serves
+// the handler passes its own budget to handlerWithRefusals instead.
+func (rs *resourceServer) handler(mcp http.Handler) (http.Handler, error) {
+	return rs.handlerWithRefusals(mcp, &refusalLimiter{})
 }
 
-// handler builds the whole HTTP surface of resource-server mode around the MCP
-// transport handler.
+// handlerWithRefusals is handler with the refusal-log budget for the protected
+// route's debug lines supplied by the caller. Run passes the listener's own
+// budget, so the route's lines and the door's Host and Origin lines draw on one
+// bound per listener.
 //
 // The public routes (protected resource metadata, the issuer's discovery
 // document and key set) and the one protected route (the MCP endpoint) are
@@ -52,7 +42,7 @@ type protectedResourceMetadata struct {
 // Forgejo refuses to follow redirects when it fetches the issuer documents.
 // Every other path gets 404. Authentication wraps the protected route only, so
 // the documents a caller needs before it has a token are reachable without one.
-func (rs *resourceServer) handler(mcp http.Handler) (http.Handler, error) {
+func (rs *resourceServer) handlerWithRefusals(mcp http.Handler, refusals *refusalLimiter) (http.Handler, error) {
 	resourceURL, err := url.Parse(rs.resource)
 	if err != nil {
 		return nil, fmt.Errorf("resource %q: %w", rs.resource, err)
@@ -64,19 +54,11 @@ func (rs *resourceServer) handler(mcp http.Handler) (http.Handler, error) {
 
 	metadataPath := protectedResourceMetadataPath + strings.TrimSuffix(resourceURL.Path, "/")
 	metadataURL := (&url.URL{Scheme: resourceURL.Scheme, Host: resourceURL.Host, Path: metadataPath}).String()
-	metadata, err := json.Marshal(protectedResourceMetadata{
-		Resource:               rs.resource,
-		AuthorizationServers:   []string{rs.authServer},
-		BearerMethodsSupported: []string{"header"},
-		ScopesSupported:        rs.scopes,
-	})
+	metadata, err := rs.metadataDocument()
 	if err != nil {
-		return nil, fmt.Errorf("encode protected resource metadata: %w", err)
+		return nil, err
 	}
 
-	// This handler's refusal-log budget, created with it. It is not the
-	// listener's door budget; see authenticate.
-	refusals := &refusalLimiter{}
 	routes := map[string]http.Handler{
 		metadataPath:                             staticDocument(metadata, ""),
 		protectedResourceMetadataPath:            staticDocument(metadata, ""),
@@ -114,89 +96,31 @@ func staticDocument(body []byte, cacheControl string) http.Handler {
 	})
 }
 
-// bearerChallenge is the WWW-Authenticate value of every 401, without the error
-// parameter. Its inputs are validated at startup, so no quoting is needed.
-func bearerChallenge(metadataURL string, scopes []string) string {
-	challenge := `Bearer resource_metadata="` + metadataURL + `"`
-	if len(scopes) > 0 {
-		challenge += `, scope="` + strings.Join(scopes, " ") + `"`
-	}
-	return challenge
-}
-
-// authenticate validates the caller's access token, derives the Forgejo
-// audience, mints the Forgejo token and hands it to next through the request
-// context. The caller's own token goes no further than this function.
+// authenticate is the protected route's HTTP wrapper around the authentication
+// port. It writes the port's refusal, or answers a failure to mint with a 500,
+// and otherwise hands the minted token to next through the request context.
 //
 // refusals bounds the debug lines for refused requests. Those values come from
-// strangers, so they are rate-bounded like the door's lines, but they draw on
-// their own budget rather than the door's: this handler is built before the
-// listener that serves it, so it cannot be handed the listener's limiter without
-// changing the handler's signature.
+// strangers, so they are rate-bounded like the door's lines, and they draw on
+// the budget the caller supplied; see handlerWithRefusals.
 func (rs *resourceServer) authenticate(next http.Handler, challenge string, refusals *refusalLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, err := rs.validator.ValidateAuthorization(r.Context(), r.Header.Get("Authorization"))
-		if err == nil && claims.Subject == "" {
-			err = fmt.Errorf("%w: the token has no sub", oauthrs.ErrInvalidToken)
-		}
+		auth, err := authenticateResourceServer(r, rs, challenge)
 		if err != nil {
-			value := challenge
-			if errors.Is(err, oauthrs.ErrInvalidToken) {
-				value += `, error="invalid_token"`
+			var refused *resourceRefusal
+			if !errors.As(err, &refused) {
+				log.Error("Cannot mint a Forgejo token", log.ErrorField(err))
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
 			}
-			refusals.write(log.Debug, "Refused a request to the MCP endpoint",
-				log.StringField("reason", err.Error()),
-				log.StringField("path", truncateForLog(r.URL.Path)),
-			)
-			w.Header().Set("WWW-Authenticate", value)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		audience, ok := usableAudience(claims.Raw[rs.audienceClaim])
-		if !ok {
-			refusals.write(log.Debug, "Refused a token without a usable Forgejo audience claim",
-				log.StringField("claim", rs.audienceClaim),
-				log.StringField("sub", truncateForLog(claims.Subject)),
-			)
-			// No WWW-Authenticate challenge, deliberately (design D4). The token
-			// is valid; what is missing is data at the identity provider, not
-			// authorization or scope. A challenge, with or without
-			// error="insufficient_scope", invites a spec-following client to
-			// re-authorize or step up its scopes, and that loop cannot succeed.
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(http.StatusForbidden)
-			_, _ = fmt.Fprintf(w,
-				"Forbidden: the access token carries no usable %q claim. It must hold the audience of your Forgejo "+
-					"Authorized Integration for this server.\n", rs.audienceClaim)
-			return
-		}
-
-		token, err := rs.issuer.Mint(claims.Subject, audience, time.Now())
-		if err != nil {
-			log.Error("Cannot mint a Forgejo token", log.ErrorField(err))
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			refusals.write(log.Debug, refused.logMsg, refused.logFields...)
+			refused.writeTo(w)
 			return
 		}
 		log.Debug("Authenticated a request to the MCP endpoint",
-			log.StringField("sub", truncateForLog(claims.Subject)),
-			log.StringField("forgejo_audience", truncateForLog(audience)),
+			log.StringField("sub", truncateForLog(auth.subject)),
+			log.StringField("forgejo_audience", truncateForLog(auth.audience)),
 		)
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), mintedTokenKey{}, token)))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), mintedTokenKey{}, string(auth.credential))))
 	})
-}
-
-// usableAudience accepts a single non-empty string of bounded length with no
-// whitespace or control characters. Forgejo requires exactly one audience.
-func usableAudience(v any) (string, bool) {
-	s, ok := v.(string)
-	if !ok || s == "" || len(s) > maxAudienceClaimLength {
-		return "", false
-	}
-	for _, r := range s {
-		if unicode.IsSpace(r) || unicode.IsControl(r) {
-			return "", false
-		}
-	}
-	return s, true
 }
