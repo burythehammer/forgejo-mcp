@@ -163,20 +163,21 @@ func (l *refusalLimiter) admit(now time.Time) (bool, int) {
 	return false, dropped
 }
 
-// refusals is process-wide on purpose: the bound that matters is on what one
-// server writes to one operator's disk, not on what any single listener does.
-var refusals refusalLimiter
-
-// logRefusal writes a refusal line unless the rate bound says otherwise.
-func logRefusal(msg string, fields ...zap.Field) {
-	ok, dropped := refusals.admit(time.Now())
+// write emits one refusal line through emit unless the rate bound says otherwise,
+// and reports the lines it suppressed in the window that just closed.
+//
+// The limiter is owned by whoever creates it, one per listener and one per
+// resource-server handler, so the bound applies to what that owner writes to the
+// operator's disk. Two listeners in one process each get their own budget.
+func (l *refusalLimiter) write(emit func(string, ...zap.Field), msg string, fields ...zap.Field) {
+	ok, dropped := l.admit(time.Now())
 	if dropped > 0 {
 		log.Warn("Suppressed refusal log lines over the preceding window",
 			log.IntField("suppressed", dropped),
 		)
 	}
 	if ok {
-		log.Warn(msg, fields...)
+		emit(msg, fields...)
 	}
 }
 
@@ -204,10 +205,10 @@ func logRefusal(msg string, fields ...zap.Field) {
 //     and shape only: any string under a recognised scheme passes, and it is the
 //     forge that rejects an invalid one, on the first call that reaches it. A
 //     call that never reaches the forge is not protected by this check.
-func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, requireAuth bool) http.Handler {
+func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, requireAuth bool, refusals *refusalLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !hosts.permits(r.Host) {
-			logRefusal("Rejected request with unacceptable Host header",
+			refusals.write(log.Warn, "Rejected request with unacceptable Host header",
 				log.StringField("host", truncateForLog(r.Host)),
 				log.StringField("path", truncateForLog(r.URL.Path)),
 			)
@@ -222,7 +223,7 @@ func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, re
 				value = origin[0]
 			}
 			if !origins.permits(value) {
-				logRefusal("Rejected request with unacceptable Origin header",
+				refusals.write(log.Warn, "Rejected request with unacceptable Origin header",
 					log.StringField("origin", truncateForLog(value)),
 					log.StringField("path", truncateForLog(r.URL.Path)),
 				)
@@ -231,7 +232,7 @@ func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, re
 			}
 		}
 		if requireAuth && extractToken(r.Header.Get("Authorization")) == "" {
-			logRefusal("Rejected request with no usable Authorization header",
+			refusals.write(log.Warn, "Rejected request with no usable Authorization header",
 				log.StringField("path", truncateForLog(r.URL.Path)),
 			)
 			w.Header().Set("WWW-Authenticate", `Bearer realm="forgejo-mcp"`)
@@ -267,6 +268,9 @@ type transportConfig struct {
 	// resourceServer is true in resource-server mode, where the handler
 	// authenticates its protected route itself.
 	resourceServer bool
+	// refusals is this listener's refusal-log budget. It is created with the
+	// configuration, so each listener starts with its own.
+	refusals *refusalLimiter
 }
 
 // resolveTransportConfig derives the listener decisions from a Config that
@@ -278,6 +282,7 @@ func resolveTransportConfig(cfg config.Config) transportConfig {
 	tc := transportConfig{
 		requireAuth:    !l.AllowOperatorTokenFallback,
 		resourceServer: cfg.ResourceServerMode(),
+		refusals:       &refusalLimiter{},
 	}
 
 	host := strings.TrimSpace(l.Host)
@@ -306,7 +311,7 @@ func newMCPHTTPServer(handler http.Handler, cfg transportConfig) *http.Server {
 	// door does not look at Authorization. The credential fallback stays refused
 	// either way: cfg.requireAuth still drives the credential policy (see newFactory).
 	return &http.Server{
-		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, cfg.requireAuth && !cfg.resourceServer),
+		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, cfg.requireAuth && !cfg.resourceServer, cfg.refusals),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		IdleTimeout:       idleTimeout,
