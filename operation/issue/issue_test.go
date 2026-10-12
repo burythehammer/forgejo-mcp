@@ -198,6 +198,25 @@ func TestListRepoIssues(t *testing.T) {
 	}
 }
 
+func TestListRepoIssues_KnownCeilingRefusesOverLimit(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.SetMaxResponseItems(2)
+	for i := 0; i < 3; i++ {
+		openIssue(t, f, "x")
+	}
+	if msg := callErr(t, h.ListRepoIssuesFn, map[string]any{"owner": testOwner, "repo": testRepo, "limit": float64(3)}); !strings.Contains(msg, "exceeds this instance's maximum of 2") {
+		t.Fatalf("error = %q", msg)
+	}
+	var at []forgejo_sdk.Issue
+	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"owner": testOwner, "repo": testRepo, "limit": float64(2)}), &at); err != nil {
+		t.Fatal(err)
+	}
+	if len(at) != 2 {
+		t.Fatalf("at ceiling returned %d, want 2", len(at))
+	}
+}
+
 func TestListRepoIssues_SortNearDueDate(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
