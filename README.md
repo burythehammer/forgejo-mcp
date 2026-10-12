@@ -490,7 +490,7 @@ Resources that embed a list (issue, pr) cap the embedded array at 30 items. When
 |---|---|---|
 | `forgejo://owner/{owner}` | application/json | User or org profile addressed by login; resolves user first, falls back to org. |
 | `forgejo://repo/{owner}/{repo}` | application/json | Repository overview: identity + counts, no embedded lists. |
-| `forgejo://repo/{owner}/{repo}/commit/{sha}` | Commit metadata | Immutable per sha. Returns JSON + markdown sidecar. sha must be 40 hex chars. |
+| `forgejo://repo/{owner}/{repo}/commit/{sha}` | Commit metadata | Immutable per sha. Returns JSON + markdown sidecar. sha must be 40 hex chars. Bounded: `files` capped at 30 (`files_total` and `files_truncated` appear when cut) and the message at 16 KiB in both blocks. |
 | `forgejo://repo/{owner}/{repo}/commit/{sha}/status` | application/json | Combined CI status for a sha: aggregate state + bounded per-context statuses (cap 30, sentinel names list tool `get_commit_statuses`). |
 | `forgejo://repo/{owner}/{repo}/issue/{index}` | application/json (+ text/markdown sidecar) | Issue metadata + rendered body + bounded recent comments (cap 30, sentinel names `list_issue_comments`). |
 | `forgejo://repo/{owner}/{repo}/issues{?state,labels,page,limit}` | application/json | Bounded list of issues as rows — index, title, state, author, labels, assignees, milestone, comment count, timestamps, due date — and **no bodies**. `state` ∈ {open, closed, all} (default `open`); `labels` comma-separated; cap 30, sentinel names `list_repo_issues`. Read the single-issue resource for a body. |

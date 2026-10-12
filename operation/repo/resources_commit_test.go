@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -113,5 +114,64 @@ func TestCommitResourceHandler_SidecarPresent(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected text/markdown sidecar block to be present")
+	}
+}
+
+func TestCommitResourceHandler_BoundsFilesAndMessage(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	paths := make([]string, 45)
+	for i := range paths {
+		paths[i] = fmt.Sprintf("dir/file%02d.go", i)
+	}
+	msg := "subject\n\n" + strings.Repeat("x", commitMessageCap*2)
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, msg, paths...); err != nil {
+		t.Fatal(err)
+	}
+
+	contents, err := h.commitResourceHandler(context.Background(), makeCommitResourceRequest(testSHA))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var decoded struct {
+		Files          []map[string]any `json:"files"`
+		FilesTotal     int              `json:"files_total"`
+		FilesTruncated bool             `json:"files_truncated"`
+		Commit         struct {
+			Message string `json:"message"`
+		} `json:"commit"`
+	}
+	if err := json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Files) != resource.EmbeddedListCap || decoded.FilesTotal != 45 || !decoded.FilesTruncated {
+		t.Errorf("files = %d total=%d truncated=%v, want %d/45/true", len(decoded.Files), decoded.FilesTotal, decoded.FilesTruncated, resource.EmbeddedListCap)
+	}
+	if len(decoded.Commit.Message) > commitMessageCap+8 {
+		t.Errorf("json message is %d bytes, want at most about %d", len(decoded.Commit.Message), commitMessageCap)
+	}
+	if md := contents[1].(mcp.TextResourceContents).Text; len(md) > commitMessageCap+8 {
+		t.Errorf("markdown sidecar is %d bytes, want at most about %d", len(md), commitMessageCap)
+	}
+}
+
+func TestCommitResourceHandler_SmallCommitUnchanged(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, "small", "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := h.commitResourceHandler(context.Background(), makeCommitResourceRequest(testSHA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"files_total", "files_truncated"} {
+		if _, ok := decoded[k]; ok {
+			t.Errorf("%s must be absent when nothing is truncated", k)
+		}
 	}
 }
