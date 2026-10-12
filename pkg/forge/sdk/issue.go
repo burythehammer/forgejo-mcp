@@ -4,6 +4,7 @@ package sdk
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -71,6 +72,12 @@ func (a *Adapter) SearchIssues(_ context.Context, opt forgejo_sdk.ListIssueOptio
 }
 
 func (a *Adapter) CreateIssue(_ context.Context, owner, repo string, opt forgejo_sdk.CreateIssueOption) (*forgejo_sdk.Issue, error) {
+	// The SDK refuses an empty title before it sends anything, so no status
+	// comes back. Forgejo answers that refusal with 422; say the same here so
+	// the adapter reports the same validation kind as the fake and the server.
+	if strings.TrimSpace(opt.Title) == "" {
+		return nil, &forge.StatusError{StatusCode: http.StatusUnprocessableEntity, Err: errors.New("title is empty")}
+	}
 	iss, resp, err := a.client.CreateIssue(owner, repo, opt)
 	return iss, statusErr(resp, err)
 }

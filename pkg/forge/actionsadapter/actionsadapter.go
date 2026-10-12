@@ -117,7 +117,7 @@ func (a adapter) GetJobLog(ctx context.Context, owner, repo string, jobID, attem
 	}
 	return model.JobLog{
 		Body: resp.Body, ContentType: resp.ContentType, ContentRange: resp.ContentRange,
-		ContentLength: resp.ContentLength, StatusCode: resp.StatusCode,
+		ContentLength: resp.ContentLength, Partial: resp.Partial,
 	}, nil
 }
 

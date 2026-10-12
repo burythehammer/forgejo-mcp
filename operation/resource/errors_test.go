@@ -6,25 +6,42 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 )
 
-func TestMapForgejoError_403(t *testing.T) {
-	err := MapForgejoError("forgejo://repo/a/b", errors.New("403 Forbidden"))
-	if err == nil {
-		t.Fatal("expected non-nil ResourceError")
+// The kind comes from the port's error, not from words in its message: a plain
+// error that says "404" is an internal error, not a not-found.
+func TestMapForgejoError_KindsByStatus(t *testing.T) {
+	const uri = "forgejo://repo/a/b"
+	tests := []struct {
+		name    string
+		err     error
+		code    int
+		message string
+	}{
+		{"401 is access denied", &forge.StatusError{StatusCode: 401, Err: errors.New("login required")}, -32002, "access denied: 401 login required"},
+		{"403 is access denied", &forge.StatusError{StatusCode: 403, Err: errors.New("Forbidden")}, -32002, "access denied: 403 Forbidden"},
+		{"404 is not found", &forge.StatusError{StatusCode: 404, Err: errors.New("Not Found")}, -32003, "not found: 404 Not Found"},
+		{"422 is invalid params", &forge.StatusError{StatusCode: 422, Err: errors.New("title is empty")}, -32602, "invalid params: 422 title is empty"},
+		{"502 is an internal error", &forge.StatusError{StatusCode: 502, Err: errors.New("bad gateway")}, -32603, "internal error: 502 bad gateway"},
+		{"a plain 404 in the text is internal", errors.New("404 Not Found"), -32603, "internal error: 404 Not Found"},
+		{"a plain 403 in the text is internal", errors.New("403 Forbidden"), -32603, "internal error: 403 Forbidden"},
+		{"a wrapped kind still maps", fmt.Errorf("get: %w", forge.ErrNotFound), -32003, "not found: get: not found"},
 	}
-	if err.Code != -32002 {
-		t.Errorf("expected code -32002 for 403, got %d", err.Code)
-	}
-}
-
-func TestMapForgejoError_404(t *testing.T) {
-	err := MapForgejoError("forgejo://repo/a/b", errors.New("404 Not Found"))
-	if err == nil {
-		t.Fatal("expected non-nil ResourceError")
-	}
-	if err.Code != -32003 {
-		t.Errorf("expected code -32003 for 404, got %d", err.Code)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MapForgejoError(uri, tt.err)
+			if got == nil {
+				t.Fatal("expected non-nil ResourceError")
+			}
+			if got.Code != tt.code {
+				t.Errorf("code = %d, want %d", got.Code, tt.code)
+			}
+			if got.Message != tt.message {
+				t.Errorf("message = %q, want %q", got.Message, tt.message)
+			}
+		})
 	}
 }
 

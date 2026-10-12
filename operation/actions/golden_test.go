@@ -193,7 +193,7 @@ type goldenCase struct {
 }
 
 func tail(body string, total int) *forge.JobLog {
-	return &forge.JobLog{Body: []byte(body), ContentType: "text/plain", ContentRange: fmt.Sprintf("bytes %d-%d/%d", total-len(body), total-1, total), ContentLength: int64(len(body)), StatusCode: 206}
+	return &forge.JobLog{Body: []byte(body), ContentType: "text/plain", ContentRange: fmt.Sprintf("bytes %d-%d/%d", total-len(body), total-1, total), ContentLength: int64(len(body)), StatusCode: 206, Partial: true}
 }
 
 var goldenCases = []goldenCase{
@@ -226,7 +226,7 @@ var goldenCases = []goldenCase{
 		stub: func(s *stubActions) { s.logResp = tail("line1\nline2\n", 100) }},
 	{name: "log_offset_attempt", tool: GetActionJobLogsToolName, args: map[string]any{"job_id": float64(3), "attempt": float64(2), "offset": float64(10), "max_bytes": float64(4)},
 		stub: func(s *stubActions) {
-			s.logResp = &forge.JobLog{Body: []byte("abcd"), ContentType: "text/plain", ContentRange: "bytes 10-13/100", ContentLength: 4, StatusCode: 206}
+			s.logResp = &forge.JobLog{Body: []byte("abcd"), ContentType: "text/plain", ContentRange: "bytes 10-13/100", ContentLength: 4, StatusCode: 206, Partial: true}
 		}},
 	{name: "log_full_200", tool: GetActionJobLogsToolName, args: map[string]any{"job_id": "3"},
 		stub: func(s *stubActions) {
@@ -238,7 +238,7 @@ var goldenCases = []goldenCase{
 		}},
 	{name: "log_bad_content_range", tool: GetActionJobLogsToolName, args: map[string]any{"job_id": float64(3)},
 		stub: func(s *stubActions) {
-			s.logResp = &forge.JobLog{Body: []byte("x"), ContentRange: "garbage", StatusCode: 206}
+			s.logResp = &forge.JobLog{Body: []byte("x"), ContentRange: "garbage", StatusCode: 206, Partial: true}
 		}},
 	{name: "log_negative_offset", tool: GetActionJobLogsToolName, args: map[string]any{"job_id": float64(3), "offset": float64(-1)}},
 	{name: "log_bad_attempt", tool: GetActionJobLogsToolName, args: map[string]any{"job_id": float64(3), "attempt": float64(0)}},

@@ -102,3 +102,11 @@ func TestDependenciesContract(t *testing.T) {
 		return forgetest.Harness{Port: f, Seed: f}
 	})
 }
+
+func TestErrorsContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunErrors(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}

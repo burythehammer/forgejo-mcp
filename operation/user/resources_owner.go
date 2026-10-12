@@ -70,7 +70,7 @@ func (h handlers) ownerResourceHandler(ctx context.Context, req mcp.ReadResource
 		if errors.Is(err, appowner.ErrOwnerNotFound) {
 			return nil, &resource.ResourceError{URI: uri, Code: -32003, Message: "owner not found: " + uri}
 		}
-		return nil, resource.MapForgejoError(uri, withStatus(err))
+		return nil, resource.MapForgejoError(uri, err)
 	}
 
 	var payload ownerResourcePayload
@@ -114,11 +114,3 @@ func (h handlers) ownerResourceHandler(ctx context.Context, req mcp.ReadResource
 	}, nil
 }
 
-// withStatus puts the HTTP status Forgejo answered with in front of the error's
-// message, when there was one.
-func withStatus(err error) error {
-	if code := forge.StatusCode(err); code != 0 {
-		return fmt.Errorf("%d %s", code, err.Error())
-	}
-	return err
-}

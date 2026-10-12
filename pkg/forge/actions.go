@@ -90,11 +90,13 @@ type ArtifactList struct {
 }
 
 // JobLog is a bounded read of a job log. StatusCode is 206 when Forgejo
-// honoured the range; ContentLength is -1 when unknown.
+// honoured the range, and Partial says the same in the port's terms, so a
+// caller never reads the status. ContentLength is -1 when unknown.
 type JobLog struct {
 	Body          []byte
 	ContentType   string
 	ContentRange  string
 	ContentLength int64
 	StatusCode    int
+	Partial       bool
 }
