@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
+
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
@@ -72,6 +74,7 @@ func TestCreateIssue(t *testing.T) {
 	ms := f.SeedMilestone(testOwner, testRepo, "v1")
 	iss := decodeIssue(t, call(t, h.CreateIssueFn, map[string]any{
 		"title": "new", "body": "b", "ref": "refs/heads/x", "assignees": "alice, bob", "milestone": "1",
+		"verbose": true,
 	}))
 	if iss.Title != "new" || iss.Body != "b" || iss.Ref != "refs/heads/x" {
 		t.Fatalf("got %+v", iss)
@@ -98,20 +101,20 @@ func TestUpdateIssue_Assignees(t *testing.T) {
 	idx := openIssue(t, f, "t")
 	idxF := float64(idx)
 
-	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignee": "goern"}))
+	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignee": "goern", "verbose": true}))
 	if got := assigneeNames(iss); len(got) != 1 || got[0] != "goern" {
 		t.Fatalf("singular: %v", got)
 	}
-	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignees": "alice, bob ,carol"}))
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignees": "alice, bob ,carol", "verbose": true}))
 	if got := assigneeNames(iss); strings.Join(got, ",") != "alice,bob,carol" {
 		t.Fatalf("csv: %v", got)
 	}
-	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignees": "", "assignee": "ignored"}))
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignees": "", "assignee": "ignored", "verbose": true}))
 	if got := assigneeNames(iss); len(got) != 0 {
 		t.Fatalf("empty clears: %v", got)
 	}
 	call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "assignees": "keep"})
-	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "title": "renamed"}))
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idxF, "title": "renamed", "verbose": true}))
 	if got := assigneeNames(iss); len(got) != 1 || got[0] != "keep" || iss.Title != "renamed" {
 		t.Fatalf("untouched assignees: %v title %q", got, iss.Title)
 	}
@@ -121,15 +124,15 @@ func TestUpdateIssue_Ref(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	idx := float64(openIssue(t, f, "t"))
-	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "ref": "refs/heads/a"}))
+	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "ref": "refs/heads/a", "verbose": true}))
 	if iss.Ref != "refs/heads/a" {
 		t.Fatalf("set: %q", iss.Ref)
 	}
-	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "x"}))
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "x", "verbose": true}))
 	if iss.Ref != "refs/heads/a" {
 		t.Fatalf("omitted ref changed it: %q", iss.Ref)
 	}
-	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "ref": ""}))
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "ref": "", "verbose": true}))
 	if iss.Ref != "" {
 		t.Fatalf("empty ref should clear, got %q", iss.Ref)
 	}
@@ -139,11 +142,11 @@ func TestUpdateIssue_DueDate(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	idx := float64(openIssue(t, f, "t"))
-	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "due_date": "2030-01-02T03:04:05Z"}))
+	iss := decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "due_date": "2030-01-02T03:04:05Z", "verbose": true}))
 	if iss.Deadline == nil || iss.Deadline.Format(time.RFC3339) != "2030-01-02T03:04:05Z" {
 		t.Fatalf("set: %v", iss.Deadline)
 	}
-	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "clear_due_date": true}))
+	iss = decodeIssue(t, call(t, h.UpdateIssueFn, map[string]any{"index": idx, "clear_due_date": true, "verbose": true}))
 	if iss.Deadline != nil {
 		t.Fatalf("clear: %v", iss.Deadline)
 	}
@@ -159,11 +162,11 @@ func TestIssueStateChange(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	idx := float64(openIssue(t, f, "t"))
-	iss := decodeIssue(t, call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "closed"}))
+	iss := decodeIssue(t, call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "closed", "verbose": true}))
 	if iss.State != forgejo_sdk.StateClosed {
 		t.Fatalf("state %q", iss.State)
 	}
-	iss = decodeIssue(t, call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "open"}))
+	iss = decodeIssue(t, call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "open", "verbose": true}))
 	if iss.State != forgejo_sdk.StateOpen {
 		t.Fatalf("state %q", iss.State)
 	}
@@ -311,7 +314,7 @@ func TestIssueComments(t *testing.T) {
 	h, f := newFixture(t)
 	idx := float64(openIssue(t, f, "t"))
 
-	created := call(t, h.CreateIssueCommentFn, map[string]any{"index": idx, "body": "first"})
+	created := call(t, h.CreateIssueCommentFn, map[string]any{"index": idx, "body": "first", "verbose": true})
 	var c forgejo_sdk.Comment
 	if err := unmarshalResult(created, &c); err != nil || c.Body != "first" {
 		t.Fatalf("create: %v %s", err, created)
@@ -325,7 +328,7 @@ func TestIssueComments(t *testing.T) {
 	if !strings.Contains(call(t, h.GetIssueCommentFn, map[string]any{"comment_id": id}), "first") {
 		t.Fatal("get lost the body")
 	}
-	if !strings.Contains(call(t, h.EditIssueCommentFn, map[string]any{"comment_id": id, "body": "second"}), "second") {
+	if !strings.Contains(call(t, h.EditIssueCommentFn, map[string]any{"comment_id": id, "body": "second", "verbose": true}), "second") {
 		t.Fatal("edit lost the body")
 	}
 	if got := call(t, h.DeleteIssueCommentFn, map[string]any{"comment_id": id}); got != `{"Result":"Delete comment success"}` {
@@ -367,4 +370,88 @@ func TestListRepoMilestones(t *testing.T) {
 	if all := call(t, h.ListRepoMilestonesFn, map[string]any{"state": "all"}); !strings.Contains(all, `"v0"`) {
 		t.Fatalf("all: %s", all)
 	}
+}
+
+var compactIssueKeys = []string{"number", "url", "title", "state", "labels", "assignees", "updated_at"}
+
+// assertCompactIssue checks the default write result: exactly the compact keys,
+// and none of the body or the user object.
+func assertCompactIssue(t *testing.T, text string, notContain ...string) {
+	t.Helper()
+	keys := mcptest.EnvelopeKeys(t, text)
+	if len(keys) != len(compactIssueKeys) {
+		t.Fatalf("compact result has %d keys, want %d: %s", len(keys), len(compactIssueKeys), text)
+	}
+	for _, k := range compactIssueKeys {
+		if _, ok := keys[k]; !ok {
+			t.Fatalf("compact result misses %q: %s", k, text)
+		}
+	}
+	for _, s := range notContain {
+		if strings.Contains(text, s) {
+			t.Fatalf("compact result contains %q: %s", s, text)
+		}
+	}
+}
+
+func TestWriteResults_CompactByDefault(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := float64(openIssue(t, f, "t"))
+
+	created := call(t, h.CreateIssueFn, map[string]any{"title": "fresh", "body": "CREATE-BODY", "assignees": "alice"})
+	assertCompactIssue(t, created, "CREATE-BODY", "@")
+
+	updated := call(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "renamed", "body": "UPDATE-BODY"})
+	assertCompactIssue(t, updated, "UPDATE-BODY", "@")
+
+	closed := call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "closed"})
+	assertCompactIssue(t, closed, "@")
+	if !strings.Contains(closed, `"state":"closed"`) || !strings.Contains(updated, `"title":"renamed"`) {
+		t.Fatalf("compact fields wrong: updated=%s closed=%s", updated, closed)
+	}
+}
+
+func TestWriteResults_CompactCarriesLabelAndAssigneeNames(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := float64(openIssue(t, f, "t"))
+	text := call(t, h.UpdateIssueFn, map[string]any{"index": idx, "assignees": "alice, bob"})
+	keys := mcptest.EnvelopeKeys(t, text)
+	var assignees []string
+	if err := json.Unmarshal(keys["assignees"], &assignees); err != nil {
+		t.Fatalf("assignees not a string list: %v (%s)", err, text)
+	}
+	if strings.Join(assignees, ",") != "alice,bob" {
+		t.Fatalf("assignees = %v", assignees)
+	}
+}
+
+func TestWriteResults_VerboseReturnsFullEntity(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := float64(openIssue(t, f, "t"))
+	for name, text := range map[string]string{
+		"create": call(t, h.CreateIssueFn, map[string]any{"title": "fresh", "body": "VERBOSE-BODY", "verbose": true}),
+		"update": call(t, h.UpdateIssueFn, map[string]any{"index": idx, "body": "VERBOSE-BODY", "verbose": true}),
+		"state":  call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "closed", "verbose": true}),
+	} {
+		keys := mcptest.EnvelopeKeys(t, text)
+		if _, ok := keys["body"]; !ok {
+			t.Errorf("%s verbose: no body key: %s", name, text)
+		}
+		if _, ok := keys["user"]; !ok {
+			t.Errorf("%s verbose: no user key: %s", name, text)
+		}
+		if name != "state" && !strings.Contains(text, "VERBOSE-BODY") {
+			t.Errorf("%s verbose: body not returned: %s", name, text)
+		}
+	}
+}
+
+func TestWriteResults_VerboseFalseIsCompact(t *testing.T) {
+	t.Parallel()
+	h, _ := newFixture(t)
+	text := call(t, h.CreateIssueFn, map[string]any{"title": "fresh", "verbose": false})
+	assertCompactIssue(t, text)
 }
