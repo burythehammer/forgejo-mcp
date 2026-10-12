@@ -13,9 +13,8 @@ type contextKey string
 // unexported so that WithToken and TokenFromContext are the only way in or out.
 const tokenKey contextKey = "forgejo-token"
 
-// WithToken adds a request's Forgejo token to the context. A Factory uses it,
-// in preference to the operator's own credential, to build the port for that
-// request.
+// WithToken adds a request's Forgejo token to the context. A Factory builds the
+// port for that request from it, in preference to any operator mark.
 func WithToken(ctx context.Context, token string) context.Context {
 	return context.WithValue(ctx, tokenKey, token)
 }
@@ -26,13 +25,11 @@ func TokenFromContext(ctx context.Context) string {
 	return token
 }
 
-// ErrNoRequestToken is returned when a request carries no credential of its own
-// and this server does not fall back to the operator's configured credential.
-//
-// The fallback exists for the stdio transport, where the client launched this
-// process and there is no per-request identity to carry. On a network transport
-// the same fallback serves an anonymous request with the operator's own
-// credential, so the network transports switch it off.
+// ErrNoRequestToken is returned when a request carries neither a credential of
+// its own nor the mark for the operator's credential (WithOperatorCredential).
+// Whether a request is marked is the authentication port's decision. The port
+// marks stdio requests, and network requests only when the operator has opted in
+// to the fallback.
 var ErrNoRequestToken = errors.New(
 	"request carries no Authorization header and this server does not fall back to its own credential; " +
 		"send a per-request token",

@@ -122,11 +122,14 @@ domain has:
    server.
 
 The composition root (`operation.Run`, `cmd/cli.go`) builds one
-`sdk.NewFactory(cfg.Forgejo, version, ...)` from the typed Config and passes it
-into every `RegisterTool`/`Register...Resource`. The credential policy (does a
-request with no token of its own fall back to the operator's?) is a Factory
-option, chosen in `operation.newFactory`; `Factory.VerifyConnection(ctx)` is the
-startup gate `Run` calls before serving.
+`sdk.NewFactory(cfg.Forgejo, version)` from the typed Config and passes it into
+every `RegisterTool`/`Register...Resource`. The factory holds no credential
+policy: it serves a request's own token, or the shared operator client for a
+context marked by `forge.WithOperatorCredential`, and refuses anything else.
+Whether a request with no token of its own may use the operator's credential
+(the `-allow-operator-token-fallback` decision) is the authentication port's, in
+`operation/authport.go`, which sets that mark. `Factory.VerifyConnection(ctx)` is
+the startup gate `Run` calls before serving.
 
 ## Splitting a domain into MCP adapters and use cases
 

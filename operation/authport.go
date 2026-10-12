@@ -14,8 +14,9 @@ import (
 
 // credential is the Forgejo credential an inbound request carries, as the
 // authentication port hands it on. The empty value means the request carries
-// none. Whether that is refused, or served with the operator's own credential,
-// is decided by the caller's policy, not by the port.
+// none. authenticatePassthrough returns that empty value only when the operator's
+// credential may stand in; attachPassthroughCredential then marks the request
+// for it, and the Forgejo factory serves the mark.
 type credential string
 
 // errCredentialRequired refuses a request that carries no usable credential on
@@ -46,6 +47,26 @@ func attachCredential(ctx context.Context, c credential) context.Context {
 		return ctx
 	}
 	return forge.WithToken(ctx, string(c))
+}
+
+// attachPassthroughCredential returns ctx as the handler of a passthrough
+// request that authenticatePassthrough accepted sees it. A request that carried
+// its own credential gets that credential. A request the port passed with none
+// (the operator's credential is allowed to stand in) is marked for the
+// operator's own credential instead, which is the whole of the fallback policy
+// once it has left the Forgejo factory.
+func attachPassthroughCredential(ctx context.Context, c credential) context.Context {
+	if c == "" {
+		return forge.WithOperatorCredential(ctx)
+	}
+	return forge.WithToken(ctx, string(c))
+}
+
+// attachStdioCredential returns ctx as a stdio request sees it. Stdio always
+// falls back to the operator's credential: the client launched this process and
+// there is no per-request identity to carry.
+func attachStdioCredential(ctx context.Context) context.Context {
+	return forge.WithOperatorCredential(ctx)
 }
 
 // extractToken returns the token from an Authorization header value, or "" when

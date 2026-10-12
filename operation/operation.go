@@ -54,14 +54,14 @@ func withRequestToken(cfg config.Config, ctx context.Context, r *http.Request) c
 		}
 		return ctx
 	}
-	// A refusal carries no credential here. The door (guardRequests) has already
-	// refused it on a network transport, and the factory's own policy decides
-	// the rest, as it did before the port existed.
+	// A refusal carries no context mark here, so the factory refuses the
+	// request. The door (guardRequests) has already refused it on a network
+	// transport.
 	cred, err := authenticatePassthrough(r, cfg)
 	if err != nil {
 		return ctx
 	}
-	return attachCredential(ctx, cred)
+	return attachPassthroughCredential(ctx, cred)
 }
 
 // disableLibraryHostCheck reports whether the library's own loopback protection
@@ -274,7 +274,7 @@ func Run(cfg config.Config, version string) error {
 	case "stdio":
 		log.Info("Starting MCP server with stdio transport")
 		log.Info("MCP server ready for stdio communication")
-		if err := server.ServeStdio(mcpServer); err != nil {
+		if err := server.ServeStdio(mcpServer, server.WithStdioContextFunc(attachStdioCredential)); err != nil {
 			log.Error("MCP stdio server failed",
 				log.ErrorField(err),
 			)
@@ -317,15 +317,12 @@ func Run(cfg config.Config, version string) error {
 	return nil
 }
 
-// newFactory builds the Forgejo factory from cfg: the one place the credential
-// policy is chosen. The network transports refuse a request that carries no
-// credential of its own unless the operator opted in to the fallback; stdio
-// always falls back, because the client launched this process and there is no
-// per-request identity to carry. The policy is a decision about transport, not
-// about the address a listener bound.
+// newFactory builds the Forgejo factory from cfg. The factory holds no credential
+// policy: whether a request may be served with the operator's credential is
+// decided by the authentication port, which marks the request's context. See
+// attachPassthroughCredential and attachStdioCredential.
 func newFactory(cfg config.Config, version string) *sdk.Factory {
-	require := cfg.Transport != "stdio" && resolveTransportConfig(cfg).requireAuth
-	return sdk.NewFactory(cfg.Forgejo, version, sdk.WithRequireRequestToken(require))
+	return sdk.NewFactory(cfg.Forgejo, version)
 }
 
 func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {

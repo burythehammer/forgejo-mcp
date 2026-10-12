@@ -19,17 +19,14 @@ import (
 )
 
 // Factory is the real forge.Factory. It is built once, by the composition root,
-// from the typed Config; everything it knows about the instance, the operator's
-// credential and the credential policy lives on the value, not in the package.
+// from the typed Config; everything it knows about the instance and the
+// operator's credential lives on the value, not in the package. It holds no
+// credential policy. It builds a client only from the credential its request
+// is given, and the authentication port decides what that is.
 type Factory struct {
 	cfg config.Forgejo
 	ua  string
 	hc  *http.Client
-
-	// requireToken is the credential policy: when set, a request that carries
-	// no credential of its own is refused (forge.ErrNoRequestToken) rather than
-	// served with the operator's. See tokenFor.
-	requireToken bool
 
 	// serverVersion is the Forgejo version read at startup, or nothing. Every
 	// SDK client built afterwards is told it, and so skips the version request
@@ -44,25 +41,9 @@ type Factory struct {
 
 var _ forge.Factory = (*Factory)(nil)
 
-// Option configures a Factory.
-type Option func(*Factory)
-
-// WithRequireRequestToken sets the credential policy: true refuses a request
-// that carries no credential of its own, false lets the operator's configured
-// credential stand in (the stdio behaviour). The default is false.
-//
-// It is deliberately a decision of the composition root, not derived from the
-// address a listener bound: a loopback port is reachable by every local user,
-// and a reverse proxy in front of one makes every observable look local on a
-// request that came from the internet. A control whose failure mode selects for
-// the vulnerable deployment is not a control.
-func WithRequireRequestToken(require bool) Option {
-	return func(f *Factory) { f.requireToken = require }
-}
-
 // NewFactory builds the factory for the Forgejo instance cfg describes. version
 // is the build version, used for the default user agent.
-func NewFactory(cfg config.Forgejo, version string, opts ...Option) *Factory {
+func NewFactory(cfg config.Forgejo, version string) *Factory {
 	ua := cfg.UserAgent
 	if ua == "" {
 		ua = "forgejo-mcp/" + version
@@ -72,31 +53,11 @@ func NewFactory(cfg config.Forgejo, version string, opts ...Option) *Factory {
 			log.Errorf("Forgejo URL is not a valid URL: %v", err)
 		}
 	}
-	f := &Factory{cfg: cfg, ua: ua, hc: sharedHTTPClient, settings: &settings{}}
-	for _, o := range opts {
-		o(f)
-	}
-	return f
+	return &Factory{cfg: cfg, ua: ua, hc: sharedHTTPClient, settings: &settings{}}
 }
 
 // BaseURL is the Forgejo instance the factory serves.
 func (f *Factory) BaseURL() string { return f.cfg.URL }
-
-// RequireRequestToken reports the credential policy.
-func (f *Factory) RequireRequestToken() bool { return f.requireToken }
-
-// tokenFor resolves the credential to use for ctx. It is the single place the
-// operator-credential fallback lives, so no call path can reach it without
-// passing the policy.
-func (f *Factory) tokenFor(ctx context.Context) (string, error) {
-	if token := forge.TokenFromContext(ctx); token != "" {
-		return token, nil
-	}
-	if f.requireToken {
-		return "", forge.ErrNoRequestToken
-	}
-	return f.cfg.Token.Reveal(), nil
-}
 
 func (f *Factory) knownServerVersion() string {
 	v, _ := f.serverVersion.Load().(string)
@@ -146,8 +107,9 @@ func (f *Factory) operatorClient() (*forgejo_sdk.Client, error) {
 // For implements forge.Factory.
 //
 // A request carrying its own token gets a fresh client bound to it; failure to
-// build one never falls through to the shared client. Otherwise the policy
-// decides whether the operator's credential may stand in.
+// build one never falls through to the shared client. A request the
+// authentication port marked for the operator's credential gets the shared
+// client. Any other request is refused, so no client is built for it.
 func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 	if token := forge.TokenFromContext(ctx); token != "" {
 		c, err := f.newClient(token)
@@ -161,18 +123,17 @@ func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 		return f.adapter(c, token), nil
 	}
 
-	token, err := f.tokenFor(ctx)
-	if err != nil {
+	if !forge.UsesOperatorCredential(ctx) {
 		log.ErrorCtx(ctx, "Refusing to serve request with the server's own credential",
-			log.ErrorField(err),
+			log.ErrorField(forge.ErrNoRequestToken),
 		)
-		return nil, err
+		return nil, forge.ErrNoRequestToken
 	}
 	c, err := f.operatorClient()
 	if err != nil {
 		return nil, err
 	}
-	return f.adapter(c, token), nil
+	return f.adapter(c, f.cfg.Token.Reveal()), nil
 }
 
 func (f *Factory) adapter(c *forgejo_sdk.Client, token string) *Adapter {
@@ -186,7 +147,7 @@ func (f *Factory) adapter(c *forgejo_sdk.Client, token string) *Adapter {
 // VerifyConnection checks that the configured instance answers. It uses the
 // /version endpoint (no auth required) so that tokens scoped only to
 // repo/issue -- e.g. organisation tokens -- are not rejected, and it runs with
-// the operator's own client whatever the request policy is.
+// the operator's own client, whatever credential a request is given.
 func (f *Factory) VerifyConnection(ctx context.Context) error {
 	start := time.Now()
 	log.Debug("Starting connection verification",

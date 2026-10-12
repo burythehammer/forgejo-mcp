@@ -54,7 +54,8 @@ func TestMaxResponseItems_CachesAcrossCalls(t *testing.T) {
 	srv := settingsServer(t, &requests, http.StatusOK)
 	f := NewFactory(config.Forgejo{URL: srv.URL, Token: config.NewSecret("global-token")}, "test")
 
-	ctx := context.Background()
+	// The port marks an operator-served request; these tests use one.
+	ctx := forge.WithOperatorCredential(context.Background())
 	max1, ok1 := portFor(t, f, ctx).MaxResponseItems(ctx)
 	if !ok1 || max1 != 50 {
 		t.Fatalf("first call: got %d/%v, want 50/true", max1, ok1)
@@ -78,7 +79,8 @@ func TestMaxResponseItems_FailureIsUnknownNotZero(t *testing.T) {
 	srv := settingsServer(t, &requests, http.StatusForbidden)
 	f := NewFactory(config.Forgejo{URL: srv.URL, Token: config.NewSecret("global-token")}, "test")
 
-	ctx := context.Background()
+	// The port marks an operator-served request; these tests use one.
+	ctx := forge.WithOperatorCredential(context.Background())
 	max, ok := portFor(t, f, ctx).MaxResponseItems(ctx)
 	if ok {
 		t.Fatalf("expected ok=false on 403, got ok=true with max=%d", max)
@@ -95,7 +97,8 @@ func TestMaxResponseItems_IsPerFactory(t *testing.T) {
 	srv := settingsServer(t, &requests, http.StatusOK)
 	cfg := config.Forgejo{URL: srv.URL, Token: config.NewSecret("global-token")}
 
-	ctx := context.Background()
+	// The port marks an operator-served request; these tests use one.
+	ctx := forge.WithOperatorCredential(context.Background())
 	for range 2 {
 		if _, ok := portFor(t, NewFactory(cfg, "test"), ctx).MaxResponseItems(ctx); !ok {
 			t.Fatal("expected ok=true")

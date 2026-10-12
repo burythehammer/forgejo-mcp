@@ -418,8 +418,14 @@ func TestOperatorFallbackOptInReAdmitsAnonymousRequests(t *testing.T) {
 			if got := get(t, addr, tr.path, "Host: "+addr); strings.Contains(got, "401") {
 				t.Fatalf("the opt-in did not re-admit anonymous requests: %q", got)
 			}
-			if newFactory(app, "test").RequireRequestToken() {
-				t.Fatal("the opt-in did not reach the credential policy")
+			// The port is where the opt-in takes effect: an anonymous request is
+			// marked for the operator's credential, and the factory serves it.
+			bare, err := http.NewRequest(http.MethodPost, "http://example.invalid/mcp", nil)
+			if err != nil {
+				t.Fatalf("build request: %v", err)
+			}
+			if !forge.UsesOperatorCredential(withRequestToken(app, bare.Context(), bare)) {
+				t.Fatal("the opt-in did not reach the credential fallback")
 			}
 		})
 	}
@@ -487,7 +493,13 @@ func TestDefaultReverseProxyDoesNotReAdmitTheOperatorCredential(t *testing.T) {
 			if resp.StatusCode != http.StatusUnauthorized {
 				t.Fatalf("an anonymous request through a default-configured reverse proxy got %d, want 401", resp.StatusCode)
 			}
-			if newFactory(app, "test").RequireRequestToken() != true {
+			// The port must not mark an anonymous request for the operator's
+			// credential on a default network transport.
+			bare, err := http.NewRequest(http.MethodPost, "http://example.invalid/mcp", nil)
+			if err != nil {
+				t.Fatalf("build request: %v", err)
+			}
+			if forge.UsesOperatorCredential(withRequestToken(app, bare.Context(), bare)) {
 				t.Fatal("the credential fallback was live on a network transport")
 			}
 		})

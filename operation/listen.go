@@ -315,7 +315,7 @@ func newMCPHTTPServer(handler http.Handler, cfg transportConfig) *http.Server {
 	// In resource-server mode the handler authenticates its protected route
 	// itself, and its public documents must be reachable without a token, so the
 	// door does not look at Authorization. The credential fallback stays refused
-	// either way: cfg.requireAuth still drives the credential policy (see newFactory).
+	// either way: cfg.requireAuth still drives the door; the fallback itself is the port's (see withRequestToken).
 	var authorize func(*http.Request) error
 	if cfg.requireAuth && !cfg.resourceServer {
 		authorize = func(r *http.Request) error {

@@ -30,12 +30,13 @@ func TestFactory_WithContextToken(t *testing.T) {
 	srv := versionOnlyServer(t)
 	f := NewFactory(config.Forgejo{URL: srv.URL, Token: config.NewSecret("global-token")}, "test")
 
-	// 1. A request without a token is served by the operator's shared client.
-	p1, err := f.For(context.Background())
+	// 1. A request the port marked for the operator's credential is served by
+	// the operator's shared client.
+	p1, err := f.For(forge.WithOperatorCredential(context.Background()))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	p1b, err := f.For(context.Background())
+	p1b, err := f.For(forge.WithOperatorCredential(context.Background()))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -123,9 +124,9 @@ func TestFactory_AuthorizationHeader(t *testing.T) {
 func TestVerifyConnectionAndHealthCheck(t *testing.T) {
 	t.Parallel()
 	srv := versionOnlyServer(t)
-	// The startup check uses the operator's own client even where the policy
-	// refuses anonymous requests, as it always has.
-	f := NewFactory(config.Forgejo{URL: srv.URL, Token: config.NewSecret("global-token")}, "test", WithRequireRequestToken(true))
+	// The startup check uses the operator's own client, whatever credential a
+	// request is given, as it always has.
+	f := NewFactory(config.Forgejo{URL: srv.URL, Token: config.NewSecret("global-token")}, "test")
 	if err := f.VerifyConnection(context.Background()); err != nil {
 		t.Fatalf("VerifyConnection: %v", err)
 	}
