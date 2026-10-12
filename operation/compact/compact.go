@@ -120,3 +120,28 @@ func RenderPullRequest(pr *model.PullRequest, err error, verbose bool) (*mcp.Cal
 	}
 	return mcpresult.Render(OfPullRequest(pr), nil)
 }
+
+// Comment is the compact result of a comment write: the comment's ID, its URL
+// and when it was last updated. The body just sent is not echoed back.
+type Comment struct {
+	ID      int64     `json:"id"`
+	URL     string    `json:"url"`
+	Updated time.Time `json:"updated_at"`
+}
+
+// OfComment returns the compact shape of a comment.
+func OfComment(c *model.Comment) Comment {
+	return Comment{ID: c.ID, URL: c.HTMLURL, Updated: c.Updated}
+}
+
+// RenderComment sends the result of a comment write: the use case's error, the
+// full comment when verbose, or its compact shape.
+func RenderComment(c *model.Comment, err error, verbose bool) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	if verbose {
+		return mcpresult.Render(c, nil)
+	}
+	return mcpresult.Render(OfComment(c), nil)
+}

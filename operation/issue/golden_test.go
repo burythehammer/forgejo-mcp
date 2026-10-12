@@ -51,6 +51,10 @@ func TestCompactWriteArgsMatchSchemas(t *testing.T) {
 	mcptest.ArgsMatchSchema(t, CreateIssueTool, createIssueArgs{})
 	mcptest.ArgsMatchSchema(t, UpdateIssueTool, updateIssueArgs{})
 	mcptest.ArgsMatchSchema(t, IssueStateChangeTool, stateArgs{})
+	mcptest.ArgsMatchSchema(t, CreateIssueCommentTool, createCommentArgs{})
+	mcptest.ArgsMatchSchema(t, EditIssueCommentTool, editCommentArgs{})
+	mcptest.ArgsMatchSchema(t, AddIssueLabelsTools, labelsArgs{})
+	mcptest.ArgsMatchSchema(t, RemoveIssueLabelsTools, labelsArgs{})
 }
 
 var (
@@ -370,6 +374,9 @@ var goldenCases = []goldenCase{
 	// create_issue_comment, list/get/edit/delete_issue_comment
 	{name: "create_issue_comment", tool: CreateIssueCommentToolName, args: map[string]any{"index": float64(7), "body": "hi"}},
 	{name: "create_issue_comment_port_error", tool: CreateIssueCommentToolName, args: map[string]any{"index": float64(7), "body": "hi"}, stub: failing("CreateIssueComment", errBoom)},
+	{name: "create_issue_comment_verbose", tool: CreateIssueCommentToolName, args: map[string]any{"index": float64(7), "body": "hi", "verbose": true}},
+	{name: "add_issue_labels_verbose", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug", "verbose": true}},
+	{name: "remove_issue_labels_verbose", tool: RemoveIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug", "verbose": true}},
 	{name: "list_issue_comments_defaults", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7)}},
 	{name: "list_issue_comments_paged_since_before", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7), "page": float64(2), "limit": float64(5), "since": "2026-01-02T03:04:05Z", "before": "2026-02-03T04:05:06Z"}},
 	{name: "list_issue_comments_bad_since", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7), "since": "yesterday"}},
@@ -379,6 +386,7 @@ var goldenCases = []goldenCase{
 	{name: "get_issue_comment_port_error", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}, stub: failing("GetIssueComment", errBoom)},
 	{name: "edit_issue_comment", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}},
 	{name: "edit_issue_comment_port_error", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}, stub: failing("EditIssueComment", errBoom)},
+	{name: "edit_issue_comment_verbose", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x", "verbose": true}},
 	{name: "delete_issue_comment", tool: DeleteIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}},
 	{name: "delete_issue_comment_port_error", tool: DeleteIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}, stub: failing("DeleteIssueComment", errBoom)},
 

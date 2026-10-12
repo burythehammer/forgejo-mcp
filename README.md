@@ -347,8 +347,8 @@ List all my repositories
 | `search_issues` | Search issues across every repository of one owner (page/limit); returns `{issues,page,limit,count,has_next,total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count` |
 | `get_issue_by_index` | Get a specific issue |
 | `create_issue` | Create a new issue. Optional `labels` (comma-separated names or IDs), `assignees` (comma-separated usernames) and `milestone` (numeric ID) are applied by the same request that creates the issue. Optional `ref` links the issue to a branch (Forgejo's issue `ref` field, passed through as given). Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
-| `add_issue_labels` | Add labels to an issue. `labels` takes comma-separated label names or numeric IDs; an unrecognised name is an error and nothing is applied. |
-| `remove_issue_labels` | Remove labels from an issue. `labels` takes comma-separated label names or numeric IDs. |
+| `add_issue_labels` | Add labels to an issue. `labels` takes comma-separated label names or numeric IDs; an unrecognised name is an error and nothing is applied. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
+| `remove_issue_labels` | Remove labels from an issue. `labels` takes comma-separated label names or numeric IDs. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
 | `update_issue` | Update an existing issue (requires numeric milestone ID). `due_date` sets the deadline (RFC3339); `clear_due_date=true` removes it. The two are mutually exclusive — setting both is an error, and omitting both leaves the deadline unchanged. `set_labels` replaces the issue's entire label set (names or IDs); an empty string clears every label. `ref` sets the branch the issue is linked to (passed through as given); omitting it leaves it unchanged and an empty string clears it. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full issue. |
 | `issue_state_change` | Open or close an issue. Returns a compact result by default; `verbose=true` returns the full issue |
 | `list_issue_dependencies` | List issues the given issue depends on. Bounded by `page` (1-based) + `limit` (page size); the response echoes `page`/`limit` so callers can fetch the next page. |
@@ -369,8 +369,8 @@ List all my repositories
 | **Comments** | |
 | `list_issue_comments` | List comments on an issue or PR |
 | `get_issue_comment` | Get a specific comment |
-| `create_issue_comment` | Add a comment to an issue or PR |
-| `edit_issue_comment` | Edit a comment |
+| `create_issue_comment` | Add a comment to an issue or PR. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
+| `edit_issue_comment` | Edit a comment. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `delete_issue_comment` | Delete a comment |
 | **Pull Requests** | |
 | `list_repo_pull_requests` | List pull requests in a repository |

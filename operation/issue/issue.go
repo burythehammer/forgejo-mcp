@@ -93,6 +93,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.Index)),
 		mcp.WithString("body", mcp.Required(), mcp.Description(params.Body)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	UpdateIssueTool = mcp.NewTool(
@@ -120,6 +121,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
 		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to add"))),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	RemoveIssueLabelsTools = mcp.NewTool(
@@ -129,6 +131,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
 		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to remove"))),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	IssueStateChangeTool = mcp.NewTool(
@@ -168,6 +171,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("comment_id", mcp.Required(), mcp.Description(params.CommentID)),
 		mcp.WithString("body", mcp.Required(), mcp.Description(params.Body)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	DeleteIssueCommentTool = mcp.NewTool(
@@ -292,10 +296,11 @@ type createIssueArgs struct {
 }
 
 type createCommentArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
-	Body  string  `json:"body" required:"true"`
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	Body    string  `json:"body" required:"true"`
+	Verbose bool    `json:"verbose"`
 }
 
 type updateIssueArgs struct {
@@ -315,10 +320,11 @@ type updateIssueArgs struct {
 }
 
 type labelsArgs struct {
-	Owner  string  `json:"owner" required:"true"`
-	Repo   string  `json:"repo" required:"true"`
-	Index  float64 `json:"index" required:"true"`
-	Labels string  `json:"labels" required:"true"`
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	Labels  string  `json:"labels" required:"true"`
+	Verbose bool    `json:"verbose"`
 }
 
 type stateArgs struct {
@@ -350,6 +356,7 @@ type editCommentArgs struct {
 	Repo      string  `json:"repo" required:"true"`
 	CommentID float64 `json:"comment_id" required:"true"`
 	Body      string  `json:"body" required:"true"`
+	Verbose   bool    `json:"verbose"`
 }
 
 type milestonesArgs struct {
@@ -437,7 +444,8 @@ func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 func (h handlers) CreateIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a createCommentArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.CreateComment(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.Body))
+		c, err := s.CreateComment(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.Body)
+		return compact.RenderComment(c, err, a.Verbose)
 	})
 }
 
@@ -454,13 +462,15 @@ func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 func (h handlers) AddIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "AddIssueLabelsFn", func(ctx context.Context, s *apppissue.Service, a labelsArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.AddLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels))
+		iss, err := s.AddLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels)
+		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
 func (h handlers) RemoveIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "RemoveIssueLabelsFn", func(ctx context.Context, s *apppissue.Service, a labelsArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.RemoveLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels))
+		iss, err := s.RemoveLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels)
+		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
@@ -489,7 +499,8 @@ func (h handlers) GetIssueCommentFn(ctx context.Context, req mcp.CallToolRequest
 
 func (h handlers) EditIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a editCommentArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.EditComment(ctx, a.Owner, a.Repo, int64(a.CommentID), a.Body))
+		c, err := s.EditComment(ctx, a.Owner, a.Repo, int64(a.CommentID), a.Body)
+		return compact.RenderComment(c, err, a.Verbose)
 	})
 }
 

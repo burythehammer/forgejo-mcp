@@ -312,7 +312,7 @@ func TestIssueComments(t *testing.T) {
 	h, f := newFixture(t)
 	idx := float64(openIssue(t, f, "t"))
 
-	created := call(t, h.CreateIssueCommentFn, map[string]any{"index": idx, "body": "first"})
+	created := call(t, h.CreateIssueCommentFn, map[string]any{"index": idx, "body": "first", "verbose": true})
 	var c forgejo_sdk.Comment
 	if err := unmarshalResult(created, &c); err != nil || c.Body != "first" {
 		t.Fatalf("create: %v %s", err, created)
@@ -326,7 +326,7 @@ func TestIssueComments(t *testing.T) {
 	if !strings.Contains(call(t, h.GetIssueCommentFn, map[string]any{"comment_id": id}), "first") {
 		t.Fatal("get lost the body")
 	}
-	if !strings.Contains(call(t, h.EditIssueCommentFn, map[string]any{"comment_id": id, "body": "second"}), "second") {
+	if !strings.Contains(call(t, h.EditIssueCommentFn, map[string]any{"comment_id": id, "body": "second", "verbose": true}), "second") {
 		t.Fatal("edit lost the body")
 	}
 	if got := call(t, h.DeleteIssueCommentFn, map[string]any{"comment_id": id}); got != `{"Result":"Delete comment success"}` {
