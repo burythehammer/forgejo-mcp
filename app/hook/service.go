@@ -200,9 +200,13 @@ func (s *Service) Test(ctx context.Context, r HookRef) error {
 	return nil
 }
 
+// ErrRequired is returned, unwrapped, when a hook reference lacks its owner,
+// repo or id. An adapter can tell it apart from a Forgejo failure.
+var ErrRequired = errors.New("owner, repo and id are required")
+
 func (r HookRef) check() error {
 	if r.Owner == "" || r.Repo == "" || r.ID == 0 {
-		return fmt.Errorf("owner, repo and id are required")
+		return ErrRequired
 	}
 	return nil
 }

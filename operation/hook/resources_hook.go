@@ -5,13 +5,15 @@ package hook
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
+	apphook "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/hook"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/hookadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -67,6 +69,9 @@ func RegisterResources(s *server.MCPServer, f forge.Factory) {
 // mapErr maps a port failure to a resource error, keeping the HTTP status in
 // the message so the mapping can tell forbidden from not found.
 func mapErr(uri string, err error) error {
+	if errors.Is(err, apphook.ErrRequired) {
+		return resource.MapForgejoError(uri, fmt.Errorf("%w: %s", resource.ErrInvalidParams, err))
+	}
 	if code := forge.StatusCode(err); code != 0 {
 		return resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
 	}
@@ -85,39 +90,19 @@ func (h handlers) hooksResourceHandler(ctx context.Context, req mcp.ReadResource
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	// Request EmbeddedListCap+1 so Bounded can distinguish "at cap" from "over cap".
-	list, err := port.ListRepoHooks(ctx, p.Owner, p.Repo, forgejo_sdk.ListHooksOptions{
-		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
-	})
+	col, err := apphook.New(hookadapter.New(port)).ReadCollection(ctx, p.Owner, p.Repo, resource.EmbeddedListCap)
 	if err != nil {
 		return nil, mapErr(uri, err)
-	}
-	hooks := list.Hooks
-
-	ids := make([]string, len(hooks))
-	for i, h := range hooks {
-		ids[i] = fmt.Sprintf("%d", h.ID)
-	}
-	bounded := resource.Bounded(ids, resource.EmbeddedListCap, "list_repo_hooks")
-
-	shown := hooks
-	if bounded.Truncated {
-		shown = hooks[:resource.EmbeddedListCap]
-	}
-
-	payloads := make([]hookPayload, len(shown))
-	for i, h := range shown {
-		payloads[i] = safeHook(h)
 	}
 
 	payload := hooksCollectionPayload{
 		Owner:     p.Owner,
 		Repo:      p.Repo,
-		Count:     len(payloads),
-		Hooks:     payloads,
-		Truncated: bounded.Truncated,
+		Count:     len(col.Hooks),
+		Hooks:     col.Hooks,
+		Truncated: col.Truncated,
 	}
-	if bounded.Truncated {
+	if col.Truncated {
 		payload.ListTool = "list_repo_hooks"
 	}
 
@@ -142,12 +127,12 @@ func (h handlers) hookResourceHandler(ctx context.Context, req mcp.ReadResourceR
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	hk, err := port.GetRepoHook(ctx, p.Owner, p.Repo, p.ID)
+	hk, err := apphook.New(hookadapter.New(port)).Get(ctx, apphook.HookRef{Owner: p.Owner, Repo: p.Repo, ID: float64(p.ID)})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
 
-	jsonBytes, err := json.Marshal(safeHook(hk))
+	jsonBytes, err := json.Marshal(hk)
 	if err != nil {
 		return nil, fmt.Errorf("marshal hook payload: %w", err)
 	}

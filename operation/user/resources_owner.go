@@ -5,11 +5,14 @@ package user
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
+	appowner "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/owner"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/owneradapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -63,16 +66,22 @@ func (h handlers) ownerResourceHandler(ctx context.Context, req mcp.ReadResource
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	u, userErr := fg.GetUserInfo(ctx, params.Owner)
+	o, err := appowner.New(owneradapter.New(fg, fg)).Read(ctx, params.Owner)
+	if err != nil {
+		if errors.Is(err, appowner.ErrOwnerNotFound) {
+			return nil, &resource.ResourceError{URI: uri, Code: -32003, Message: "owner not found: " + uri}
+		}
+		return nil, resource.MapForgejoError(uri, withStatus(err))
+	}
 
 	var payload ownerResourcePayload
-
-	if userErr == nil && u != nil {
+	if o.Kind == appowner.KindUser {
+		u := o.User
 		payload = ownerResourcePayload{
 			Login:          u.UserName,
 			FullName:       u.FullName,
 			HTMLURL:        u.HTMLURL,
-			Kind:           "user",
+			Kind:           string(appowner.KindUser),
 			Description:    u.Description,
 			Location:       u.Location,
 			Website:        u.Website,
@@ -81,28 +90,11 @@ func (h handlers) ownerResourceHandler(ctx context.Context, req mcp.ReadResource
 			FollowingCount: u.FollowingCount,
 		}
 	} else {
-		// if user fetch failed for a reason other than 404, surface it immediately
-		if userErr != nil && !is404(userErr) {
-			return nil, resource.MapForgejoError(uri, withStatus(userErr))
-		}
-
-		// fall back to org
-		org, orgErr := fg.GetOrg(ctx, params.Owner)
-		if orgErr != nil {
-			// Both user and org are "not found" → explicit -32003 with a clear message.
-			// This also guards the SDK edge where userErr==nil (u==nil, err==nil).
-			if is404(orgErr) && (userErr == nil || is404(userErr)) {
-				return nil, &resource.ResourceError{URI: uri, Code: -32003, Message: "owner not found: " + uri}
-			}
-			// A non-404 HTTP error surfaces with its status; a transport or
-			// context error surfaces as it is.
-			return nil, resource.MapForgejoError(uri, withStatus(orgErr))
-		}
-
+		org := o.Org
 		payload = ownerResourcePayload{
 			Login:       org.UserName,
 			FullName:    org.FullName,
-			Kind:        "org",
+			Kind:        string(appowner.KindOrg),
 			Description: org.Description,
 			Location:    org.Location,
 			Website:     org.Website,
