@@ -94,7 +94,7 @@ func TestEditMergesConfigAndKeepsTheRest(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
 	p := create(t, s, apphook.CreateRequest{URL: "https://hooks.example/a", ContentType: "form", Secret: secret})
-	got, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(float64(p.ID)), URL: "https://hooks.example/b"})
+	got, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(float64(p.ID)), URL: strp("https://hooks.example/b")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestEditMergesConfigAndKeepsTheRest(t *testing.T) {
 func TestEditUnknownHookIsWrapped(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
-	_, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(99), URL: "https://x"})
+	_, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(99), URL: strp("https://x")})
 	if err == nil || !strings.HasPrefix(err.Error(), "get repo hook for edit: ") {
 		t.Fatalf("got %v", err)
 	}
@@ -144,12 +144,15 @@ type stubPort struct {
 func (s stubPort) ListRepoHooks(context.Context, string, string, apphook.Paging) (model.HookList, error) {
 	return model.HookList{TotalCount: s.total}, nil
 }
+
 func (stubPort) GetRepoHook(context.Context, string, string, int64) (*model.Hook, error) {
 	return &model.Hook{Config: map[string]string{"url": "https://x"}}, nil
 }
+
 func (stubPort) CreateRepoHook(context.Context, string, string, apphook.CreateInput) (*model.Hook, error) {
 	return &model.Hook{}, nil
 }
+
 func (s stubPort) EditRepoHook(context.Context, string, string, int64, apphook.EditInput) error {
 	return s.editErr
 }
@@ -171,8 +174,110 @@ func TestListReportsAZeroTotal(t *testing.T) {
 func TestEditStatusErrorIsReported(t *testing.T) {
 	t.Parallel()
 	port := stubPort{editErr: &apphook.StatusError{Code: 404, Err: errors.New("not found")}}
-	_, err := apphook.New(port).Edit(context.Background(), apphook.EditRequest{HookRef: ref(7), URL: "https://x"})
+	_, err := apphook.New(port).Edit(context.Background(), apphook.EditRequest{HookRef: ref(7), URL: strp("https://x")})
 	if err == nil || err.Error() != "edit repo hook 404 not found" {
 		t.Fatalf("got %v", err)
+	}
+}
+
+// editPort records the EditInput the use case sends, and serves a stored hook
+// with a branch filter and two events, so a test can see what an edit leaves
+// out.
+type editPort struct {
+	stubPort
+	in apphook.EditInput
+}
+
+func (p *editPort) GetRepoHook(context.Context, string, string, int64) (*model.Hook, error) {
+	return &model.Hook{
+		Config: map[string]string{"url": "https://x", "content_type": "json", "branch_filter": "main"},
+		Events: []string{"push", "create"},
+		Active: true,
+	}, nil
+}
+
+func (p *editPort) EditRepoHook(_ context.Context, _, _ string, _ int64, in apphook.EditInput) error {
+	p.in = in
+	return nil
+}
+
+func editInput(t *testing.T, req apphook.EditRequest) apphook.EditInput {
+	t.Helper()
+	p := &editPort{}
+	req.HookRef = ref(7)
+	if _, err := apphook.New(p).Edit(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	return p.in
+}
+
+func strp(s string) *string { return &s }
+
+// A field the request does not set is not sent, so Forgejo keeps it.
+func TestEditSendsOnlyTheFieldsSet(t *testing.T) {
+	t.Parallel()
+	in := editInput(t, apphook.EditRequest{URL: strp("https://y")})
+	if in.BranchFilter != nil || in.Events != nil || in.Active != nil {
+		t.Fatalf("url-only edit sent unset fields: %+v", in)
+	}
+	if in.Config["url"] != "https://y" || in.Config["branch_filter"] != "main" {
+		t.Fatalf("config = %v, want url changed and the stored keys kept", in.Config)
+	}
+}
+
+func TestEditSendsNothingWhenNothingIsSet(t *testing.T) {
+	t.Parallel()
+	in := editInput(t, apphook.EditRequest{})
+	if in.Config != nil || in.Events != nil || in.BranchFilter != nil || in.Active != nil {
+		t.Fatalf("empty edit sent fields: %+v", in)
+	}
+}
+
+// An explicit empty branch filter is a value: it is sent, so it clears.
+func TestEditSendsAnExplicitEmptyBranchFilter(t *testing.T) {
+	t.Parallel()
+	in := editInput(t, apphook.EditRequest{BranchFilter: strp("")})
+	if in.BranchFilter == nil || *in.BranchFilter != "" {
+		t.Fatalf("branch filter = %v, want a pointer to empty", in.BranchFilter)
+	}
+}
+
+// Explicit empty events clear the list: sent as a non-nil empty slice.
+func TestEditSendsExplicitEmptyEvents(t *testing.T) {
+	t.Parallel()
+	in := editInput(t, apphook.EditRequest{Events: strp("")})
+	if in.Events == nil || len(in.Events) != 0 {
+		t.Fatalf("events = %#v, want a non-nil empty list", in.Events)
+	}
+}
+
+// An explicit empty config value is sent in the merged config.
+func TestEditSendsAnExplicitEmptyConfigValue(t *testing.T) {
+	t.Parallel()
+	in := editInput(t, apphook.EditRequest{ContentType: strp("")})
+	if v, ok := in.Config["content_type"]; !ok || v != "" {
+		t.Fatalf("config = %v, want content_type present and empty", in.Config)
+	}
+}
+
+// Against the fake: a plain edit keeps the branch filter, an explicit empty
+// one clears it.
+func TestEditBranchFilterThroughTheFake(t *testing.T) {
+	t.Parallel()
+	s := newService(t)
+	p := create(t, s, apphook.CreateRequest{URL: "https://hooks.example/a", BranchFilter: "main"})
+	got, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(float64(p.ID)), URL: strp("https://hooks.example/b")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.BranchFilter != "main" {
+		t.Fatalf("url-only edit changed branch filter to %q", got.BranchFilter)
+	}
+	got, err = s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(float64(p.ID)), BranchFilter: strp("")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.BranchFilter != "" {
+		t.Fatalf("explicit empty branch filter left %q", got.BranchFilter)
 	}
 }

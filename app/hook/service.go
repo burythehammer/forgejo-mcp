@@ -40,11 +40,13 @@ type CreateRequest struct {
 	Active                                                                        *bool
 }
 
-// EditRequest changes a webhook. An empty string field leaves that config key
-// as it was; Events is comma-separated; Active nil leaves the flag alone.
+// EditRequest changes a webhook. A nil field is one the caller did not set and
+// is left as it is; a non-nil field is applied even when it is empty, so an
+// empty BranchFilter clears it and an empty Events clears the list. Events is
+// comma-separated.
 type EditRequest struct {
 	HookRef
-	URL, ContentType, Secret, HTTPMethod, BranchFilter, Events string
+	URL, ContentType, Secret, HTTPMethod, BranchFilter, Events *string
 	Active                                                     *bool
 }
 
@@ -129,8 +131,9 @@ func (s *Service) Create(ctx context.Context, r CreateRequest) (model.HookPayloa
 }
 
 // Edit changes the fields of a webhook that the request sets, and returns the
-// webhook in its safe form. The stored config is merged, so keys the request
-// does not name keep their values.
+// webhook in its safe form. Only the set fields are sent: Forgejo keeps every
+// other field. Config is the one whole-map field, so when a config key is set
+// the stored config is merged with it and sent in full.
 func (s *Service) Edit(ctx context.Context, r EditRequest) (model.HookPayload, error) {
 	if err := r.check(); err != nil {
 		return model.HookPayload{}, err
@@ -141,21 +144,24 @@ func (s *Service) Edit(ctx context.Context, r EditRequest) (model.HookPayload, e
 		return model.HookPayload{}, fmt.Errorf("get repo hook for edit: %w", err)
 	}
 	config := existing.Config
-	if r.URL != "" {
-		config["url"] = r.URL
+	if config == nil {
+		config = map[string]string{}
 	}
-	if r.ContentType != "" {
-		config["content_type"] = r.ContentType
+	configTouched := false
+	for key, v := range map[string]*string{
+		"url": r.URL, "content_type": r.ContentType, "secret": r.Secret, "http_method": r.HTTPMethod,
+	} {
+		if v != nil {
+			config[key] = *v
+			configTouched = true
+		}
 	}
-	if r.Secret != "" {
-		config["secret"] = r.Secret
+	in := EditInput{BranchFilter: r.BranchFilter, Active: r.Active}
+	if configTouched {
+		in.Config = config
 	}
-	if r.HTTPMethod != "" {
-		config["http_method"] = r.HTTPMethod
-	}
-	in := EditInput{Config: config, BranchFilter: r.BranchFilter, Active: r.Active}
-	if r.Events != "" {
-		in.Events = split.CSV(r.Events)
+	if r.Events != nil {
+		in.Events = split.CSV(*r.Events)
 	}
 	if err := s.port.EditRepoHook(ctx, r.Owner, r.Repo, id, in); err != nil {
 		var se *StatusError

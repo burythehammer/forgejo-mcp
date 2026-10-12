@@ -54,7 +54,7 @@ func (a adapter) CreateRepoHook(ctx context.Context, owner, repo string, in apph
 }
 
 func (a adapter) EditRepoHook(ctx context.Context, owner, repo string, id int64, in apphook.EditInput) error {
-	err := a.p.EditRepoHook(ctx, owner, repo, id, forgejo_sdk.EditHookOption{
+	err := a.p.EditRepoHook(ctx, owner, repo, id, forge.HookEdit{
 		Config:       in.Config,
 		Events:       in.Events,
 		BranchFilter: in.BranchFilter,

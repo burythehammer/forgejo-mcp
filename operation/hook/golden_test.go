@@ -104,11 +104,34 @@ func (s *stubHook) CreateRepoHook(_ context.Context, o, r string, opt forgejo_sd
 	return fixedHook(5), s.rec("CreateRepoHook", o, r, opt)
 }
 
-func (s *stubHook) EditRepoHook(_ context.Context, o, r string, id int64, opt forgejo_sdk.EditHookOption) error {
-	if err := s.rec("EditRepoHook", o, r, id, opt); err != nil {
+func (s *stubHook) EditRepoHook(_ context.Context, o, r string, id int64, opt forge.HookEdit) error {
+	if err := s.rec("EditRepoHook", o, r, id, editPresence(opt)); err != nil {
 		return err
 	}
 	return s.editErr
+}
+
+// editPresence renders an edit the way it reached the port: only the fields
+// the use case set, so an unset field is absent and an empty one is shown.
+// The port's HookEdit JSON would hide an empty events list (omitempty).
+func editPresence(opt forge.HookEdit) map[string]any {
+	m := map[string]any{}
+	if opt.Config != nil {
+		m["config"] = opt.Config
+	}
+	if opt.Events != nil {
+		m["events"] = opt.Events
+	}
+	if opt.BranchFilter != nil {
+		m["branch_filter"] = *opt.BranchFilter
+	}
+	if opt.Active != nil {
+		m["active"] = *opt.Active
+	}
+	if opt.AuthorizationHeader != nil {
+		m["authorization_header"] = *opt.AuthorizationHeader
+	}
+	return m
 }
 
 func (s *stubHook) DeleteRepoHook(_ context.Context, o, r string, id int64) error {
@@ -186,14 +209,20 @@ var hookGoldenCases = []hookGoldenCase{
 	}},
 	{name: "edit_none", tool: EditRepoHookToolName, args: map[string]any{"id": float64(7)}},
 	{name: "edit_get_error", tool: EditRepoHookToolName, args: map[string]any{"id": float64(7)}, stub: func(s *stubHook) { s.fail = errors.New("boom") }},
-	{name: "edit_status_error", tool: EditRepoHookToolName, args: map[string]any{"id": float64(7), "url": "https://hooks.example/new"},
+	{
+		name: "edit_status_error", tool: EditRepoHookToolName, args: map[string]any{"id": float64(7), "url": "https://hooks.example/new"},
 		stub: func(s *stubHook) {
 			s.editErr = &forge.StatusError{StatusCode: 404, Err: errors.New("hook not found")}
-		}},
-	{name: "edit_plain_error", tool: EditRepoHookToolName, args: map[string]any{"id": float64(7)},
-		stub: func(s *stubHook) { s.editErr = errors.New("write failed") }},
-	{name: "edit_refetch_error", tool: EditRepoHookToolName, args: map[string]any{"id": float64(7)},
-		stub: func(s *stubHook) { s.refetchFail = errors.New("gone") }},
+		},
+	},
+	{
+		name: "edit_plain_error", tool: EditRepoHookToolName, args: map[string]any{"id": float64(7)},
+		stub: func(s *stubHook) { s.editErr = errors.New("write failed") },
+	},
+	{
+		name: "edit_refetch_error", tool: EditRepoHookToolName, args: map[string]any{"id": float64(7)},
+		stub: func(s *stubHook) { s.refetchFail = errors.New("gone") },
+	},
 	{name: "edit_missing_id", tool: EditRepoHookToolName, args: map[string]any{"id": nil}},
 
 	{name: "delete_ok", tool: DeleteRepoHookToolName, args: map[string]any{"id": float64(7)}},

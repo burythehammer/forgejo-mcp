@@ -1,5 +1,5 @@
 {"Result":{"id":7,"type":"forgejo","active":true,"events":["push"],"url":"https://hooks.example/a","content_type":"json","http_method":"POST","branch_filter":"main","created_at":"2026-01-02T03:04:05Z"}}
 -- port calls --
 GetRepoHook ["octo","hello",7]
-EditRepoHook ["octo","hello",7,{"config":{"branch_filter":"main","content_type":"json","http_method":"POST","secret":"s3cr3t","url":"https://hooks.example/a"},"events":null,"branch_filter":"","active":null,"authorization_header":""}]
+EditRepoHook ["octo","hello",7,{}]
 GetRepoHook ["octo","hello",7]

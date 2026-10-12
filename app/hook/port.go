@@ -43,12 +43,15 @@ type CreateInput struct {
 	Active       bool
 }
 
-// EditInput is a webhook's new state. Config replaces the stored config, so the
-// use case passes the merged map. Active nil leaves the active flag unchanged.
+// EditInput is the part of a webhook the edit changes. Each field is sent only
+// when set: a nil Config, Events, BranchFilter or Active leaves that part of
+// the stored hook as it is, while a non-nil value is sent even when empty, so
+// an empty BranchFilter or Events clears it. Config replaces the stored config,
+// so the use case passes the merged map whenever one key changes.
 type EditInput struct {
 	Config       map[string]string
 	Events       []string
-	BranchFilter string
+	BranchFilter *string
 	Active       *bool
 }
 

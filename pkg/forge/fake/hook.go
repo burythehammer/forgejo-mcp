@@ -17,6 +17,9 @@ type hookState struct {
 	mu    sync.Mutex
 	hooks map[string][]*forgejo_sdk.Hook // key "owner/repo", creation order
 	next  int64
+	// authHeaders holds the write-only authorization header by hook id. The
+	// port's Hook has no field for it, so it is kept here, not in Config.
+	authHeaders map[int64]string
 }
 
 func (f *Forgejo) hookList(owner, repo string) ([]*forgejo_sdk.Hook, error) {
@@ -109,7 +112,10 @@ func (f *Forgejo) CreateRepoHook(_ context.Context, owner, repo string, opt forg
 	return copyHook(h), nil
 }
 
-func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, opt forgejo_sdk.EditHookOption) error {
+// EditRepoHook follows Forgejo's partial-update rule: a field the edit leaves
+// nil keeps its stored value; a field it sets is replaced, and an explicit
+// empty branch filter clears it.
+func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, opt forge.HookEdit) error {
 	f.hooks.mu.Lock()
 	defer f.hooks.mu.Unlock()
 	hooks, err := f.hookList(owner, repo)
@@ -130,11 +136,21 @@ func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, 
 	if opt.Events != nil {
 		h.Events = opt.Events
 	}
-	if opt.BranchFilter != "" {
-		h.Config["branch_filter"] = opt.BranchFilter
+	if opt.BranchFilter != nil {
+		if *opt.BranchFilter == "" {
+			delete(h.Config, "branch_filter")
+		} else {
+			h.Config["branch_filter"] = *opt.BranchFilter
+		}
 	}
 	if opt.Active != nil {
 		h.Active = *opt.Active
+	}
+	if opt.AuthorizationHeader != nil {
+		if f.hooks.authHeaders == nil {
+			f.hooks.authHeaders = map[int64]string{}
+		}
+		f.hooks.authHeaders[id] = *opt.AuthorizationHeader
 	}
 	h.Updated = f.Now()
 	return nil
@@ -166,4 +182,13 @@ func (f *Forgejo) TestRepoHook(_ context.Context, owner, repo string, id int64) 
 		return err
 	}
 	return nil
+}
+
+// HookAuthorizationHeader reports the authorization header last set on a hook
+// by an edit, which the port cannot observe: the port's Hook has no field for
+// it, so the header is write-only through the port.
+func (f *Forgejo) HookAuthorizationHeader(id int64) string {
+	f.hooks.mu.Lock()
+	defer f.hooks.mu.Unlock()
+	return f.hooks.authHeaders[id]
 }

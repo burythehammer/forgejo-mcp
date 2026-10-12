@@ -35,9 +35,27 @@ func (a *Adapter) CreateRepoHook(_ context.Context, owner, repo string, opt forg
 	return h, statusErr(resp, err)
 }
 
-func (a *Adapter) EditRepoHook(_ context.Context, owner, repo string, id int64, opt forgejo_sdk.EditHookOption) error {
-	resp, err := a.client.EditRepoHook(owner, repo, id, opt)
-	return statusErr(resp, err)
+// EditRepoHook sends a raw PATCH carrying only the fields the caller set. The
+// SDK's EditHookOption always marshals every field, which made an edit of one
+// field send empty values for the rest.
+func (a *Adapter) EditRepoHook(ctx context.Context, owner, repo string, id int64, opt forge.HookEdit) error {
+	body := map[string]any{}
+	if opt.Config != nil {
+		body["config"] = opt.Config
+	}
+	if opt.Events != nil {
+		body["events"] = opt.Events
+	}
+	if opt.BranchFilter != nil {
+		body["branch_filter"] = *opt.BranchFilter
+	}
+	if opt.Active != nil {
+		body["active"] = *opt.Active
+	}
+	if opt.AuthorizationHeader != nil {
+		body["authorization_header"] = *opt.AuthorizationHeader
+	}
+	return a.rawDo(ctx, http.MethodPatch, forge.APIPath("repos", owner, repo, "hooks", id), body, nil)
 }
 
 func (a *Adapter) DeleteRepoHook(_ context.Context, owner, repo string, id int64) error {

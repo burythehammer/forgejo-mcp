@@ -158,17 +158,31 @@ type createArgs struct {
 	Active       *bool  `json:"active"`
 }
 
+// The string arguments of an edit are decode.Arg, not string: an argument the
+// caller sent empty must read as sent, so it can clear the stored value, and
+// an absent one must read as left alone.
 type editArgs struct {
-	Owner        string  `json:"owner" required:"true"`
-	Repo         string  `json:"repo" required:"true"`
-	ID           float64 `json:"id" required:"true"`
-	URL          string  `json:"url"`
-	ContentType  string  `json:"content_type"`
-	Secret       string  `json:"secret"`
-	HTTPMethod   string  `json:"http_method"`
-	BranchFilter string  `json:"branch_filter"`
-	Events       string  `json:"events"`
-	Active       *bool   `json:"active"`
+	Owner        string     `json:"owner" required:"true"`
+	Repo         string     `json:"repo" required:"true"`
+	ID           float64    `json:"id" required:"true"`
+	URL          decode.Arg `json:"url" schema:"string"`
+	ContentType  decode.Arg `json:"content_type" schema:"string"`
+	Secret       decode.Arg `json:"secret" schema:"string"`
+	HTTPMethod   decode.Arg `json:"http_method" schema:"string"`
+	BranchFilter decode.Arg `json:"branch_filter" schema:"string"`
+	Events       decode.Arg `json:"events" schema:"string"`
+	Active       *bool      `json:"active"`
+}
+
+// optString is the string an argument carries when the caller sent a string,
+// empty included, and nil otherwise. Absent, null and wrongly typed arguments
+// are all nil, as the hand-written handler read them.
+func optString(a decode.Arg, name string) *string {
+	s, ok, err := a.String(name)
+	if !ok || err != nil {
+		return nil
+	}
+	return &s
 }
 
 // run is the shared shape of a tool call: decode the arguments into A, take the
@@ -214,8 +228,10 @@ func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (
 	return run(ctx, h, req, "EditRepoHookFn", func(ctx context.Context, s *apphook.Service, a editArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.Edit(ctx, apphook.EditRequest{
 			HookRef: apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID},
-			URL:     a.URL, ContentType: a.ContentType, Secret: a.Secret, HTTPMethod: a.HTTPMethod,
-			BranchFilter: a.BranchFilter, Events: a.Events, Active: a.Active,
+			URL:     optString(a.URL, "url"), ContentType: optString(a.ContentType, "content_type"),
+			Secret: optString(a.Secret, "secret"), HTTPMethod: optString(a.HTTPMethod, "http_method"),
+			BranchFilter: optString(a.BranchFilter, "branch_filter"), Events: optString(a.Events, "events"),
+			Active: a.Active,
 		}))
 	})
 }

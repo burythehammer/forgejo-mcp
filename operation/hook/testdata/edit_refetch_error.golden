@@ -1,5 +1,5 @@
 ERROR: get repo hook after edit: gone
 -- port calls --
 GetRepoHook ["octo","hello",7]
-EditRepoHook ["octo","hello",7,{"config":{"branch_filter":"main","content_type":"json","http_method":"POST","secret":"s3cr3t","url":"https://hooks.example/a"},"events":null,"branch_filter":"","active":null,"authorization_header":""}]
+EditRepoHook ["octo","hello",7,{}]
 GetRepoHook ["octo","hello",7]

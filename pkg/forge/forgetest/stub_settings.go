@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
@@ -77,7 +79,10 @@ func (s *Stub) mountHooks(mux *http.ServeMux) {
 		reply(w, h, err)
 	})
 	mux.HandleFunc("PATCH "+hooksURL+"/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var opt forgejo_sdk.EditHookOption
+		// Presence matters: an absent key stays nil, an explicit "" stays a
+		// non-nil value, as Forgejo reads a PATCH body. forge.HookEdit's json
+		// tags name the keys, and encoding/json keeps that presence.
+		var opt forge.HookEdit
 		if !decode(w, r, &opt) {
 			return
 		}
