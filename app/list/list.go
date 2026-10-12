@@ -98,9 +98,12 @@ type Page[T any] struct {
 }
 
 // Run fetches one page and reports whether a next page exists. A known
-// ceiling is checked before any fetch, and a full page then means more may
-// follow. With an unknown ceiling the next page is probed at the same limit:
-// the size never changes, because Forgejo derives page offsets from it.
+// ceiling is checked before any fetch. When the fetch reports a grand total,
+// that total decides and no probe is made. Otherwise a page shorter than the
+// limit is the last one under a known ceiling, so no probe is made; in every
+// other case the next page is probed once at the same limit: a full page may
+// be the last, and the size never changes, because Forgejo derives page
+// offsets from it. So a call makes at most one request beyond its page.
 func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Page[T], error) {
 	if err := check(p, c); err != nil {
 		return Page[T]{}, err
@@ -111,9 +114,12 @@ func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Page[
 	}
 	count := len(b.Items)
 	var hasNext bool
-	if c.Known {
-		hasNext = count == p.Limit
-	} else if count > 0 {
+	if b.Total.Known {
+		// A reported grand total decides: rows follow this page when the rows
+		// before it plus this page fall short of the total. No probe is made.
+		before := int64(p.Page-1) * int64(p.Limit)
+		hasNext = before+int64(count) < int64(b.Total.Count)
+	} else if !c.Known || count >= p.Limit {
 		next, err := fetch(ctx, Paging{Page: p.Page + 1, Limit: p.Limit})
 		if err != nil {
 			return Page[T]{}, err

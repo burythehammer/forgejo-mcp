@@ -99,18 +99,49 @@ func TestRun_PastTheEndIsEmptyAndHasNoNext(t *testing.T) {
 	}
 }
 
-func TestRun_KnownCeilingFullPageMeansNext(t *testing.T) {
-	// With a known ceiling a full page is trusted, so no probe is made.
+func TestRun_KnownCeilingFullPageProbesOnce(t *testing.T) {
+	// A full page could be the last one: an exact multiple of the limit. The
+	// next page is probed once at the same size, so has_next is exact.
 	var calls []Paging
-	page, err := Run(context.Background(), Paging{Page: 1, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(2), &calls))
+	page, err := Run(context.Background(), Paging{Page: 1, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(4), &calls))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !page.HasNext {
-		t.Fatalf("full page with known ceiling should report next: %+v", page)
+		t.Fatalf("full page with more rows should report next: %+v", page)
+	}
+	if want := []Paging{{Page: 1, Limit: 2}, {Page: 2, Limit: 2}}; fmt.Sprint(calls) != fmt.Sprint(want) {
+		t.Fatalf("fetches = %v, want %v", calls, want)
+	}
+}
+
+func TestRun_KnownCeilingExactMultipleLastPageHasNoNext(t *testing.T) {
+	// The last page is full, so the probe finds nothing and has_next is false.
+	var calls []Paging
+	page, err := Run(context.Background(), Paging{Page: 2, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(4), &calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.HasNext {
+		t.Fatalf("exact-multiple last page should not report next: %+v", page)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("fetches = %v, want the page and one probe", calls)
+	}
+}
+
+func TestRun_KnownCeilingShortPageMakesNoProbe(t *testing.T) {
+	// A page shorter than the limit is the end under a known ceiling: no probe.
+	var calls []Paging
+	page, err := Run(context.Background(), Paging{Page: 3, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(5), &calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.HasNext || page.Count != 1 {
+		t.Fatalf("short last page: %+v", page)
 	}
 	if len(calls) != 1 {
-		t.Fatalf("known ceiling made %d fetches, want 1", len(calls))
+		t.Fatalf("fetches = %v, want the page only", calls)
 	}
 }
 
@@ -180,6 +211,51 @@ func TestRun_PassesTotalThrough(t *testing.T) {
 	}
 	if page.Total != (Total{Count: 42, Known: true}) {
 		t.Fatalf("total = %+v", page.Total)
+	}
+}
+
+// withTotal serves items like fetchFrom and reports total as the grand total.
+func withTotal(items []int, total int) Fetch[int] {
+	inner := fetchFrom(items, nil)
+	return func(ctx context.Context, p Paging) (Batch[int], error) {
+		b, err := inner(ctx, p)
+		b.Total = Total{Count: total, Known: true}
+		return b, err
+	}
+}
+
+func TestRun_KnownTotalDecidesHasNextWithoutProbe(t *testing.T) {
+	// A reported grand total is authoritative: has_next is whether rows past
+	// this page exist, and no probe is made.
+	cases := []struct {
+		name    string
+		page    Paging
+		total   int
+		hasNext bool
+	}{
+		{"first page of more", Paging{Page: 1, Limit: 2}, 42, true},
+		{"last page short of total", Paging{Page: 21, Limit: 2}, 42, false},
+		{"exact multiple last page", Paging{Page: 2, Limit: 2}, 4, false},
+		{"full page before exact end", Paging{Page: 1, Limit: 2}, 4, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls []Paging
+			fetch := func(ctx context.Context, p Paging) (Batch[int], error) {
+				calls = append(calls, p)
+				return withTotal(corpus(tc.total), tc.total)(ctx, p)
+			}
+			page, err := Run(context.Background(), tc.page, Ceiling{Max: 100, Known: true}, fetch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.HasNext != tc.hasNext {
+				t.Fatalf("has_next = %v, want %v: %+v", page.HasNext, tc.hasNext, page)
+			}
+			if len(calls) != 1 {
+				t.Fatalf("known total made %d fetches, want 1: %v", len(calls), calls)
+			}
+		})
 	}
 }
 

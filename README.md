@@ -373,14 +373,14 @@ List all my repositories
 | `edit_issue_comment` | Edit a comment. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `delete_issue_comment` | Delete a comment |
 | **Pull Requests** | |
-| `list_repo_pull_requests` | List pull requests in a repository |
+| `list_repo_pull_requests` | List pull requests in a repository (page/limit); returns `{pull_requests,page,limit,count,has_next}` |
 | `get_pull_request_by_index` | Get a specific pull request |
 | `create_pull_request` | Create a new pull request. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, head, base); the submitted body is not echoed back. `verbose=true` returns the full pull request |
 | `update_pull_request` | Update an existing pull request. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full pull request |
-| `list_pull_reviews` | List reviews for a pull request |
+| `list_pull_reviews` | List reviews for a pull request (page/limit); returns `{reviews,page,limit,count,has_next}` |
 | `get_pull_review` | Get a specific pull request review |
 | `list_pull_review_comments` | List comments on a pull request review |
-| `list_pull_request_files` | List changed files in a pull request (paginated). Use the returned filenames as the `file_path` argument to `get_pull_request_diff`. |
+| `list_pull_request_files` | List changed files in a pull request (page/limit); returns `{files,page,limit,count,has_next}`. Use the returned filenames as the `file_path` argument to `get_pull_request_diff`. |
 | `get_pull_request_diff` | Get the unified diff of a pull request. Optional `file_path` returns only that file's hunks (matches on either pre- or post-rename path). |
 | `merge_pull_request` | Merge a pull request (style: merge/rebase/rebase-merge/squash; optional title/message/delete-branch/force-merge/wait-for-checks). |
 | `create_pull_review` | Create a review on a pull request (state: APPROVED/REQUEST_CHANGES/COMMENT) with optional inline comments. |

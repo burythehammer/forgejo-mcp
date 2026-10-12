@@ -146,10 +146,10 @@ func TestPRReadParity_ToolAndResourceAgree(t *testing.T) {
 	}
 
 	// Reviews: the resource embeds the list the list_pull_reviews tool returns.
-	var listed []model.PullReview
+	var listed model.PullReviewPage
 	callJSON(t, h.ListPullReviewsFn, map[string]any{"index": float64(idx)}, &listed)
 	var fromTool, fromRes []reviewFact
-	for _, r := range listed {
+	for _, r := range listed.Reviews {
 		fromTool = append(fromTool, reviewFact{ID: r.ID, Reviewer: r.Reviewer.UserName, State: r.State, Body: r.Body})
 	}
 	for _, r := range p.RecentReviews {
