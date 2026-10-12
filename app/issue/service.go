@@ -319,12 +319,22 @@ func (s *Service) Milestones(ctx context.Context, owner, repo string, m Mileston
 	if m.State == "" {
 		m.State = "open"
 	}
-	milestones, err := s.port.ListRepoMilestones(ctx, owner, repo, m)
-	if err != nil {
-		return nil, fmt.Errorf("list repo milestones err: %w", err)
-	}
-	return milestones, nil
+	items, _, err := list.Window(ctx, s.port, list.Paging(m.Paging), milestoneDefaultLimit,
+		func(ctx context.Context, p list.Paging) ([]*model.Milestone, error) {
+			q := m
+			q.Paging = Paging(p)
+			milestones, err := s.port.ListRepoMilestones(ctx, owner, repo, q)
+			if err != nil {
+				return nil, fmt.Errorf("list repo milestones err: %w", err)
+			}
+			return milestones, nil
+		})
+	return items, err
 }
+
+// milestoneDefaultLimit is the page size a milestone list uses when the caller
+// gives none.
+const milestoneDefaultLimit = 100
 
 func parseMilestone(s string) (int64, error) {
 	id, err := strconv.ParseInt(s, 10, 64)

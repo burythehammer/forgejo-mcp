@@ -6,8 +6,13 @@ import (
 	"context"
 	"fmt"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
+
+// labelsDefaultLimit is the page size a repository or organization label
+// list uses when the caller gives none.
+const labelsDefaultLimit = 100
 
 // LabelPage is one page of a label catalogue as the server pages it. More is
 // true when the server reported rows past this page; Total is the server's
@@ -32,12 +37,21 @@ type LabelList struct {
 // default and the resource does not. More and Total describe the repository's
 // own rows only, because the organization's labels are not paged here.
 func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (LabelList, error) {
-	page, err := s.port.ListRepoLabelsPage(ctx, in.Owner, in.Repo, in.Paging)
+	var page LabelPage
+	labels, _, err := list.Window(ctx, s.port, list.Paging(in.Paging), labelsDefaultLimit,
+		func(ctx context.Context, p list.Paging) ([]*model.Label, error) {
+			got, err := s.port.ListRepoLabelsPage(ctx, in.Owner, in.Repo, Paging(p))
+			if err != nil {
+				return nil, fmt.Errorf("list repo labels err: %w", err)
+			}
+			page = got
+			return got.Labels, nil
+		})
 	if err != nil {
-		return LabelList{}, fmt.Errorf("list repo labels err: %w", err)
+		return LabelList{}, err
 	}
-	merged := make([]model.ScopedLabel, 0, len(page.Labels))
-	for _, l := range page.Labels {
+	merged := make([]model.ScopedLabel, 0, len(labels))
+	for _, l := range labels {
 		merged = append(merged, model.ScopedLabel{Label: *l, Scope: "repo"})
 	}
 	if in.IncludeOrg {
@@ -57,15 +71,21 @@ func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (Labe
 	if p.Page < 1 {
 		p.Page = 1
 	}
-	if p.Limit < 1 {
-		p.Limit = 100
-	}
-	page, err := s.port.ListOrgLabelsPage(ctx, org, p)
+	var page LabelPage
+	labels, _, err := list.Window(ctx, s.port, list.Paging(p), labelsDefaultLimit,
+		func(ctx context.Context, q list.Paging) ([]*model.Label, error) {
+			got, err := s.port.ListOrgLabelsPage(ctx, org, Paging(q))
+			if err != nil {
+				return nil, fmt.Errorf("list org labels err: %w", err)
+			}
+			page = got
+			return got.Labels, nil
+		})
 	if err != nil {
-		return LabelList{}, fmt.Errorf("list org labels err: %w", err)
+		return LabelList{}, err
 	}
-	out := make([]model.ScopedLabel, 0, len(page.Labels))
-	for _, l := range page.Labels {
+	out := make([]model.ScopedLabel, 0, len(labels))
+	for _, l := range labels {
 		out = append(out, model.ScopedLabel{Label: *l, Scope: "org"})
 	}
 	return LabelList{Labels: out, More: page.More, Total: page.Total}, nil
