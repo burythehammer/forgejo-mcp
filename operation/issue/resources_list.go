@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
@@ -218,10 +218,8 @@ func issuesQuery(req mcp.ReadResourceRequest) (state string, labels []string) {
 		state = v
 	}
 	if raw := q.Get("labels"); raw != "" {
-		for _, part := range strings.Split(raw, ",") {
-			if trimmed := strings.TrimSpace(part); trimmed != "" {
-				labels = append(labels, trimmed)
-			}
+		if parts := split.CSV(raw); len(parts) > 0 {
+			labels = parts
 		}
 	}
 	return state, labels

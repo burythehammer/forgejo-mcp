@@ -469,3 +469,20 @@ func TestNormalizeColor(t *testing.T) {
 		}
 	}
 }
+
+// Forgejo labels a pull request through the same issue endpoints, and the
+// resolver never reads the index, so a name on a pull request's index is refused
+// by the same rule, before any write.
+func TestAddLabels_PullRequestIndexResolvesByTheIssueRule(t *testing.T) {
+	t.Parallel()
+	s, f := fixture(t)
+	f.SeedIssueLabel(owner, repo, "bug")
+	ctx := context.Background()
+
+	if _, err := s.AddLabels(ctx, target(7), "nope"); !strings.Contains(errText(err), `unknown label "nope"`) {
+		t.Fatalf("unknown name on a pull request: error %q, want the shared unknown-label error", errText(err))
+	}
+	if _, err := s.RemoveLabels(ctx, target(7), " , "); !strings.Contains(errText(err), "labels names nothing") {
+		t.Fatalf("empty list on a pull request: error %q, want the shared names-nothing error", errText(err))
+	}
+}

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
 
 // Service runs the webhook use cases over a Port. Build one per request from
