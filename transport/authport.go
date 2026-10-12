@@ -39,9 +39,11 @@ func authenticatePassthrough(r *http.Request, cfg config.Config) (credential, er
 	return "", errCredentialRequired
 }
 
-// attachCredential returns ctx carrying c for the handler. It is the only place
-// a transport writes a request's credential into a context. An empty credential
-// attaches nothing.
+// attachCredential returns ctx carrying c for the handler. It is the write used
+// for a credential minted in resource-server mode. attachPassthroughCredential
+// does not call it: it writes a passthrough request's own credential with
+// forge.WithToken directly, so forge.WithToken is called from these two places
+// in package transport. An empty credential attaches nothing.
 func attachCredential(ctx context.Context, c credential) context.Context {
 	if c == "" {
 		return ctx

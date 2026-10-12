@@ -156,10 +156,12 @@ func Run(cfg config.Config, version string) error {
 }
 
 // newFactory builds the Forgejo factory from cfg. The factory holds no credential
-// policy: whether a request may be served with the operator's credential is
-// decided by the authentication port in package transport, which marks the
-// request's context. See transport.attachPassthroughCredential and
-// transport.attachStdioCredential.
+// policy. The transport's authentication port decides whether a request may be
+// served with the operator's credential and marks the request's context to say
+// so. Stdio requests are always marked. A network request is marked only when
+// the operator has opted into the fallback and the request carries no token of
+// its own. The factory serves a marked request with its operator client and
+// refuses any other request that carries no token.
 func newFactory(cfg config.Config, version string) *sdk.Factory {
 	return sdk.NewFactory(cfg.Forgejo, version)
 }

@@ -127,7 +127,7 @@ func authenticateResourceServer(r *http.Request, rs *resourceServer, challenge s
 	audience, ok := usableAudience(claims.Raw[rs.audienceClaim])
 	if !ok {
 		return resourceAuth{}, &resourceRefusal{
-			// No WWW-Authenticate challenge, deliberately (design D4). The token
+			// No WWW-Authenticate challenge, deliberately. The token
 			// is valid; what is missing is data at the identity provider, not
 			// authorization or scope. A challenge, with or without
 			// error="insufficient_scope", invites a spec-following client to
