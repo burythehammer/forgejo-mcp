@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Package forge defines the Forgejo port: what the tools need from a Forgejo
-// instance, expressed as interfaces with no SDK import. The real adapter lives
+// instance, expressed as interfaces. The SDK client stays in forge/sdk, but SDK types
+// still appear as data in these signatures until #8 replaces them with domain
+// types (docs/adr/0002). The real adapter lives
 // in forge/sdk; an in-memory fake and a shared contract suite sit beside it.
 //
 // The port is split by domain. Each domain's interface is added here, and
