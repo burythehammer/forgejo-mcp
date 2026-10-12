@@ -16,8 +16,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/jwtissuer"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs"
-
-	"go.uber.org/zap"
 )
 
 const (
@@ -76,12 +74,15 @@ func (rs *resourceServer) handler(mcp http.Handler) (http.Handler, error) {
 		return nil, fmt.Errorf("encode protected resource metadata: %w", err)
 	}
 
+	// This handler's refusal-log budget, created with it. It is not the
+	// listener's door budget; see authenticate.
+	refusals := &refusalLimiter{}
 	routes := map[string]http.Handler{
 		metadataPath:                             staticDocument(metadata, ""),
 		protectedResourceMetadataPath:            staticDocument(metadata, ""),
 		issuerURL.Path + jwtissuer.DiscoveryPath: staticDocument(rs.issuer.DiscoveryDocument(), issuerDocumentCacheControl),
 		issuerURL.Path + jwtissuer.JWKSPath:      staticDocument(rs.issuer.JWKS(), issuerDocumentCacheControl),
-		streamableHTTPEndpointPath:               rs.authenticate(mcp, bearerChallenge(metadataURL, rs.scopes)),
+		streamableHTTPEndpointPath:               rs.authenticate(mcp, bearerChallenge(metadataURL, rs.scopes), refusals),
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +127,13 @@ func bearerChallenge(metadataURL string, scopes []string) string {
 // authenticate validates the caller's access token, derives the Forgejo
 // audience, mints the Forgejo token and hands it to next through the request
 // context. The caller's own token goes no further than this function.
-func (rs *resourceServer) authenticate(next http.Handler, challenge string) http.Handler {
+//
+// refusals bounds the debug lines for refused requests. Those values come from
+// strangers, so they are rate-bounded like the door's lines, but they draw on
+// their own budget rather than the door's: this handler is built before the
+// listener that serves it, so it cannot be handed the listener's limiter without
+// changing the handler's signature.
+func (rs *resourceServer) authenticate(next http.Handler, challenge string, refusals *refusalLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, err := rs.validator.ValidateAuthorization(r.Context(), r.Header.Get("Authorization"))
 		if err == nil && claims.Subject == "" {
@@ -137,7 +144,7 @@ func (rs *resourceServer) authenticate(next http.Handler, challenge string) http
 			if errors.Is(err, oauthrs.ErrInvalidToken) {
 				value += `, error="invalid_token"`
 			}
-			logRefusalAtDebug("Refused a request to the MCP endpoint",
+			refusals.write(log.Debug, "Refused a request to the MCP endpoint",
 				log.StringField("reason", err.Error()),
 				log.StringField("path", truncateForLog(r.URL.Path)),
 			)
@@ -148,7 +155,7 @@ func (rs *resourceServer) authenticate(next http.Handler, challenge string) http
 
 		audience, ok := usableAudience(claims.Raw[rs.audienceClaim])
 		if !ok {
-			logRefusalAtDebug("Refused a token without a usable Forgejo audience claim",
+			refusals.write(log.Debug, "Refused a token without a usable Forgejo audience claim",
 				log.StringField("claim", rs.audienceClaim),
 				log.StringField("sub", truncateForLog(claims.Subject)),
 			)
@@ -192,18 +199,4 @@ func usableAudience(v any) (string, bool) {
 		}
 	}
 	return s, true
-}
-
-// logRefusalAtDebug logs a refusal at debug level through the same rate bound
-// as the door's refusal lines: the values come from strangers.
-func logRefusalAtDebug(msg string, fields ...zap.Field) {
-	ok, dropped := refusals.admit(time.Now())
-	if dropped > 0 {
-		log.Warn("Suppressed refusal log lines over the preceding window",
-			log.IntField("suppressed", dropped),
-		)
-	}
-	if ok {
-		log.Debug(msg, fields...)
-	}
 }
