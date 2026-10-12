@@ -11,8 +11,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repoadminadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repogitadapter"
-
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
 const (
@@ -89,15 +87,15 @@ func TestReadCommitStatuses_AggregateState(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name   string
-		states []forgejo_sdk.StatusState
+		states []string
 		want   string
 	}{
 		{"none is unknown", nil, "unknown"},
-		{"all success", []forgejo_sdk.StatusState{forgejo_sdk.StatusSuccess, forgejo_sdk.StatusSuccess}, "success"},
-		{"pending beats success", []forgejo_sdk.StatusState{forgejo_sdk.StatusSuccess, forgejo_sdk.StatusPending}, "pending"},
-		{"failure beats pending", []forgejo_sdk.StatusState{forgejo_sdk.StatusPending, forgejo_sdk.StatusFailure}, "failure"},
-		{"error counts as failure", []forgejo_sdk.StatusState{forgejo_sdk.StatusSuccess, forgejo_sdk.StatusError}, "failure"},
-		{"warning is unknown", []forgejo_sdk.StatusState{forgejo_sdk.StatusSuccess, forgejo_sdk.StatusWarning}, "unknown"},
+		{"all success", []string{"success", "success"}, "success"},
+		{"pending beats success", []string{"success", "pending"}, "pending"},
+		{"failure beats pending", []string{"pending", "failure"}, "failure"},
+		{"error counts as failure", []string{"success", "error"}, "failure"},
+		{"warning is unknown", []string{"success", "warning"}, "unknown"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -105,7 +103,7 @@ func TestReadCommitStatuses_AggregateState(t *testing.T) {
 			s, f := readFixture(t)
 			seedCommit(t, f, readSHA, "msg")
 			for i, st := range tc.states {
-				if err := f.AddCommitStatus(readOwner, readRepo, readSHA, fmt.Sprint("ci/", i), st, "d"); err != nil {
+				if err := f.AddCommitStatusState(readOwner, readRepo, readSHA, fmt.Sprint("ci/", i), st, "d"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -125,7 +123,7 @@ func TestReadCommitStatuses_PageAndTotal(t *testing.T) {
 	s, f := readFixture(t)
 	seedCommit(t, f, readSHA, "msg")
 	for i := 0; i < 40; i++ {
-		if err := f.AddCommitStatus(readOwner, readRepo, readSHA, fmt.Sprint("ci/", i), forgejo_sdk.StatusSuccess, "d"); err != nil {
+		if err := f.AddCommitStatusState(readOwner, readRepo, readSHA, fmt.Sprint("ci/", i), "success", "d"); err != nil {
 			t.Fatal(err)
 		}
 	}
