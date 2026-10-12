@@ -79,6 +79,10 @@ Some features are blocked on upstream API/SDK support. See `docs/plans/` for:
 
 The release process in this repo is inherited from upstream and unverified for this fork. Do not cut a release unless asked; see [docs/legacy/upstream-release.md](docs/legacy/upstream-release.md).
 
+## Subagents
+
+Implementing in a worktree, merging subagent branches, or briefing either: [docs/agents/subagent-work.md](docs/agents/subagent-work.md).
+
 ## Agent skills
 
 ### Issue tracker
