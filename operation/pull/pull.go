@@ -3,6 +3,7 @@
 package pull
 
 import (
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/compact"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
@@ -53,6 +54,7 @@ var (
 		mcp.WithString("base", mcp.Required(), mcp.Description(params.Base)),
 		mcp.WithString("title", mcp.Required(), mcp.Description(params.Title)),
 		mcp.WithString("body", mcp.Description(params.Body)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	UpdatePullRequestTool = mcp.NewTool(
@@ -66,6 +68,7 @@ var (
 		mcp.WithString("base", mcp.Description(params.Base)),
 		mcp.WithString("assignee", mcp.Description("Assignee username")),
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ListPullReviewsTool = mcp.NewTool(
