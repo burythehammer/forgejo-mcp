@@ -1,3 +1,3 @@
-ERROR: get pull request err: boom
+ERROR: resource "forgejo://repo/octo/hello/pr/7": internal error: get pull request err: boom (code -32603)
 -- port calls --
 GetPullRequest ["octo","hello",7]
