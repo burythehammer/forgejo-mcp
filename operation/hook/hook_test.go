@@ -378,3 +378,59 @@ func TestEditRepoHookFn_ExplicitEmptyBranchFilterClears(t *testing.T) {
 		t.Errorf("clearing the branch filter changed other fields: %+v", stored)
 	}
 }
+
+// An argument that is present but empty is a value the caller provided, so the
+// edit must send it. Only an absent argument is left untouched.
+func TestEditRepoHookFn_PresentEmptyArgumentsAreSent(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		args  map[string]interface{}
+		check func(t *testing.T, stored *forgejo_sdk.Hook)
+	}{
+		{"empty events clears the events", map[string]interface{}{"events": ""}, func(t *testing.T, stored *forgejo_sdk.Hook) {
+			if len(stored.Events) != 0 {
+				t.Errorf("events = %v after explicit empty, want none", stored.Events)
+			}
+		}},
+		{"empty content_type is stored", map[string]interface{}{"content_type": ""}, func(t *testing.T, stored *forgejo_sdk.Hook) {
+			if v, ok := stored.Config["content_type"]; !ok || v != "" {
+				t.Errorf("content_type = %q (present %v) after explicit empty, want empty", v, ok)
+			}
+		}},
+		{"empty http_method is stored", map[string]interface{}{"http_method": ""}, func(t *testing.T, stored *forgejo_sdk.Hook) {
+			if v, ok := stored.Config["http_method"]; !ok || v != "" {
+				t.Errorf("http_method = %q (present %v) after explicit empty, want empty", v, ok)
+			}
+		}},
+		{"empty secret is stored", map[string]interface{}{"secret": ""}, func(t *testing.T, stored *forgejo_sdk.Hook) {
+			if v, ok := stored.Config["secret"]; !ok || v != "" {
+				t.Errorf("secret present %v = %q after explicit empty, want empty", ok, v)
+			}
+		}},
+		{"empty url is stored", map[string]interface{}{"url": ""}, func(t *testing.T, stored *forgejo_sdk.Hook) {
+			if v := stored.Config["url"]; v != "" {
+				t.Errorf("url = %q after explicit empty, want empty", v)
+			}
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h, f := newFixture(t)
+			existing := seedHook(t, f, "https://example.test/old")
+			args := map[string]interface{}{"id": float64(existing.ID)}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			if _, err := h.EditRepoHookFn(context.Background(), newHookCallToolRequest(args)); err != nil {
+				t.Fatalf("EditRepoHookFn err: %v", err)
+			}
+			stored, err := f.GetRepoHook(context.Background(), testOwner, testRepo, existing.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.check(t, stored)
+		})
+	}
+}

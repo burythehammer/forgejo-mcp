@@ -30,12 +30,16 @@ type Hooks interface {
 // value is sent even when empty, so BranchFilter pointing at "" clears the
 // filter. Callers must not rely on the SDK's EditHookOption for this, because
 // it marshals every field with no omitempty.
+//
+// The json tags name the PATCH body keys, so the test stub decodes a request
+// into this same type. The SDK adapter builds its body itself, because an
+// omitempty tag would drop an empty, non-nil events list.
 type HookEdit struct {
-	Config              map[string]string
-	Events              []string
-	BranchFilter        *string
-	Active              *bool
-	AuthorizationHeader *string
+	Config              map[string]string `json:"config,omitempty"`
+	Events              []string          `json:"events,omitempty"`
+	BranchFilter        *string           `json:"branch_filter,omitempty"`
+	Active              *bool             `json:"active,omitempty"`
+	AuthorizationHeader *string           `json:"authorization_header,omitempty"`
 }
 
 // HookList is one page of hooks plus the total Forgejo reports.

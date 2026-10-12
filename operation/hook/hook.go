@@ -281,10 +281,11 @@ func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (
 		return to.ErrorResult(fmt.Errorf("get repo hook for edit: %w", err))
 	}
 
-	// Only the fields the caller passed are filled in; the port sends nothing
-	// for the rest, so Forgejo keeps their stored values. Config is sent as a
-	// whole map, so it is only built (from the stored one) when a config key
-	// was passed.
+	// Rule: a field is changed when its argument is present in the request,
+	// even if it is empty ("" clears a string, "" for events clears the list).
+	// An absent argument leaves the stored value alone. The port sends nothing
+	// for an unset field, so Forgejo keeps it. Config is sent as a whole map,
+	// so it is only built (from the stored one) when a config key was passed.
 	var opt forge.HookEdit
 	config := existing.Config
 	if config == nil {
@@ -292,7 +293,7 @@ func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (
 	}
 	configTouched := false
 	for _, key := range []string{"url", "content_type", "secret", "http_method"} {
-		if v, ok := args[key].(string); ok && v != "" {
+		if v, ok := args[key].(string); ok {
 			config[key] = v
 			configTouched = true
 		}
@@ -300,7 +301,7 @@ func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (
 	if configTouched {
 		opt.Config = config
 	}
-	if v, ok := args["events"].(string); ok && v != "" {
+	if v, ok := args["events"].(string); ok {
 		opt.Events = splitEvents(v)
 	}
 	if v, ok := args["branch_filter"].(string); ok {

@@ -18,6 +18,9 @@ type hookState struct {
 	hooks      map[string][]*forgejo_sdk.Hook // key "owner/repo", creation order
 	next       int64
 	deliveries map[int64]int // test deliveries by hook id
+	// authHeaders holds the write-only authorization header by hook id. The
+	// port's Hook has no field for it, so it is kept here, not in Config.
+	authHeaders map[int64]string
 }
 
 func (f *Forgejo) hookList(owner, repo string) ([]*forgejo_sdk.Hook, error) {
@@ -144,6 +147,12 @@ func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, 
 	if opt.Active != nil {
 		h.Active = *opt.Active
 	}
+	if opt.AuthorizationHeader != nil {
+		if f.hooks.authHeaders == nil {
+			f.hooks.authHeaders = map[int64]string{}
+		}
+		f.hooks.authHeaders[id] = *opt.AuthorizationHeader
+	}
 	h.Updated = f.Now()
 	return nil
 }
@@ -186,4 +195,13 @@ func (f *Forgejo) HookTestDeliveries(id int64) int {
 	f.hooks.mu.Lock()
 	defer f.hooks.mu.Unlock()
 	return f.hooks.deliveries[id]
+}
+
+// HookAuthorizationHeader reports the authorization header last set on a hook
+// by an edit, which the port cannot observe: the port's Hook has no field for
+// it, so the header is write-only through the port.
+func (f *Forgejo) HookAuthorizationHeader(id int64) string {
+	f.hooks.mu.Lock()
+	defer f.hooks.mu.Unlock()
+	return f.hooks.authHeaders[id]
 }

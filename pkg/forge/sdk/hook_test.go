@@ -79,6 +79,7 @@ func TestEditRepoHookSendsOnlySetFields(t *testing.T) {
 	}{
 		{"unset arguments send no keys", forge.HookEdit{}, map[string]any{}},
 		{"explicit empty branch filter is sent as empty", forge.HookEdit{BranchFilter: &empty}, map[string]any{"branch_filter": ""}},
+		{"explicit empty events list is sent as an empty list", forge.HookEdit{Events: []string{}}, map[string]any{"events": []any{}}},
 		{
 			"only the set fields are sent",
 			forge.HookEdit{Active: &off, Events: []string{"push"}},
