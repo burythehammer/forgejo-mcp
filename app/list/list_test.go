@@ -214,6 +214,51 @@ func TestRun_PassesTotalThrough(t *testing.T) {
 	}
 }
 
+// withTotal serves items like fetchFrom and reports total as the grand total.
+func withTotal(items []int, total int) Fetch[int] {
+	inner := fetchFrom(items, nil)
+	return func(ctx context.Context, p Paging) (Batch[int], error) {
+		b, err := inner(ctx, p)
+		b.Total = Total{Count: total, Known: true}
+		return b, err
+	}
+}
+
+func TestRun_KnownTotalDecidesHasNextWithoutProbe(t *testing.T) {
+	// A reported grand total is authoritative: has_next is whether rows past
+	// this page exist, and no probe is made.
+	cases := []struct {
+		name    string
+		page    Paging
+		total   int
+		hasNext bool
+	}{
+		{"first page of more", Paging{Page: 1, Limit: 2}, 42, true},
+		{"last page short of total", Paging{Page: 21, Limit: 2}, 42, false},
+		{"exact multiple last page", Paging{Page: 2, Limit: 2}, 4, false},
+		{"full page before exact end", Paging{Page: 1, Limit: 2}, 4, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls []Paging
+			fetch := func(ctx context.Context, p Paging) (Batch[int], error) {
+				calls = append(calls, p)
+				return withTotal(corpus(tc.total), tc.total)(ctx, p)
+			}
+			page, err := Run(context.Background(), tc.page, Ceiling{Max: 100, Known: true}, fetch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.HasNext != tc.hasNext {
+				t.Fatalf("has_next = %v, want %v: %+v", page.HasNext, tc.hasNext, page)
+			}
+			if len(calls) != 1 {
+				t.Fatalf("known total made %d fetches, want 1: %v", len(calls), calls)
+			}
+		})
+	}
+}
+
 func TestRun_FetchErrorSurfaces(t *testing.T) {
 	boom := errors.New("upstream down")
 	fetch := func(context.Context, Paging) (Batch[int], error) { return Batch[int]{}, boom }
