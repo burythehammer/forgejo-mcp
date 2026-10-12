@@ -34,42 +34,15 @@ const (
 // RepoLabels lists a repository's labels. With IncludeOrg, an organization's
 // labels follow, each tagged with its scope.
 func (s *Service) RepoLabels(ctx context.Context, in RepoLabelsInput) ([]model.ScopedLabel, error) {
-	repoLabels, err := s.port.ListRepoLabels(ctx, in.Owner, in.Repo, in.Paging)
-	if err != nil {
-		return nil, fmt.Errorf("list repo labels err: %w", err)
-	}
-	merged := make([]model.ScopedLabel, 0, len(repoLabels))
-	for _, l := range repoLabels {
-		merged = append(merged, model.ScopedLabel{Label: *l, Scope: "repo"})
-	}
-	if in.IncludeOrg {
-		orgLabels, err := s.OrgLabels(ctx, in.Owner, in.Paging)
-		if err != nil {
-			return nil, err
-		}
-		merged = append(merged, orgLabels...)
-	}
-	return merged, nil
+	list, err := s.ReadRepoLabels(ctx, in)
+	return list.Labels, err
 }
 
-// OrgLabels lists an organization's labels, each tagged with scope "org". A
-// page below 1 reads as page 1 and a limit below 1 as the default of 100.
+// OrgLabels lists an organization's labels, each tagged with scope "org". See
+// ReadOrgLabels for the paging defaults.
 func (s *Service) OrgLabels(ctx context.Context, org string, p Paging) ([]model.ScopedLabel, error) {
-	if p.Page < 1 {
-		p.Page = 1
-	}
-	if p.Limit < 1 {
-		p.Limit = 100
-	}
-	raw, err := s.port.ListOrgLabels(ctx, org, p)
-	if err != nil {
-		return nil, fmt.Errorf("list org labels err: %w", err)
-	}
-	out := make([]model.ScopedLabel, 0, len(raw))
-	for _, l := range raw {
-		out = append(out, model.ScopedLabel{Label: *l, Scope: "org"})
-	}
-	return out, nil
+	list, err := s.ReadOrgLabels(ctx, org, p)
+	return list.Labels, err
 }
 
 // GetRepoLabel returns one repository label by its ID.

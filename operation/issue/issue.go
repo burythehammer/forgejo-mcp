@@ -508,15 +508,23 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.IncludeOrg != nil {
 			includeOrg = *a.IncludeOrg
 		}
-		return mcpresult.Render(s.RepoLabels(ctx, apppissue.RepoLabelsInput{
+		list, err := s.ReadRepoLabels(ctx, apppissue.RepoLabelsInput{
 			Owner: a.Owner, Repo: a.Repo, IncludeOrg: includeOrg,
 			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)},
-		}))
+		})
+		if err != nil {
+			return nil, mapErr(repoLabelsURI(a.Owner, a.Repo), err)
+		}
+		return mcpresult.Render(list.Labels, nil)
 	})
 }
 
 func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgLabelsFn", func(ctx context.Context, s *apppissue.Service, a orgLabelsArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.OrgLabels(ctx, a.Org, apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)}))
+		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)})
+		if err != nil {
+			return nil, mapErr(orgLabelsURI(a.Org), err)
+		}
+		return mcpresult.Render(list.Labels, nil)
 	})
 }

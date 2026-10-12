@@ -48,6 +48,10 @@ type Port interface {
 	EditRepoLabel(ctx context.Context, owner, repo string, id int64, in LabelEdit) (*model.Label, error)
 	DeleteRepoLabel(ctx context.Context, owner, repo string, id int64) error
 	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.Label, error)
+	// ListRepoLabelsPage and ListOrgLabelsPage are the label list reads: one
+	// page, with what the server reported about rows past it.
+	ListRepoLabelsPage(ctx context.Context, owner, repo string, p Paging) (LabelPage, error)
+	ListOrgLabelsPage(ctx context.Context, org string, p Paging) (LabelPage, error)
 	GetOrgLabel(ctx context.Context, org string, id int64) (*model.Label, error)
 	CreateOrgLabel(ctx context.Context, org string, in LabelNew) (*model.Label, error)
 	EditOrgLabel(ctx context.Context, org string, id int64, in LabelEdit) (*model.Label, error)

@@ -1,4 +1,4 @@
-ERROR: list org labels err: boom
+ERROR: resource "forgejo://repo/acme/hello/labels": internal error: list org labels err: boom (code -32603)
 -- port calls --
 ListRepoLabels ["acme","hello",{"Page":1,"PageSize":100}]
 ListOrgLabels ["acme",1,100]
