@@ -101,7 +101,7 @@ func (h handlers) wikiResourceHandler(ctx context.Context, req mcp.ReadResourceR
 
 	markdown := string(decoded)
 	if len(markdown) > forge.MaxInlineDownloadBytes {
-		marker := "\n\n[truncated: use get_wiki_page with start_line/end_line to retrieve the remainder.]"
+		marker := wikiTruncationMarker()
 		keep := forge.MaxInlineDownloadBytes - len(marker)
 		for keep > 0 && !utf8.RuneStart(markdown[keep]) {
 			keep--
@@ -112,4 +112,14 @@ func (h handlers) wikiResourceHandler(ctx context.Context, req mcp.ReadResourceR
 		mcp.TextResourceContents{URI: uri, MIMEType: "application/json", Text: string(jsonBytes)},
 		mcp.TextResourceContents{URI: uri, MIMEType: "text/markdown", Text: markdown},
 	}, nil
+}
+
+// wikiTruncationMarker is the note appended to inline markdown that exceeds the
+// download limit. The tool it names comes from the registry, so it is omitted
+// rather than named when that tool is not registered.
+func wikiTruncationMarker() string {
+	if ref := resource.ToolRef(GetWikiPageToolName); ref != "" {
+		return "\n\n[truncated: use " + ref + " with start_line/end_line to retrieve the remainder.]"
+	}
+	return "\n\n[truncated: use start_line/end_line to retrieve the remainder.]"
 }
