@@ -231,6 +231,8 @@ var goldenCases = []goldenCase{
 	{name: "list_prs_bad_milestone", tool: ListRepoPullRequestsToolName, args: map[string]any{"milestone": "soon"}},
 	{name: "create_pr", tool: CreatePullRequestToolName, args: map[string]any{"head": "feat", "base": "main", "title": "T", "body": "B"}},
 	{name: "update_pr", tool: UpdatePullRequestToolName, args: map[string]any{"index": float64(7), "title": "T", "body": "B", "base": "dev", "assignee": "bob", "milestone": "4"}},
+	{name: "create_pr_verbose", tool: CreatePullRequestToolName, args: map[string]any{"head": "feat", "base": "main", "title": "T", "body": "B", "verbose": true}},
+	{name: "update_pr_verbose", tool: UpdatePullRequestToolName, args: map[string]any{"index": float64(7), "title": "T", "body": "B", "verbose": true}},
 	{name: "update_pr_empty", tool: UpdatePullRequestToolName, args: map[string]any{"index": float64(7)}},
 	{name: "update_pr_bad_milestone", tool: UpdatePullRequestToolName, args: map[string]any{"index": float64(7), "milestone": "x1"}},
 	{name: "list_reviews_defaults", tool: ListPullReviewsToolName, args: map[string]any{"index": float64(7)}},
