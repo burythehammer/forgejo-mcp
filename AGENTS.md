@@ -8,6 +8,7 @@ Default branch is `main`. `upstream` (b4mad) is a separate project; how its work
 
 ```bash
 make build          # Build the binary (outputs ./forgejo-mcp)
+make check          # Build, vet, test and run the code-level scripts/ci checks; run before reporting done
 make vendor         # Tidy and verify Go module dependencies
 ```
 

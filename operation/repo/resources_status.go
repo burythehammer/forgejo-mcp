@@ -101,7 +101,7 @@ func (h handlers) statusResourceHandler(ctx context.Context, req mcp.ReadResourc
 		Truncated:  bounded.Truncated,
 	}
 	if bounded.Truncated {
-		payload.ListTool = "get_commit_statuses"
+		payload.ListTool = resource.ToolRef("get_commit_statuses")
 	}
 
 	jsonBytes, err := json.Marshal(payload)

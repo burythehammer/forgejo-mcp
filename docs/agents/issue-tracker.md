@@ -24,7 +24,7 @@ When using the `fj` fallback:
 
 - **Create an issue**: `create_issue` with `title`, `body` and `labels` in one call (a separate labelling call is where a wrong issue number slips in). The body states the reasoning, not just the title.
 - **Read an issue or PR**: read the resource `forgejo://repo/burythehammer/forgejo-mcp/issue/{index}` or `pr/{index}` (`ReadMcpResourceTool`, server `forgejo`); it returns the bounded entity with its comments. Fall back to `get_issue_by_index` / `get_pull_request_by_index`. See the resource table in `docs/agents/resources.md`.
-- **Search/list issues**: `list_repo_issues`, or `search_issues` across an owner.
+- **Search/list issues**: `list_repo_issues`, or `search_issues` across an owner. A spec's subtasks are listed in its "Subtasks" comment (`list_issue_comments`); read that instead of searching, since a free-text `search_issues` can return hundreds of thousands of characters.
 - **Comment**: `create_issue_comment`
 - **Apply / remove labels**: `add_issue_labels` / `remove_issue_labels`, by name; both also take a PR's index.
 - **Assign**: `update_issue` (`assignees`) for issues, `update_pull_request` (`assignee`) for PRs.

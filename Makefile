@@ -57,3 +57,18 @@ mcpb: build
 .PHONY: check-demos
 check-demos:
 	./scripts/ci/check-spec-demo-anchors.sh
+
+## check: build, vet, test and run the code-level scripts/ci checks
+# Left out on purpose: check-castra-release-onboarding.sh asks the forge about
+# this repo's release setup (not a code check) and check-pr-ci-ran.sh needs a PR
+# number. Run them by hand when releasing or reviewing a PR.
+CI_SKIP := check-castra-release-onboarding.sh check-pr-ci-ran.sh
+.PHONY: check
+check:
+	$(GO) build ./...
+	$(GO) vet ./...
+	$(GO) test ./...
+	@for s in scripts/ci/*.sh; do \
+		case " $(CI_SKIP) " in *" $$(basename $$s) "*) continue;; esac; \
+		echo "== $$s"; sh $$s || exit 1; \
+	done
