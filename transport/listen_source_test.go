@@ -4,6 +4,8 @@ package transport
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -18,4 +20,26 @@ func mustReadSource(t *testing.T, name string) string {
 		t.Fatalf("read %s: %v", name, err)
 	}
 	return string(b)
+}
+
+// mustReadPackageSources returns every non-test Go file in this package, keyed
+// by file name. Shape tests scan all of them, so a violation in any file is
+// caught, not only one in the file a test happens to name.
+func mustReadPackageSources(t *testing.T) map[string]string {
+	t.Helper()
+	paths, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("list package sources: %v", err)
+	}
+	sources := make(map[string]string, len(paths))
+	for _, p := range paths {
+		if strings.HasSuffix(p, "_test.go") {
+			continue
+		}
+		sources[p] = mustReadSource(t, p)
+	}
+	if len(sources) == 0 {
+		t.Fatal("found no non-test Go sources in the package")
+	}
+	return sources
 }
