@@ -9,19 +9,20 @@ import (
 
 type contextKey string
 
-// TokenContextKey carries a request's own Forgejo credential in a context.
-const TokenContextKey contextKey = "forgejo-token"
+// tokenKey carries a request's own Forgejo credential in a context. It is
+// unexported so that WithToken and TokenFromContext are the only way in or out.
+const tokenKey contextKey = "forgejo-token"
 
 // WithToken adds a request's Forgejo token to the context. A Factory uses it,
 // in preference to the operator's own credential, to build the port for that
 // request.
 func WithToken(ctx context.Context, token string) context.Context {
-	return context.WithValue(ctx, TokenContextKey, token)
+	return context.WithValue(ctx, tokenKey, token)
 }
 
 // TokenFromContext returns the request's own token, or "" when it carries none.
 func TokenFromContext(ctx context.Context) string {
-	token, _ := ctx.Value(TokenContextKey).(string)
+	token, _ := ctx.Value(tokenKey).(string)
 	return token
 }
 

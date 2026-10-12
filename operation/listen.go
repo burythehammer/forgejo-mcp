@@ -204,7 +204,10 @@ func logRefusal(msg string, fields ...zap.Field) {
 //     and shape only: any string under a recognised scheme passes, and it is the
 //     forge that rejects an invalid one, on the first call that reaches it. A
 //     call that never reaches the forge is not protected by this check.
-func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, requireAuth bool) http.Handler {
+//
+// The Authorization check is the authentication port's refusal, passed in as
+// authorize; nil means the door does not look at Authorization.
+func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, authorize func(*http.Request) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !hosts.permits(r.Host) {
 			logRefusal("Rejected request with unacceptable Host header",
@@ -230,7 +233,7 @@ func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, re
 				return
 			}
 		}
-		if requireAuth && extractToken(r.Header.Get("Authorization")) == "" {
+		if authorize != nil && authorize(r) != nil {
 			logRefusal("Rejected request with no usable Authorization header",
 				log.StringField("path", truncateForLog(r.URL.Path)),
 			)
@@ -267,6 +270,8 @@ type transportConfig struct {
 	// resourceServer is true in resource-server mode, where the handler
 	// authenticates its protected route itself.
 	resourceServer bool
+	// app is the Config the authentication port reads at request time.
+	app config.Config
 }
 
 // resolveTransportConfig derives the listener decisions from a Config that
@@ -278,6 +283,7 @@ func resolveTransportConfig(cfg config.Config) transportConfig {
 	tc := transportConfig{
 		requireAuth:    !l.AllowOperatorTokenFallback,
 		resourceServer: cfg.ResourceServerMode(),
+		app:            cfg,
 	}
 
 	host := strings.TrimSpace(l.Host)
@@ -305,8 +311,15 @@ func newMCPHTTPServer(handler http.Handler, cfg transportConfig) *http.Server {
 	// itself, and its public documents must be reachable without a token, so the
 	// door does not look at Authorization. The credential fallback stays refused
 	// either way: cfg.requireAuth still drives the credential policy (see newFactory).
+	var authorize func(*http.Request) error
+	if cfg.requireAuth && !cfg.resourceServer {
+		authorize = func(r *http.Request) error {
+			_, err := authenticatePassthrough(r, cfg.app)
+			return err
+		}
+	}
 	return &http.Server{
-		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, cfg.requireAuth && !cfg.resourceServer),
+		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, authorize),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		IdleTimeout:       idleTimeout,

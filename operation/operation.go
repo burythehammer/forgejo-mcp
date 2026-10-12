@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/actions"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/attachment"
@@ -51,14 +50,18 @@ func withRequestToken(cfg config.Config, ctx context.Context, r *http.Request) c
 		// must never reach Forgejo. The authentication layer has minted a Forgejo
 		// token for this request; only that one enters the handler context.
 		if token, ok := r.Context().Value(mintedTokenKey{}).(string); ok && token != "" {
-			return forge.WithToken(ctx, token)
+			return attachCredential(ctx, credential(token))
 		}
 		return ctx
 	}
-	if token := extractToken(r.Header.Get("Authorization")); token != "" {
-		return forge.WithToken(ctx, token)
+	// A refusal carries no credential here. The door (guardRequests) has already
+	// refused it on a network transport, and the factory's own policy decides
+	// the rest, as it did before the port existed.
+	cred, err := authenticatePassthrough(r, cfg)
+	if err != nil {
+		return ctx
 	}
-	return ctx
+	return attachCredential(ctx, cred)
 }
 
 // disableLibraryHostCheck reports whether the library's own loopback protection
@@ -215,23 +218,6 @@ func RegisterHookTool(s *server.MCPServer, f forge.Factory) {
 func RegisterWikiTool(s *server.MCPServer, f forge.Factory) {
 	wiki.RegisterTool(s, f)
 	log.Debug("Registered wiki tools")
-}
-
-func extractToken(auth string) string {
-	if auth == "" {
-		return ""
-	}
-	parts := strings.SplitN(auth, " ", 2)
-	if len(parts) != 2 {
-		// No scheme prefix. Spec: bare tokens MUST be rejected and treated
-		// as if no Authorization header were present (no silent identity).
-		return ""
-	}
-	scheme := strings.ToLower(parts[0])
-	if scheme == "token" || scheme == "bearer" {
-		return parts[1]
-	}
-	return ""
 }
 
 // Run serves cfg on cfg.Transport. version is the build version, which is
