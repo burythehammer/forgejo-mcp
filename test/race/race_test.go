@@ -17,6 +17,7 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -32,6 +33,13 @@ var (
 	mcpSrv   *server.MCPServer
 	allTools []string
 )
+
+// operatorCtx is the context the authentication port hands a request that is
+// served with the operator's own credential. The factory refuses a bare
+// context, so the race tests must use this one to reach the shared operator
+// client, which is the path whose lazy construction and sharing they exist to
+// exercise. This edits the race package deliberately to restore that coverage.
+var operatorCtx = forge.WithOperatorCredential(context.Background())
 
 func setup(t *testing.T) {
 	t.Helper()
@@ -78,7 +86,7 @@ func setup(t *testing.T) {
 		factory = sdk.NewFactory(config.Forgejo{URL: fakeAPI.URL, Token: config.NewSecret("fake-token-for-testing")}, "test")
 
 		// Build the operator's client up front, against our fake server.
-		_, _ = factory.For(context.Background())
+		_, _ = factory.For(operatorCtx)
 
 		mcpSrv = server.NewMCPServer("forgejo-mcp", "test", server.WithLogging())
 		operation.RegisterTool(mcpSrv, "test", factory)
@@ -189,7 +197,7 @@ func TestConcurrentToolCalls(t *testing.T) {
 						},
 					}
 					// We don't care about errors — only panics / races.
-					_, _ = st.Handler(context.Background(), req)
+					_, _ = st.Handler(operatorCtx, req)
 				}
 			}()
 		}
@@ -222,7 +230,7 @@ func TestConcurrentSameToolRepeated(t *testing.T) {
 								Arguments: minimalArgs(name),
 							},
 						}
-						_, _ = st.Handler(context.Background(), req)
+						_, _ = st.Handler(operatorCtx, req)
 					}
 				}()
 			}

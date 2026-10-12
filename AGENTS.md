@@ -21,6 +21,7 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 Key directories:
 
 - `operation/` - MCP adapters by domain: tool definitions, argument decoding, rendering
+- `transport/` - Serve loop (stdio, SSE, streamable HTTP), listener hardening, authentication port and resource-server mode; built from `config.Config` only
 - `app/` - Use cases by domain: MCP-free and SDK-free (`scripts/ci/check-app-boundary.sh`)
 - `pkg/forge/` - The Forgejo port (interfaces, no SDK client; SDK types still appear as data in its signatures until #8, see `docs/adr/0002-forgejo-port-per-domain-over-sdk-types.md`); `pkg/forge/sdk/` is the Forgejo adapter (the real one); `pkg/forge/<domain>adapter/` is a port bridge from a use case's port to it
 - `pkg/to/` - Response formatting helpers

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package operation
+package transport
 
 import (
 	"errors"
@@ -163,20 +163,23 @@ func (l *refusalLimiter) admit(now time.Time) (bool, int) {
 	return false, dropped
 }
 
-// refusals is process-wide on purpose: the bound that matters is on what one
-// server writes to one operator's disk, not on what any single listener does.
-var refusals refusalLimiter
-
-// logRefusal writes a refusal line unless the rate bound says otherwise.
-func logRefusal(msg string, fields ...zap.Field) {
-	ok, dropped := refusals.admit(time.Now())
+// write emits one refusal line through emit unless the rate bound says otherwise,
+// and reports the lines it suppressed in the window that just closed.
+//
+// The limiter is owned by the listener that serves it: one per listener, created
+// with its configuration, and a resource-server handler served by that listener
+// writes through the same instance. The bound applies to what that listener
+// writes to the operator's disk. Two listeners in one process each get their own
+// budget.
+func (l *refusalLimiter) write(emit func(string, ...zap.Field), msg string, fields ...zap.Field) {
+	ok, dropped := l.admit(time.Now())
 	if dropped > 0 {
 		log.Warn("Suppressed refusal log lines over the preceding window",
 			log.IntField("suppressed", dropped),
 		)
 	}
 	if ok {
-		log.Warn(msg, fields...)
+		emit(msg, fields...)
 	}
 }
 
@@ -204,10 +207,13 @@ func logRefusal(msg string, fields ...zap.Field) {
 //     and shape only: any string under a recognised scheme passes, and it is the
 //     forge that rejects an invalid one, on the first call that reaches it. A
 //     call that never reaches the forge is not protected by this check.
-func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, requireAuth bool) http.Handler {
+//
+// The Authorization check is the authentication port's refusal, passed in as
+// authorize; nil means the door does not look at Authorization.
+func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, authorize func(*http.Request) error, refusals *refusalLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !hosts.permits(r.Host) {
-			logRefusal("Rejected request with unacceptable Host header",
+			refusals.write(log.Warn, "Rejected request with unacceptable Host header",
 				log.StringField("host", truncateForLog(r.Host)),
 				log.StringField("path", truncateForLog(r.URL.Path)),
 			)
@@ -222,7 +228,7 @@ func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, re
 				value = origin[0]
 			}
 			if !origins.permits(value) {
-				logRefusal("Rejected request with unacceptable Origin header",
+				refusals.write(log.Warn, "Rejected request with unacceptable Origin header",
 					log.StringField("origin", truncateForLog(value)),
 					log.StringField("path", truncateForLog(r.URL.Path)),
 				)
@@ -230,8 +236,8 @@ func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, re
 				return
 			}
 		}
-		if requireAuth && extractToken(r.Header.Get("Authorization")) == "" {
-			logRefusal("Rejected request with no usable Authorization header",
+		if authorize != nil && authorize(r) != nil {
+			refusals.write(log.Warn, "Rejected request with no usable Authorization header",
 				log.StringField("path", truncateForLog(r.URL.Path)),
 			)
 			w.Header().Set("WWW-Authenticate", `Bearer realm="forgejo-mcp"`)
@@ -267,6 +273,11 @@ type transportConfig struct {
 	// resourceServer is true in resource-server mode, where the handler
 	// authenticates its protected route itself.
 	resourceServer bool
+	// app is the Config the authentication port reads at request time.
+	app config.Config
+	// refusals is this listener's refusal-log budget. It is created with the
+	// configuration, so each listener starts with its own.
+	refusals *refusalLimiter
 }
 
 // resolveTransportConfig derives the listener decisions from a Config that
@@ -278,6 +289,8 @@ func resolveTransportConfig(cfg config.Config) transportConfig {
 	tc := transportConfig{
 		requireAuth:    !l.AllowOperatorTokenFallback,
 		resourceServer: cfg.ResourceServerMode(),
+		app:            cfg,
+		refusals:       &refusalLimiter{},
 	}
 
 	host := strings.TrimSpace(l.Host)
@@ -304,9 +317,16 @@ func newMCPHTTPServer(handler http.Handler, cfg transportConfig) *http.Server {
 	// In resource-server mode the handler authenticates its protected route
 	// itself, and its public documents must be reachable without a token, so the
 	// door does not look at Authorization. The credential fallback stays refused
-	// either way: cfg.requireAuth still drives the credential policy (see newFactory).
+	// either way: cfg.requireAuth still drives the door; the fallback itself is the port's (see withRequestToken).
+	var authorize func(*http.Request) error
+	if cfg.requireAuth && !cfg.resourceServer {
+		authorize = func(r *http.Request) error {
+			_, err := authenticatePassthrough(r, cfg.app)
+			return err
+		}
+	}
 	return &http.Server{
-		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, cfg.requireAuth && !cfg.resourceServer),
+		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, authorize, cfg.refusals),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		IdleTimeout:       idleTimeout,
@@ -410,15 +430,15 @@ func oneFamilyHint(cfg transportConfig) string {
 }
 
 // serveMCPOverHTTP binds the listeners for a network transport and serves
-// handler on all of them.
+// handler on all of them. cfg is the listener's resolved configuration. The
+// caller resolves it once, so a handler built before this call can share the
+// listener's refusal budget.
 //
 // Both network transports go through here rather than calling the library's own
 // Start method, so that the listen address, the header checks and the
 // credential policy are decided in exactly one place. A transport that bound
 // its own listener would silently miss all three.
-func serveMCPOverHTTP(transportName string, handler http.Handler, port int, appCfg config.Config) error {
-	cfg := resolveTransportConfig(appCfg)
-
+func serveMCPOverHTTP(transportName string, handler http.Handler, port int, cfg transportConfig) error {
 	listeners, err := bindListeners(transportName, cfg, port, net.Listen)
 	if err != nil {
 		return err

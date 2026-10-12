@@ -5,97 +5,77 @@ package sdk
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 )
 
+// The fallback policy is the authentication port's and is pinned in
+// transport/authport_test.go. These tests pin the factory's half: it serves the
+// credential a request is given and refuses everything else.
+
 // The decoy below is never a real credential and never reaches a network: these
 // tests assert which value is selected, not that it authenticates.
 const decoyOperatorCredential = "decoy-operator-value-not-a-credential"
 
-func policyFactory(require bool, operatorValue string) *Factory {
-	return NewFactory(config.Forgejo{Token: config.NewSecret(operatorValue)}, "test", WithRequireRequestToken(require))
-}
-
-func TestRequestCredentialAlwaysWins(t *testing.T) {
+func TestAnonymousRequestIsRefusedWithoutACredential(t *testing.T) {
+	// The factory holds an operator credential, and still refuses a request that
+	// has neither a credential nor the port's mark. It decides nothing about
+	// whether the operator's credential may stand in.
 	t.Parallel()
-	f := policyFactory(true, decoyOperatorCredential)
-	ctx := forge.WithToken(context.Background(), "per-request-value")
-	got, err := f.tokenFor(ctx)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "per-request-value" {
-		t.Fatalf("got %q, want the per-request value", got)
-	}
-}
-
-func TestOperatorCredentialStandsInWhenTheFallbackIsAllowed(t *testing.T) {
-	// This is the stdio behaviour, and the loopback-listener behaviour. It is
-	// the control: if this fails, the change has broken the supported case
-	// rather than the attack.
-	t.Parallel()
-	f := policyFactory(false, decoyOperatorCredential)
-	got, err := f.tokenFor(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != decoyOperatorCredential {
-		t.Fatalf("got %q, want the operator value", got)
-	}
-}
-
-func TestAnonymousRequestIsRefusedWhenTheFallbackIsOff(t *testing.T) {
-	t.Parallel()
-	f := policyFactory(true, decoyOperatorCredential)
-	got, err := f.tokenFor(context.Background())
-	if !errors.Is(err, forge.ErrNoRequestToken) {
-		t.Fatalf("got (%q, %v), want ErrNoRequestToken", got, err)
-	}
-	if got != "" {
-		t.Fatalf("a refused request must yield no credential, got %q", got)
-	}
-}
-
-func TestEmptyRequestCredentialIsNotAnIdentity(t *testing.T) {
-	// An Authorization header present but empty must not be treated as an
-	// identity that then falls through to the operator's own value.
-	t.Parallel()
-	f := policyFactory(true, decoyOperatorCredential)
-	ctx := forge.WithToken(context.Background(), "")
-	if _, err := f.tokenFor(ctx); !errors.Is(err, forge.ErrNoRequestToken) {
-		t.Fatalf("empty per-request credential was accepted: %v", err)
-	}
-}
-
-func TestFactoryRefusesRatherThanReturningTheOperatorPort(t *testing.T) {
-	// The refusal lives at the single fallback site, For, so a caller cannot
-	// reach an adapter bound to the operator's credential around the policy.
-	// No server is involved: the refusal comes before any client is built.
-	t.Parallel()
-	f := policyFactory(true, decoyOperatorCredential)
+	f := NewFactory(config.Forgejo{Token: config.NewSecret(decoyOperatorCredential)}, "test")
 	port, err := f.For(context.Background())
 	if !errors.Is(err, forge.ErrNoRequestToken) {
-		t.Fatalf("For did not refuse: %v", err)
+		t.Fatalf("got (%v, %v), want ErrNoRequestToken", port, err)
 	}
 	if port != nil {
 		t.Fatal("a refused request must yield no port")
 	}
 }
 
-// A factory built with no policy is a stdio factory: the network transports
-// are the only ones that select the stricter policy. So the default must be
-// "fall back to the operator's credential".
-func TestOperatorFallbackIsAvailableUntilANetworkTransportSwitchesItOff(t *testing.T) {
+func TestEmptyRequestCredentialIsNotAnIdentity(t *testing.T) {
+	// A context carrying an empty request credential is no identity. The port
+	// never attaches one, and the factory must not serve it with the operator's.
 	t.Parallel()
 	f := NewFactory(config.Forgejo{Token: config.NewSecret(decoyOperatorCredential)}, "test")
-	if f.RequireRequestToken() {
-		t.Fatal("the policy requires a per-request token before any transport selected it")
+	if _, err := f.For(forge.WithToken(context.Background(), "")); !errors.Is(err, forge.ErrNoRequestToken) {
+		t.Fatalf("empty request credential was accepted: %v", err)
 	}
-	got, err := f.tokenFor(context.Background())
-	if err != nil || got != decoyOperatorCredential {
-		t.Fatalf("got (%q, %v), want the operator credential on the initial policy", got, err)
+}
+
+func TestMarkedRequestIsServedWhenTheOperatorCredentialIsEmpty(t *testing.T) {
+	// An anonymous instance served over stdio is configured with no operator
+	// credential. The mark is what lets that request through, and it must still
+	// be served rather than refused for want of a value.
+	t.Parallel()
+	srv := newStub(t)
+	f := NewFactory(config.Forgejo{URL: srv.URL}, "test")
+	port, err := f.For(forge.WithOperatorCredential(context.Background()))
+	if err != nil || port == nil {
+		t.Fatalf("marked request with no operator credential refused: port=%v err=%v", port, err)
+	}
+	if got := srv.credentials(); strings.Trim(got, "|") != "" {
+		t.Fatalf("anonymous request carried credential %q", got)
+	}
+}
+
+func TestMarkedRequestReusesTheSharedOperatorClient(t *testing.T) {
+	// Stdio serves every tool call through the operator's mark, so those calls
+	// must share one client as they did before the port took the policy.
+	t.Parallel()
+	srv := newStub(t)
+	f := NewFactory(config.Forgejo{URL: srv.URL, Token: config.NewSecret(decoyOperatorCredential)}, "test")
+	a, err := f.For(forge.WithOperatorCredential(context.Background()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := f.For(forge.WithOperatorCredential(context.Background()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.(*Adapter).client != b.(*Adapter).client {
+		t.Fatal("operator-marked requests built separate clients; want the shared one")
 	}
 }

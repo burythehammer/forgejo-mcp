@@ -130,7 +130,7 @@ func TestRawCallsFollowTheFactoryCredential(t *testing.T) {
 	f := NewFactory(cfg, "test")
 	for _, ctx := range []context.Context{
 		forge.WithToken(context.Background(), requestValue),
-		context.Background(),
+		forge.WithOperatorCredential(context.Background()),
 	} {
 		port, err := f.For(ctx)
 		if err != nil {

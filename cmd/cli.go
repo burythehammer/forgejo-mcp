@@ -292,8 +292,9 @@ func cliExec(s *server.MCPServer, toolName, argsJSON, outputMode string) error {
 		},
 	}
 
-	// Call the handler.
-	result, err := st.Handler(context.Background(), req)
+	// Call the handler. The CLI runs in-process for the operator, like stdio, so
+	// the request is marked for the operator's own credential.
+	result, err := st.Handler(forge.WithOperatorCredential(context.Background()), req)
 	if err != nil {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}

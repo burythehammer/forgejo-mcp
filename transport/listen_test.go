@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package operation
+package transport
 
 import (
 	"context"
@@ -31,6 +31,36 @@ func defaultListenConfig() config.Config {
 		Transport: "http",
 		Listen:    config.Listen{Host: "localhost"},
 	}
+}
+
+// bareRequest builds a request carrying no Authorization header: the input the
+// credential policy is asked about.
+func bareRequest(t *testing.T) *http.Request {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, "http://example.invalid/mcp", nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	return req
+}
+
+// forRequest runs req through the credential policy and then the factory, the
+// way the MCP handler does, and returns the factory's answer.
+func forRequest(cfg config.Config, req *http.Request) error {
+	_, err := newFactory(cfg, "test").For(withRequestToken(cfg, req.Context(), req))
+	return err
+}
+
+// forgejoStub is a Forgejo instance that answers every request with a version,
+// enough for the factory to build an operator client against it.
+func forgejoStub(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"version":"1.21.0"}`)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
 }
 
 func mustListenLoopback(t *testing.T) net.Listener {
@@ -151,7 +181,7 @@ func startGuarded(t *testing.T, tr transportCase, app config.Config) string {
 // defect they exist to detect.
 func startGuardedWith(t *testing.T, tr transportCase, app config.Config, tweak func(*http.Server)) string {
 	t.Helper()
-	// The handler comes first, as in Run: a resource-server row switches the
+	// The handler comes first, as in Serve: a resource-server row switches the
 	// mode on while it is built, and the listener must see that mode.
 	app.Transport = tr.transport
 	handler, app := tr.handler(t, app)
@@ -418,8 +448,16 @@ func TestOperatorFallbackOptInReAdmitsAnonymousRequests(t *testing.T) {
 			if got := get(t, addr, tr.path, "Host: "+addr); strings.Contains(got, "401") {
 				t.Fatalf("the opt-in did not re-admit anonymous requests: %q", got)
 			}
-			if newFactory(app, "test").RequireRequestToken() {
-				t.Fatal("the opt-in did not reach the credential policy")
+			// The port is where the opt-in takes effect: an anonymous request is
+			// marked for the operator's credential. The factory must then serve
+			// it from the operator client, with no request token.
+			bare := bareRequest(t)
+			if !forge.UsesOperatorCredential(withRequestToken(app, bare.Context(), bare)) {
+				t.Fatal("the opt-in did not reach the credential fallback")
+			}
+			app.Forgejo.URL = forgejoStub(t)
+			if err := forRequest(app, bareRequest(t)); err != nil {
+				t.Fatalf("the factory refused an anonymous request the opt-in admits: %v", err)
 			}
 		})
 	}
@@ -487,8 +525,15 @@ func TestDefaultReverseProxyDoesNotReAdmitTheOperatorCredential(t *testing.T) {
 			if resp.StatusCode != http.StatusUnauthorized {
 				t.Fatalf("an anonymous request through a default-configured reverse proxy got %d, want 401", resp.StatusCode)
 			}
-			if newFactory(app, "test").RequireRequestToken() != true {
+			// The port must not mark an anonymous request for the operator's
+			// credential on a default network transport, and the factory must
+			// therefore refuse it rather than serve it from the operator client.
+			bare := bareRequest(t)
+			if forge.UsesOperatorCredential(withRequestToken(app, bare.Context(), bare)) {
 				t.Fatal("the credential fallback was live on a network transport")
+			}
+			if err := forRequest(app, bareRequest(t)); !errors.Is(err, forge.ErrNoRequestToken) {
+				t.Fatalf("the factory did not refuse an anonymous request on a network transport: %v", err)
 			}
 		})
 	}
@@ -756,10 +801,11 @@ func TestNoTransportCallsTheLibrarysOwnStart(t *testing.T) {
 	// A transport that binds its own listener misses the bind address, the
 	// header checks and the credential policy at once, and nothing else in this
 	// suite would notice. Assert on the source.
-	src := mustReadSource(t, "operation.go")
-	for _, forbidden := range []string{"sseServer.Start(", "httpServer.Start("} {
-		if strings.Contains(src, forbidden) {
-			t.Errorf("operation.go still calls %s — every transport must go through serveMCPOverHTTP", forbidden)
+	// Every non-test file is scanned, not only serve.go: a transport that calls
+	// Start on a library server from listen.go or elsewhere is the same bypass.
+	for name, src := range mustReadPackageSources(t) {
+		if strings.Contains(src, ".Start(") {
+			t.Errorf("%s calls a .Start( method — every transport must go through serveMCPOverHTTP", name)
 		}
 	}
 }
@@ -768,7 +814,11 @@ func TestEveryNetworkTransportIsCovered(t *testing.T) {
 	// The table above is what makes every conformance case run against both
 	// transports. A contributor who adds a third — or quietly deletes a row —
 	// would otherwise reduce coverage with nothing turning red.
-	src := mustReadSource(t, "operation.go")
+	var all strings.Builder
+	for _, s := range mustReadPackageSources(t) {
+		all.WriteString(s)
+	}
+	src := all.String()
 	covered := map[string]bool{}
 	resourceServerCovered := false
 	for _, tr := range transports() {
@@ -779,11 +829,11 @@ func TestEveryNetworkTransportIsCovered(t *testing.T) {
 	// authentication, so it needs a row of its own for the cases to see that
 	// wrapper at all.
 	if strings.Contains(src, "ResourceServerMode()") && !resourceServerCovered {
-		t.Error("operation.go implements resource-server mode but no conformance row runs in it")
+		t.Error("the transport package implements resource-server mode but no conformance row runs in it")
 	}
 	for _, name := range []string{"stdio", "sse", "http"} {
 		if !strings.Contains(src, fmt.Sprintf("case %q:", name)) {
-			t.Errorf("operation.go no longer implements the %q transport — update this test", name)
+			t.Errorf("the transport package no longer implements the %q transport — update this test", name)
 		}
 	}
 	for _, line := range strings.Split(src, "\n") {
@@ -795,7 +845,7 @@ func TestEveryNetworkTransportIsCovered(t *testing.T) {
 		if name == "stdio" || covered[name] {
 			continue
 		}
-		t.Errorf("transport %q is implemented in operation.go but not covered by the conformance table", name)
+		t.Errorf("transport %q is implemented in serve.go but not covered by the conformance table", name)
 	}
 }
 

@@ -49,19 +49,18 @@ func (s *stub) credentials() string {
 	return strings.Join(s.auth, "|")
 }
 
-func TestFactoryAppliesCredentialPolicy(t *testing.T) {
+func TestFactoryServesTheCredentialItIsGiven(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
-		require    bool // network transport without operator opt-in
-		token      string
+		token      string // a request credential, as the port attaches it
+		operator   bool   // the port's mark for the operator's credential
 		wantErr    error
 		wantSecret string // credential that must reach Forgejo; "" when refused
 	}{
-		{"request token on stdio", false, requestValue, nil, requestValue},
-		{"request token on network", true, requestValue, nil, requestValue},
-		{"stdio falls back to operator", false, "", nil, operatorValue},
-		{"network refuses without token", true, "", forge.ErrNoRequestToken, ""},
+		{"request credential is used", requestValue, false, nil, requestValue},
+		{"operator mark is served with the operator's credential", "", true, nil, operatorValue},
+		{"unmarked request with no credential is refused", "", false, forge.ErrNoRequestToken, ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,7 +72,10 @@ func TestFactoryAppliesCredentialPolicy(t *testing.T) {
 			if tc.token != "" {
 				ctx = forge.WithToken(ctx, tc.token)
 			}
-			port, err := NewFactory(cfg, "test", WithRequireRequestToken(tc.require)).For(ctx)
+			if tc.operator {
+				ctx = forge.WithOperatorCredential(ctx)
+			}
+			port, err := NewFactory(cfg, "test").For(ctx)
 
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
@@ -106,7 +108,7 @@ func TestRequestTokenIsForThatRequestOnly(t *testing.T) {
 	if _, err := f.For(forge.WithToken(context.Background(), requestValue)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.For(context.Background()); err != nil {
+	if _, err := f.For(forge.WithOperatorCredential(context.Background())); err != nil {
 		t.Fatal(err)
 	}
 	creds := srv.credentials()
