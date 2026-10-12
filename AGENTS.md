@@ -8,6 +8,7 @@ Default branch is `main`. `upstream` (b4mad) is a separate project; how its work
 
 ```bash
 make build          # Build the binary (outputs ./forgejo-mcp)
+make check          # Build, vet, test and run the code-level scripts/ci checks; run before reporting done
 make vendor         # Tidy and verify Go module dependencies
 ```
 
@@ -77,6 +78,10 @@ Some features are blocked on upstream API/SDK support. See `docs/plans/` for:
 ## Releasing
 
 The release process in this repo is inherited from upstream and unverified for this fork. Do not cut a release unless asked; see [docs/legacy/upstream-release.md](docs/legacy/upstream-release.md).
+
+## Subagents
+
+Implementing in a worktree, merging subagent branches, or briefing either: [docs/agents/subagent-work.md](docs/agents/subagent-work.md).
 
 ## Agent skills
 

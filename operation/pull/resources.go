@@ -230,10 +230,10 @@ func (h handlers) prResourceHandler(ctx context.Context, req mcp.ReadResourceReq
 		ReviewsTruncated:  read.ReviewsTruncated,
 	}
 	if read.CommentsTruncated {
-		payload.CommentsListTool = "list_issue_comments"
+		payload.CommentsListTool = resource.ToolRef("list_issue_comments")
 	}
 	if read.ReviewsTruncated {
-		payload.ReviewsListTool = "list_pull_reviews"
+		payload.ReviewsListTool = resource.ToolRef("list_pull_reviews")
 	}
 
 	jsonBytes, err := json.Marshal(payload)
