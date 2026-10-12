@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package operation
+package transport
 
 import (
 	"context"
@@ -31,7 +31,7 @@ func (rs *resourceServer) handler(mcp http.Handler) (http.Handler, error) {
 }
 
 // handlerWithRefusals is handler with the refusal-log budget for the protected
-// route's debug lines supplied by the caller. Run passes the listener's own
+// route's debug lines supplied by the caller. Serve passes the listener's own
 // budget, so the route's lines and the door's Host and Origin lines draw on one
 // bound per listener.
 //

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package operation
+package transport
 
 import (
 	"context"
@@ -151,7 +151,7 @@ func startGuarded(t *testing.T, tr transportCase, app config.Config) string {
 // defect they exist to detect.
 func startGuardedWith(t *testing.T, tr transportCase, app config.Config, tweak func(*http.Server)) string {
 	t.Helper()
-	// The handler comes first, as in Run: a resource-server row switches the
+	// The handler comes first, as in Serve: a resource-server row switches the
 	// mode on while it is built, and the listener must see that mode.
 	app.Transport = tr.transport
 	handler, app := tr.handler(t, app)
@@ -768,10 +768,10 @@ func TestNoTransportCallsTheLibrarysOwnStart(t *testing.T) {
 	// A transport that binds its own listener misses the bind address, the
 	// header checks and the credential policy at once, and nothing else in this
 	// suite would notice. Assert on the source.
-	src := mustReadSource(t, "operation.go")
+	src := mustReadSource(t, "serve.go")
 	for _, forbidden := range []string{"sseServer.Start(", "httpServer.Start("} {
 		if strings.Contains(src, forbidden) {
-			t.Errorf("operation.go still calls %s — every transport must go through serveMCPOverHTTP", forbidden)
+			t.Errorf("serve.go still calls %s — every transport must go through serveMCPOverHTTP", forbidden)
 		}
 	}
 }
@@ -780,7 +780,7 @@ func TestEveryNetworkTransportIsCovered(t *testing.T) {
 	// The table above is what makes every conformance case run against both
 	// transports. A contributor who adds a third — or quietly deletes a row —
 	// would otherwise reduce coverage with nothing turning red.
-	src := mustReadSource(t, "operation.go")
+	src := mustReadSource(t, "serve.go")
 	covered := map[string]bool{}
 	resourceServerCovered := false
 	for _, tr := range transports() {
@@ -791,11 +791,11 @@ func TestEveryNetworkTransportIsCovered(t *testing.T) {
 	// authentication, so it needs a row of its own for the cases to see that
 	// wrapper at all.
 	if strings.Contains(src, "ResourceServerMode()") && !resourceServerCovered {
-		t.Error("operation.go implements resource-server mode but no conformance row runs in it")
+		t.Error("serve.go implements resource-server mode but no conformance row runs in it")
 	}
 	for _, name := range []string{"stdio", "sse", "http"} {
 		if !strings.Contains(src, fmt.Sprintf("case %q:", name)) {
-			t.Errorf("operation.go no longer implements the %q transport — update this test", name)
+			t.Errorf("serve.go no longer implements the %q transport — update this test", name)
 		}
 	}
 	for _, line := range strings.Split(src, "\n") {
@@ -807,7 +807,7 @@ func TestEveryNetworkTransportIsCovered(t *testing.T) {
 		if name == "stdio" || covered[name] {
 			continue
 		}
-		t.Errorf("transport %q is implemented in operation.go but not covered by the conformance table", name)
+		t.Errorf("transport %q is implemented in serve.go but not covered by the conformance table", name)
 	}
 }
 

@@ -13,7 +13,7 @@ import (
 )
 
 // The fallback policy is the authentication port's and is pinned in
-// operation/authport_test.go. These tests pin the factory's half: it serves the
+// transport/authport_test.go. These tests pin the factory's half: it serves the
 // credential a request is given and refuses everything else.
 
 // The decoy below is never a real credential and never reaches a network: these

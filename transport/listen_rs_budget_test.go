@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package operation
+package transport
 
 import (
 	"net/http"
@@ -14,7 +14,7 @@ const rsRefusalMessage = "Refused a request to the MCP endpoint"
 // TestResourceServerRefusalsShareTheListenersBudget pins that, in
 // resource-server mode, the protected route's refusal lines and the door's
 // Host lines draw on the listener's one budget. The handler is built and served
-// the way Run builds it. A flood of refused tokens that spends the burst must
+// the way Serve builds it. A flood of refused tokens that spends the burst must
 // also silence the door's next refusal line.
 func TestResourceServerRefusalsShareTheListenersBudget(t *testing.T) {
 	rs, _ := portResourceServer(t)
