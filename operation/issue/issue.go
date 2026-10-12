@@ -491,7 +491,7 @@ func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolReque
 		return mcpresult.Render(s.Comments(ctx, apppissue.CommentsInput{
 			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
 			Since:  a.Since, Before: a.Before,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 20)},
+			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
 		}))
 	})
 }
@@ -519,7 +519,7 @@ func (h handlers) ListRepoMilestonesFn(ctx context.Context, req mcp.CallToolRequ
 	return run(ctx, h, req, "ListRepoMilestonesFn", func(ctx context.Context, s *apppissue.Service, a milestonesArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.Milestones(ctx, a.Owner, a.Repo, apppissue.MilestoneList{
 			State:  a.State,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 100)},
+			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
 		}))
 	})
 }
@@ -532,7 +532,7 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		}
 		list, err := s.ReadRepoLabels(ctx, apppissue.RepoLabelsInput{
 			Owner: a.Owner, Repo: a.Repo, IncludeOrg: includeOrg,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 100)},
+			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
 		})
 		if err != nil {
 			return nil, mapErr(repoLabelsURI(a.Owner, a.Repo), err)
@@ -543,7 +543,7 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgLabelsFn", func(ctx context.Context, s *apppissue.Service, a orgLabelsArgs) (*mcp.CallToolResult, error) {
-		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 100)})
+		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)})
 		if err != nil {
 			return nil, mapErr(orgLabelsURI(a.Org), err)
 		}

@@ -142,7 +142,9 @@ func (h handlers) repoLabelsResourceHandler(ctx context.Context, req mcp.ReadRes
 	// server, never from a limit+1 probe: see the paging note on
 	// app/issue.ReadRepoLabels. The organization's labels are not part of
 	// this resource; list_repo_labels merges them by default.
-	list, err := apppissue.New(issueadapter.New(fg)).ReadRepoLabels(ctx, apppissue.RepoLabelsInput{
+	ad := issueadapter.New(fg)
+	limit = clampToCeiling(ctx, ad, limit)
+	list, err := apppissue.New(ad).ReadRepoLabels(ctx, apppissue.RepoLabelsInput{
 		Owner: p.Owner, Repo: p.Repo, Paging: apppissue.Paging{Page: page, Limit: limit},
 	})
 	if err != nil {
@@ -203,7 +205,9 @@ func (h handlers) orgLabelsResourceHandler(ctx context.Context, req mcp.ReadReso
 	if err != nil {
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
-	list, err := apppissue.New(issueadapter.New(fg)).ReadOrgLabels(ctx, p.Org, apppissue.Paging{Page: page, Limit: limit})
+	ad := issueadapter.New(fg)
+	limit = clampToCeiling(ctx, ad, limit)
+	list, err := apppissue.New(ad).ReadOrgLabels(ctx, p.Org, apppissue.Paging{Page: page, Limit: limit})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
@@ -254,6 +258,17 @@ func knownTotal(t apppissue.Total) int {
 		return 0
 	}
 	return t.Count
+}
+
+// clampToCeiling lowers a resource's limit to the instance ceiling when one is
+// known. A resource embeds a page rather than refusing a limit, so it serves
+// what the instance allows, as it did before the list tools applied the
+// ceiling.
+func clampToCeiling(ctx context.Context, src apppissue.Port, limit int) int {
+	if max, ok := src.MaxResponseItems(ctx); ok && max >= 1 && limit > max {
+		return max
+	}
+	return limit
 }
 
 // pageLimit extracts page and limit from resource URI query params with
