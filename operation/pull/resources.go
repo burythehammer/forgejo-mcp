@@ -7,14 +7,33 @@ import (
 	"encoding/json"
 	"fmt"
 
+	apppull "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/pull"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/pulladapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+// resourceTimeFormat is the timestamp layout of the pull-request resource.
+const resourceTimeFormat = "2006-01-02T15:04:05Z07:00"
+
+// pullResourceURI is the forgejo:// URI of a pull request. The tool path names
+// it as the subject of the resource error mapping that both paths share until #11.
+func pullResourceURI(owner, repo string, index int64) string {
+	return fmt.Sprintf("forgejo://repo/%s/%s/pr/%d", owner, repo, index)
+}
+
+// mapErr maps a port failure to the resource error, carrying the HTTP status
+// into the message when Forgejo answered with one.
+func mapErr(uri string, err error) error {
+	if code := forge.StatusCode(err); code != 0 {
+		return resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
+	}
+	return resource.MapForgejoError(uri, err)
+}
 
 // RegisterPullResources registers the forgejo://repo/{owner}/{repo}/pr/{index} resource template.
 func RegisterPullResources(s *server.MCPServer, f forge.Factory) {
@@ -99,72 +118,49 @@ func (h handlers) prResourceHandler(ctx context.Context, req mcp.ReadResourceReq
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	pr, err := port.GetPullRequest(ctx, params.Owner, params.Repo, params.Index)
+	// The read use case fetches the pull request with its first EmbeddedListCap
+	// comments and reviews, and one more of each so that a list over the cap is visible.
+	read, err := apppull.New(pulladapter.New(port)).Read(ctx,
+		apppull.PR{Owner: params.Owner, Repo: params.Repo, Index: params.Index},
+		apppull.ReadOptions{CommentCap: resource.EmbeddedListCap, ReviewCap: resource.EmbeddedListCap},
+	)
 	if err != nil {
-		if code := forge.StatusCode(err); code != 0 {
-			return nil, resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
-		}
-		return nil, resource.MapForgejoError(uri, err)
+		return nil, mapErr(uri, err)
 	}
+	pr := read.PR
 
-	// fetch comments (PR comments live on the issue-comments endpoint)
-	comments, _ := port.ListPullRequestComments(ctx, params.Owner, params.Repo, params.Index,
-		forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1})
-
-	// fetch reviews
-	reviews, _ := port.ListPullReviews(ctx, params.Owner, params.Repo, params.Index, forgejo_sdk.ListPullReviewsOptions{
-		ListOptions: forgejo_sdk.ListOptions{PageSize: resource.EmbeddedListCap + 1},
-	})
-
-	// bound comments
-	commentItems := make([]string, len(comments))
-	commentRefs := make([]prCommentRef, len(comments))
-	for i, c := range comments {
+	// Comment and review bodies are excerpted here.
+	commentRefs := make([]prCommentRef, len(read.Comments))
+	for i, c := range read.Comments {
 		author := ""
 		if c.Poster != nil {
 			author = c.Poster.UserName
 		}
-		excerpt := resource.Excerpt(c.Body, 200)
 		commentRefs[i] = prCommentRef{
 			ID:          c.ID,
 			Author:      author,
-			CreatedAt:   c.Created.Format("2006-01-02T15:04:05Z07:00"),
-			BodyExcerpt: excerpt,
+			CreatedAt:   c.Created.Format(resourceTimeFormat),
+			BodyExcerpt: resource.Excerpt(c.Body, 200),
 		}
-		commentItems[i] = fmt.Sprintf("%d", c.ID)
-	}
-	boundedComments := resource.Bounded(commentItems, resource.EmbeddedListCap, "list_issue_comments")
-	boundedCommentRefs := commentRefs
-	if boundedComments.Truncated {
-		boundedCommentRefs = commentRefs[:resource.EmbeddedListCap]
 	}
 
-	// bound reviews
-	reviewItems := make([]string, len(reviews))
-	reviewRefs := make([]prReviewRef, len(reviews))
-	for i, r := range reviews {
+	reviewRefs := make([]prReviewRef, len(read.Reviews))
+	for i, r := range read.Reviews {
 		reviewer := ""
 		if r.Reviewer != nil {
 			reviewer = r.Reviewer.UserName
 		}
-		excerpt := resource.Excerpt(r.Body, 200)
 		reviewRefs[i] = prReviewRef{
 			ID:          r.ID,
 			Reviewer:    reviewer,
-			State:       string(r.State),
-			SubmittedAt: r.Submitted.Format("2006-01-02T15:04:05Z07:00"),
-			BodyExcerpt: excerpt,
+			State:       r.State,
+			SubmittedAt: r.Submitted.Format(resourceTimeFormat),
+			BodyExcerpt: resource.Excerpt(r.Body, 200),
 		}
-		reviewItems[i] = fmt.Sprintf("%d", r.ID)
-	}
-	boundedReviews := resource.Bounded(reviewItems, resource.EmbeddedListCap, "list_pull_reviews")
-	boundedReviewRefs := reviewRefs
-	if boundedReviews.Truncated {
-		boundedReviewRefs = reviewRefs[:resource.EmbeddedListCap]
 	}
 
 	// compute state string
-	state := string(pr.State)
+	state := pr.State
 	if pr.HasMerged {
 		state = "merged"
 	}
@@ -189,16 +185,16 @@ func (h handlers) prResourceHandler(ctx context.Context, req mcp.ReadResourceReq
 
 	createdAt, updatedAt, closedAt, mergedAt := "", "", "", ""
 	if pr.Created != nil {
-		createdAt = pr.Created.Format("2006-01-02T15:04:05Z07:00")
+		createdAt = pr.Created.Format(resourceTimeFormat)
 	}
 	if pr.Updated != nil {
-		updatedAt = pr.Updated.Format("2006-01-02T15:04:05Z07:00")
+		updatedAt = pr.Updated.Format(resourceTimeFormat)
 	}
 	if pr.Closed != nil {
-		closedAt = pr.Closed.Format("2006-01-02T15:04:05Z07:00")
+		closedAt = pr.Closed.Format(resourceTimeFormat)
 	}
 	if pr.Merged != nil {
-		mergedAt = pr.Merged.Format("2006-01-02T15:04:05Z07:00")
+		mergedAt = pr.Merged.Format(resourceTimeFormat)
 	}
 
 	headRef, baseRef := prBranchRef{}, prBranchRef{}
@@ -227,16 +223,16 @@ func (h handlers) prResourceHandler(ctx context.Context, req mcp.ReadResourceReq
 		Head:              headRef,
 		Base:              baseRef,
 		CommentCount:      pr.Comments,
-		ReviewCount:       len(reviews),
-		RecentComments:    boundedCommentRefs,
-		CommentsTruncated: boundedComments.Truncated,
-		RecentReviews:     boundedReviewRefs,
-		ReviewsTruncated:  boundedReviews.Truncated,
+		ReviewCount:       len(reviewRefs),
+		RecentComments:    commentRefs,
+		CommentsTruncated: read.CommentsTruncated,
+		RecentReviews:     reviewRefs,
+		ReviewsTruncated:  read.ReviewsTruncated,
 	}
-	if boundedComments.Truncated {
+	if read.CommentsTruncated {
 		payload.CommentsListTool = "list_issue_comments"
 	}
-	if boundedReviews.Truncated {
+	if read.ReviewsTruncated {
 		payload.ReviewsListTool = "list_pull_reviews"
 	}
 

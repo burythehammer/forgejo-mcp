@@ -26,6 +26,7 @@ type Port interface {
 	GetPullRequestDiff(ctx context.Context, owner, repo string, index int64) (string, error)
 	ListPullRequestFiles(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.ChangedFile, error)
 
+	ListPullRequestComments(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.Comment, error)
 	ListPullReviews(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.PullReview, error)
 	GetPullReview(ctx context.Context, owner, repo string, index, id int64) (*model.PullReview, error)
 	ListPullReviewComments(ctx context.Context, owner, repo string, index, id int64) ([]*model.PullReviewComment, error)

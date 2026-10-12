@@ -157,7 +157,12 @@ func message(text string, err error) (*mcp.CallToolResult, error) {
 
 func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetPullRequestByIndexFn", func(ctx context.Context, s *apppull.Service, a getArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Get(ctx, apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}))
+		in := apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}
+		read, err := s.Read(ctx, in, apppull.ReadOptions{})
+		if err != nil {
+			return nil, mapErr(pullResourceURI(a.Owner, a.Repo, in.Index), err)
+		}
+		return mcpresult.Render(read.PR, nil)
 	})
 }
 
