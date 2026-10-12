@@ -21,7 +21,7 @@ import (
 
 // VerboseDescription is the description of the optional `verbose` argument that
 // the write tools declare.
-const VerboseDescription = "Return the full entity instead of the compact summary (number, url, title, state, labels, assignees, updated_at). Default false."
+const VerboseDescription = "Return the full entity instead of the compact summary. Default false."
 
 // Issue is the compact result of an issue write.
 type Issue struct {
@@ -40,6 +40,14 @@ type PullRequest struct {
 	Issue
 	Head string `json:"head"`
 	Base string `json:"base"`
+}
+
+// Comment is the compact result of a comment write: the comment's ID, its URL
+// and when it was last updated. The body just sent is not echoed back.
+type Comment struct {
+	ID      int64     `json:"id"`
+	URL     string    `json:"url"`
+	Updated time.Time `json:"updated_at"`
 }
 
 // OfIssue returns the compact shape of an issue.
@@ -66,29 +74,21 @@ func OfIssue(iss *model.Issue) Issue {
 	return out
 }
 
-// OfPullRequest returns the compact shape of a pull request.
+// OfPullRequest returns the compact shape of a pull request: the issue shape
+// built by OfIssue, plus the head and base branch names.
 func OfPullRequest(pr *model.PullRequest) PullRequest {
-	out := PullRequest{Issue: Issue{
-		Number:    pr.Index,
-		URL:       pr.HTMLURL,
+	iss := &model.Issue{
+		Index:     pr.Index,
+		HTMLURL:   pr.HTMLURL,
 		Title:     pr.Title,
 		State:     pr.State,
-		Labels:    []string{},
-		Assignees: []string{},
-	}}
+		Labels:    pr.Labels,
+		Assignees: pr.Assignees,
+	}
 	if pr.Updated != nil {
-		out.Updated = *pr.Updated
+		iss.Updated = *pr.Updated
 	}
-	for _, l := range pr.Labels {
-		if l != nil {
-			out.Labels = append(out.Labels, l.Name)
-		}
-	}
-	for _, a := range pr.Assignees {
-		if a != nil {
-			out.Assignees = append(out.Assignees, a.UserName)
-		}
-	}
+	out := PullRequest{Issue: OfIssue(iss)}
 	if pr.Head != nil {
 		out.Head = pr.Head.Name
 	}
@@ -98,50 +98,32 @@ func OfPullRequest(pr *model.PullRequest) PullRequest {
 	return out
 }
 
-// RenderIssue sends the result of an issue write: the use case's error, the
-// full issue when verbose, or its compact shape.
-func RenderIssue(iss *model.Issue, err error, verbose bool) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return mcpresult.Fail(err)
-	}
-	if verbose {
-		return mcpresult.Render(iss, nil)
-	}
-	return mcpresult.Render(OfIssue(iss), nil)
-}
-
-// RenderPullRequest is RenderIssue for a pull request write.
-func RenderPullRequest(pr *model.PullRequest, err error, verbose bool) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return mcpresult.Fail(err)
-	}
-	if verbose {
-		return mcpresult.Render(pr, nil)
-	}
-	return mcpresult.Render(OfPullRequest(pr), nil)
-}
-
-// Comment is the compact result of a comment write: the comment's ID, its URL
-// and when it was last updated. The body just sent is not echoed back.
-type Comment struct {
-	ID      int64     `json:"id"`
-	URL     string    `json:"url"`
-	Updated time.Time `json:"updated_at"`
-}
-
 // OfComment returns the compact shape of a comment.
 func OfComment(c *model.Comment) Comment {
 	return Comment{ID: c.ID, URL: c.HTMLURL, Updated: c.Updated}
 }
 
-// RenderComment sends the result of a comment write: the use case's error, the
-// full comment when verbose, or its compact shape.
+// render sends a write's result: the use case's error, the full entity when
+// verbose, or its compact shape. An error is never summarized, so summarize
+// only ever sees a non-nil entity.
+func render[M any, C any](m *M, err error, verbose bool, summarize func(*M) C) (*mcp.CallToolResult, error) {
+	if err != nil || verbose {
+		return mcpresult.Render(m, err)
+	}
+	return mcpresult.Render(summarize(m), nil)
+}
+
+// RenderIssue sends the result of an issue write.
+func RenderIssue(iss *model.Issue, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(iss, err, verbose, OfIssue)
+}
+
+// RenderPullRequest sends the result of a pull request write.
+func RenderPullRequest(pr *model.PullRequest, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(pr, err, verbose, OfPullRequest)
+}
+
+// RenderComment sends the result of a comment write.
 func RenderComment(c *model.Comment, err error, verbose bool) (*mcp.CallToolResult, error) {
-	if err != nil {
-		return mcpresult.Fail(err)
-	}
-	if verbose {
-		return mcpresult.Render(c, nil)
-	}
-	return mcpresult.Render(OfComment(c), nil)
+	return render(c, err, verbose, OfComment)
 }

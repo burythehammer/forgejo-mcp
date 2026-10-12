@@ -183,3 +183,13 @@ type testError string
 func (e testError) Error() string { return string(e) }
 
 const errTest = testError("boom")
+
+// The verbose description is shared by issue, pull request and comment writes,
+// so it must not name the fields of one entity kind.
+func TestVerboseDescription_IsGeneric(t *testing.T) {
+	t.Parallel()
+	const want = "Return the full entity instead of the compact summary. Default false."
+	if VerboseDescription != want {
+		t.Fatalf("VerboseDescription = %q, want %q", VerboseDescription, want)
+	}
+}
