@@ -128,9 +128,15 @@ func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, 
 	}
 	h := hooks[i]
 	if opt.Config != nil {
+		// The branch filter is not part of the config in Forgejo, so replacing
+		// the config keeps the stored filter unless the new config names one.
+		filter, hasFilter := h.Config["branch_filter"]
 		h.Config = map[string]string{}
 		for k, v := range opt.Config {
 			h.Config[k] = v
+		}
+		if _, ok := opt.Config["branch_filter"]; !ok && hasFilter {
+			h.Config["branch_filter"] = filter
 		}
 	}
 	if opt.Events != nil {

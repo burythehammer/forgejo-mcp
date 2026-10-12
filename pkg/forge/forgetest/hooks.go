@@ -129,6 +129,28 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 				t.Fatalf("clearing the branch filter changed other fields: %+v", got)
 			}
 		}},
+		{"a read shows the branch filter", func(t *testing.T, h Harness) {
+			created := newHookWithFilter(t, h, "https://example.test/a", "main")
+			if got := readHook(t, h, created.ID); got.Config["branch_filter"] != "main" {
+				t.Fatalf("get: branch filter = %q, want main", got.Config["branch_filter"])
+			}
+			h.Seed.AddRepo(Owner, Repo)
+			listed, err := h.Port.ListRepoHooks(ctx, Owner, Repo, forgejo_sdk.ListHooksOptions{})
+			must(t, err)
+			if len(listed.Hooks) != 1 || listed.Hooks[0].Config["branch_filter"] != "main" {
+				t.Fatalf("list: %+v, want the branch filter main", listed.Hooks)
+			}
+		}},
+		{"an edit that sets only the config keeps the branch filter", func(t *testing.T, h Harness) {
+			created := newHookWithFilter(t, h, "https://example.test/a", "main")
+			must(t, h.Port.EditRepoHook(ctx, Owner, Repo, created.ID, forge.HookEdit{
+				Config: map[string]string{"url": "https://example.test/b", "content_type": "json"},
+			}))
+			got := readHook(t, h, created.ID)
+			if got.Config["url"] != "https://example.test/b" || got.Config["branch_filter"] != "main" {
+				t.Fatalf("after url-only edit: %+v, want the branch filter main kept", got)
+			}
+		}},
 		{"a deleted hook is gone", func(t *testing.T, h Harness) {
 			created := newHook(t, h, "https://example.test/a")
 			must(t, h.Port.DeleteRepoHook(ctx, Owner, Repo, created.ID))
