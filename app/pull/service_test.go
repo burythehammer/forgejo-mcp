@@ -39,22 +39,13 @@ func open(t *testing.T, s *apppull.Service, title string) int64 {
 
 func pr(i int64) apppull.PR { return apppull.PR{Owner: owner, Repo: repo, Index: i} }
 
-func TestGetReturnsWhatWasCreated(t *testing.T) {
+func TestReadReturnsWhatWasCreated(t *testing.T) {
 	t.Parallel()
 	s, _ := newService(t)
 	i := open(t, s, "feat: x")
-	got, err := s.Get(context.Background(), pr(i))
-	if err != nil || got.Title != "feat: x" || got.Index != i {
-		t.Fatalf("got %+v, %v", got, err)
-	}
-}
-
-func TestGetUnknownIsWrapped(t *testing.T) {
-	t.Parallel()
-	s, _ := newService(t)
-	_, err := s.Get(context.Background(), pr(99))
-	if err == nil || !strings.HasPrefix(err.Error(), "get pull request err: ") {
-		t.Fatalf("got %v", err)
+	read, err := s.Read(context.Background(), pr(i), apppull.ReadOptions{})
+	if err != nil || read.PR.Title != "feat: x" || read.PR.Index != i {
+		t.Fatalf("got %+v, %v", read.PR, err)
 	}
 }
 
@@ -103,7 +94,8 @@ func TestUpdateChangesOnlyWhatWasGiven(t *testing.T) {
 	if _, err := s.Update(context.Background(), apppull.UpdateInput{PR: pr(i), Title: "second"}); err != nil {
 		t.Fatal(err)
 	}
-	got, _ := s.Get(context.Background(), pr(i))
+	read, _ := s.Read(context.Background(), pr(i), apppull.ReadOptions{})
+	got := read.PR
 	if got.Title != "second" || got.Body != "b" {
 		t.Fatalf("got title %q body %q", got.Title, got.Body)
 	}

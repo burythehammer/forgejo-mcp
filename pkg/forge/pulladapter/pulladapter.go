@@ -84,6 +84,11 @@ func (a adapter) ListPullRequestFiles(ctx context.Context, owner, repo string, i
 	return bridge.Convert[[]*model.ChangedFile](files, err)
 }
 
+func (a adapter) ListPullRequestComments(ctx context.Context, owner, repo string, index int64, p apppull.Paging) ([]*model.Comment, error) {
+	comments, err := a.p.ListPullRequestComments(ctx, owner, repo, index, listOptions(p))
+	return bridge.Convert[[]*model.Comment](comments, err)
+}
+
 func (a adapter) ListPullReviews(ctx context.Context, owner, repo string, index int64, p apppull.Paging) ([]*model.PullReview, error) {
 	reviews, err := a.p.ListPullReviews(ctx, owner, repo, index, forgejo_sdk.ListPullReviewsOptions{ListOptions: listOptions(p)})
 	return bridge.Convert[[]*model.PullReview](reviews, err)

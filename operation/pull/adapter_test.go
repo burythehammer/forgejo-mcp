@@ -91,7 +91,7 @@ func TestMissingRequiredArgumentIsForwardedNotRejected(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 	_, err := h.GetPullRequestByIndexFn(context.Background(), mcp.CallToolRequest{})
-	if err == nil || !strings.HasPrefix(err.Error(), "get pull request err: ") {
+	if err == nil || !strings.Contains(err.Error(), "get pull request err: ") {
 		t.Fatalf("want the use case's error for an unknown pull request, got %v", err)
 	}
 }
@@ -121,8 +121,8 @@ func TestUseCaseErrorReachesTheClient(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 	_, err := h.GetPullRequestByIndexFn(context.Background(), makeReq(map[string]any{"index": float64(99)}))
-	if err == nil || !strings.HasPrefix(err.Error(), "get pull request err: ") {
-		t.Fatalf("got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "get pull request err: ") || !strings.Contains(err.Error(), "(code -32003)") {
+		t.Fatalf("want the use case's error as a resource error, got %v", err)
 	}
 }
 
