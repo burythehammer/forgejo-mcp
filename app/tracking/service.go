@@ -62,30 +62,19 @@ func (s *Service) IssueTimes(ctx context.Context, in IssueTimesInput) ([]*model.
 	if err != nil {
 		return nil, err
 	}
-	return window(ctx, p, list.Paging{Page: in.Page, Limit: in.Limit}, func(ctx context.Context, q list.Paging) ([]*model.TrackedTime, error) {
+	times, _, err := list.Window(ctx, p, list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.TrackedTime, error) {
 		times, err := p.ListIssueTrackedTimes(ctx, in.Owner, in.Repo, in.Index, TimeQuery{Since: since, Before: before, Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return nil, fmt.Errorf("list issue tracked times err: %w", err)
 		}
 		return times, nil
 	})
+	return times, err
 }
 
 // defaultLimit is the page size a tracked-time list uses when the caller gives
 // none.
 const defaultLimit = 20
-
-// window reads one page of a tracked-time list through the list module: the
-// instance ceiling applies, and a default limit is lowered to it.
-func window(ctx context.Context, p Port, pg list.Paging, fetch func(context.Context, list.Paging) ([]*model.TrackedTime, error)) ([]*model.TrackedTime, error) {
-	ceiling, known := p.MaxResponseItems(ctx)
-	c := list.Ceiling{Max: ceiling, Known: known}
-	return list.Items(ctx, list.Given(list.Paging(pg), defaultLimit, c), c,
-		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
-			times, err := fetch(ctx, q)
-			return list.Batch[*model.TrackedTime]{Items: times}, err
-		})
-}
 
 // RepoTimes returns the tracked times of a repository.
 func (s *Service) RepoTimes(ctx context.Context, in RepoTimesInput) ([]*model.TrackedTime, error) {
@@ -97,13 +86,14 @@ func (s *Service) RepoTimes(ctx context.Context, in RepoTimesInput) ([]*model.Tr
 	if err != nil {
 		return nil, err
 	}
-	return window(ctx, p, list.Paging{Page: in.Page, Limit: in.Limit}, func(ctx context.Context, q list.Paging) ([]*model.TrackedTime, error) {
+	times, _, err := list.Window(ctx, p, list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.TrackedTime, error) {
 		times, err := p.ListRepoTrackedTimes(ctx, in.Owner, in.Repo, TimeQuery{Since: since, Before: before, User: in.User, Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return nil, fmt.Errorf("list repo tracked times err: %w", err)
 		}
 		return times, nil
 	})
+	return times, err
 }
 
 // MyTimes returns the tracked times of the authenticated user.

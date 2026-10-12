@@ -9,9 +9,9 @@ import (
 )
 
 // The domain error kinds every Forgejo adapter reports. The fake and the SDK
-// adapter both produce them through StatusError, so a caller matches a kind
-// with errors.Is and never reads an HTTP status. Renderers (tools and
-// resources) switch on these; only the adapter layer maps statuses to kinds.
+// adapter both return a server failure as a StatusError, which matches the kind
+// of its status with errors.Is, so a caller matches a kind and never reads an
+// HTTP status. Renderers (tools and resources) switch on these kinds.
 var (
 	// ErrNotFound: Forgejo does not know the thing asked for (404).
 	ErrNotFound = errors.New("not found")

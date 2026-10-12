@@ -27,10 +27,12 @@ const (
 	// or a label on page two would resolve as "unknown".
 	catalogPageSize = 100
 
-	// maxCatalogPages caps the enumeration per scope. A server that ignores
-	// paging would otherwise spin forever; the cap turns that into a message,
-	// and numeric IDs still work without a catalogue.
-	maxCatalogPages = 20
+	// maxCatalogLabels caps the labels enumerated per scope. A server that
+	// ignores paging would otherwise be read forever; the cap turns that into a
+	// message, and numeric IDs still work without a catalogue. It counts labels,
+	// not pages: a low instance ceiling needs many pages for a catalogue that is
+	// well within this cap.
+	maxCatalogLabels = 2000
 )
 
 // Paging selects one page of a label list.
@@ -41,6 +43,9 @@ type Paging struct{ Page, Limit int }
 type Catalog interface {
 	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.Label, error)
 	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.Label, error)
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when
+	// it could not be determined.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 }
 
 // Resolver resolves label names and IDs against a Catalog.
@@ -96,47 +101,63 @@ func (r *Resolver) Resolve(ctx context.Context, owner, repo, csv string) ([]int6
 
 // assignable returns every label that can be applied to an issue or pull
 // request in the repository: the repository's own labels plus, for an
-// organization-owned repository, the organization's. Each scope is paged on its
-// own until a short page.
+// organization-owned repository, the organization's. Each scope is enumerated
+// on its own.
 func (r *Resolver) assignable(ctx context.Context, owner, repo string) ([]model.ScopedLabel, error) {
-	catalog := []model.ScopedLabel{}
+	fullPage := r.fullPage(ctx)
+	repoLabels, err := enumerate(fmt.Sprintf("%s/%s", owner, repo), "repo", "repo", fullPage,
+		func(p Paging) ([]*model.Label, error) {
+			return r.catalog.ListRepoLabels(ctx, owner, repo, p)
+		})
+	if err != nil {
+		return nil, err
+	}
+	orgLabels, err := enumerate("organization "+owner, "org", "org", fullPage,
+		func(p Paging) ([]*model.Label, error) {
+			return r.catalog.ListOrgLabels(ctx, owner, p)
+		})
+	if err != nil {
+		return nil, err
+	}
+	return append(repoLabels, orgLabels...), nil
+}
+
+// fullPage is how many labels a full page holds. The request asks for
+// catalogPageSize, but the server clamps a larger limit to the instance ceiling
+// (max_response_items), so a page that is full at the ceiling is not short.
+// An unknown ceiling leaves the page at catalogPageSize.
+func (r *Resolver) fullPage(ctx context.Context) int {
+	ceiling, ok := r.catalog.MaxResponseItems(ctx)
+	if ok && ceiling >= 1 && ceiling < catalogPageSize {
+		return ceiling
+	}
+	return catalogPageSize
+}
+
+// enumerate reads every page of one scope's labels and tags each with scope.
+// Paging stops at the first page shorter than fullPage, so it needs no probe
+// request past the end. what names the scope in the cap's error, and kind
+// names it in the fetch error.
+func enumerate(what, scope, kind string, fullPage int, fetch func(Paging) ([]*model.Label, error)) ([]model.ScopedLabel, error) {
+	var out []model.ScopedLabel
 	for page := 1; ; page++ {
-		if page > maxCatalogPages {
-			return nil, fmt.Errorf(
-				"%s/%s has more than %d labels; pass numeric label IDs instead of names",
-				owner, repo, maxCatalogPages*catalogPageSize,
-			)
-		}
-		labels, err := r.catalog.ListRepoLabels(ctx, owner, repo, Paging{Page: page, Limit: catalogPageSize})
+		labels, err := fetch(Paging{Page: page, Limit: catalogPageSize})
 		if err != nil {
-			return nil, fmt.Errorf("list repo labels err: %w", err)
+			return nil, fmt.Errorf("list %s labels err: %w", kind, err)
 		}
 		for _, l := range labels {
-			catalog = append(catalog, model.ScopedLabel{Label: *l, Scope: "repo"})
+			out = append(out, model.ScopedLabel{Label: *l, Scope: scope})
 		}
-		if len(labels) < catalogPageSize {
-			break
-		}
-	}
-	for page := 1; ; page++ {
-		if page > maxCatalogPages {
+		if len(out) > maxCatalogLabels {
 			return nil, fmt.Errorf(
-				"organization %s has more than %d labels; pass numeric label IDs instead of names",
-				owner, maxCatalogPages*catalogPageSize,
+				"%s has more than %d labels; pass numeric label IDs instead of names",
+				what, maxCatalogLabels,
 			)
 		}
-		labels, err := r.catalog.ListOrgLabels(ctx, owner, Paging{Page: page, Limit: catalogPageSize})
-		if err != nil {
-			return nil, fmt.Errorf("list org labels err: %w", err)
-		}
-		for _, l := range labels {
-			catalog = append(catalog, model.ScopedLabel{Label: *l, Scope: "org"})
-		}
-		if len(labels) < catalogPageSize {
-			break
+		if len(labels) < fullPage {
+			return out, nil
 		}
 	}
-	return catalog, nil
 }
 
 func resolveOne(token string, byName map[string][]model.ScopedLabel, byID map[int64]model.ScopedLabel) (int64, error) {

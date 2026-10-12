@@ -141,12 +141,38 @@ func TestResolve_LabelOnALaterPage(t *testing.T) {
 	}
 }
 
+// A server may clamp a page below the size the catalogue asks for (Forgejo's
+// max_response_items). A short page is then not the last one, so a label past
+// the ceiling must still resolve: the catalogue pages until a page comes back
+// empty.
+func TestResolve_LabelBeyondACeilingBelowThePageSize(t *testing.T) {
+	t.Parallel()
+	r, f := resolver(t)
+	f.SetMaxResponseItems(10)
+	for i := 0; i < 25; i++ {
+		f.SeedIssueLabel(owner, repo, "filler-"+strconv.Itoa(i))
+	}
+	late := f.SeedIssueLabel(owner, repo, "late")
+
+	ids, err := r.Resolve(context.Background(), owner, repo, "late")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != late {
+		t.Fatalf("ids = %v, want [%d]", ids, late)
+	}
+}
+
 // catalogOf presents the issue port's label reads in the resolver's paging
 // type, as the owning use case does in production.
 type catalogOf struct{ port apppissue.Port }
 
 func (c catalogOf) ListRepoLabels(ctx context.Context, owner, repo string, p labelresolve.Paging) ([]*model.Label, error) {
 	return c.port.ListRepoLabels(ctx, owner, repo, apppissue.Paging{Page: p.Page, Limit: p.Limit})
+}
+
+func (c catalogOf) MaxResponseItems(ctx context.Context) (int, bool) {
+	return c.port.MaxResponseItems(ctx)
 }
 
 func (c catalogOf) ListOrgLabels(ctx context.Context, org string, p labelresolve.Paging) ([]*model.Label, error) {

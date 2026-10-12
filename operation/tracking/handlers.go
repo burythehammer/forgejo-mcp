@@ -74,11 +74,10 @@ type deleteEntryArgs struct {
 
 type noArgs struct{}
 
-// paging applies the tools' defaults to the page and limit arguments: zero
-// means the default, and a fractional number is truncated.
+// paging reads the page and limit arguments: a page of zero is page 1, and a
+// fractional number is truncated. An absent limit stays 0, which the use case
+// replaces with the tool's default, lowered to the instance ceiling.
 func paging(page, limit float64) (int, int) {
-	// An absent limit is 0: the use case applies the default, lowered to the
-	// instance ceiling.
 	if page == 0 {
 		page = 1
 	}

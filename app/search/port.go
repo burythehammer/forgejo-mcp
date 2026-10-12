@@ -10,6 +10,7 @@ package search
 import (
 	"context"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -24,8 +25,9 @@ type Port interface {
 	SearchRepos(ctx context.Context, q RepoQuery) ([]*model.Repository, error)
 }
 
-// Paging selects a page of a search result.
-type Paging struct{ Page, Limit int }
+// Paging selects a page of a search result. It is the list module's paging, so
+// a search hands it to list.Window unchanged.
+type Paging = list.Paging
 
 // UserQuery searches users by keyword.
 type UserQuery struct {

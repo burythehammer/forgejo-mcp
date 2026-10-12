@@ -21,7 +21,7 @@ func NewGitService(p GitPort) *GitService { return &GitService{port: p} }
 
 // ListBranches lists one page of a repository's branches.
 func (s *GitService) ListBranches(ctx context.Context, owner, repo string, p GitPage) ([]*model.Branch, error) {
-	out, _, err := window(ctx, s.port, list.Paging(p), defaultListLimit,
+	out, _, err := list.Window(ctx, s.port, list.Paging(p), defaultListLimit,
 		func(ctx context.Context, q list.Paging) ([]*model.Branch, error) {
 			out, err := s.port.ListBranches(ctx, owner, repo, GitPage(q))
 			if err != nil {
@@ -58,7 +58,7 @@ func (s *GitService) DeleteBranch(ctx context.Context, owner, repo, branch strin
 
 // ListCommits lists one page of a repository's commits, newest first.
 func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q ListCommitsInput) ([]*model.Commit, error) {
-	out, _, err := window(ctx, s.port, list.Paging(q.Page), defaultListLimit,
+	out, _, err := list.Window(ctx, s.port, list.Paging(q.Page), defaultListLimit,
 		func(ctx context.Context, p list.Paging) ([]*model.Commit, error) {
 			in := q
 			in.Page = GitPage(p)
