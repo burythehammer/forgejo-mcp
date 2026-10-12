@@ -1,3 +1,9 @@
+## Unreleased
+
+### Behaviour changes
+
+* **issue:** `create_issue`, `update_issue` and `issue_state_change` now return a compact result by default: number, url, title, state, label names, assignee logins and updated_at. The body and the user object are no longer echoed back. Pass `verbose: true` to get the full issue, which was the previous default. Tool names and input schemas are unchanged apart from the new optional `verbose` boolean. Read tools and resources are unchanged.
+
 ## [3.2.0](https://git.b4mad.industries/agentic-forges/forgejo-mcp/compare/v3.1.0...v3.2.0) (2026-09-16)
 
 ### :sparkles: Features
