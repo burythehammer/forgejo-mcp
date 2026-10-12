@@ -4,6 +4,7 @@ package issue
 
 import (
 	"context"
+	"fmt"
 
 	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
@@ -200,9 +201,28 @@ func (h handlers) DeleteRepoLabelFn(ctx context.Context, req mcp.CallToolRequest
 	})
 }
 
+// repoLabelURI, repoLabelsURI and orgLabelsURI name the resource that serves
+// the same read as a label tool. The label tools use them as the subject of
+// the resource error mapping that both paths share until #11 lands.
+func repoLabelURI(owner, repo string, id int64) string {
+	return fmt.Sprintf("forgejo://repo/%s/%s/label/%d", owner, repo, id)
+}
+
+func repoLabelsURI(owner, repo string) string {
+	return fmt.Sprintf("forgejo://repo/%s/%s/labels", owner, repo)
+}
+
+func orgLabelsURI(org string) string {
+	return fmt.Sprintf("forgejo://org/%s/labels", org)
+}
+
 func (h handlers) GetRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a getRepoLabelArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.GetRepoLabel(ctx, a.Owner, a.Repo, int64(a.ID)))
+		label, err := s.GetRepoLabel(ctx, a.Owner, a.Repo, int64(a.ID))
+		if err != nil {
+			return nil, mapErr(repoLabelURI(a.Owner, a.Repo, int64(a.ID)), err)
+		}
+		return mcpresult.Render(label, nil)
 	})
 }
 

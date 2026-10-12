@@ -123,15 +123,6 @@ func milestoneID(s string) (int64, error) {
 	return id, nil
 }
 
-// Get returns one pull request.
-func (s *Service) Get(ctx context.Context, in PR) (*model.PullRequest, error) {
-	pr, err := s.port.GetPullRequest(ctx, in.Owner, in.Repo, in.Index)
-	if err != nil {
-		return nil, fmt.Errorf("get pull request err: %w", err)
-	}
-	return pr, nil
-}
-
 // List returns a repository's pull requests.
 func (s *Service) List(ctx context.Context, in ListInput) ([]*model.PullRequest, error) {
 	q := ListQuery{State: in.State, Sort: in.Sort, Paging: paging(in.Page, in.Limit, defaultLimit)}

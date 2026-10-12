@@ -18,6 +18,7 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/pull"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/release"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/search"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/tracking"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/user"
@@ -122,6 +123,14 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	RegisterBranchProtectionTool(s, f)
 	RegisterHookTool(s, f)
 	RegisterWikiTool(s, f)
+
+	// Truncation notes may name only tools in this registry (resource.ToolRef).
+	tools := s.ListTools()
+	names := make([]string, 0, len(tools))
+	for name := range tools {
+		names = append(names, name)
+	}
+	resource.SetRegisteredTools(names)
 
 	log.Info("All MCP tools registered successfully")
 }

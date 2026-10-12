@@ -195,6 +195,30 @@ func (a adapter) ListOrgLabels(ctx context.Context, org string, p appissue.Pagin
 	return bridge.Convert[[]*model.Label](labels, err)
 }
 
+func (a adapter) ListRepoLabelsPage(ctx context.Context, owner, repo string, p appissue.Paging) (appissue.LabelPage, error) {
+	labels, info, err := a.s.ListRepoLabels(ctx, owner, repo, forgejo_sdk.ListLabelsOptions{ListOptions: listOptions(p)})
+	return labelPage(labels, info, err)
+}
+
+func (a adapter) ListOrgLabelsPage(ctx context.Context, org string, p appissue.Paging) (appissue.LabelPage, error) {
+	labels, info, err := a.s.ListOrgLabels(ctx, org, p.Page, p.Limit)
+	return labelPage(labels, info, err)
+}
+
+// labelPage converts one label page and carries what the server reported past
+// it. The total is kept only when the server reported one.
+func labelPage(labels []*forgejo_sdk.Label, info forge.PageInfo, err error) (appissue.LabelPage, error) {
+	out, err := bridge.Convert[[]*model.Label](labels, err)
+	if err != nil {
+		return appissue.LabelPage{}, err
+	}
+	return appissue.LabelPage{
+		Labels: out,
+		More:   info.HasNext,
+		Total:  appissue.Total{Count: info.TotalCount, Known: info.TotalKnown},
+	}, nil
+}
+
 func (a adapter) GetOrgLabel(ctx context.Context, org string, id int64) (*model.Label, error) {
 	label, err := a.s.GetOrgLabel(ctx, org, id)
 	return bridge.Convert[*model.Label](label, err)
