@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
 
 // AdminService runs the repository-administration use cases over an AdminPort.
@@ -241,13 +242,10 @@ func normalizeTopic(s string) (string, error) {
 }
 
 func splitTopics(s string) ([]string, error) {
-	parts := strings.Split(s, ",")
+	parts := split.CSV(s)
 	out := make([]string, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
-		if strings.TrimSpace(part) == "" {
-			continue
-		}
 		name, err := normalizeTopic(part)
 		if err != nil {
 			return nil, err

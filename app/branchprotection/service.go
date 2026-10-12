@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
 
 // Service runs the branch protection use cases over a Port. Build one per

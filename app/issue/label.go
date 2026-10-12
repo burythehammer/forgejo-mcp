@@ -6,30 +6,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
-	"strconv"
 	"strings"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/labelresolve"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
 const (
-	// labelCatalogPageSize is the page size used while enumerating labels for
-	// name resolution. It is independent of the caller-facing page and limit of
-	// list_repo_labels: that tool browses, this enumeration must be complete,
-	// or a label on page two would resolve as "unknown".
-	labelCatalogPageSize = 100
-
-	// maxLabelCatalogPages caps the enumeration per scope. A server that
-	// ignores paging would otherwise spin forever; the cap turns that into a
-	// message, and numeric IDs still work without a catalogue.
-	maxLabelCatalogPages = 20
-
 	// orgUsagePageSize is the page size used while enumerating an
 	// organization's repositories to count an org label's use.
 	orgUsagePageSize = 50
 )
+
+// catalog presents the issue port's label reads to the label resolver, in the
+// resolver's own paging type. Issues and pull requests resolve label names
+// through it, so the two share one rule.
+type catalog struct{ port Port }
+
+func (c catalog) ListRepoLabels(ctx context.Context, owner, repo string, p labelresolve.Paging) ([]*model.Label, error) {
+	return c.port.ListRepoLabels(ctx, owner, repo, Paging{Page: p.Page, Limit: p.Limit})
+}
+
+func (c catalog) ListOrgLabels(ctx context.Context, org string, p labelresolve.Paging) ([]*model.Label, error) {
+	return c.port.ListOrgLabels(ctx, org, Paging{Page: p.Page, Limit: p.Limit})
+}
 
 // RepoLabels lists a repository's labels. With IncludeOrg, an organization's
 // labels follow, each tagged with its scope.
@@ -170,7 +170,7 @@ func (s *Service) DeleteOrgLabel(ctx context.Context, org string, id int64, forc
 // AddLabels adds labels, by name or ID, to an issue's existing ones and returns
 // the issue as it now is.
 func (s *Service) AddLabels(ctx context.Context, t Target, labels string) (*model.Issue, error) {
-	ids, err := s.resolveLabels(ctx, t.Owner, t.Repo, labels)
+	ids, err := s.labels.Resolve(ctx, t.Owner, t.Repo, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (s *Service) AddLabels(ctx context.Context, t Target, labels string) (*mode
 // RemoveLabels removes labels, by name or ID, from an issue and returns the
 // issue as it now is.
 func (s *Service) RemoveLabels(ctx context.Context, t Target, labels string) (*model.Issue, error) {
-	ids, err := s.resolveLabels(ctx, t.Owner, t.Repo, labels)
+	ids, err := s.labels.Resolve(ctx, t.Owner, t.Repo, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -201,143 +201,6 @@ func (s *Service) RemoveLabels(ctx context.Context, t Target, labels string) (*m
 		return nil, fmt.Errorf("get updated issue err: %w", err)
 	}
 	return issue, nil
-}
-
-// resolveLabels turns a comma-separated list of label names or numeric IDs
-// into the label IDs every Forgejo issue-label endpoint takes.
-//
-// Forgejo does accept names on the assignment endpoints, but it drops the ones
-// it does not recognise and still answers 200. Half an applied request
-// reported as success is worse for an agent than a failure, so names are
-// resolved here and an unresolved token aborts the call before any write.
-//
-// A token is matched as a name first and only then as an ID, so a label
-// literally named "123" stays reachable through an argument documented to take
-// names. An ID is honoured only when the catalogue has it, which turns a stale
-// ID into the same clear error as a stale name.
-func (s *Service) resolveLabels(ctx context.Context, owner, repo, csv string) ([]int64, error) {
-	tokens := split.CSV(csv)
-	if len(tokens) == 0 {
-		return nil, fmt.Errorf("labels names nothing: pass at least one label name or numeric ID")
-	}
-	catalog, err := s.assignableLabels(ctx, owner, repo)
-	if err != nil {
-		return nil, err
-	}
-
-	byName := make(map[string][]model.ScopedLabel, len(catalog))
-	byID := make(map[int64]model.ScopedLabel, len(catalog))
-	for _, l := range catalog {
-		byName[l.Name] = append(byName[l.Name], l)
-		byID[l.ID] = l
-	}
-
-	ids := make([]int64, 0, len(tokens))
-	seen := make(map[int64]bool, len(tokens))
-	for _, token := range tokens {
-		id, err := resolveOneLabel(token, byName, byID)
-		if err != nil {
-			return nil, err
-		}
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		ids = append(ids, id)
-	}
-	return ids, nil
-}
-
-// assignableLabels returns every label that can be applied to an issue in the
-// repository: the repository's own labels plus, for an organization-owned
-// repository, the organization's. Each scope is paged on its own.
-func (s *Service) assignableLabels(ctx context.Context, owner, repo string) ([]model.ScopedLabel, error) {
-	catalog := []model.ScopedLabel{}
-	for page := 1; ; page++ {
-		if page > maxLabelCatalogPages {
-			return nil, fmt.Errorf(
-				"%s/%s has more than %d labels; pass numeric label IDs instead of names",
-				owner, repo, maxLabelCatalogPages*labelCatalogPageSize,
-			)
-		}
-		labels, err := s.port.ListRepoLabels(ctx, owner, repo, Paging{Page: page, Limit: labelCatalogPageSize})
-		if err != nil {
-			return nil, fmt.Errorf("list repo labels err: %w", err)
-		}
-		for _, l := range labels {
-			catalog = append(catalog, model.ScopedLabel{Label: *l, Scope: "repo"})
-		}
-		if len(labels) < labelCatalogPageSize {
-			break
-		}
-	}
-	for page := 1; ; page++ {
-		if page > maxLabelCatalogPages {
-			return nil, fmt.Errorf(
-				"organization %s has more than %d labels; pass numeric label IDs instead of names",
-				owner, maxLabelCatalogPages*labelCatalogPageSize,
-			)
-		}
-		orgLabels, err := s.OrgLabels(ctx, owner, Paging{Page: page, Limit: labelCatalogPageSize})
-		if err != nil {
-			return nil, err
-		}
-		catalog = append(catalog, orgLabels...)
-		if len(orgLabels) < labelCatalogPageSize {
-			break
-		}
-	}
-	return catalog, nil
-}
-
-func resolveOneLabel(token string, byName map[string][]model.ScopedLabel, byID map[int64]model.ScopedLabel) (int64, error) {
-	switch matches := byName[token]; len(matches) {
-	case 1:
-		return matches[0].ID, nil
-	case 0:
-		// Fall through to the numeric form below.
-	default:
-		return 0, fmt.Errorf(
-			"label %q is ambiguous: it matches %s; pass the numeric label ID instead",
-			token, describeLabelScopes(matches),
-		)
-	}
-
-	if id, err := strconv.ParseInt(token, 10, 64); err == nil {
-		if _, ok := byID[id]; ok {
-			return id, nil
-		}
-		return 0, fmt.Errorf(
-			"label %q is neither a label name nor the ID of a label on this issue's repository or organization; list_repo_labels shows what exists",
-			token,
-		)
-	}
-
-	return 0, fmt.Errorf(
-		"unknown label %q: no repository or organization label has that name; list_repo_labels shows what exists, create_repo_label adds one",
-		token,
-	)
-}
-
-// describeLabelScopes renders the colliding labels as "repository label 7 and
-// organization label 12", so the caller can pick an ID without a second call.
-func describeLabelScopes(matches []model.ScopedLabel) string {
-	parts := make([]string, 0, len(matches))
-	for _, m := range matches {
-		scope := m.Scope
-		switch scope {
-		case "repo":
-			scope = "repository"
-		case "org":
-			scope = "organization"
-		}
-		parts = append(parts, fmt.Sprintf("%s label %d", scope, m.ID))
-	}
-	sort.Strings(parts)
-	if len(parts) == 2 {
-		return parts[0] + " and " + parts[1]
-	}
-	return strings.Join(parts, ", ")
 }
 
 // labelUsage counts the issues and pull requests of a repository that carry the
