@@ -19,6 +19,21 @@ import (
 
 var update = flag.Bool("update", false, "rewrite golden and schema snapshot files")
 
+// EnvelopeKeys decodes the {"Result": {...}} envelope that pkg/to wraps around a
+// tool's output and returns the keys of the result object. It fails the test if
+// the result is not an object.
+func EnvelopeKeys(t *testing.T, text string) map[string]json.RawMessage {
+	t.Helper()
+	var wrapped struct{ Result map[string]json.RawMessage }
+	if err := json.Unmarshal([]byte(text), &wrapped); err != nil {
+		t.Fatalf("not a result envelope: %v\n%s", err, text)
+	}
+	if wrapped.Result == nil {
+		t.Fatalf("result is not an object: %s", text)
+	}
+	return wrapped.Result
+}
+
 // Golden compares got with testdata/<name>.golden byte for byte. Run the
 // package's tests with -update to (re)write the file.
 func Golden(t *testing.T, name string, got []byte) {

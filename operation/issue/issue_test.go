@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
+
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
@@ -370,23 +372,13 @@ func TestListRepoMilestones(t *testing.T) {
 	}
 }
 
-// envelopeKeys returns the keys of a tool's {"Result": {...}} object.
-func envelopeKeys(t *testing.T, text string) map[string]json.RawMessage {
-	t.Helper()
-	var obj map[string]json.RawMessage
-	if err := unmarshalResult(text, &obj); err != nil {
-		t.Fatalf("not an object: %v\n%s", err, text)
-	}
-	return obj
-}
-
 var compactIssueKeys = []string{"number", "url", "title", "state", "labels", "assignees", "updated_at"}
 
 // assertCompactIssue checks the default write result: exactly the compact keys,
 // and none of the body or the user object.
 func assertCompactIssue(t *testing.T, text string, notContain ...string) {
 	t.Helper()
-	keys := envelopeKeys(t, text)
+	keys := mcptest.EnvelopeKeys(t, text)
 	if len(keys) != len(compactIssueKeys) {
 		t.Fatalf("compact result has %d keys, want %d: %s", len(keys), len(compactIssueKeys), text)
 	}
@@ -425,7 +417,7 @@ func TestWriteResults_CompactCarriesLabelAndAssigneeNames(t *testing.T) {
 	h, f := newFixture(t)
 	idx := float64(openIssue(t, f, "t"))
 	text := call(t, h.UpdateIssueFn, map[string]any{"index": idx, "assignees": "alice, bob"})
-	keys := envelopeKeys(t, text)
+	keys := mcptest.EnvelopeKeys(t, text)
 	var assignees []string
 	if err := json.Unmarshal(keys["assignees"], &assignees); err != nil {
 		t.Fatalf("assignees not a string list: %v (%s)", err, text)
@@ -444,7 +436,7 @@ func TestWriteResults_VerboseReturnsFullEntity(t *testing.T) {
 		"update": call(t, h.UpdateIssueFn, map[string]any{"index": idx, "body": "VERBOSE-BODY", "verbose": true}),
 		"state":  call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "closed", "verbose": true}),
 	} {
-		keys := envelopeKeys(t, text)
+		keys := mcptest.EnvelopeKeys(t, text)
 		if _, ok := keys["body"]; !ok {
 			t.Errorf("%s verbose: no body key: %s", name, text)
 		}

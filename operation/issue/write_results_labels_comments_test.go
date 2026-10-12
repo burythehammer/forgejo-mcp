@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
 )
 
 // The label and comment writes return the compact shape by default, with the
@@ -27,7 +29,7 @@ func TestLabelWrites_CompactByDefault(t *testing.T) {
 	newLabel(t, f, "bug")
 
 	added := call(t, h.AddIssueLabelsFn, map[string]any{"index": idx, "labels": "bug"})
-	keys := envelopeKeys(t, added)
+	keys := mcptest.EnvelopeKeys(t, added)
 	for _, k := range []string{"number", "url", "title", "state", "labels"} {
 		if _, ok := keys[k]; !ok {
 			t.Fatalf("add_issue_labels compact result misses %q: %s", k, added)
@@ -41,7 +43,7 @@ func TestLabelWrites_CompactByDefault(t *testing.T) {
 	}
 
 	removed := call(t, h.RemoveIssueLabelsFn, map[string]any{"index": idx, "labels": "bug"})
-	keys = envelopeKeys(t, removed)
+	keys = mcptest.EnvelopeKeys(t, removed)
 	if _, ok := keys["user"]; ok || keys["number"] == nil {
 		t.Fatalf("remove_issue_labels compact result wrong: %s", removed)
 	}
@@ -57,7 +59,7 @@ func TestLabelWrites_VerboseReturnsFullEntity(t *testing.T) {
 	newLabel(t, f, "bug")
 
 	added := call(t, h.AddIssueLabelsFn, map[string]any{"index": idx, "labels": "bug", "verbose": true})
-	keys := envelopeKeys(t, added)
+	keys := mcptest.EnvelopeKeys(t, added)
 	if _, ok := keys["body"]; !ok {
 		t.Fatalf("add_issue_labels verbose has no body key: %s", added)
 	}
@@ -66,7 +68,7 @@ func TestLabelWrites_VerboseReturnsFullEntity(t *testing.T) {
 	}
 
 	removed := call(t, h.RemoveIssueLabelsFn, map[string]any{"index": idx, "labels": "bug", "verbose": true})
-	if _, ok := envelopeKeys(t, removed)["body"]; !ok {
+	if _, ok := mcptest.EnvelopeKeys(t, removed)["body"]; !ok {
 		t.Fatalf("remove_issue_labels verbose has no body key: %s", removed)
 	}
 }
@@ -77,7 +79,7 @@ func TestCommentWrites_CompactByDefault(t *testing.T) {
 	idx := float64(openIssue(t, f, "t"))
 
 	created := call(t, h.CreateIssueCommentFn, map[string]any{"index": idx, "body": "COMMENT-BODY"})
-	keys := envelopeKeys(t, created)
+	keys := mcptest.EnvelopeKeys(t, created)
 	for _, k := range []string{"id", "url", "updated_at"} {
 		if _, ok := keys[k]; !ok {
 			t.Fatalf("create_issue_comment compact result misses %q: %s", k, created)
@@ -87,9 +89,9 @@ func TestCommentWrites_CompactByDefault(t *testing.T) {
 		t.Fatalf("create_issue_comment compact result wrong: %s", created)
 	}
 
-	id := envelopeKeys(t, created)["id"]
+	id := mcptest.EnvelopeKeys(t, created)["id"]
 	edited := call(t, h.EditIssueCommentFn, map[string]any{"comment_id": float64(jsonInt(t, id)), "body": "EDITED-BODY"})
-	if len(envelopeKeys(t, edited)) != 3 || strings.Contains(edited, "EDITED-BODY") {
+	if len(mcptest.EnvelopeKeys(t, edited)) != 3 || strings.Contains(edited, "EDITED-BODY") {
 		t.Fatalf("edit_issue_comment compact result wrong: %s", edited)
 	}
 }
@@ -100,7 +102,7 @@ func TestCommentWrites_VerboseReturnsFullEntity(t *testing.T) {
 	idx := float64(openIssue(t, f, "t"))
 
 	created := call(t, h.CreateIssueCommentFn, map[string]any{"index": idx, "body": "VERBOSE-BODY", "verbose": true})
-	keys := envelopeKeys(t, created)
+	keys := mcptest.EnvelopeKeys(t, created)
 	if _, ok := keys["body"]; !ok || !strings.Contains(created, "VERBOSE-BODY") {
 		t.Fatalf("create_issue_comment verbose must return the full comment: %s", created)
 	}
