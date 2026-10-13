@@ -85,3 +85,21 @@ func TestWindow_OverKnownCeilingRefuses(t *testing.T) {
 		t.Fatal("fetch ran for a refused limit")
 	}
 }
+
+// Window reads exactly one page: it makes no next-page probe, since the
+// callers that use it report no continuation marker.
+func TestWindow_MakesNoProbe(t *testing.T) {
+	t.Parallel()
+	var calls int
+	items, _, err := Window(context.Background(), ceilingOf{}, Paging{Page: 1, Limit: 2}, 10,
+		func(_ context.Context, p Paging) ([]int, error) {
+			calls++
+			return []int{1, 2}, nil
+		})
+	if err != nil || len(items) != 2 {
+		t.Fatalf("items = %v, err = %v", items, err)
+	}
+	if calls != 1 {
+		t.Fatalf("Window made %d fetches, want 1", calls)
+	}
+}

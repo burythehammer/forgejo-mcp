@@ -295,7 +295,7 @@ List all my repositories
 |------|-------------|
 | **User** | |
 | `get_my_user_info` | Get information about the authenticated user |
-| `check_notifications` | Check and list user notifications |
+| `check_notifications` | Check and list user notifications (page/limit); returns `{notifications,page,limit,count,has_next}` |
 | `get_notification_thread` | Get detailed info on a single notification thread |
 | `mark_notification_read` | Mark a single notification thread as read |
 | `mark_all_notifications_read` | Acknowledge all notifications |
@@ -343,7 +343,7 @@ List all my repositories
 | `list_repo_commits` | List commits in a repository (page/limit); returns `{commits,page,limit,count,has_next}` |
 | `get_commit_statuses` | List per-context commit statuses for a full 40-character SHA. Bounded by `page` (default 1) + `limit` (default 30, maximum 50); returns `{sha, statuses, page, limit, count, total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Combined aggregate stays on the commit status resource. Not Actions runs (`list_workflow_runs`). |
 | **Issues** | |
-| `list_repo_issues` | List issues in a repository (page/limit). Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |
+| `list_repo_issues` | List issues in a repository (page/limit); returns `{issues,page,limit,count,has_next}`. Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |
 | `search_issues` | Search issues across every repository of one owner (page/limit); returns `{issues,page,limit,count,has_next,total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count` |
 | `get_issue_by_index` | Get a specific issue |
 | `create_issue` | Create a new issue. Optional `labels` (comma-separated names or IDs), `assignees` (comma-separated usernames) and `milestone` (numeric ID) are applied by the same request that creates the issue. Optional `ref` links the issue to a branch (Forgejo's issue `ref` field, passed through as given). Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |

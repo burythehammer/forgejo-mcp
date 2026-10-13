@@ -87,19 +87,19 @@ type RepoLabelsInput struct {
 
 // List returns a repository's issues. The owner and repository are required,
 // and sort, when given, must be one of Forgejo's sort orders.
-func (s *Service) List(ctx context.Context, in ListInput) ([]*model.Issue, error) {
+func (s *Service) List(ctx context.Context, in ListInput) (model.IssuePage, error) {
 	if in.Owner == "" {
-		return nil, fmt.Errorf("owner is required")
+		return model.IssuePage{}, fmt.Errorf("owner is required")
 	}
 	if in.Repo == "" {
-		return nil, fmt.Errorf("repo is required; for owner-wide listing across repositories use search_issues instead")
+		return model.IssuePage{}, fmt.Errorf("repo is required; for owner-wide listing across repositories use search_issues instead")
 	}
 	if in.Sort != "" && !isValidSort(in.Sort) {
-		return nil, fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
+		return model.IssuePage{}, fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	return list.Items(ctx, list.Normalize(list.Paging(in.Paging), list.DefaultLimit(defaultLimit, c)), c,
+	page, err := list.Run(ctx, list.Normalize(list.Paging(in.Paging), list.DefaultLimit(defaultLimit, c)), c,
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
 			issues, err := s.port.ListIssues(ctx, in.Owner, in.Repo, IssueList{
 				State: in.State, Type: in.Type, Sort: in.Sort,
@@ -111,6 +111,12 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*model.Issue, error
 			}
 			return list.Batch[*model.Issue]{Items: issues}, nil
 		})
+	if err != nil {
+		return model.IssuePage{}, err
+	}
+	return model.IssuePage{
+		Issues: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
 }
 
 // defaultLimit is the page size a list or search uses when the caller gives none.

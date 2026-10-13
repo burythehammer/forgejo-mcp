@@ -267,28 +267,6 @@ func TestRun_FetchErrorSurfaces(t *testing.T) {
 	}
 }
 
-func TestItems_ReturnsOnlyTheWindowWithoutProbing(t *testing.T) {
-	var calls []Paging
-	items, err := Items(context.Background(), Paging{Page: 1, Limit: 2}, Ceiling{}, fetchFrom(corpus(5), &calls))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fmt.Sprint(items) != "[1 2]" {
-		t.Fatalf("items = %v", items)
-	}
-	if len(calls) != 1 {
-		t.Fatalf("Items made %d fetches, want 1 (no next probe)", len(calls))
-	}
-}
-
-func TestItems_OverKnownCeilingRejects(t *testing.T) {
-	_, err := Items(context.Background(), Paging{Page: 1, Limit: 9}, Ceiling{Max: 4, Known: true}, fetchFrom(corpus(5), nil))
-	var over *OverCeilingError
-	if !errors.As(err, &over) {
-		t.Fatalf("err = %v, want *OverCeilingError", err)
-	}
-}
-
 // DefaultLimit lowers a tool's default to a known ceiling, so a default call
 // never trips the ceiling, while an unknown or larger ceiling leaves it alone.
 func TestDefaultLimit_ClampsToKnownCeiling(t *testing.T) {

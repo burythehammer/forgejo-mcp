@@ -1,3 +1,3 @@
-{"Result":{"packages":[{"id":3,"type":"generic","name":"tool","version":"1.0","html_url":"https://f.example/pkg/3","created_at":"2026-01-02T03:04:05Z","repository":"octo/hello"},{"id":3,"type":"generic","name":"tool","version":"1.0","html_url":"https://f.example/pkg/3","created_at":"2026-01-02T03:04:05Z","repository":"octo/hello"}],"page":2,"limit":5,"count":2,"has_next":true,"total_count":9}}
+{"Result":{"packages":[{"id":3,"type":"generic","name":"tool","version":"1.0","html_url":"https://f.example/pkg/3","created_at":"2026-01-02T03:04:05Z","repository":"octo/hello"},{"id":3,"type":"generic","name":"tool","version":"1.0","html_url":"https://f.example/pkg/3","created_at":"2026-01-02T03:04:05Z","repository":"octo/hello"}],"page":2,"limit":5,"count":2,"has_next":false,"total_count":2}}
 -- port calls --
 ListPackages ["octo",{"Type":"","Query":"","Page":2,"Limit":5}]

@@ -182,18 +182,18 @@ func TestListRepoIssues(t *testing.T) {
 	b := openIssue(t, f, "b")
 	call(t, h.IssueStateChangeFn, map[string]any{"index": float64(a), "state": "closed"})
 
-	var open []forgejo_sdk.Issue
+	var open searchEnvelope
 	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, nil), &open); err != nil {
 		t.Fatal(err)
 	}
-	if len(open) != 1 || open[0].Index != b {
+	if len(open.Issues) != 1 || open.Issues[0].Index != b {
 		t.Fatalf("default open: %+v", open)
 	}
-	var all []forgejo_sdk.Issue
+	var all searchEnvelope
 	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"state": "all", "sort": "oldest"}), &all); err != nil {
 		t.Fatal(err)
 	}
-	if len(all) != 2 || all[0].Index != a {
+	if len(all.Issues) != 2 || all.Issues[0].Index != a {
 		t.Fatalf("all/oldest: %+v", all)
 	}
 }
@@ -208,12 +208,12 @@ func TestListRepoIssues_KnownCeilingRefusesOverLimit(t *testing.T) {
 	if msg := callErr(t, h.ListRepoIssuesFn, map[string]any{"owner": testOwner, "repo": testRepo, "limit": float64(3)}); !strings.Contains(msg, "exceeds this instance's maximum of 2") {
 		t.Fatalf("error = %q", msg)
 	}
-	var at []forgejo_sdk.Issue
+	var at searchEnvelope
 	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"owner": testOwner, "repo": testRepo, "limit": float64(2)}), &at); err != nil {
 		t.Fatal(err)
 	}
-	if len(at) != 2 {
-		t.Fatalf("at ceiling returned %d, want 2", len(at))
+	if len(at.Issues) != 2 {
+		t.Fatalf("at ceiling returned %d, want 2", len(at.Issues))
 	}
 }
 
@@ -224,11 +224,11 @@ func TestListRepoIssues_SortNearDueDate(t *testing.T) {
 	soon := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, _ = f.CreateIssue(context.Background(), testOwner, testRepo, forgejo_sdk.CreateIssueOption{Title: "late", Deadline: &late})
 	_, _ = f.CreateIssue(context.Background(), testOwner, testRepo, forgejo_sdk.CreateIssueOption{Title: "soon", Deadline: &soon})
-	var got []forgejo_sdk.Issue
+	var got searchEnvelope
 	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"sort": "nearduedate"}), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Title != "soon" {
+	if len(got.Issues) != 2 || got.Issues[0].Title != "soon" {
 		t.Fatalf("got %+v", got)
 	}
 }

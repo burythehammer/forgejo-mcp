@@ -47,3 +47,13 @@ type ScopedLabelPage struct {
 	HasNext    bool          `json:"has_next"`
 	TotalCount *int          `json:"total_count,omitempty"`
 }
+
+// IssuePage is the response of list_repo_issues: one page of a repository's
+// issues with the continuation signal.
+type IssuePage struct {
+	Issues  []*Issue `json:"issues"`
+	Page    int      `json:"page"`
+	Limit   int      `json:"limit"`
+	Count   int      `json:"count"`
+	HasNext bool     `json:"has_next"`
+}

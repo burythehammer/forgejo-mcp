@@ -121,10 +121,13 @@ Bounding is code, not a checklist a tool author re-implements. The rules above
 are enforced in these places:
 
 - **List use cases** (`app/<domain>/`) hand their request to the list module,
-  `app/list`: `list.Run` for a list whose `has_next` must be derived, and
-  `list.Items` for a list with no continuation marker, `list.Window` for a page
-  read through a port's ceiling that reports the paging it used, and `list.Cut`
-  for a list Forgejo does not page. The module applies the
+  `app/list`. Every paged list uses `list.Run` and returns the envelope with
+  `has_next`; `list.Items` is gone, and a list with no continuation marker is
+  still an envelope with `has_next`, derived by `list.Run`. Two other entry
+  points remain for the cases `list.Run` does not fit: `list.Window` reads one
+  page through a port's ceiling and takes `has_next` from the port's own report
+  (the label lists, whose endpoint reports it, make no probe), and `list.Cut`
+  serves a list Forgejo does not page. The module applies the
   instance ceiling (`list.Ceiling`, read from the port per call, never cached at
   package level), refuses a limit above a known ceiling with `OverCeilingError`
   rather than clamping it, and probes for a next page only when the ceiling is

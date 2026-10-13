@@ -30,7 +30,7 @@ const (
 var (
 	CheckNotificationsTool = mcp.NewTool(
 		CheckNotificationsToolName,
-		mcp.WithDescription("Check and list user notifications"),
+		mcp.WithDescription("Check and list user notifications (page/limit). Returns a response envelope {notifications, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithBoolean("all", mcp.Description("Include read notifications (default: false)")),
 		mcp.WithString("since", mcp.Description(params.Since)),
 		mcp.WithString("before", mcp.Description(params.Before)),
@@ -160,9 +160,9 @@ func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequ
 	if err != nil {
 		return refuse(ctx, CheckNotificationsToolName, started, err)
 	}
-	threads, err := h.service().Notifications(ctx, notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit))
+	page, err := h.service().Notifications(ctx, notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit))
 	logAPICall(ctx, "GET", "/notifications", started, err)
-	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", len(threads)), threads, err)
+	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", page.Count), page, err)
 }
 
 func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

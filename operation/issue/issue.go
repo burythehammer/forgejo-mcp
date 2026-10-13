@@ -61,7 +61,7 @@ var (
 
 	ListRepoIssuesTool = mcp.NewTool(
 		ListRepoIssuesToolName,
-		mcp.WithDescription("List repo issues"),
+		mcp.WithDescription("List repo issues (page/limit). Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open")),
