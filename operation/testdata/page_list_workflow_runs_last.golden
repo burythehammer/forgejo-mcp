@@ -1,1 +1,1 @@
-{"Result":"Workflow Runs for octo/hello (total: 5):\n\n#1 - run 1\n  Status: success | Event:  | SHA: \n  URL: \n\n"}
+{"Result":{"workflow_runs":[{"id":1,"title":"run 1","status":"success","event":"","ref":"","commit_sha":"","html_url":""}],"page":3,"limit":2,"count":1,"total_count":5,"has_next":false}}

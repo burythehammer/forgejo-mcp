@@ -28,7 +28,7 @@ const (
 var (
 	ListIssueTrackedTimesTool = mcp.NewTool(
 		ListIssueTrackedTimesToolName,
-		mcp.WithDescription("List tracked time entries on an issue or pull request"),
+		mcp.WithDescription("List tracked time entries on an issue or pull request. Returns a response envelope {times, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(indexDescIssueOrPR)),
@@ -40,7 +40,7 @@ var (
 
 	ListRepoTrackedTimesTool = mcp.NewTool(
 		ListRepoTrackedTimesToolName,
-		mcp.WithDescription("List tracked time entries across all issues and PRs in a repository"),
+		mcp.WithDescription("List tracked time entries across all issues and PRs in a repository. Returns a response envelope {times, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("since", mcp.Description(params.Since)),
