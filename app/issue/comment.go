@@ -13,23 +13,23 @@ import (
 
 // Comments lists an issue's (or pull request's) comments, within the optional
 // since and before window.
-func (s *Service) Comments(ctx context.Context, in CommentsInput) ([]*model.Comment, error) {
+func (s *Service) Comments(ctx context.Context, in CommentsInput) (model.CommentPage, error) {
 	var c CommentList
 	if in.Since != "" {
 		t, err := time.Parse(time.RFC3339, in.Since)
 		if err != nil {
-			return nil, fmt.Errorf("invalid since time format (expected RFC3339): %w", err)
+			return model.CommentPage{}, fmt.Errorf("invalid since time format (expected RFC3339): %w", err)
 		}
 		c.Since = t
 	}
 	if in.Before != "" {
 		t, err := time.Parse(time.RFC3339, in.Before)
 		if err != nil {
-			return nil, fmt.Errorf("invalid before time format (expected RFC3339): %w", err)
+			return model.CommentPage{}, fmt.Errorf("invalid before time format (expected RFC3339): %w", err)
 		}
 		c.Before = t
 	}
-	items, _, err := list.Window(ctx, s.port, list.Paging(in.Paging), defaultLimit,
+	page, err := runPage(ctx, s.port, list.Paging(in.Paging), defaultLimit,
 		func(ctx context.Context, p list.Paging) ([]*model.Comment, error) {
 			q := c
 			q.Paging = Paging(p)
@@ -39,7 +39,12 @@ func (s *Service) Comments(ctx context.Context, in CommentsInput) ([]*model.Comm
 			}
 			return comments, nil
 		})
-	return items, err
+	if err != nil {
+		return model.CommentPage{}, err
+	}
+	return model.CommentPage{
+		Comments: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
 }
 
 // Comment returns one comment by its ID.

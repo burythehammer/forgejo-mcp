@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List issues that the given issue depends on. Pagination uses page (1-based) and limit (page size); the response echoes page and limit so callers can fetch the next page. Returns an empty list if the issue has no dependencies. This tool fails if the repository has disabled issue dependencies.",
+  "description": "List issues that the given issue depends on. Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. Returns an empty issues list if the issue has no dependencies. This tool fails if the repository has disabled issue dependencies.",
   "inputSchema": {
     "properties": {
       "index": {
