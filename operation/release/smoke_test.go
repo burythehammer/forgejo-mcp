@@ -38,7 +38,7 @@ func TestSmokeOverHTTP(t *testing.T) {
 		return res.Content[0].(mcp.TextContent).Text
 	}
 
-	if got := call(ListReleasesToolName, nil); got != `{"Result":[]}` {
+	if got := call(ListReleasesToolName, nil); got != `{"Result":{"releases":[],"page":1,"limit":20,"count":0,"has_next":false}}` {
 		t.Fatalf("list on an empty repo: %s", got)
 	}
 	if got := call(CreateReleaseToolName, map[string]any{"tag_name": "v1.0.0"}); !strings.Contains(got, `"tag_name":"v1.0.0"`) {

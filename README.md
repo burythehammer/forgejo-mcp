@@ -393,7 +393,7 @@ List all my repositories
 | `list_packages` | List package versions of a user or org (one row per version). Optional `type` and `q`. Server-paged via `page`/`limit` (default 30, max 50). Envelope `{packages, page, limit, count, has_next, total_count?}`. A missing owner is an error, not an empty list |
 | `get_package` | Get one package version. Does not embed owner/creator users |
 | `delete_package` | Delete one package version (not every version of the name). No preflight. 4xx/5xx stay errors |
-| `list_package_files` | List files of one package version. Client-paged via `page`/`limit` (default 30, max 50); envelope `{files, page, limit, count, has_next, total_count}` (`total_count` is the fetched list length) |
+| `list_package_files` | List files of one package version. Client-paged via `page`/`limit` (default 30, max 50); envelope `{files, page, limit, count, has_next, total_count}` (`total_count` is the grand total: the file count of the version) |
 | **Actions** | |
 | `dispatch_workflow` | Trigger a workflow run via `workflow_dispatch` event |
 | `list_workflow_runs` | List workflow runs with optional filtering by status, event, or SHA |
@@ -452,7 +452,7 @@ List all my repositories
 | `edit_comment_attachment` | Rename a comment attachment |
 | `delete_comment_attachment` | Delete a comment attachment |
 | **Releases** | |
-| `list_releases` | List releases for a repository (page/limit + client-side `state` filter: all/draft/prerelease/published) |
+| `list_releases` | List releases for a repository (page/limit + client-side `state` filter: all/draft/prerelease/published). Envelope `{releases, page, limit, count, has_next}` |
 | `get_release_by_id` | Get a release by numeric ID |
 | `get_release_by_tag` | Get a release by tag name |
 | `get_latest_release` | Get the latest non-draft, non-prerelease release |
@@ -460,14 +460,14 @@ List all my repositories
 | `edit_release` | Update fields of an existing release (only supplied fields are sent) |
 | `delete_release` | Delete a release by numeric ID — destructive |
 | `delete_release_by_tag` | Delete a release by tag name — destructive, verify tag |
-| `list_release_attachments` | List attachments on a release (response fetched in full, sliced client-side) |
+| `list_release_attachments` | List attachments on a release (response fetched in full, sliced client-side). Envelope `{attachments, page, limit, count, has_next}` |
 | `get_release_attachment` | Get metadata for a single release attachment |
 | `download_release_attachment` | Download a release attachment (inline if < 1 MiB; metadata + URL otherwise) |
 | `create_release_attachment` | Upload a new attachment to a release (base64 content or a file path on the MCP host) |
 | `edit_release_attachment` | Rename a release attachment |
 | `delete_release_attachment` | Delete a release attachment — destructive |
 | **Wiki** | |
-| `list_wiki_pages` | List pages using `page`/`limit`; returns `has_next` and, when Forgejo reports `X-Total-Count`, `total_count`. `total_count` counts upstream's raw wiki tree entries, so it can exceed the number of pages listed on a wiki with subdirectories — an upper bound, not an exact total. |
+| `list_wiki_pages` | List pages using `page`/`limit`. Envelope `{pages, page, limit, count, has_next}` and, when Forgejo reports `X-Total-Count`, `total_count`. `total_count` counts upstream's raw wiki tree entries, so it can exceed the number of pages listed on a wiki with subdirectories — an upper bound, not an exact total. |
 | `get_wiki_page` | Read decoded Markdown; optional `start_line`/`end_line`, always returns `total_lines`. |
 | `get_wiki_revisions` | List revision history using `page`/`limit`; returns `has_next` and `total_count`, the page's total revision count as reported in the response body. |
 | `create_wiki_page` | Create a page and return its server-normalized `page_name`; slash-separated titles are a flat subpage naming convention (no hierarchy and no automatic parent page), and an existing title is overwritten. |
