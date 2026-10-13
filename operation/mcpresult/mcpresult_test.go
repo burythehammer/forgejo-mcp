@@ -48,7 +48,7 @@ func TestFailReturnsErrorUnchanged(t *testing.T) {
 	t.Parallel()
 	want := errors.New("boom")
 	res, err := Fail(want)
-	if err != want {
+	if err != want { //nolint:errorlint // identity, not errors.Is, is what is under test
 		t.Fatalf("err = %v, want the same error", err)
 	}
 	if res != nil {

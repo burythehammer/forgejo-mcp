@@ -71,7 +71,7 @@ func RegisterResources(s *server.MCPServer, f forge.Factory) {
 // the message so the mapping can tell forbidden from not found.
 func mapErr(uri string, err error) error {
 	if errors.Is(err, apphook.ErrRequired) {
-		return resource.MapForgejoError(uri, fmt.Errorf("%w: %s", resource.ErrInvalidParams, err))
+		return resource.MapForgejoError(uri, fmt.Errorf("%w: %w", resource.ErrInvalidParams, err))
 	}
 	return resource.MapForgejoError(uri, err)
 }
