@@ -5,9 +5,11 @@ package org_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apporg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/org"
 )
@@ -23,6 +25,13 @@ type stubPort struct {
 	calls    []string
 	team     apporg.CreateTeamInput
 	getError error
+	// orgs, members and teams are the rows the list stubs page through, and
+	// max/known the instance ceiling they report.
+	orgs    []*model.Organization
+	members []*model.User
+	teams   []*model.Team
+	max     int
+	known   bool
 }
 
 func (p *stubPort) CreateOrg(_ context.Context, in apporg.CreateOrgInput) (*model.Organization, error) {
@@ -52,19 +61,19 @@ func (p *stubPort) DeleteOrg(context.Context, string) error {
 	return p.err
 }
 
-func (p *stubPort) ListMyOrgs(context.Context, apporg.Paging) ([]*model.Organization, error) {
+func (p *stubPort) ListMyOrgs(_ context.Context, pg apporg.Paging) ([]*model.Organization, error) {
 	p.calls = append(p.calls, "mine")
-	return nil, p.err
+	return window(p.orgs, pg), p.err
 }
 
-func (p *stubPort) ListUserOrgs(context.Context, string, apporg.Paging) ([]*model.Organization, error) {
+func (p *stubPort) ListUserOrgs(_ context.Context, _ string, pg apporg.Paging) ([]*model.Organization, error) {
 	p.calls = append(p.calls, "user")
-	return nil, p.err
+	return window(p.orgs, pg), p.err
 }
 
-func (p *stubPort) ListOrgMembers(context.Context, string, apporg.Paging) ([]*model.User, error) {
+func (p *stubPort) ListOrgMembers(_ context.Context, _ string, pg apporg.Paging) ([]*model.User, error) {
 	p.calls = append(p.calls, "members")
-	return nil, p.err
+	return window(p.members, pg), p.err
 }
 
 func (p *stubPort) CheckOrgMembership(context.Context, string, string) (bool, error) {
@@ -77,9 +86,9 @@ func (p *stubPort) RemoveOrgMember(context.Context, string, string) error {
 	return p.err
 }
 
-func (p *stubPort) ListOrgTeams(context.Context, string, apporg.Paging) ([]*model.Team, error) {
+func (p *stubPort) ListOrgTeams(_ context.Context, _ string, pg apporg.Paging) ([]*model.Team, error) {
 	p.calls = append(p.calls, "teams")
-	return nil, p.err
+	return window(p.teams, pg), p.err
 }
 
 func (p *stubPort) CreateTeam(_ context.Context, _ string, in apporg.CreateTeamInput) (*model.Team, error) {
@@ -192,5 +201,96 @@ func TestFailuresAreWrapped(t *testing.T) {
 	}
 }
 
-// MaxResponseItems reports an unknown ceiling for the test double.
-func (*stubPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+// MaxResponseItems reports the ceiling the test double was given.
+func (p *stubPort) MaxResponseItems(context.Context) (int, bool) { return p.max, p.known }
+
+// window returns the rows of all that page pg names, as Forgejo would.
+func window[T any](all []T, pg apporg.Paging) []T {
+	lo := min((pg.Page-1)*pg.Limit, len(all))
+	hi := min(lo+pg.Limit, len(all))
+	return all[lo:hi]
+}
+
+func numbered(n int) []*model.Organization {
+	out := make([]*model.Organization, n)
+	for i := range out {
+		out[i] = &model.Organization{UserName: fmt.Sprintf("org-%d", i+1)}
+	}
+	return out
+}
+
+func TestListMyOrgsEnvelopeNamesTheNextPage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p := &stubPort{orgs: numbered(5)}
+	first, err := service(p).MyOrgs(ctx, apporg.Paging{Page: 1, Limit: 2})
+	if err != nil || len(first.Organizations) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
+		t.Fatalf("page 1 of five: %+v, %v", first, err)
+	}
+	last, err := service(p).MyOrgs(ctx, apporg.Paging{Page: 3, Limit: 2})
+	if err != nil || last.Count != 1 || last.HasNext {
+		t.Fatalf("short last page: %+v, %v", last, err)
+	}
+	exact, err := service(&stubPort{orgs: numbered(4)}).MyOrgs(ctx, apporg.Paging{Page: 2, Limit: 2})
+	if err != nil || exact.Count != 2 || exact.HasNext {
+		t.Fatalf("exact-multiple last page: %+v, %v", exact, err)
+	}
+	past, err := service(&stubPort{orgs: numbered(4)}).MyOrgs(ctx, apporg.Paging{Page: 3, Limit: 2})
+	if err != nil || past.Count != 0 || past.HasNext {
+		t.Fatalf("past the end: %+v, %v", past, err)
+	}
+}
+
+func TestListMyOrgsPageZeroIsPageOne(t *testing.T) {
+	t.Parallel()
+	p := &stubPort{orgs: numbered(3)}
+	got, err := service(p).MyOrgs(context.Background(), apporg.Paging{Page: 0, Limit: 2})
+	if err != nil || got.Page != 1 || got.Count != 2 || !got.HasNext {
+		t.Fatalf("page 0: %+v, %v", got, err)
+	}
+}
+
+func TestListMyOrgsRefusesALimitOverAKnownCeiling(t *testing.T) {
+	t.Parallel()
+	p := &stubPort{orgs: numbered(5), max: 3, known: true}
+	_, err := service(p).MyOrgs(context.Background(), apporg.Paging{Page: 1, Limit: 4})
+	var over *list.OverCeilingError
+	if !errors.As(err, &over) || over.Max != 3 {
+		t.Fatalf("got %v", err)
+	}
+	got, err := service(p).MyOrgs(context.Background(), apporg.Paging{Page: 1})
+	if err != nil || got.Limit != 3 || got.Count != 3 || !got.HasNext {
+		t.Fatalf("default limit under ceiling: %+v, %v", got, err)
+	}
+}
+
+func TestListMembersAndTeamsEnvelopeNameTheNextPage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	members := make([]*model.User, 3)
+	for i := range members {
+		members[i] = &model.User{UserName: fmt.Sprintf("u%d", i+1)}
+	}
+	teams := make([]*model.Team, 3)
+	for i := range teams {
+		teams[i] = &model.Team{Name: fmt.Sprintf("t%d", i+1)}
+	}
+	p := &stubPort{members: members, teams: teams}
+	m, err := service(p).Members(ctx, "o", apporg.Paging{Page: 1, Limit: 2})
+	if err != nil || len(m.Members) != 2 || m.Count != 2 || !m.HasNext {
+		t.Fatalf("members page 1: %+v, %v", m, err)
+	}
+	tm, err := service(p).Teams(ctx, "o", apporg.Paging{Page: 2, Limit: 2})
+	if err != nil || len(tm.Teams) != 1 || tm.Count != 1 || tm.HasNext {
+		t.Fatalf("teams page 2: %+v, %v", tm, err)
+	}
+}
+
+func TestListUserOrgsEnvelopeNamesTheNextPage(t *testing.T) {
+	t.Parallel()
+	p := &stubPort{orgs: numbered(2)}
+	got, err := service(p).UserOrgs(context.Background(), "u", apporg.Paging{Page: 1, Limit: 2})
+	if err != nil || len(got.Organizations) != 2 || got.HasNext {
+		t.Fatalf("exact two, limit two: %+v, %v", got, err)
+	}
+}

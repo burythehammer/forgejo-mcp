@@ -1,3 +1,4 @@
-{"Result":[{"id":5,"name":"core","description":"","organization":{"id":6,"username":"octo-org","full_name":"Octo Org","avatar_url":"","description":"","website":"","location":"","visibility":"public"},"permission":"write","can_create_org_repo":true,"includes_all_repositories":false,"units_map":null,"units":null}]}
+{"Result":{"teams":[{"id":5,"name":"core","description":"","organization":{"id":6,"username":"octo-org","full_name":"Octo Org","avatar_url":"","description":"","website":"","location":"","visibility":"public"},"permission":"write","can_create_org_repo":true,"includes_all_repositories":false,"units_map":null,"units":null}],"page":1,"limit":100,"count":1,"has_next":true}}
 -- port calls --
 SearchOrgTeams ["octo-org",{"Page":1,"PageSize":100,"Query":"","IncludeDescription":false}]
+SearchOrgTeams ["octo-org",{"Page":2,"PageSize":100,"Query":"","IncludeDescription":false}]

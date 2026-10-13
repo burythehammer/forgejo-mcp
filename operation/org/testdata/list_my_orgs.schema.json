@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List my organizations",
+  "description": "List my organizations. Returns a response envelope {organizations, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "limit": {
