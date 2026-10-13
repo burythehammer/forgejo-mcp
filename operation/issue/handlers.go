@@ -40,22 +40,3 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	}
 	return do(ctx, apppissue.New(issueadapter.New(port)), args)
 }
-
-// pageOr is a page or limit argument as the tools have always read it: an
-// absent or zero number takes the default. The test is made before the number
-// is truncated, so 0.5 is not defaulted; it truncates to 0 and is passed on.
-func pageOr(v float64, def int) int {
-	if v == 0 {
-		return def
-	}
-	return int(v)
-}
-
-// intOr is pageOr for the dependency tools, whose defaults were always applied
-// to the truncated number.
-func intOr(v float64, def int) int {
-	if n := int(v); n != 0 {
-		return n
-	}
-	return def
-}

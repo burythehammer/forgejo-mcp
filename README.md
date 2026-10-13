@@ -295,37 +295,37 @@ List all my repositories
 |------|-------------|
 | **User** | |
 | `get_my_user_info` | Get information about the authenticated user |
-| `check_notifications` | Check and list user notifications |
+| `check_notifications` | Check and list user notifications (page/limit); returns `{notifications,page,limit,count,has_next}` |
 | `get_notification_thread` | Get detailed info on a single notification thread |
 | `mark_notification_read` | Mark a single notification thread as read |
 | `mark_all_notifications_read` | Acknowledge all notifications |
-| `list_repo_notifications` | Filter notifications scoped to a single repository |
+| `list_repo_notifications` | Filter notifications scoped to a single repository (page/limit); returns `{notifications,page,limit,count,has_next}` |
 | `mark_repo_notifications_read` | Mark all notifications in a specific repo as read |
-| `search_users` | Search for users |
+| `search_users` | Search for users (page/limit); returns `{users,page,limit,count,has_next}` |
 | **Repositories** | |
 | `list_my_repos` | List all repositories you own |
 | `get_repo` | Get a single repository by owner and name |
 | `create_repo` | Create a new repository |
 | `fork_repo` | Fork a repository |
 | `edit_repo` | Edit repository settings. Only fields you pass change; omitted fields are left unchanged. Providing no fields is an error. |
-| `search_repos` | Search for repositories |
+| `search_repos` | Search for repositories (page/limit); returns `{repositories,page,limit,count,has_next}` |
 | **Topics** | |
-| `list_repo_topics` | List a repository's topics. Bounded by `page` (default 1) + `limit` (default 100); returns `{topics, page, limit, count}`. |
+| `list_repo_topics` | List a repository's topics. Bounded by `page` (default 1) + `limit` (default 100); returns `{topics,page,limit,count,has_next}`. |
 | `set_repo_topics` | Replace all topics. `topics` is a required comma-separated string; an empty string clears. Invalid names are rejected before the request. |
 | `add_repo_topic` | Add one topic |
 | `delete_repo_topic` | Delete one topic |
 | **Branches** | |
-| `list_branches` | List all branches in a repository |
+| `list_branches` | List all branches in a repository (page/limit); returns `{branches,page,limit,count,has_next}` |
 | `create_branch` | Create a new branch |
 | `delete_branch` | Delete a branch |
 | **Branch Protection** | |
-| `list_branch_protections` | List a repository's branch protection rules. Bounded by `page` (1-based) + `limit` (page size); the response echoes `page`/`limit` so callers can fetch the next page. |
+| `list_branch_protections` | List a repository's branch protection rules. Bounded by `page` (1-based) + `limit` (page size); returns `{branch_protections,page,limit,count,has_next}`, so callers can fetch the next page. |
 | `get_branch_protection` | Get a single rule by `rule` name |
 | `create_branch_protection` | Create a rule. Requires `branch_name`; `status_check_contexts` is a comma-separated list of required checks (e.g. `"ci/build,ci/test"`). |
 | `edit_branch_protection` | Edit a rule by `rule` name. Only fields you pass change; omitted fields are left unchanged. |
 | `delete_branch_protection` | Delete a rule by `rule` name |
 | **Webhooks** | |
-| `list_repo_hooks` | List repository webhooks. Bounded by `page` (default 1) + `limit` (default 30, no server-imposed ceiling); returns `total_count` when Forgejo reports `X-Total-Count`. |
+| `list_repo_hooks` | List repository webhooks. Bounded by `page` (default 1) + `limit` (default 30; a limit above the instance's max_response_items is refused); returns `{hooks,page,limit,count,total_count,has_next}`, where `total_count` appears only when Forgejo reports `X-Total-Count`. |
 | `get_repo_hook` | Get a single repository webhook by ID |
 | `create_repo_hook` | Create a repository webhook. The secret is accepted but never echoed in the response. |
 | `edit_repo_hook` | Edit a repository webhook. Only fields you pass change; omitted fields are left unchanged. |
@@ -340,10 +340,10 @@ List all my repositories
 | `delete_file` | Delete a file |
 | `change_files` | Atomically create, update, and delete multiple files in one native Forgejo commit; create/update operations accept `content` or `content_base64`. |
 | **Commits** | |
-| `list_repo_commits` | List commits in a repository |
+| `list_repo_commits` | List commits in a repository (page/limit); returns `{commits,page,limit,count,has_next}` |
 | `get_commit_statuses` | List per-context commit statuses for a full 40-character SHA. Bounded by `page` (default 1) + `limit` (default 30, maximum 50); returns `{sha, statuses, page, limit, count, total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Combined aggregate stays on the commit status resource. Not Actions runs (`list_workflow_runs`). |
 | **Issues** | |
-| `list_repo_issues` | List issues in a repository (page/limit). Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |
+| `list_repo_issues` | List issues in a repository (page/limit); returns `{issues,page,limit,count,has_next}`. Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |
 | `search_issues` | Search issues across every repository of one owner (page/limit); returns `{issues,page,limit,count,has_next,total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count` |
 | `get_issue_by_index` | Get a specific issue |
 | `create_issue` | Create a new issue. Optional `labels` (comma-separated names or IDs), `assignees` (comma-separated usernames) and `milestone` (numeric ID) are applied by the same request that creates the issue. Optional `ref` links the issue to a branch (Forgejo's issue `ref` field, passed through as given). Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
@@ -351,13 +351,13 @@ List all my repositories
 | `remove_issue_labels` | Remove labels from an issue. `labels` takes comma-separated label names or numeric IDs. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
 | `update_issue` | Update an existing issue (requires numeric milestone ID). `due_date` sets the deadline (RFC3339); `clear_due_date=true` removes it. The two are mutually exclusive — setting both is an error, and omitting both leaves the deadline unchanged. `set_labels` replaces the issue's entire label set (names or IDs); an empty string clears every label. `ref` sets the branch the issue is linked to (passed through as given); omitting it leaves it unchanged and an empty string clears it. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full issue. |
 | `issue_state_change` | Open or close an issue. Returns a compact result by default; `verbose=true` returns the full issue |
-| `list_issue_dependencies` | List issues the given issue depends on. Bounded by `page` (1-based) + `limit` (page size); the response echoes `page`/`limit` so callers can fetch the next page. |
-| `list_issue_dependents` | List issues that depend on the given issue. Bounded by `page` (1-based) + `limit` (page size); the response echoes `page`/`limit` so callers can fetch the next page. |
+| `list_issue_dependencies` | List issues the given issue depends on (page/limit); returns `{issues,page,limit,count,has_next}` |
+| `list_issue_dependents` | List issues that depend on the given issue (page/limit); returns `{issues,page,limit,count,has_next}` |
 | `add_issue_dependency` | Make one issue depend on another. The dependency may live in a different repository: optional `depends_on_owner`/`depends_on_repo` default to `owner`/`repo`. |
 | `remove_issue_dependency` | Remove a dependency from an issue. For a cross-repo dependency, optional `dependency_owner`/`dependency_repo` default to `owner`/`repo`. |
-| `list_repo_milestones` | List milestones with their IDs (use with `update_issue`) |
-| `list_repo_labels` | List labels with their IDs. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`). |
-| `list_org_labels` | List organization-level labels with their IDs. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
+| `list_repo_milestones` | List milestones with their IDs (use with `update_issue`) (page/limit); returns `{milestones,page,limit,count,has_next}` |
+| `list_repo_labels` | List labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`). |
+| `list_org_labels` | List organization-level labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
 | `create_repo_label` | Create a repository label (`name`, `color` as 6-digit hex, optional `description`). Returns the numeric `id`; `add_issue_labels` also takes the name. |
 | `edit_repo_label` | Edit a repository label (PATCH — only supplied fields change: `name`, `color`, `description`). |
 | `delete_repo_label` | Delete a repository label. Refuses by default when the label is in use (reports count); set `delete_mode=force` to override. |
@@ -367,20 +367,20 @@ List all my repositories
 | `delete_org_label` | Delete an organization-level label. In-use guard counts across visible org repos (best-effort); `delete_mode=force` overrides. |
 | `get_org_label` | Get a single organization-level label by numeric `id`. |
 | **Comments** | |
-| `list_issue_comments` | List comments on an issue or PR |
+| `list_issue_comments` | List comments on an issue or PR (page/limit); returns `{comments,page,limit,count,has_next}` |
 | `get_issue_comment` | Get a specific comment |
 | `create_issue_comment` | Add a comment to an issue or PR. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `edit_issue_comment` | Edit a comment. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `delete_issue_comment` | Delete a comment |
 | **Pull Requests** | |
-| `list_repo_pull_requests` | List pull requests in a repository |
+| `list_repo_pull_requests` | List pull requests in a repository (page/limit); returns `{pull_requests,page,limit,count,has_next}` |
 | `get_pull_request_by_index` | Get a specific pull request |
 | `create_pull_request` | Create a new pull request. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, head, base); the submitted body is not echoed back. `verbose=true` returns the full pull request |
 | `update_pull_request` | Update an existing pull request. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full pull request |
-| `list_pull_reviews` | List reviews for a pull request |
+| `list_pull_reviews` | List reviews for a pull request (page/limit); returns `{reviews,page,limit,count,has_next}` |
 | `get_pull_review` | Get a specific pull request review |
 | `list_pull_review_comments` | List comments on a pull request review |
-| `list_pull_request_files` | List changed files in a pull request (paginated). Use the returned filenames as the `file_path` argument to `get_pull_request_diff`. |
+| `list_pull_request_files` | List changed files in a pull request (page/limit); returns `{files,page,limit,count,has_next}`. Use the returned filenames as the `file_path` argument to `get_pull_request_diff`. |
 | `get_pull_request_diff` | Get the unified diff of a pull request. Optional `file_path` returns only that file's hunks (matches on either pre- or post-rename path). |
 | `merge_pull_request` | Merge a pull request (style: merge/rebase/rebase-merge/squash; optional title/message/delete-branch/force-merge/wait-for-checks). |
 | `create_pull_review` | Create a review on a pull request (state: APPROVED/REQUEST_CHANGES/COMMENT) with optional inline comments. |
@@ -393,43 +393,43 @@ List all my repositories
 | `list_packages` | List package versions of a user or org (one row per version). Optional `type` and `q`. Server-paged via `page`/`limit` (default 30, max 50). Envelope `{packages, page, limit, count, has_next, total_count?}`. A missing owner is an error, not an empty list |
 | `get_package` | Get one package version. Does not embed owner/creator users |
 | `delete_package` | Delete one package version (not every version of the name). No preflight. 4xx/5xx stay errors |
-| `list_package_files` | List files of one package version. Client-paged via `page`/`limit` (default 30, max 50); envelope `{files, page, limit, count, has_next, total_count}` (`total_count` is the fetched list length) |
+| `list_package_files` | List files of one package version. Client-paged via `page`/`limit` (default 30, max 50); envelope `{files, page, limit, count, has_next, total_count}` (`total_count` is the grand total: the file count of the version) |
 | **Actions** | |
 | `dispatch_workflow` | Trigger a workflow run via `workflow_dispatch` event |
-| `list_workflow_runs` | List workflow runs with optional filtering by status, event, or SHA |
+| `list_workflow_runs` | List workflow runs with optional filtering by status, event, or SHA. Paged by `page`/`limit`; returns `{workflow_runs, page, limit, count, total_count?, has_next}` |
 | `get_workflow_run` | Get details of a specific workflow run by ID |
-| `list_action_run_jobs` | List jobs for a Forgejo v16+ workflow run with client-side `page` and `limit` bounds |
+| `list_action_run_jobs` | List jobs for a Forgejo v16+ workflow run with client-side `page` and `limit` bounds. Returns `{run_id, jobs, page, limit, count, total_count, has_next, next_page?}`; `total_count` is always present here because Forgejo does not page jobs, so the whole list is read and counted. |
 | `get_action_job_logs` | Read a Forgejo v16+ job log with resumable `offset` and `max_bytes` bounds; defaults to the tail |
 | `cancel_workflow_run` | Cancel a pending or running workflow run. Already-finished runs also return success (HTTP 204); the run is left unchanged |
 | `delete_workflow_run` | Delete a completed workflow run. A live run is an API error. Removes the run and its job logs; Forgejo marks that run's artifacts deleted |
-| `list_action_run_artifacts` | List artifacts of a workflow run. Server-paged via `page`/`limit` (default 30, max 50); optional `name` filter. Envelope `{artifacts, page, limit, count, total_count?}` |
+| `list_action_run_artifacts` | List artifacts of a workflow run. Server-paged via `page`/`limit` (default 30, max 50); optional `name` filter. Envelope `{run_id, artifacts, page, limit, count, total_count?, has_next}` |
 | `get_action_artifact` | Get metadata for one Actions artifact. Does not download the zip |
-| `list_repo_action_secrets` | List a repository's Actions secrets (names only; Forgejo never returns values). Client-paged via `page`/`limit` (default 30, max 50) |
+| `list_repo_action_secrets` | List a repository's Actions secrets (names only; Forgejo never returns values). Client-paged via `page`/`limit` (default 30, max 50); returns `{owner, repo, secrets, page, limit, count, has_next}` |
 | `create_or_update_repo_action_secret` | Create or update a repository Actions secret. Overwrites any existing secret with the same name; the value is never echoed back |
 | `delete_repo_action_secret` | Delete a repository Actions secret |
-| `list_org_action_secrets` | List an organization's Actions secrets (names only; Forgejo never returns values). Client-paged via `page`/`limit` (default 30, max 50) |
+| `list_org_action_secrets` | List an organization's Actions secrets (names only; Forgejo never returns values). Client-paged via `page`/`limit` (default 30, max 50); returns `{org, secrets, page, limit, count, has_next}` |
 | `create_or_update_org_action_secret` | Create or update an organization Actions secret. Overwrites any existing secret with the same name; the value is never echoed back |
 | `delete_org_action_secret` | Delete an organization Actions secret |
 | **Organizations** | |
-| `list_my_orgs` | List my organizations |
-| `list_user_orgs` | List a user's organizations |
+| `list_my_orgs` | List my organizations (page/limit); returns `{organizations,page,limit,count,has_next}` |
+| `list_user_orgs` | List a user's organizations (page/limit); returns `{organizations,page,limit,count,has_next}` |
 | `get_org` | Get organization details |
 | `create_org` | Create an organization |
 | `edit_org` | Edit organization settings |
 | `delete_org` | Delete an organization — **destructive and irreversible**: all repos, teams and data are permanently removed |
-| `list_org_members` | List members of an organization |
+| `list_org_members` | List members of an organization (page/limit); returns `{members,page,limit,count,has_next}` |
 | `check_org_membership` | Check if a user is a member of an organization |
 | `remove_org_member` | Remove a member from an organization |
-| `list_org_teams` | List teams in an organization |
-| `search_org_teams` | Search for teams in an organization |
+| `list_org_teams` | List teams in an organization (page/limit); returns `{teams,page,limit,count,has_next}` |
+| `search_org_teams` | Search for teams in an organization (page/limit); returns `{teams,page,limit,count,has_next}` |
 | `create_org_team` | Create a team in an organization |
 | `add_team_member` | Add a user to a team |
 | `remove_team_member` | Remove a user from a team |
 | `add_team_repo` | Add a repository to a team |
 | `remove_team_repo` | Remove a repository from a team |
 | **Time Tracking** | |
-| `list_issue_tracked_times` | List tracked time entries on an issue or PR |
-| `list_repo_tracked_times` | List tracked time entries across a repository |
+| `list_issue_tracked_times` | List tracked time entries on an issue or PR (page/limit); returns `{times, page, limit, count, has_next}` |
+| `list_repo_tracked_times` | List tracked time entries across a repository (page/limit); returns `{times, page, limit, count, has_next}` |
 | `list_my_tracked_times` | List your own tracked time entries |
 | `add_issue_time` | Log time against an issue or PR (accepts seconds or duration like `15m`) |
 | `reset_issue_time` | Delete ALL tracked time entries on an issue or PR (destructive) |
@@ -452,7 +452,7 @@ List all my repositories
 | `edit_comment_attachment` | Rename a comment attachment |
 | `delete_comment_attachment` | Delete a comment attachment |
 | **Releases** | |
-| `list_releases` | List releases for a repository (page/limit + client-side `state` filter: all/draft/prerelease/published) |
+| `list_releases` | List releases for a repository (page/limit + client-side `state` filter: all/draft/prerelease/published). Envelope `{releases, page, limit, count, has_next}` |
 | `get_release_by_id` | Get a release by numeric ID |
 | `get_release_by_tag` | Get a release by tag name |
 | `get_latest_release` | Get the latest non-draft, non-prerelease release |
@@ -460,14 +460,14 @@ List all my repositories
 | `edit_release` | Update fields of an existing release (only supplied fields are sent) |
 | `delete_release` | Delete a release by numeric ID — destructive |
 | `delete_release_by_tag` | Delete a release by tag name — destructive, verify tag |
-| `list_release_attachments` | List attachments on a release (response fetched in full, sliced client-side) |
+| `list_release_attachments` | List attachments on a release (response fetched in full, sliced client-side). Envelope `{attachments, page, limit, count, has_next}` |
 | `get_release_attachment` | Get metadata for a single release attachment |
 | `download_release_attachment` | Download a release attachment (inline if < 1 MiB; metadata + URL otherwise) |
 | `create_release_attachment` | Upload a new attachment to a release (base64 content or a file path on the MCP host) |
 | `edit_release_attachment` | Rename a release attachment |
 | `delete_release_attachment` | Delete a release attachment — destructive |
 | **Wiki** | |
-| `list_wiki_pages` | List pages using `page`/`limit`; returns `has_next` and, when Forgejo reports `X-Total-Count`, `total_count`. `total_count` counts upstream's raw wiki tree entries, so it can exceed the number of pages listed on a wiki with subdirectories — an upper bound, not an exact total. |
+| `list_wiki_pages` | List pages using `page`/`limit`. Envelope `{pages, page, limit, count, has_next}`. No `total_count`: Forgejo's `X-Total-Count` counts raw wiki tree entries, not pages, so it is not an exact grand total and is omitted. |
 | `get_wiki_page` | Read decoded Markdown; optional `start_line`/`end_line`, always returns `total_lines`. |
 | `get_wiki_revisions` | List revision history using `page`/`limit`; returns `has_next` and `total_count`, the page's total revision count as reported in the response body. |
 | `create_wiki_page` | Create a page and return its server-normalized `page_name`; slash-separated titles are a flat subpage naming convention (no hierarchy and no automatic parent page), and an existing title is overwritten. |

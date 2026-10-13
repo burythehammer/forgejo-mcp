@@ -74,7 +74,7 @@ func TestUseCaseThroughTheBridgeAndFake(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if jobs.TotalCount != 1 || jobs.Jobs[0].Name != "build" {
+	if jobs.TotalCount == nil || *jobs.TotalCount != 1 || jobs.Jobs[0].Name != "build" {
 		t.Fatalf("jobs through the bridge: %+v", jobs)
 	}
 	if _, err := svc.GetRun(ctx, "o", "r", 9999); err == nil {

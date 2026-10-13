@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
 )
@@ -73,27 +74,40 @@ func paging(page, limit float64) (int, int) {
 	return p, l
 }
 
-// List returns one page of a wiki's pages, and whether another page follows.
+// List returns one page of a wiki's pages with its next marker. The ceiling
+// check and the default limit come from the list module, and so does the
+// continuation probe. The X-Total-Count the wiki reports counts raw tree
+// entries, not pages, so it is not a grand total: it is neither reported as
+// total_count nor passed to the module.
 func (s *Service) List(ctx context.Context, r ListRequest) (model.WikiPageListResult, error) {
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
 	page, limit := paging(r.Page, r.Limit)
-	listed, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, page, limit)
+	if r.Limit <= 0 {
+		limit = list.DefaultLimit(defaultLimit, c)
+	}
+	res, err := list.Run(ctx, list.Paging{Page: page, Limit: limit}, c,
+		func(ctx context.Context, p list.Paging) (list.Batch[model.WikiPageMeta], error) {
+			listed, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, p.Page, p.Limit)
+			if err != nil {
+				return list.Batch[model.WikiPageMeta]{}, fmt.Errorf("list wiki pages: %w", err)
+			}
+			return list.Batch[model.WikiPageMeta]{Items: listed.Pages}, nil
+		})
 	if err != nil {
-		return model.WikiPageListResult{}, fmt.Errorf("list wiki pages: %w", err)
+		return model.WikiPageListResult{}, err
 	}
-	pages := listed.Pages
-	hasNext := false
-	if len(pages) == limit {
-		next, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, page+1, limit)
-		if err != nil {
-			return model.WikiPageListResult{}, fmt.Errorf("probe next wiki page: %w", err)
-		}
-		hasNext = len(next.Pages) > 0
-	}
-	summaries := make([]model.WikiPageSummary, len(pages))
-	for i, p := range pages {
+	summaries := make([]model.WikiPageSummary, len(res.Items))
+	for i, p := range res.Items {
 		summaries[i] = model.WikiPageSummary{Title: p.Title, PageName: p.SubURL, SubURL: p.SubURL}
 	}
-	return model.WikiPageListResult{Pages: summaries, Page: page, HasNext: hasNext, TotalCount: listed.TotalCount}, nil
+	return model.WikiPageListResult{
+		Pages:   summaries,
+		Page:    res.Page,
+		Limit:   res.Limit,
+		Count:   res.Count,
+		HasNext: res.HasNext,
+	}, nil
 }
 
 // Get returns a page's content, cut to the requested line range when one is

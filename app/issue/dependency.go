@@ -7,25 +7,40 @@ import (
 	"fmt"
 	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
 // Dependencies lists the issues that an issue depends on, one page at a time.
 func (s *Service) Dependencies(ctx context.Context, t Target, p Paging) (model.DependencyPage, error) {
-	issues, err := s.port.ListIssueDependencies(ctx, t.Owner, t.Repo, t.Index, p)
-	if err != nil {
-		return model.DependencyPage{}, fmt.Errorf("list issue dependencies err: %w", err)
-	}
-	return model.DependencyPage{Page: p.Page, Limit: p.Limit, Issues: issues}, nil
+	return s.relatedPage(ctx, "dependencies", s.port.ListIssueDependencies, t, p)
 }
 
 // Dependents lists the issues that depend on an issue, one page at a time.
 func (s *Service) Dependents(ctx context.Context, t Target, p Paging) (model.DependencyPage, error) {
-	issues, err := s.port.ListIssueDependents(ctx, t.Owner, t.Repo, t.Index, p)
+	return s.relatedPage(ctx, "dependents", s.port.ListIssueDependents, t, p)
+}
+
+// relatedPage reads one page of a dependency list through the list module, so
+// a limit above the instance ceiling is refused and a default is lowered to it.
+func (s *Service) relatedPage(ctx context.Context, what string,
+	fetch func(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.Issue, error),
+	t Target, p Paging,
+) (model.DependencyPage, error) {
+	page, err := runPage(ctx, s.port, list.Paging(p), defaultLimit,
+		func(ctx context.Context, q list.Paging) ([]*model.Issue, error) {
+			got, err := fetch(ctx, t.Owner, t.Repo, t.Index, Paging(q))
+			if err != nil {
+				return nil, fmt.Errorf("list issue %s err: %w", what, err)
+			}
+			return got, nil
+		})
 	if err != nil {
-		return model.DependencyPage{}, fmt.Errorf("list issue dependents err: %w", err)
+		return model.DependencyPage{}, err
 	}
-	return model.DependencyPage{Page: p.Page, Limit: p.Limit, Issues: issues}, nil
+	return model.DependencyPage{
+		Issues: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
 }
 
 // AddDependency makes the issue t depend on dep, which may be in another

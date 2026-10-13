@@ -18,6 +18,9 @@ import (
 // pkg/forge/releaseadapter implements it over forge.Releases and
 // forge.Attachments.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListReleases(ctx context.Context, owner, repo string, p Paging) ([]*model.Release, error)
 	GetRelease(ctx context.Context, owner, repo string, id int64) (model.Release, error)
 	GetReleaseByTag(ctx context.Context, owner, repo, tag string) (model.Release, error)

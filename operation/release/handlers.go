@@ -167,14 +167,6 @@ func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	page := a.Page
-	if page == 0 {
-		page = 1
-	}
-	limit := a.Limit
-	if limit == 0 {
-		limit = 20
-	}
 	state := a.State
 	if state == "" {
 		state = stateAll
@@ -189,14 +181,14 @@ func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rels, err := svc.ListReleases(ctx, a.Owner, a.Repo, apprelease.ListQuery{
+	page, err := svc.ListReleases(ctx, a.Owner, a.Repo, apprelease.ListQuery{
 		State:  state,
-		Paging: apprelease.Paging{Page: int(page), Limit: int(limit)},
+		Paging: apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)},
 	})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.TextResult(rels)
+	return to.TextResult(page)
 }
 
 func (h handlers) GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -363,24 +355,15 @@ func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page := a.Page
-	if page == 0 {
-		page = 1
-	}
-	limit := a.Limit
-	if limit == 0 {
-		limit = 20
-	}
-
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	list, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: int(page), Limit: int(limit)})
+	page, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.TextResult(list)
+	return to.TextResult(page)
 }
 
 func (h handlers) GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

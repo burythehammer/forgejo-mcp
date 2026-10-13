@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List releases for a repository. The state filter is applied client-side after pagination, so result size may be smaller than limit even when more matches exist on later pages.",
+  "description": "List releases for a repository. Returns a response envelope {releases, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. The state filter is applied client-side after pagination, so count may be smaller than limit even when more matches exist on later pages.",
   "inputSchema": {
     "properties": {
       "limit": {

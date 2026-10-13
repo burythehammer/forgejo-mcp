@@ -18,6 +18,9 @@ import (
 // forge.BranchProtections. Failures from Forgejo come back as ordinary errors
 // for the use case to wrap.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListBranchProtections(ctx context.Context, owner, repo string, p Paging) ([]*model.BranchProtection, error)
 	GetBranchProtection(ctx context.Context, owner, repo, rule string) (*model.BranchProtection, error)
 	CreateBranchProtection(ctx context.Context, owner, repo string, in CreateInput) (*model.BranchProtection, error)

@@ -17,6 +17,9 @@ import (
 // Port is the user domain as the use cases need it, in repo-owned types.
 // pkg/forge/useradapter implements it over forge.Users.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	GetMyUserInfo(ctx context.Context) (*model.User, error)
 	ListNotifications(ctx context.Context, q NotificationQuery) ([]*model.NotificationThread, error)
 	ListRepoNotifications(ctx context.Context, owner, repo string, q NotificationQuery) ([]*model.NotificationThread, error)

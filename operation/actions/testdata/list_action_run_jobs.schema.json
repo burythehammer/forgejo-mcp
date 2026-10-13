@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List jobs for a Forgejo v16+ workflow run. Results are paged client-side because Forgejo returns the full job list.",
+  "description": "List jobs for a Forgejo v16+ workflow run. Results are paged client-side because Forgejo returns the full job list. Returns a response envelope {run_id, jobs, page, limit, count, total_count, has_next, next_page}; has_next true means a further page may exist; re-issue the call with page incremented (next_page) to fetch it.",
   "inputSchema": {
     "properties": {
       "limit": {

@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -23,7 +24,7 @@ const (
 var (
 	ListRepoTopicsTool = mcp.NewTool(
 		ListRepoTopicsToolName,
-		mcp.WithDescription("List a repository's topics. Bounded by page (default 1) and limit (default 100); returns {topics, page, limit, count}."),
+		mcp.WithDescription("List a repository's topics. Bounded by page (default 1) and limit (default 100); returns a response envelope {topics, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
@@ -64,7 +65,7 @@ type listRepoTopicsArgs struct {
 
 func (h handlers) ListRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return runAdmin(ctx, h, req, "ListRepoTopicsFn", func(ctx context.Context, s *apprepo.AdminService, a listRepoTopicsArgs) (*mcp.CallToolResult, error) {
-		page, err := s.ListRepoTopics(ctx, a.Owner, a.Repo, apprepo.AdminPaging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)})
+		page, err := s.ListRepoTopics(ctx, a.Owner, a.Repo, apprepo.AdminPaging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)})
 		return mcpresult.Render(page, err)
 	})
 }

@@ -39,8 +39,9 @@ type BranchProtection struct {
 // BranchProtectionList is one page of a repository's branch protection rules,
 // echoing the page so a caller can resume pagination.
 type BranchProtectionList struct {
+	BranchProtections []*BranchProtection `json:"branch_protections"`
 	Page              int                 `json:"page"`
 	Limit             int                 `json:"limit"`
 	Count             int                 `json:"count"`
-	BranchProtections []*BranchProtection `json:"branch_protections"`
+	HasNext           bool                `json:"has_next"`
 }

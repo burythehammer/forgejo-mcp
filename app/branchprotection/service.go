@@ -6,8 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
 
 // Service runs the branch protection use cases over a Port. Build one per
@@ -66,20 +67,30 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.BranchProtecti
 	if r.Owner == "" || r.Repo == "" {
 		return model.BranchProtectionList{}, fmt.Errorf("owner and repo are required")
 	}
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
 	page := r.Page
 	if page == 0 {
 		page = 1
 	}
 	limit := r.Limit
 	if limit == 0 {
-		limit = 100
+		limit = float64(list.DefaultLimit(100, c))
 	}
-	p := Paging{Page: int(page), Limit: int(limit)}
-	bps, err := s.port.ListBranchProtections(ctx, r.Owner, r.Repo, p)
+	p := list.Paging{Page: int(page), Limit: int(limit)}
+	got, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
+		rules, err := s.port.ListBranchProtections(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
+		if err != nil {
+			return list.Batch[*model.BranchProtection]{}, fmt.Errorf("list branch protections err: %w", err)
+		}
+		return list.Batch[*model.BranchProtection]{Items: rules}, nil
+	})
 	if err != nil {
-		return model.BranchProtectionList{}, fmt.Errorf("list branch protections err: %w", err)
+		return model.BranchProtectionList{}, err
 	}
-	return model.BranchProtectionList{Page: p.Page, Limit: p.Limit, Count: len(bps), BranchProtections: bps}, nil
+	return model.BranchProtectionList{
+		BranchProtections: got.Items, Page: got.Page, Limit: got.Limit, Count: got.Count, HasNext: got.HasNext,
+	}, nil
 }
 
 // Get returns one rule.

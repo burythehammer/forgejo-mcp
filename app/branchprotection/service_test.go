@@ -4,6 +4,7 @@ package branchprotection_test
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -176,5 +177,33 @@ func TestDeleteRemovesTheRule(t *testing.T) {
 	}
 	if _, err := s.Get(context.Background(), ref("main")); err == nil {
 		t.Fatal("rule still readable after delete")
+	}
+}
+
+func TestListHasNextMarksTheLastPage(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		n       int
+		page    float64
+		count   int
+		hasNext bool
+	}{
+		{"full page with more rules", 5, 1, 2, true},
+		{"exact multiple, full last page", 4, 2, 2, false},
+		{"short last page", 5, 3, 1, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			s := newService(t)
+			for i := range c.n {
+				seed(t, s, fmt.Sprintf("b%d", i+1))
+			}
+			got, err := s.List(context.Background(), appbp.ListRequest{Owner: owner, Repo: repo, Page: c.page, Limit: 2})
+			if err != nil || got.Count != c.count || got.HasNext != c.hasNext {
+				t.Fatalf("got %+v, %v", got, err)
+			}
+		})
 	}
 }

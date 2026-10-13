@@ -40,7 +40,16 @@ func sortedLabels(m map[int64]*forgejo_sdk.Label) []*forgejo_sdk.Label {
 	return out
 }
 
-func labelPage(all []*forgejo_sdk.Label, opt forgejo_sdk.ListOptions) ([]*forgejo_sdk.Label, forge.PageInfo) {
+// labelPage pages a label list. Like Forgejo, it clamps the page size to the
+// instance ceiling (max_response_items) when one is set, so a page can come back
+// shorter than the size asked for without being the last one.
+func labelPage(all []*forgejo_sdk.Label, opt forgejo_sdk.ListOptions, ceiling int) ([]*forgejo_sdk.Label, forge.PageInfo) {
+	if opt.PageSize <= 0 {
+		opt.PageSize = defaultPageSize
+	}
+	if ceiling > 0 && opt.PageSize > ceiling {
+		opt.PageSize = ceiling
+	}
 	lo, hi, info := pageInfoFor(opt, len(all))
 	return all[lo:hi], info
 }
@@ -71,7 +80,7 @@ func (f *Forgejo) ListRepoLabels(_ context.Context, owner, repo string, opt forg
 	if err != nil {
 		return nil, forge.PageInfo{}, err
 	}
-	out, info := labelPage(sortedLabels(r.labels), opt.ListOptions)
+	out, info := labelPage(sortedLabels(r.labels), opt.ListOptions, f.issues.maxItems)
 	return out, info, nil
 }
 
@@ -163,7 +172,7 @@ func (f *Forgejo) DeleteRepoLabel(_ context.Context, owner, repo string, id int6
 func (f *Forgejo) ListOrgLabels(_ context.Context, org string, pg, limit int) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
-	out, info := labelPage(sortedLabels(f.issues.orgLabels[org]), forgejo_sdk.ListOptions{Page: pg, PageSize: limit})
+	out, info := labelPage(sortedLabels(f.issues.orgLabels[org]), forgejo_sdk.ListOptions{Page: pg, PageSize: limit}, f.issues.maxItems)
 	return out, info, nil
 }
 

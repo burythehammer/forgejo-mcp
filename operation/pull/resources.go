@@ -29,9 +29,6 @@ func pullResourceURI(owner, repo string, index int64) string {
 // mapErr maps a port failure to the resource error, carrying the HTTP status
 // into the message when Forgejo answered with one.
 func mapErr(uri string, err error) error {
-	if code := forge.StatusCode(err); code != 0 {
-		return resource.MapForgejoError(uri, fmt.Errorf("%d %s", code, err.Error()))
-	}
 	return resource.MapForgejoError(uri, err)
 }
 

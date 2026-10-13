@@ -5,6 +5,7 @@ package repo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
@@ -133,5 +134,89 @@ func TestSliceLines(t *testing.T) {
 				t.Fatalf("got %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+// MaxResponseItems reports an unknown ceiling for the test double.
+func (*fakeGit) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+
+// pagedGit is a GitPort that serves n numbered branches and commits, sliced by
+// the page and limit the use case passes, so a test sees the window it asked for.
+type pagedGit struct {
+	fakeGit
+	n int
+}
+
+func (p *pagedGit) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+
+func (p *pagedGit) ListBranches(_ context.Context, _, _ string, pg GitPage) ([]*model.Branch, error) {
+	var out []*model.Branch
+	for _, i := range window(p.n, pg) {
+		out = append(out, &model.Branch{Name: fmt.Sprintf("b%d", i)})
+	}
+	return out, nil
+}
+
+func (p *pagedGit) ListCommits(_ context.Context, _, _ string, q ListCommitsInput) ([]*model.Commit, error) {
+	var out []*model.Commit
+	for _, i := range window(p.n, q.Page) {
+		out = append(out, &model.Commit{CommitMeta: &model.CommitMeta{SHA: fmt.Sprintf("c%d", i)}})
+	}
+	return out, nil
+}
+
+// window numbers the rows of one page of n rows from 1; a page past the end is
+// empty.
+func window(n int, pg GitPage) []int {
+	var rows []int
+	for i := (pg.Page - 1) * pg.Limit; i < pg.Page*pg.Limit && i < n; i++ {
+		rows = append(rows, i+1)
+	}
+	return rows
+}
+
+func TestBranchAndCommitPagesReportTheNextMarker(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name          string
+		n, page, want int
+		hasNext       bool
+	}{
+		{"full page with more rows", 5, 1, 2, true},
+		{"middle page", 5, 2, 2, true},
+		{"short last page", 5, 3, 1, false},
+		{"exact multiple, full last page", 4, 2, 2, false},
+		{"past the end", 4, 3, 0, false},
+	}
+	ctx := context.Background()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			s := NewGitService(&pagedGit{n: c.n})
+			pg := GitPage{Page: c.page, Limit: 2}
+			b, err := s.ListBranches(ctx, "o", "r", pg)
+			if err != nil || len(b.Branches) != c.want || b.Count != c.want || b.HasNext != c.hasNext || b.Page != c.page || b.Limit != 2 {
+				t.Fatalf("branches: %+v, %v", b, err)
+			}
+			m, err := s.ListCommits(ctx, "o", "r", ListCommitsInput{Page: pg})
+			if err != nil || len(m.Commits) != c.want || m.Count != c.want || m.HasNext != c.hasNext || m.Page != c.page || m.Limit != 2 {
+				t.Fatalf("commits: %+v, %v", m, err)
+			}
+		})
+	}
+}
+
+func TestBranchAndCommitPageZeroIsTheFirstPage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := NewGitService(&pagedGit{n: 5})
+	pg := GitPage{Page: 0, Limit: 2}
+	b, err := s.ListBranches(ctx, "o", "r", pg)
+	if err != nil || b.Page != 1 || b.Count != 2 || !b.HasNext || b.Branches[0].Name != "b1" {
+		t.Fatalf("branches page 0: %+v, %v", b, err)
+	}
+	m, err := s.ListCommits(ctx, "o", "r", ListCommitsInput{Page: pg})
+	if err != nil || m.Page != 1 || m.Count != 2 || !m.HasNext || m.Commits[0].SHA != "c1" {
+		t.Fatalf("commits page 0: %+v, %v", m, err)
 	}
 }

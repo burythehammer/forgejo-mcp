@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List organization-level labels. Each label carries a scope field of \"org\".",
+  "description": "List organization-level labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. Each label carries a scope field of \"org\".",
   "inputSchema": {
     "properties": {
       "limit": {

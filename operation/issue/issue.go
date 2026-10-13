@@ -7,6 +7,7 @@ import (
 
 	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/compact"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
@@ -60,7 +61,7 @@ var (
 
 	ListRepoIssuesTool = mcp.NewTool(
 		ListRepoIssuesToolName,
-		mcp.WithDescription("List repo issues"),
+		mcp.WithDescription("List repo issues (page/limit). Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open")),
@@ -146,7 +147,7 @@ var (
 
 	ListIssueCommentsTool = mcp.NewTool(
 		ListIssueCommentsToolName,
-		mcp.WithDescription("List issue/PR comments"),
+		mcp.WithDescription("List issue/PR comments. Returns a response envelope {comments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.Index)),
@@ -184,7 +185,7 @@ var (
 
 	ListRepoMilestonesTool = mcp.NewTool(
 		ListRepoMilestonesToolName,
-		mcp.WithDescription("List repository milestones"),
+		mcp.WithDescription("List repository milestones. Returns a response envelope {milestones, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -194,7 +195,7 @@ var (
 
 	ListRepoLabelsTool = mcp.NewTool(
 		ListRepoLabelsToolName,
-		mcp.WithDescription("List repository labels. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the response. Each label carries a scope field of \"repo\" or \"org\"."),
+		mcp.WithDescription("List repository labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the labels list; count includes them, while has_next and total_count describe the repository labels only. Each label carries a scope field of \"repo\" or \"org\"."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -204,7 +205,7 @@ var (
 
 	ListOrgLabelsTool = mcp.NewTool(
 		ListOrgLabelsToolName,
-		mcp.WithDescription("List organization-level labels. Each label carries a scope field of \"org\"."),
+		mcp.WithDescription("List organization-level labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. Each label carries a scope field of \"org\"."),
 		mcp.WithString("org", mcp.Required(), mcp.Description("Organization name")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(100)),
@@ -420,7 +421,7 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 		return mcpresult.Render(s.List(ctx, apppissue.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
 			Milestones: a.Milestones, Labels: a.Labels,
-			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 20)},
+			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
 		}))
 	})
 }
@@ -490,7 +491,7 @@ func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolReque
 		return mcpresult.Render(s.Comments(ctx, apppissue.CommentsInput{
 			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
 			Since:  a.Since, Before: a.Before,
-			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 20)},
+			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
 		}))
 	})
 }
@@ -518,7 +519,7 @@ func (h handlers) ListRepoMilestonesFn(ctx context.Context, req mcp.CallToolRequ
 	return run(ctx, h, req, "ListRepoMilestonesFn", func(ctx context.Context, s *apppissue.Service, a milestonesArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.Milestones(ctx, a.Owner, a.Repo, apppissue.MilestoneList{
 			State:  a.State,
-			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)},
+			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
 		}))
 	})
 }
@@ -531,21 +532,21 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		}
 		list, err := s.ReadRepoLabels(ctx, apppissue.RepoLabelsInput{
 			Owner: a.Owner, Repo: a.Repo, IncludeOrg: includeOrg,
-			Paging: apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)},
+			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
 		})
 		if err != nil {
 			return nil, mapErr(repoLabelsURI(a.Owner, a.Repo), err)
 		}
-		return mcpresult.Render(list.Labels, nil)
+		return mcpresult.Render(list.Envelope(), nil)
 	})
 }
 
 func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgLabelsFn", func(ctx context.Context, s *apppissue.Service, a orgLabelsArgs) (*mcp.CallToolResult, error) {
-		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: pageOr(a.Page, 1), Limit: pageOr(a.Limit, 100)})
+		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)})
 		if err != nil {
 			return nil, mapErr(orgLabelsURI(a.Org), err)
 		}
-		return mcpresult.Render(list.Labels, nil)
+		return mcpresult.Render(list.Envelope(), nil)
 	})
 }

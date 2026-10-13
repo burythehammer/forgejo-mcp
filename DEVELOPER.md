@@ -176,8 +176,9 @@ in `app/issue`. Per domain:
    Three refinements came with `issue` (`operation/issue/`, 28 tools):
    - **Defaults that test for zero live in the adapter, before truncation.**
      The pre-split tools defaulted `page == 0` on the float, so `0.5` was passed
-     on as `0`. `pageOr` (in `handlers.go`) keeps that; the use case does not
-     default a page or limit it is handed.
+     on as `0`. `decode.PageOr` keeps that (in `operation/decode/page.go`); the
+     use case does not default a page or limit it is handed. A list use case
+     then bounds the page through the list module (`app/list`).
    - **Pointer fields where presence matters.** An argument whose "given but
      empty" differs from "not given" (`labels`, `assignees`, `set_labels`,
      `ref`, a label's `name`, `state` on `list_repo_issues`) is a `*string`

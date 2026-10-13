@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -23,19 +24,39 @@ type ListQuery struct {
 	Paging
 }
 
-// ListReleases returns one page of releases, filtered by state after Forgejo
-// has paged them. The result is never nil.
-func (s *Service) ListReleases(ctx context.Context, owner, repo string, q ListQuery) ([]*model.Release, error) {
-	rels, err := s.p.ListReleases(ctx, owner, repo, q.Paging)
+// ListReleases returns one page of releases with its next marker. The next
+// marker reads the page as Forgejo paged it, so a state filter that drops rows
+// from the page does not end the list early. The state filter then applies to
+// the page's rows, which is why a page can hold fewer than its limit.
+func (s *Service) ListReleases(ctx context.Context, owner, repo string, q ListQuery) (model.ReleasePage, error) {
+	ceiling, known := s.p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	page, err := list.Run(ctx, list.Normalize(list.Paging(q.Paging), list.DefaultLimit(defaultLimit, c)), c,
+		func(ctx context.Context, p list.Paging) (list.Batch[*model.Release], error) {
+			got, err := s.p.ListReleases(ctx, owner, repo, Paging(p))
+			if err != nil {
+				return list.Batch[*model.Release]{}, fmt.Errorf("list releases err: %w", err)
+			}
+			return list.Batch[*model.Release]{Items: got}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list releases err: %w", err)
+		return model.ReleasePage{}, err
 	}
-	filtered := filterByState(rels, q.State)
-	if filtered == nil {
-		filtered = []*model.Release{}
+	rels := filterByState(page.Items, q.State)
+	if rels == nil {
+		rels = []*model.Release{}
 	}
-	return filtered, nil
+	return model.ReleasePage{
+		Releases: rels,
+		Page:     page.Page,
+		Limit:    page.Limit,
+		Count:    len(rels),
+		HasNext:  page.HasNext,
+	}, nil
 }
+
+// defaultLimit is the page size a release list uses when the caller gives none.
+const defaultLimit = 20
 
 func filterByState(rels []*model.Release, state string) []*model.Release {
 	if state == "" || state == StateAll {
@@ -130,29 +151,35 @@ func (s *Service) DeleteReleaseByTag(ctx context.Context, owner, repo, tag strin
 	return nil
 }
 
-// ListAttachments returns one page of a release's assets. Forgejo does not
-// page this endpoint, so the page is cut here.
-func (s *Service) ListAttachments(ctx context.Context, owner, repo string, releaseID int64, p Paging) ([]*model.Attachment, error) {
-	all, err := s.p.ListAttachments(ctx, owner, repo, releaseID)
+// ListAttachments returns one page of a release's assets with its next marker.
+// Forgejo does not page this endpoint, so the page is cut here, and the whole
+// list is the grand total the marker is derived from.
+func (s *Service) ListAttachments(ctx context.Context, owner, repo string, releaseID int64, p Paging) (model.AttachmentPage, error) {
+	ceiling, known := s.p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	page, err := list.Run(ctx, list.Normalize(list.Paging(p), list.DefaultLimit(defaultLimit, c)), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.Attachment], error) {
+			all, err := s.p.ListAttachments(ctx, owner, repo, releaseID)
+			if err != nil {
+				return list.Batch[*model.Attachment]{}, fmt.Errorf("list release attachments err: %w", err)
+			}
+			rows, _ := list.Cut(all, q)
+			return list.Batch[*model.Attachment]{Items: rows, Total: list.Total{Count: len(all), Known: true}}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list release attachments err: %w", err)
+		return model.AttachmentPage{}, err
 	}
-	return slice(all, p.Page, p.Limit), nil
-}
-
-func slice(all []*model.Attachment, page, limit int) []*model.Attachment {
-	if page < 1 {
-		page = 1
+	atts := page.Items
+	if atts == nil {
+		atts = []*model.Attachment{}
 	}
-	if limit < 1 {
-		limit = 20
-	}
-	offset := (page - 1) * limit
-	if offset >= len(all) {
-		return []*model.Attachment{}
-	}
-	end := min(offset+limit, len(all))
-	return all[offset:end]
+	return model.AttachmentPage{
+		Attachments: atts,
+		Page:        page.Page,
+		Limit:       page.Limit,
+		Count:       page.Count,
+		HasNext:     page.HasNext,
+	}, nil
 }
 
 // GetAttachment returns one asset's metadata.

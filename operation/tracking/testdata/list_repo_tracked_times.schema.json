@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List tracked time entries across all issues and PRs in a repository",
+  "description": "List tracked time entries across all issues and PRs in a repository. Returns a response envelope {times, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "before": {

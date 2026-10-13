@@ -75,7 +75,7 @@ type (
 var (
 	ListRepoActionSecretsTool = mcp.NewTool(
 		ListRepoActionSecretsToolName,
-		mcp.WithDescription("List action secrets for a repository (names only, values are never exposed by the Forgejo API)."),
+		mcp.WithDescription("List action secrets for a repository (names only, values are never exposed by the Forgejo API). Returns a response envelope {owner, repo, secrets, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
@@ -101,7 +101,7 @@ var (
 
 	ListOrgActionSecretsTool = mcp.NewTool(
 		ListOrgActionSecretsToolName,
-		mcp.WithDescription("List action secrets for an organization (names only, values are never exposed by the Forgejo API)."),
+		mcp.WithDescription("List action secrets for an organization (names only, values are never exposed by the Forgejo API). Returns a response envelope {org, secrets, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(defaultActionSecretsLimit), mcp.Min(1), mcp.Max(maxActionSecretsLimit)),
@@ -137,7 +137,7 @@ func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolR
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntArg(a.Limit, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
+	limit, err := boundedIntArg(a.Limit, "limit", 0, 1, maxActionSecretsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -228,7 +228,7 @@ func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRe
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntArg(a.Limit, "limit", defaultActionSecretsLimit, 1, maxActionSecretsLimit)
+	limit, err := boundedIntArg(a.Limit, "limit", 0, 1, maxActionSecretsLimit)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

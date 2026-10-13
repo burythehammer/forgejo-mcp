@@ -34,7 +34,7 @@ func TestSmokeOverHTTP(t *testing.T) {
 		return textOf(res)
 	}
 
-	if got := call(ListWorkflowRunsToolName, nil); !strings.Contains(got, "No workflow runs found") {
+	if got := call(ListWorkflowRunsToolName, nil); !strings.Contains(got, `"workflow_runs":[]`) {
 		t.Fatalf("list runs: %s", got)
 	}
 	if got := call(ListRepoActionSecretsToolName, nil); !strings.Contains(got, `"secrets":[]`) {

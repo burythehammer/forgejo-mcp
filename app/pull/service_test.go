@@ -60,16 +60,39 @@ func TestListDefaultsToOpenAndPaginates(t *testing.T) {
 	}
 
 	got, err := s.List(context.Background(), apppull.ListInput{Owner: owner, Repo: repo})
-	if err != nil || len(got) != 2 {
-		t.Fatalf("default list: %v, %v", got, err)
+	if err != nil || len(got.PullRequests) != 2 {
+		t.Fatalf("default list: %+v, %v", got, err)
 	}
 	got, _ = s.List(context.Background(), apppull.ListInput{Owner: owner, Repo: repo, Limit: 1})
-	if len(got) != 1 || got[0].Title != "open two" {
-		t.Fatalf("limit 1 should be the newest: %v", got)
+	if len(got.PullRequests) != 1 || got.PullRequests[0].Title != "open two" {
+		t.Fatalf("limit 1 should be the newest: %+v", got)
 	}
 	got, _ = s.List(context.Background(), apppull.ListInput{Owner: owner, Repo: repo, State: "all"})
-	if len(got) != 3 {
-		t.Fatalf("state=all: %v", got)
+	if len(got.PullRequests) != 3 {
+		t.Fatalf("state=all: %+v", got)
+	}
+}
+
+func TestListEnvelopeNamesTheNextPage(t *testing.T) {
+	t.Parallel()
+	s, _ := newService(t)
+	ctx := context.Background()
+	for _, title := range []string{"one", "two", "three", "four"} {
+		open(t, s, title)
+	}
+	first, err := s.List(ctx, apppull.ListInput{Owner: owner, Repo: repo, Page: 1, Limit: 2})
+	if err != nil || len(first.PullRequests) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
+		t.Fatalf("page 1 of four: %+v, %v", first, err)
+	}
+	// Four rows at limit 2: page 2 is full and is the last, so the probe
+	// finds nothing and has_next is false.
+	last, err := s.List(ctx, apppull.ListInput{Owner: owner, Repo: repo, Page: 2, Limit: 2})
+	if err != nil || last.Count != 2 || last.HasNext {
+		t.Fatalf("exact-multiple last page: %+v, %v", last, err)
+	}
+	past, err := s.List(ctx, apppull.ListInput{Owner: owner, Repo: repo, Page: 3, Limit: 2})
+	if err != nil || past.Count != 0 || past.HasNext {
+		t.Fatalf("past the end: %+v, %v", past, err)
 	}
 }
 
@@ -161,14 +184,34 @@ func TestReviewLifecycle(t *testing.T) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 	list, err := s.Reviews(ctx, apppull.PagedPR{PR: pr(i)})
-	if err != nil || len(list) != 1 {
-		t.Fatalf("list: %v, %v", list, err)
+	if err != nil || len(list.Reviews) != 1 {
+		t.Fatalf("list: %+v, %v", list, err)
 	}
 	if err := s.DeleteReview(ctx, apppull.ReviewRef{PR: pr(i), ID: rev.ID}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Review(ctx, apppull.ReviewRef{PR: pr(i), ID: rev.ID}); err == nil {
 		t.Fatal("a deleted review must be gone")
+	}
+}
+
+func TestReviewsEnvelopeNamesTheNextPage(t *testing.T) {
+	t.Parallel()
+	s, _ := newService(t)
+	ctx := context.Background()
+	i := open(t, s, "reviewed")
+	for range 3 {
+		if _, err := s.CreateReview(ctx, apppull.CreateReviewRequest{PR: pr(i), State: "COMMENT", Body: "c"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := s.Reviews(ctx, apppull.PagedPR{PR: pr(i), Page: 1, Limit: 2})
+	if err != nil || first.Count != 2 || first.Limit != 2 || !first.HasNext {
+		t.Fatalf("page 1 of three: %+v, %v", first, err)
+	}
+	second, err := s.Reviews(ctx, apppull.PagedPR{PR: pr(i), Page: 2, Limit: 2})
+	if err != nil || second.Count != 1 || second.HasNext {
+		t.Fatalf("page 2 of three: %+v, %v", second, err)
 	}
 }
 
@@ -220,8 +263,8 @@ func TestReviewRequestsSplitAndTrimTheLists(t *testing.T) {
 		t.Fatal(err)
 	}
 	reqs, err := s.Reviews(ctx, apppull.PagedPR{PR: pr(i)})
-	if err != nil || len(reqs) != 2 {
-		t.Fatalf("want two requested reviews, got %v, %v", reqs, err)
+	if err != nil || len(reqs.Reviews) != 2 {
+		t.Fatalf("want two requested reviews, got %+v, %v", reqs, err)
 	}
 	if err := s.CancelReviewRequests(ctx, apppull.ReviewersInput{PR: pr(i), Reviewers: "a"}); err != nil {
 		t.Fatal(err)

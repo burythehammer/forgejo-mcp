@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List repository webhooks. page/limit control pagination (default: page 1, limit 30); no server-imposed ceiling. Returns total_count when Forgejo reports X-Total-Count.",
+  "description": "List repository webhooks. page/limit control pagination (default: page 1, limit 30); a limit above this instance's max_response_items is refused, not clamped. Returns a response envelope {hooks, page, limit, count, total_count, has_next}; total_count appears only when Forgejo reports X-Total-Count. has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "limit": {

@@ -20,10 +20,22 @@ import (
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
-// New returns the use cases' port over p.
-func New(p forge.BranchProtections) appbp.Port { return adapter{p: p} }
+// Source is the part of the Forgejo port the branch protection domain uses: its
+// rule methods and the instance's pagination ceiling.
+type Source interface {
+	forge.BranchProtections
+	forge.Ceilings
+}
 
-type adapter struct{ p forge.BranchProtections }
+// New returns the use cases' port over p.
+func New(p Source) appbp.Port { return adapter{p: p} }
+
+type adapter struct{ p Source }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.p.MaxResponseItems(ctx)
+}
 
 var _ appbp.Port = adapter{}
 

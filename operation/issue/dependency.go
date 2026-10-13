@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
@@ -25,7 +26,7 @@ const (
 var (
 	ListIssueDependenciesTool = mcp.NewTool(
 		ListIssueDependenciesToolName,
-		mcp.WithDescription("List issues that the given issue depends on. Pagination uses page (1-based) and limit (page size); the response echoes page and limit so callers can fetch the next page. Returns an empty list if the issue has no dependencies. This tool fails if the repository has disabled issue dependencies."),
+		mcp.WithDescription("List issues that the given issue depends on. Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. Returns an empty issues list if the issue has no dependencies. This tool fails if the repository has disabled issue dependencies."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
@@ -35,7 +36,7 @@ var (
 
 	ListIssueDependentsTool = mcp.NewTool(
 		ListIssueDependentsToolName,
-		mcp.WithDescription("List issues that depend on the given issue. Pagination uses page (1-based) and limit (page size); the response echoes page and limit so callers can fetch the next page. Returns an empty list if no issue depends on it. This tool fails if the repository has disabled issue dependencies."),
+		mcp.WithDescription("List issues that depend on the given issue. Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. Returns an empty issues list if no issue depends on it. This tool fails if the repository has disabled issue dependencies."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
@@ -106,14 +107,14 @@ type removeDependencyArgs struct {
 func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueDependenciesFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.Dependencies(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
-			apppissue.Paging{Page: intOr(a.Page, 1), Limit: intOr(a.Limit, 20)}))
+			apppissue.Paging{Page: decode.IntOr(a.Page, 1), Limit: int(a.Limit)}))
 	})
 }
 
 func (h handlers) ListIssueDependentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueDependentsFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.Dependents(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
-			apppissue.Paging{Page: intOr(a.Page, 1), Limit: intOr(a.Limit, 20)}))
+			apppissue.Paging{Page: decode.IntOr(a.Page, 1), Limit: int(a.Limit)}))
 	})
 }
 

@@ -182,19 +182,38 @@ func TestListRepoIssues(t *testing.T) {
 	b := openIssue(t, f, "b")
 	call(t, h.IssueStateChangeFn, map[string]any{"index": float64(a), "state": "closed"})
 
-	var open []forgejo_sdk.Issue
+	var open searchEnvelope
 	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, nil), &open); err != nil {
 		t.Fatal(err)
 	}
-	if len(open) != 1 || open[0].Index != b {
+	if len(open.Issues) != 1 || open.Issues[0].Index != b {
 		t.Fatalf("default open: %+v", open)
 	}
-	var all []forgejo_sdk.Issue
+	var all searchEnvelope
 	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"state": "all", "sort": "oldest"}), &all); err != nil {
 		t.Fatal(err)
 	}
-	if len(all) != 2 || all[0].Index != a {
+	if len(all.Issues) != 2 || all.Issues[0].Index != a {
 		t.Fatalf("all/oldest: %+v", all)
+	}
+}
+
+func TestListRepoIssues_KnownCeilingRefusesOverLimit(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	f.SetMaxResponseItems(2)
+	for i := 0; i < 3; i++ {
+		openIssue(t, f, "x")
+	}
+	if msg := callErr(t, h.ListRepoIssuesFn, map[string]any{"owner": testOwner, "repo": testRepo, "limit": float64(3)}); !strings.Contains(msg, "exceeds this instance's maximum of 2") {
+		t.Fatalf("error = %q", msg)
+	}
+	var at searchEnvelope
+	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"owner": testOwner, "repo": testRepo, "limit": float64(2)}), &at); err != nil {
+		t.Fatal(err)
+	}
+	if len(at.Issues) != 2 {
+		t.Fatalf("at ceiling returned %d, want 2", len(at.Issues))
 	}
 }
 
@@ -205,11 +224,11 @@ func TestListRepoIssues_SortNearDueDate(t *testing.T) {
 	soon := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, _ = f.CreateIssue(context.Background(), testOwner, testRepo, forgejo_sdk.CreateIssueOption{Title: "late", Deadline: &late})
 	_, _ = f.CreateIssue(context.Background(), testOwner, testRepo, forgejo_sdk.CreateIssueOption{Title: "soon", Deadline: &soon})
-	var got []forgejo_sdk.Issue
+	var got searchEnvelope
 	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"sort": "nearduedate"}), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Title != "soon" {
+	if len(got.Issues) != 2 || got.Issues[0].Title != "soon" {
 		t.Fatalf("got %+v", got)
 	}
 }
@@ -321,8 +340,8 @@ func TestIssueComments(t *testing.T) {
 	}
 	id := float64(c.ID)
 
-	var list []forgejo_sdk.Comment
-	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": idx}), &list); err != nil || len(list) != 1 {
+	var list commentsEnvelope
+	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": idx}), &list); err != nil || len(list.Comments) != 1 {
 		t.Fatalf("list: %v %+v", err, list)
 	}
 	if !strings.Contains(call(t, h.GetIssueCommentFn, map[string]any{"comment_id": id}), "first") {
@@ -351,8 +370,8 @@ func TestListIssueComments_SinceBefore(t *testing.T) {
 		t.Fatalf("before: %q", msg)
 	}
 	future := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
-	var list []forgejo_sdk.Comment
-	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": float64(idx), "since": future}), &list); err != nil || len(list) != 0 {
+	var list commentsEnvelope
+	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": float64(idx), "since": future}), &list); err != nil || len(list.Comments) != 0 {
 		t.Fatalf("since future: %v %+v", err, list)
 	}
 }
@@ -454,4 +473,14 @@ func TestWriteResults_VerboseFalseIsCompact(t *testing.T) {
 	h, _ := newFixture(t)
 	text := call(t, h.CreateIssueFn, map[string]any{"title": "fresh", "verbose": false})
 	assertCompactIssue(t, text)
+}
+
+// commentsEnvelope is the list_issue_comments response: the comments of one
+// page with the continuation signal.
+type commentsEnvelope struct {
+	Comments []forgejo_sdk.Comment `json:"comments"`
+	Page     int                   `json:"page"`
+	Limit    int                   `json:"limit"`
+	Count    int                   `json:"count"`
+	HasNext  bool                  `json:"has_next"`
 }

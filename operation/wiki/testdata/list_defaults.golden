@@ -1,3 +1,4 @@
-{"Result":{"pages":[{"title":"Home","page_name":"Home","sub_url":"Home"},{"title":"Guides","page_name":"Guides","sub_url":"Guides"},{"title":"Setup","page_name":"Guides%2FSetup","sub_url":"Guides%2FSetup"},{"title":"FAQ","page_name":"FAQ","sub_url":"FAQ"},{"title":"Changelog","page_name":"Changelog","sub_url":"Changelog"}],"page":1,"has_next":false,"total_count":5}}
+{"Result":{"pages":[{"title":"Home","page_name":"Home","sub_url":"Home"},{"title":"Guides","page_name":"Guides","sub_url":"Guides"},{"title":"Setup","page_name":"Guides%2FSetup","sub_url":"Guides%2FSetup"},{"title":"FAQ","page_name":"FAQ","sub_url":"FAQ"},{"title":"Changelog","page_name":"Changelog","sub_url":"Changelog"}],"page":1,"limit":30,"count":5,"has_next":false}}
 -- port calls --
 ListWikiPages ["octo","hello",1,30]
+ListWikiPages ["octo","hello",2,30]

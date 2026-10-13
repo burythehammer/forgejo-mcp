@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -279,5 +280,40 @@ func TestEditBranchFilterThroughTheFake(t *testing.T) {
 	}
 	if got.BranchFilter != "" {
 		t.Fatalf("explicit empty branch filter left %q", got.BranchFilter)
+	}
+}
+
+// MaxResponseItems reports an unknown ceiling for the test doubles.
+func (stubPort) MaxResponseItems(context.Context) (int, bool)  { return 0, false }
+func (*editPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+
+func TestListHasNextUsesTheReportedTotal(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		n       int
+		page    float64
+		count   int
+		hasNext bool
+	}{
+		{"full page with more hooks", 5, 1, 2, true},
+		{"exact multiple, full last page", 4, 2, 2, false},
+		{"short last page", 5, 3, 1, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			s := newService(t)
+			for i := range c.n {
+				create(t, s, apphook.CreateRequest{URL: fmt.Sprintf("https://hooks.example/%d", i+1)})
+			}
+			got, err := s.List(context.Background(), apphook.ListRequest{Owner: owner, Repo: repo, Page: c.page, Limit: 2})
+			if err != nil || got.Count != c.count || got.HasNext != c.hasNext {
+				t.Fatalf("got %+v, %v", got, err)
+			}
+			if got.TotalCount == nil || *got.TotalCount != c.n {
+				t.Fatalf("total: got %v, want %d", got.TotalCount, c.n)
+			}
+		})
 	}
 }

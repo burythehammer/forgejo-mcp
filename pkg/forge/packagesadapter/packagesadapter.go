@@ -15,9 +15,21 @@ import (
 )
 
 // New returns the use cases' port over p.
-func New(p forge.Packages) apppkg.Port { return adapter{p: p} }
+// Source is the part of the Forgejo port the package domain uses: its package
+// methods and the instance's pagination ceiling.
+type Source interface {
+	forge.Packages
+	forge.Ceilings
+}
 
-type adapter struct{ p forge.Packages }
+func New(p Source) apppkg.Port { return adapter{p: p} }
+
+type adapter struct{ p Source }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.p.MaxResponseItems(ctx)
+}
 
 var _ apppkg.Port = adapter{}
 
@@ -37,7 +49,7 @@ func (a adapter) ListPackages(ctx context.Context, owner string, q apppkg.ListQu
 	for i, v := range list.Packages {
 		rows[i] = version(v)
 	}
-	return model.PackageList{Packages: rows, HasNext: list.HasNext, TotalCount: list.TotalCount}, nil
+	return model.PackageList{Packages: rows, TotalCount: list.TotalCount}, nil
 }
 
 func (a adapter) GetPackage(ctx context.Context, owner, packageType, name, ver string) (*model.PackageVersion, error) {

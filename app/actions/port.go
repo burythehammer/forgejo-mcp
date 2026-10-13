@@ -18,6 +18,9 @@ import (
 // types. pkg/forge/actionsadapter implements it over forge.Actions. Failures
 // from Forgejo come back as ordinary errors for the use case to wrap.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ActionsURL(owner, repo string) string
 
 	DispatchWorkflow(ctx context.Context, owner, repo, workflow string, in DispatchInput) error

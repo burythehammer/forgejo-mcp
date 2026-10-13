@@ -9,17 +9,24 @@ import (
 	"strings"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/labelresolve"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
 
 // Service runs the issue, label and dependency use cases over a Port. Build
 // one per request from the port the request's credential selects; it holds no
 // other state.
-type Service struct{ port Port }
+type Service struct {
+	port   Port
+	labels *labelresolve.Resolver
+}
 
 // New returns the use cases bound to port.
-func New(port Port) *Service { return &Service{port: port} }
+func New(port Port) *Service {
+	return &Service{port: port, labels: labelresolve.New(catalog{port})}
+}
 
 // The inputs below are what an MCP adapter has decoded from a tool call. The
 // adapter applies the tool's defaults for an argument that was left out or
@@ -80,25 +87,54 @@ type RepoLabelsInput struct {
 
 // List returns a repository's issues. The owner and repository are required,
 // and sort, when given, must be one of Forgejo's sort orders.
-func (s *Service) List(ctx context.Context, in ListInput) ([]*model.Issue, error) {
+func (s *Service) List(ctx context.Context, in ListInput) (model.IssuePage, error) {
 	if in.Owner == "" {
-		return nil, fmt.Errorf("owner is required")
+		return model.IssuePage{}, fmt.Errorf("owner is required")
 	}
 	if in.Repo == "" {
-		return nil, fmt.Errorf("repo is required; for owner-wide listing across repositories use search_issues instead")
+		return model.IssuePage{}, fmt.Errorf("repo is required; for owner-wide listing across repositories use search_issues instead")
 	}
 	if in.Sort != "" && !isValidSort(in.Sort) {
-		return nil, fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
+		return model.IssuePage{}, fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
 	}
-	issues, err := s.port.ListIssues(ctx, in.Owner, in.Repo, IssueList{
-		State: in.State, Type: in.Type, Sort: in.Sort,
-		Milestones: splitRaw(in.Milestones), Labels: splitRaw(in.Labels),
-		Paging: in.Paging,
-	})
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	page, err := list.Run(ctx, list.Normalize(list.Paging(in.Paging), list.DefaultLimit(defaultLimit, c)), c,
+		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
+			issues, err := s.port.ListIssues(ctx, in.Owner, in.Repo, IssueList{
+				State: in.State, Type: in.Type, Sort: in.Sort,
+				Milestones: splitRaw(in.Milestones), Labels: splitRaw(in.Labels),
+				Paging: Paging(p),
+			})
+			if err != nil {
+				return list.Batch[*model.Issue]{}, fmt.Errorf("get issues list err: %w", err)
+			}
+			return list.Batch[*model.Issue]{Items: issues}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("get issues list err: %w", err)
+		return model.IssuePage{}, err
 	}
-	return issues, nil
+	return model.IssuePage{
+		Issues: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
+}
+
+// defaultLimit is the page size a list or search uses when the caller gives none.
+const defaultLimit = 20
+
+// runPage reads one page of a list whose endpoint reports no grand total,
+// through the list module: a default limit is lowered to a known ceiling, a
+// limit above it is refused, and has_next comes from at most one probe.
+func runPage[T any](ctx context.Context, src list.CeilingSource, p list.Paging, def int,
+	fetch func(context.Context, list.Paging) ([]T, error),
+) (list.Page[T], error) {
+	ceiling, known := src.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	p = list.Normalize(p, list.DefaultLimit(def, c))
+	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[T], error) {
+		got, err := fetch(ctx, q)
+		return list.Batch[T]{Items: got}, err
+	})
 }
 
 // sortOrders are the Forgejo API's valid sort values for listing issues. The
@@ -139,57 +175,32 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (model.IssueSearch
 	if state == "" {
 		state = "open"
 	}
-	page := in.Page
-	if page < 1 {
-		page = 1
-	}
-	limit := in.Limit
-	if limit < 1 {
-		limit = 20
-	}
-	ceiling, ceilingKnown := s.port.MaxResponseItems(ctx)
-	if ceilingKnown && limit > ceiling {
-		return model.IssueSearchPage{}, fmt.Errorf(
-			"limit %d exceeds this instance's maximum of %d (max_response_items); retry with limit <= %d",
-			limit, ceiling, ceiling,
-		)
-	}
-
-	q := SearchQuery{
-		Owner: in.Owner, State: state, Type: in.Type,
-		Labels: splitRaw(in.Labels), Milestones: splitRaw(in.Milestones),
-		Keyword: in.Keyword, CreatedBy: in.CreatedBy, AssignedBy: in.AssignedBy, MentionedBy: in.MentionedBy,
-		Paging: Paging{Page: page, Limit: limit},
-	}
-	issues, total, err := s.port.SearchIssues(ctx, q)
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	page, err := list.Run(ctx, list.Normalize(list.Paging{Page: in.Page, Limit: in.Limit}, list.DefaultLimit(defaultLimit, list.Ceiling{Max: ceiling, Known: known})),
+		list.Ceiling{Max: ceiling, Known: known},
+		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
+			issues, total, err := s.port.SearchIssues(ctx, SearchQuery{
+				Owner: in.Owner, State: state, Type: in.Type,
+				Labels: splitRaw(in.Labels), Milestones: splitRaw(in.Milestones),
+				Keyword: in.Keyword, CreatedBy: in.CreatedBy, AssignedBy: in.AssignedBy, MentionedBy: in.MentionedBy,
+				Paging: Paging(p),
+			})
+			if err != nil {
+				return list.Batch[*model.Issue]{}, fmt.Errorf("search issues err: %w", err)
+			}
+			return list.Batch[*model.Issue]{Items: issues, Total: list.Total(total)}, nil
+		})
 	if err != nil {
-		return model.IssueSearchPage{}, fmt.Errorf("search issues err: %w", err)
+		return model.IssueSearchPage{}, err
 	}
-	count := len(issues)
 	var totalCount *int
-	if total.Known {
-		n := total.Count
+	if page.Total.Known {
+		n := page.Total.Count
 		totalCount = &n
 	}
-
-	// With a known ceiling the limit was honoured in full, so a full page may
-	// have more and a short one cannot. Without one, probe the next page at the
-	// same size: never limit+1, since Forgejo derives page offsets from the
-	// page size and a changed size would make later pages skip rows.
-	var hasNext bool
-	if ceilingKnown {
-		hasNext = count == limit
-	} else if count > 0 {
-		probe := q
-		probe.Page = page + 1
-		next, _, err := s.port.SearchIssues(ctx, probe)
-		if err != nil {
-			return model.IssueSearchPage{}, fmt.Errorf("probe next issues page err: %w", err)
-		}
-		hasNext = len(next) > 0
-	}
 	return model.IssueSearchPage{
-		Issues: issues, Page: page, Limit: limit, Count: count, HasNext: hasNext, TotalCount: totalCount,
+		Issues: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count,
+		HasNext: page.HasNext, TotalCount: totalCount,
 	}, nil
 }
 
@@ -198,7 +209,7 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (model.IssueSearch
 func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Issue, error) {
 	opt := NewIssue{Title: in.Title, Body: in.Body, Ref: in.Ref}
 	if in.Labels != nil {
-		ids, err := s.resolveLabels(ctx, in.Owner, in.Repo, *in.Labels)
+		ids, err := s.labels.Resolve(ctx, in.Owner, in.Repo, *in.Labels)
 		if err != nil {
 			return nil, err
 		}
@@ -274,7 +285,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (*model.Issue, err
 		if len(split.CSV(*in.SetLabels)) == 0 {
 			clearLabels = true
 		} else {
-			ids, err := s.resolveLabels(ctx, in.Owner, in.Repo, *in.SetLabels)
+			ids, err := s.labels.Resolve(ctx, in.Owner, in.Repo, *in.SetLabels)
 			if err != nil {
 				return nil, err
 			}
@@ -325,16 +336,31 @@ func (s *Service) ChangeState(ctx context.Context, t Target, state string) (*mod
 }
 
 // Milestones lists a repository's milestones. State defaults to open.
-func (s *Service) Milestones(ctx context.Context, owner, repo string, m MilestoneList) ([]*model.Milestone, error) {
+func (s *Service) Milestones(ctx context.Context, owner, repo string, m MilestoneList) (model.MilestonePage, error) {
 	if m.State == "" {
 		m.State = "open"
 	}
-	milestones, err := s.port.ListRepoMilestones(ctx, owner, repo, m)
+	page, err := runPage(ctx, s.port, list.Paging(m.Paging), milestoneDefaultLimit,
+		func(ctx context.Context, p list.Paging) ([]*model.Milestone, error) {
+			q := m
+			q.Paging = Paging(p)
+			milestones, err := s.port.ListRepoMilestones(ctx, owner, repo, q)
+			if err != nil {
+				return nil, fmt.Errorf("list repo milestones err: %w", err)
+			}
+			return milestones, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list repo milestones err: %w", err)
+		return model.MilestonePage{}, err
 	}
-	return milestones, nil
+	return model.MilestonePage{
+		Milestones: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
 }
+
+// milestoneDefaultLimit is the page size a milestone list uses when the caller
+// gives none.
+const milestoneDefaultLimit = 100
 
 func parseMilestone(s string) (int64, error) {
 	id, err := strconv.ParseInt(s, 10, 64)

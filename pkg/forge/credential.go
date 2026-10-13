@@ -4,7 +4,6 @@ package forge
 
 import (
 	"context"
-	"errors"
 )
 
 type contextKey string
@@ -30,7 +29,15 @@ func TokenFromContext(ctx context.Context) string {
 // Whether a request is marked is the authentication port's decision. The port
 // marks stdio requests, and network requests only when the operator has opted in
 // to the fallback.
-var ErrNoRequestToken = errors.New(
-	"request carries no Authorization header and this server does not fall back to its own credential; " +
-		"send a per-request token",
-)
+var ErrNoRequestToken error = noRequestTokenError{}
+
+// noRequestTokenError is a refused credential: it is an unauthorized kind, so
+// renderers report it as access denied like any other 401.
+type noRequestTokenError struct{}
+
+func (noRequestTokenError) Error() string {
+	return "request carries no Authorization header and this server does not fall back to its own credential; " +
+		"send a per-request token"
+}
+
+func (noRequestTokenError) Is(target error) bool { return target == ErrUnauthorized }

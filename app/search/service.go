@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -16,29 +17,53 @@ type Service struct{ port Port }
 // New returns the use cases bound to port.
 func New(port Port) *Service { return &Service{port: port} }
 
-// Users returns the users matching q.
-func (s *Service) Users(ctx context.Context, q UserQuery) ([]*model.User, error) {
-	users, err := s.port.SearchUsers(ctx, q)
+// defaultLimit is the page size a search uses when the caller gives none.
+const defaultLimit = 100
+
+// Users returns one page of the users matching q.
+func (s *Service) Users(ctx context.Context, q UserQuery) (model.UserSearchPage, error) {
+	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.User, error) {
+		q.Paging = p
+		users, err := s.port.SearchUsers(ctx, q)
+		if err != nil {
+			return nil, fmt.Errorf("search user err: %w", err)
+		}
+		return users, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("search user err: %w", err)
+		return model.UserSearchPage{}, err
 	}
-	return users, nil
+	return model.UserSearchPage{Users: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
-// OrgTeams returns the teams of org matching q.
-func (s *Service) OrgTeams(ctx context.Context, org string, q TeamQuery) ([]*model.Team, error) {
-	teams, err := s.port.SearchOrgTeams(ctx, org, q)
+// OrgTeams returns one page of the teams of org matching q.
+func (s *Service) OrgTeams(ctx context.Context, org string, q TeamQuery) (model.TeamSearchPage, error) {
+	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.Team, error) {
+		q.Paging = p
+		teams, err := s.port.SearchOrgTeams(ctx, org, q)
+		if err != nil {
+			return nil, fmt.Errorf("search org teams err: %w", err)
+		}
+		return teams, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("search org teams err: %w", err)
+		return model.TeamSearchPage{}, err
 	}
-	return teams, nil
+	return model.TeamSearchPage{Teams: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
-// Repos returns the repositories matching q.
-func (s *Service) Repos(ctx context.Context, q RepoQuery) ([]*model.Repository, error) {
-	repos, err := s.port.SearchRepos(ctx, q)
+// Repos returns one page of the repositories matching q.
+func (s *Service) Repos(ctx context.Context, q RepoQuery) (model.RepositoryPage, error) {
+	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.Repository, error) {
+		q.Paging = p
+		repos, err := s.port.SearchRepos(ctx, q)
+		if err != nil {
+			return nil, fmt.Errorf("search repos err: %w", err)
+		}
+		return repos, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("search repos err: %w", err)
+		return model.RepositoryPage{}, err
 	}
-	return repos, nil
+	return model.RepositoryPage{Repositories: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }

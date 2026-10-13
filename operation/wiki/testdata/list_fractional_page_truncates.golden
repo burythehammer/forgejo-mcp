@@ -1,4 +1,4 @@
-{"Result":{"pages":[{"title":"Home","page_name":"Home","sub_url":"Home"},{"title":"Guides","page_name":"Guides","sub_url":"Guides"}],"page":0,"has_next":true,"total_count":5}}
+{"Result":{"pages":[{"title":"Home","page_name":"Home","sub_url":"Home"},{"title":"Guides","page_name":"Guides","sub_url":"Guides"}],"page":0,"limit":2,"count":2,"has_next":true}}
 -- port calls --
 ListWikiPages ["octo","hello",0,2]
 ListWikiPages ["octo","hello",1,2]

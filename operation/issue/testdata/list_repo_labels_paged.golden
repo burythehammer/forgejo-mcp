@@ -1,4 +1,4 @@
-{"Result":[]}
+{"Result":{"labels":[],"page":2,"limit":1,"count":0,"has_next":false}}
 -- port calls --
 ListRepoLabels ["octo","hello",{"Page":2,"PageSize":1}]
 ListOrgLabels ["octo",2,1]

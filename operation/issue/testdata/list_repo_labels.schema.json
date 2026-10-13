@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List repository labels. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the response. Each label carries a scope field of \"repo\" or \"org\".",
+  "description": "List repository labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the labels list; count includes them, while has_next and total_count describe the repository labels only. Each label carries a scope field of \"repo\" or \"org\".",
   "inputSchema": {
     "properties": {
       "include_org_labels": {

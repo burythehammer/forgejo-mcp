@@ -100,7 +100,7 @@ func TestListWorkflowRunsFn_ReturnsRuns(t *testing.T) {
 
 	out := call(t, h.ListWorkflowRunsFn, repoArgs(nil))
 
-	for _, want := range []string{"total: 2", "Run CI", "Deploy", "SHA: abc1234", "SHA: def9876"} {
+	for _, want := range []string{`"total_count":2`, `"count":2`, `"has_next":false`, "Run CI", "Deploy", `"commit_sha":"abc1234567890"`, `"commit_sha":"def9876543210"`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %s", want, out)
 		}
@@ -126,7 +126,7 @@ func TestListWorkflowRunsFn_EmptyResult(t *testing.T) {
 
 	out := call(t, h.ListWorkflowRunsFn, repoArgs(nil))
 
-	if !strings.Contains(out, "No workflow runs found for o/r") {
+	if !strings.Contains(out, `"workflow_runs":[]`) || !strings.Contains(out, `"has_next":false`) {
 		t.Errorf("unexpected result: %s", out)
 	}
 }

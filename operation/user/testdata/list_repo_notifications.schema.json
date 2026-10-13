@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Filter notifications scoped to a single repository",
+  "description": "Filter notifications scoped to a single repository (page/limit). Returns a response envelope {notifications, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "all": {

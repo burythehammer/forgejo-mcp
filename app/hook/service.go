@@ -7,8 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
 
 // Service runs the webhook use cases over a Port. Build one per request from
@@ -55,30 +56,55 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.HookListResult
 	if r.Owner == "" || r.Repo == "" {
 		return model.HookListResult{}, fmt.Errorf("owner and repo are required")
 	}
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
 	page := r.Page
 	if page == 0 {
 		page = 1
 	}
 	limit := r.Limit
 	if limit == 0 {
-		limit = 30
+		limit = float64(list.DefaultLimit(30, c))
 	}
-	p := Paging{Page: int(page), Limit: int(limit)}
-	list, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, p)
+	p := list.Paging{Page: int(page), Limit: int(limit)}
+	got, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.Hook], error) {
+		hooks, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
+		if err != nil {
+			return list.Batch[*model.Hook]{}, fmt.Errorf("list repo hooks: %w", err)
+		}
+		return list.Batch[*model.Hook]{Items: hooks.Hooks, Total: totalOf(hooks.TotalCount)}, nil
+	})
 	if err != nil {
-		return model.HookListResult{}, fmt.Errorf("list repo hooks: %w", err)
+		return model.HookListResult{}, err
 	}
-	payloads := make([]model.HookPayload, len(list.Hooks))
-	for i, hk := range list.Hooks {
+	// The grand total, when Forgejo reported one, is what TotalCount carries; a
+	// reported total also decides has_next inside list.Run.
+	var total *int
+	if got.Total.Known {
+		n := got.Total.Count
+		total = &n
+	}
+	payloads := make([]model.HookPayload, len(got.Items))
+	for i, hk := range got.Items {
 		payloads[i] = model.SafeHook(hk)
 	}
 	return model.HookListResult{
-		Page:       p.Page,
-		Limit:      p.Limit,
-		Count:      len(payloads),
-		TotalCount: list.TotalCount,
+		Page:       got.Page,
+		Limit:      got.Limit,
+		Count:      got.Count,
+		TotalCount: total,
 		Hooks:      payloads,
+		HasNext:    got.HasNext,
 	}, nil
+}
+
+// totalOf turns the grand total a port reports into a list total; a nil count
+// is unknown, never zero.
+func totalOf(n *int) list.Total {
+	if n == nil {
+		return list.Total{}
+	}
+	return list.Total{Count: *n, Known: true}
 }
 
 // Get returns one webhook in its safe form.

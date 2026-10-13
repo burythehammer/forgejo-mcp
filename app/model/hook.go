@@ -57,9 +57,10 @@ func SafeHook(h *Hook) HookPayload {
 // HookListResult is one page of webhooks as the list tool returns it, echoing
 // the page so a caller can resume pagination.
 type HookListResult struct {
+	Hooks      []HookPayload `json:"hooks"`
 	Page       int           `json:"page"`
 	Limit      int           `json:"limit"`
 	Count      int           `json:"count"`
 	TotalCount *int          `json:"total_count,omitempty"`
-	Hooks      []HookPayload `json:"hooks"`
+	HasNext    bool          `json:"has_next"`
 }

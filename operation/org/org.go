@@ -39,14 +39,14 @@ var (
 
 	ListMyOrgsTool = mcp.NewTool(
 		ListMyOrgsToolName,
-		mcp.WithDescription("List my organizations"),
+		mcp.WithDescription("List my organizations. Returns a response envelope {organizations, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
 		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
 	)
 
 	ListUserOrgsTool = mcp.NewTool(
 		ListUserOrgsToolName,
-		mcp.WithDescription("List a user's organizations"),
+		mcp.WithDescription("List a user's organizations. Returns a response envelope {organizations, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("user", mcp.Required(), mcp.Description(params.User)),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
 		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),

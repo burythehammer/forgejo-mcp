@@ -21,9 +21,21 @@ import (
 )
 
 // New returns the use cases' port over p.
-func New(p forge.Pulls) apppull.Port { return adapter{p: p} }
+// Source is the part of the Forgejo port the pull domain uses: its pull methods
+// and the instance's pagination ceiling.
+type Source interface {
+	forge.Pulls
+	forge.Ceilings
+}
 
-type adapter struct{ p forge.Pulls }
+func New(p Source) apppull.Port { return adapter{p: p} }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.p.MaxResponseItems(ctx)
+}
+
+type adapter struct{ p Source }
 
 var _ apppull.Port = adapter{}
 

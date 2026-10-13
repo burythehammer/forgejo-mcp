@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
@@ -45,7 +44,7 @@ const (
 var (
 	ListWorkflowRunsTool = mcp.NewTool(
 		ListWorkflowRunsToolName,
-		mcp.WithDescription("List workflow runs for a repository"),
+		mcp.WithDescription("List workflow runs for a repository. Returns a response envelope {workflow_runs, page, limit, count, total_count, has_next}; total_count is present only when Forgejo reports it. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("status", mcp.Description(params.Status)),
@@ -85,7 +84,7 @@ func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolReques
 	if p, ok := number(a.Page); ok {
 		page = int(p)
 	}
-	limit := 30
+	limit := 0
 	if l, ok := number(a.Limit); ok {
 		limit = int(l)
 	}
@@ -94,37 +93,14 @@ func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	list, err := svc.ListRuns(ctx, a.Owner, a.Repo, app.RunQuery{
+	out, err := svc.ListRuns(ctx, a.Owner, a.Repo, app.RunQuery{
 		Status: a.Status, Event: a.Event, RunNumber: runNumber, HeadSHA: a.HeadSHA,
 		Paging: app.Paging{Page: page, Limit: limit},
 	})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	if len(list.WorkflowRuns) == 0 {
-		return to.TextResult(fmt.Sprintf("No workflow runs found for %s/%s", a.Owner, a.Repo))
-	}
-	return to.TextResult(renderRuns(a.Owner, a.Repo, list))
-}
-
-// renderRuns is the list_workflow_runs text.
-func renderRuns(owner, repo string, list model.WorkflowRunList) string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Workflow Runs for %s/%s (total: %d):\n\n", owner, repo, list.TotalCount)
-	for _, run := range list.WorkflowRuns {
-		duration := ""
-		if !run.Started.IsZero() && !run.Stopped.IsZero() {
-			duration = fmt.Sprintf(" | Duration: %s", run.Stopped.Sub(run.Started).Round(1e9).String())
-		}
-		fmt.Fprintf(&sb, "#%d - %s\n", run.ID, run.Title)
-		fmt.Fprintf(&sb, "  Status: %s | Event: %s | SHA: %.7s%s\n",
-			run.Status, run.Event, run.CommitSHA, duration)
-		if !run.Started.IsZero() {
-			fmt.Fprintf(&sb, "  Started: %s\n", run.Started.Format("2006-01-02 15:04:05"))
-		}
-		fmt.Fprintf(&sb, "  URL: %s\n\n", run.HTMLURL)
-	}
-	return sb.String()
+	return to.SafeTextResult(out)
 }
 
 func (h handlers) GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

@@ -77,7 +77,7 @@ func (s *stubPackages) ListPackages(_ context.Context, owner string, opt forge.L
 	}
 	list := forge.PackageList{Packages: []forge.PackageVersion{fixedVersion(), fixedVersion()}, HasNext: s.hasNext}
 	if !s.noTotal {
-		n := 9
+		n := 2
 		list.TotalCount = &n
 	}
 	return list, nil
@@ -194,3 +194,7 @@ func TestGolden(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling: the package goldens pin the
+// paging contract without a ceiling, as they always have.
+func (s *stubPackages) MaxResponseItems(context.Context) (int, bool) { return 0, false }

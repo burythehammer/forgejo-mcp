@@ -247,3 +247,7 @@ func TestGolden(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling: the webhook goldens pin the
+// paging contract without a ceiling, as they always have.
+func (s *stubHook) MaxResponseItems(context.Context) (int, bool) { return 0, false }

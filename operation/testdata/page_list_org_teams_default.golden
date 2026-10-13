@@ -1,0 +1,1 @@
+{"Result":{"teams":[{"id":1,"name":"Owners","description":"","organization":{"id":1,"username":"acme","full_name":"","avatar_url":"","description":"","website":"","location":"","visibility":"public"},"permission":"owner","can_create_org_repo":true,"includes_all_repositories":true,"units_map":null,"units":null}],"page":1,"limit":100,"count":1,"has_next":false}}

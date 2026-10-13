@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -21,37 +22,60 @@ type Coords struct {
 	Owner, Type, Name, Version string
 }
 
-// ListRequest lists an owner's package versions. Page and Limit are already
-// validated and defaulted by the caller.
+// ListRequest lists an owner's package versions. A page or limit left at zero
+// takes the default; the use case applies it.
 type ListRequest struct {
 	Owner, Type, Query string
 	Page, Limit        int
 }
 
-// ListFilesRequest pages through a package version's files. Page and Limit are
-// already validated and defaulted by the caller.
+// ListFilesRequest pages through a package version's files. A page or limit left
+// at zero takes the default; the use case applies it.
 type ListFilesRequest struct {
 	Coords
 	Page, Limit int
 }
 
-// List returns one page of an owner's package versions.
+// defaultLimit is the page size a package list uses when the caller gives none.
+const defaultLimit = 30
+
+// List returns one page of an owner's package versions. The page goes through
+// the list module, so the instance ceiling applies and a default limit is
+// lowered to it.
 func (s *Service) List(ctx context.Context, r ListRequest) (model.ListPackagesResult, error) {
-	list, err := s.port.ListPackages(ctx, r.Owner, ListQuery{Type: r.Type, Query: r.Query, Page: r.Page, Limit: r.Limit})
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
+	page, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageVersion], error) {
+		got, err := s.port.ListPackages(ctx, r.Owner, ListQuery{Type: r.Type, Query: r.Query, Page: q.Page, Limit: q.Limit})
+		if err != nil {
+			return list.Batch[model.PackageVersion]{}, fmt.Errorf("list packages: %w", err)
+		}
+		b := list.Batch[model.PackageVersion]{Items: got.Packages}
+		if got.TotalCount != nil {
+			b.Total = list.Total{Count: *got.TotalCount, Known: true}
+		}
+		return b, nil
+	})
 	if err != nil {
-		return model.ListPackagesResult{}, fmt.Errorf("list packages: %w", err)
+		return model.ListPackagesResult{}, err
 	}
-	packages := make([]model.PackageView, 0, len(list.Packages))
-	for _, row := range list.Packages {
+	packages := make([]model.PackageView, 0, len(page.Items))
+	for _, row := range page.Items {
 		packages = append(packages, view(row))
+	}
+	var total *int
+	if page.Total.Known {
+		n := page.Total.Count
+		total = &n
 	}
 	return model.ListPackagesResult{
 		Packages:   packages,
-		Page:       r.Page,
-		Limit:      r.Limit,
-		Count:      len(packages),
-		HasNext:    list.HasNext,
-		TotalCount: list.TotalCount,
+		Page:       page.Page,
+		Limit:      page.Limit,
+		Count:      page.Count,
+		HasNext:    page.HasNext,
+		TotalCount: total,
 	}, nil
 }
 
@@ -75,29 +99,33 @@ func (s *Service) Delete(ctx context.Context, c Coords) (model.DeletePackageResu
 // ListFiles returns one page of a package version's files. Forgejo does not
 // page the listing, so the page is cut here.
 func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.ListPackageFilesResult, error) {
-	listed, err := s.port.ListPackageFiles(ctx, r.Owner, r.Type, r.Name, r.Version)
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
+	page, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageFileView], error) {
+		listed, err := s.port.ListPackageFiles(ctx, r.Owner, r.Type, r.Name, r.Version)
+		if err != nil {
+			return list.Batch[model.PackageFileView]{}, fmt.Errorf("list package files: %w", err)
+		}
+		all := make([]model.PackageFileView, 0, len(listed))
+		for _, file := range listed {
+			all = append(all, model.PackageFileView(file))
+		}
+		// Forgejo does not page the listing, so the window is cut here. The whole
+		// listing is the grand total, so has_next needs no probe.
+		rows, _ := list.Cut(all, q)
+		return list.Batch[model.PackageFileView]{Items: rows, Total: list.Total{Count: len(all), Known: true}}, nil
+	})
 	if err != nil {
-		return model.ListPackageFilesResult{}, fmt.Errorf("list package files: %w", err)
+		return model.ListPackageFilesResult{}, err
 	}
-	allFiles := make([]model.PackageFileView, 0, len(listed))
-	for _, file := range listed {
-		allFiles = append(allFiles, model.PackageFileView(file))
-	}
-
-	start64 := int64(r.Page-1) * int64(r.Limit)
-	start := len(allFiles)
-	if start64 < int64(len(allFiles)) {
-		start = int(start64)
-	}
-	end := min(start+r.Limit, len(allFiles))
-	files := allFiles[start:end]
 	return model.ListPackageFilesResult{
-		Files:      files,
-		Page:       r.Page,
-		Limit:      r.Limit,
-		Count:      len(files),
-		HasNext:    end < len(allFiles),
-		TotalCount: len(allFiles),
+		Files:      page.Items,
+		Page:       page.Page,
+		Limit:      page.Limit,
+		Count:      page.Count,
+		HasNext:    page.HasNext,
+		TotalCount: page.Total.Count,
 	}, nil
 }
 

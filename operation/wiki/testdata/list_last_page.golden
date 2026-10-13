@@ -1,3 +1,4 @@
-{"Result":{"pages":[{"title":"Changelog","page_name":"Changelog","sub_url":"Changelog"}],"page":3,"has_next":false,"total_count":5}}
+{"Result":{"pages":[{"title":"Changelog","page_name":"Changelog","sub_url":"Changelog"}],"page":3,"limit":2,"count":1,"has_next":false}}
 -- port calls --
 ListWikiPages ["octo","hello",3,2]
+ListWikiPages ["octo","hello",4,2]

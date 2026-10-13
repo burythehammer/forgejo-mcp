@@ -10,6 +10,7 @@ package org
 import (
 	"context"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -20,6 +21,9 @@ type Port interface {
 	GetOrg(ctx context.Context, org string) (*model.Organization, error)
 	EditOrg(ctx context.Context, org string, in EditOrgInput) error
 	DeleteOrg(ctx context.Context, org string) error
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
 	ListMyOrgs(ctx context.Context, p Paging) ([]*model.Organization, error)
 	ListUserOrgs(ctx context.Context, user string, p Paging) ([]*model.Organization, error)
 
@@ -40,8 +44,9 @@ type Port interface {
 // same way whether or not the request's credential resolves.
 type Source func(ctx context.Context) (Port, error)
 
-// Paging selects a page of a list.
-type Paging struct{ Page, Limit int }
+// Paging selects a page of a list. It is the list module's paging, so a list
+// use case hands it to list.Window unchanged.
+type Paging = list.Paging
 
 // CreateOrgInput is a new organization. Empty fields are left to Forgejo.
 type CreateOrgInput struct {

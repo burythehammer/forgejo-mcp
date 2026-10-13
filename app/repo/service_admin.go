@@ -9,7 +9,9 @@ import (
 	"regexp"
 	"strings"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 )
 
 // AdminService runs the repository-administration use cases over an AdminPort.
@@ -139,14 +141,23 @@ func (s *AdminService) ListRepoTopics(ctx context.Context, owner, repo string, p
 	if owner == "" || repo == "" {
 		return model.TopicPage{}, errors.New("owner and repo are required")
 	}
-	topics, err := s.port.ListRepoTopics(ctx, owner, repo, p)
+	c := ceiling(ctx, s.port)
+	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[string], error) {
+			topics, err := s.port.ListRepoTopics(ctx, owner, repo, AdminPaging(q))
+			if err != nil {
+				return list.Batch[string]{}, fmt.Errorf("list repo topics: %w", err)
+			}
+			return list.Batch[string]{Items: topics}, nil
+		})
 	if err != nil {
-		return model.TopicPage{}, fmt.Errorf("list repo topics: %w", err)
+		return model.TopicPage{}, err
 	}
+	topics := page.Items
 	if topics == nil {
 		topics = []string{}
 	}
-	return model.TopicPage{Topics: topics, Page: p.Page, Limit: p.Limit, Count: len(topics)}, nil
+	return model.TopicPage{Topics: topics, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // SetRepoTopics replaces every topic of a repository with the comma-separated
@@ -241,13 +252,10 @@ func normalizeTopic(s string) (string, error) {
 }
 
 func splitTopics(s string) ([]string, error) {
-	parts := strings.Split(s, ",")
+	parts := split.CSV(s)
 	out := make([]string, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
-		if strings.TrimSpace(part) == "" {
-			continue
-		}
 		name, err := normalizeTopic(part)
 		if err != nil {
 			return nil, err

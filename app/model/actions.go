@@ -30,6 +30,31 @@ type WorkflowRunList struct {
 	WorkflowRuns []WorkflowRun
 }
 
+// WorkflowRunRow is one workflow run as list_workflow_runs renders it.
+type WorkflowRunRow struct {
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Status      string `json:"status"`
+	Event       string `json:"event"`
+	Ref         string `json:"ref"`
+	CommitSHA   string `json:"commit_sha"`
+	HTMLURL     string `json:"html_url"`
+	TriggerUser string `json:"trigger_user,omitempty"`
+	StartedAt   string `json:"started_at,omitempty"`
+	StoppedAt   string `json:"stopped_at,omitempty"`
+}
+
+// WorkflowRunPage is the list_workflow_runs output. TotalCount is the grand
+// total Forgejo reports, nil when it did not report one.
+type WorkflowRunPage struct {
+	WorkflowRuns []WorkflowRunRow `json:"workflow_runs"`
+	Page         int              `json:"page"`
+	Limit        int              `json:"limit"`
+	Count        int              `json:"count"`
+	TotalCount   *int             `json:"total_count,omitempty"`
+	HasNext      bool             `json:"has_next"`
+}
+
 // ActionRunJob is one job of a workflow run.
 type ActionRunJob struct {
 	ID      int64    `json:"id"`
@@ -65,13 +90,14 @@ type ArtifactList struct {
 	TotalCount *int
 }
 
-// JobLog is a raw bounded read of a job log, as Forgejo returned it.
+// JobLog is a raw bounded read of a job log, as Forgejo returned it. Partial
+// says Forgejo answered with only the requested range.
 type JobLog struct {
 	Body          []byte
 	ContentType   string
 	ContentRange  string
 	ContentLength int64
-	StatusCode    int
+	Partial       bool
 }
 
 // Secret is an action secret's metadata. Forgejo never returns a value.
@@ -86,7 +112,8 @@ type JobPage struct {
 	Jobs       []ActionRunJob `json:"jobs"`
 	Page       int            `json:"page"`
 	Limit      int            `json:"limit"`
-	TotalCount int            `json:"total_count"`
+	Count      int            `json:"count"`
+	TotalCount *int           `json:"total_count,omitempty"`
 	HasNext    bool           `json:"has_next"`
 	NextPage   int            `json:"next_page,omitempty"`
 }
@@ -118,6 +145,7 @@ type ArtifactPage struct {
 	Limit      int              `json:"limit"`
 	Count      int              `json:"count"`
 	TotalCount *int             `json:"total_count,omitempty"`
+	HasNext    bool             `json:"has_next"`
 }
 
 // SecretSummary is one secret as the list tools render it. It has no value.
@@ -134,6 +162,7 @@ type RepoSecretPage struct {
 	Page    int             `json:"page"`
 	Limit   int             `json:"limit"`
 	Count   int             `json:"count"`
+	HasNext bool            `json:"has_next"`
 }
 
 // OrgSecretPage is the list_org_action_secrets output.
@@ -143,4 +172,5 @@ type OrgSecretPage struct {
 	Page    int             `json:"page"`
 	Limit   int             `json:"limit"`
 	Count   int             `json:"count"`
+	HasNext bool            `json:"has_next"`
 }

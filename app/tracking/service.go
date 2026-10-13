@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
 
@@ -51,38 +52,82 @@ type AddTimeInput struct {
 	User      string
 }
 
-// IssueTimes returns the tracked times of an issue.
-func (s *Service) IssueTimes(ctx context.Context, in IssueTimesInput) ([]*model.TrackedTime, error) {
+// IssueTimes returns one page of the tracked times of an issue with its next
+// marker. Forgejo reports no total for these lists, so the next page is probed.
+func (s *Service) IssueTimes(ctx context.Context, in IssueTimesInput) (model.TrackedTimePage, error) {
 	since, before, err := parseBounds(in.Since, in.Before)
 	if err != nil {
-		return nil, err
+		return model.TrackedTimePage{}, err
 	}
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.TrackedTimePage{}, err
 	}
-	times, err := p.ListIssueTrackedTimes(ctx, in.Owner, in.Repo, in.Index, TimeQuery{Since: since, Before: before, Page: in.Page, Limit: in.Limit})
+	c := ceiling(ctx, p)
+	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
+			times, err := p.ListIssueTrackedTimes(ctx, in.Owner, in.Repo, in.Index, TimeQuery{Since: since, Before: before, Page: q.Page, Limit: q.Limit})
+			if err != nil {
+				return list.Batch[*model.TrackedTime]{}, fmt.Errorf("list issue tracked times err: %w", err)
+			}
+			return list.Batch[*model.TrackedTime]{Items: times}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list issue tracked times err: %w", err)
+		return model.TrackedTimePage{}, err
 	}
-	return times, nil
+	return timePage(page), nil
 }
 
-// RepoTimes returns the tracked times of a repository.
-func (s *Service) RepoTimes(ctx context.Context, in RepoTimesInput) ([]*model.TrackedTime, error) {
+// defaultLimit is the page size a tracked-time list uses when the caller gives
+// none.
+const defaultLimit = 20
+
+// RepoTimes returns one page of the tracked times of a repository with its next
+// marker. Forgejo reports no total for these lists, so the next page is probed.
+func (s *Service) RepoTimes(ctx context.Context, in RepoTimesInput) (model.TrackedTimePage, error) {
 	since, before, err := parseBounds(in.Since, in.Before)
 	if err != nil {
-		return nil, err
+		return model.TrackedTimePage{}, err
 	}
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.TrackedTimePage{}, err
 	}
-	times, err := p.ListRepoTrackedTimes(ctx, in.Owner, in.Repo, TimeQuery{Since: since, Before: before, User: in.User, Page: in.Page, Limit: in.Limit})
+	c := ceiling(ctx, p)
+	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
+			times, err := p.ListRepoTrackedTimes(ctx, in.Owner, in.Repo, TimeQuery{Since: since, Before: before, User: in.User, Page: q.Page, Limit: q.Limit})
+			if err != nil {
+				return list.Batch[*model.TrackedTime]{}, fmt.Errorf("list repo tracked times err: %w", err)
+			}
+			return list.Batch[*model.TrackedTime]{Items: times}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list repo tracked times err: %w", err)
+		return model.TrackedTimePage{}, err
 	}
-	return times, nil
+	return timePage(page), nil
+}
+
+// ceiling reads the instance's pagination ceiling through the port the call
+// already holds.
+func ceiling(ctx context.Context, src list.CeilingSource) list.Ceiling {
+	max, known := src.MaxResponseItems(ctx)
+	return list.Ceiling{Max: max, Known: known}
+}
+
+// pageOf is the paging a tracked-time list fetches with: a page below 1 is page
+// 1, and a limit below 1 takes defaultLimit, lowered to a known ceiling.
+func pageOf(p list.Paging, c list.Ceiling) list.Paging {
+	return list.Given(list.Normalize(p, 0), defaultLimit, c)
+}
+
+// timePage renders one fetched page; an empty page is an empty list, not null.
+func timePage(page list.Page[*model.TrackedTime]) model.TrackedTimePage {
+	times := page.Items
+	if times == nil {
+		times = []*model.TrackedTime{}
+	}
+	return model.TrackedTimePage{Times: times, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}
 }
 
 // MyTimes returns the tracked times of the authenticated user.

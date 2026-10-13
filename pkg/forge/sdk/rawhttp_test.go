@@ -116,9 +116,9 @@ func TestDoJSON_4xxErrorTypes(t *testing.T) {
 		status int
 		want   error
 	}{
-		{"401", http.StatusUnauthorized, errUnauthorized},
-		{"403", http.StatusForbidden, errUnauthorized},
-		{"404", http.StatusNotFound, errNotFound},
+		{"401", http.StatusUnauthorized, forge.ErrUnauthorized},
+		{"403", http.StatusForbidden, forge.ErrUnauthorized},
+		{"404", http.StatusNotFound, forge.ErrNotFound},
 		{"500", http.StatusInternalServerError, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -170,8 +170,8 @@ func TestDoJSONWithHeader_404IsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("404 must remain an error")
 	}
-	if !errors.Is(err, errNotFound) {
-		t.Fatalf("expected errNotFound, got %v", err)
+	if !errors.Is(err, forge.ErrNotFound) {
+		t.Fatalf("expected forge.ErrNotFound, got %v", err)
 	}
 	if len(out) != 0 {
 		t.Fatalf("out should stay empty on error, got %d", len(out))

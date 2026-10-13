@@ -30,7 +30,7 @@ const (
 var (
 	CheckNotificationsTool = mcp.NewTool(
 		CheckNotificationsToolName,
-		mcp.WithDescription("Check and list user notifications"),
+		mcp.WithDescription("Check and list user notifications (page/limit). Returns a response envelope {notifications, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithBoolean("all", mcp.Description("Include read notifications (default: false)")),
 		mcp.WithString("since", mcp.Description(params.Since)),
 		mcp.WithString("before", mcp.Description(params.Before)),
@@ -58,7 +58,7 @@ var (
 
 	ListRepoNotificationsTool = mcp.NewTool(
 		ListRepoNotificationsToolName,
-		mcp.WithDescription("Filter notifications scoped to a single repository"),
+		mcp.WithDescription("Filter notifications scoped to a single repository (page/limit). Returns a response envelope {notifications, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Description("Repository owner"), mcp.Required()),
 		mcp.WithString("repo", mcp.Description("Repository name"), mcp.Required()),
 		mcp.WithBoolean("all", mcp.Description("Include read notifications (default: false)")),
@@ -117,12 +117,8 @@ type repoMarkArgs struct {
 
 // paging applies the tools' defaults to the page and limit arguments.
 func paging(page, limit float64) (int, int) {
-	if page == 0 {
-		page = 1
-	}
-	if limit == 0 {
-		limit = 20
-	}
+	// An absent page or limit is passed on as 0: the use case applies the
+	// defaults, lowering the default limit to the instance ceiling.
 	return int(page), int(limit)
 }
 
@@ -164,9 +160,9 @@ func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequ
 	if err != nil {
 		return refuse(ctx, CheckNotificationsToolName, started, err)
 	}
-	threads, err := h.service().Notifications(ctx, notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit))
+	page, err := h.service().Notifications(ctx, notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit))
 	logAPICall(ctx, "GET", "/notifications", started, err)
-	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", len(threads)), threads, err)
+	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", page.Count), page, err)
 }
 
 func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -219,12 +215,12 @@ func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolR
 		return refuse(ctx, ListRepoNotificationsToolName, started, errOwnerRepo)
 	}
 	owner, repo := *a.Owner, *a.Repo
-	threads, err := h.service().RepoNotifications(ctx, appuser.RepoNotificationsInput{
+	page, err := h.service().RepoNotifications(ctx, appuser.RepoNotificationsInput{
 		Owner: owner, Repo: repo, NotificationsInput: notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit),
 	})
 	logAPICall(ctx, "GET", forge.APIPath("repos", owner, repo, "notifications"), started, err)
 	return finish(ctx, ListRepoNotificationsToolName, started,
-		fmt.Sprintf("Retrieved %d notifications for repo %s/%s", len(threads), owner, repo), threads, err)
+		fmt.Sprintf("Retrieved %d notifications for repo %s/%s", page.Count, owner, repo), page, err)
 }
 
 func (h handlers) MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

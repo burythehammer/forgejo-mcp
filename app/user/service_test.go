@@ -23,6 +23,10 @@ type stubPort struct {
 	query   appuser.NotificationQuery
 	read    appuser.ReadQuery
 	threads []*model.NotificationThread
+	// firstRepo is the query of the first repo-list call; query is the last one,
+	// which is the probe for the next page when the first page was full.
+	firstRepo appuser.NotificationQuery
+	repoCalls int
 }
 
 func (p *stubPort) GetMyUserInfo(context.Context) (*model.User, error) {
@@ -37,6 +41,10 @@ func (p *stubPort) ListNotifications(_ context.Context, q appuser.NotificationQu
 
 func (p *stubPort) ListRepoNotifications(_ context.Context, _, _ string, q appuser.NotificationQuery) ([]*model.NotificationThread, error) {
 	p.last, p.query = "repo list", q
+	if p.repoCalls == 0 {
+		p.firstRepo = q
+	}
+	p.repoCalls++
 	return p.threads, p.err
 }
 
@@ -99,8 +107,8 @@ func TestTimesAreParsedAndPagesPassThrough(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !p.query.Since.Equal(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)) || p.query.Page != 3 || p.query.Limit != 9 {
-		t.Fatalf("query %+v", p.query)
+	if !p.firstRepo.Since.Equal(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)) || p.firstRepo.Page != 3 || p.firstRepo.Limit != 9 {
+		t.Fatalf("first query %+v", p.firstRepo)
 	}
 }
 
@@ -173,6 +181,94 @@ func TestFailuresAreWrapped(t *testing.T) {
 			err := tc.call(service(&stubPort{err: boom}, &lookups))
 			if err == nil || !strings.HasPrefix(err.Error(), tc.prefix) || !errors.Is(err, boom) {
 				t.Fatalf("got %v", err)
+			}
+		})
+	}
+}
+
+// MaxResponseItems reports an unknown ceiling for the test double.
+func (*stubPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+
+// pagedRepoPort serves n notifications of one repository, sliced by the page
+// and limit the use case passes, so a test sees the window it asked for.
+type pagedRepoPort struct {
+	stubPort
+	n int
+}
+
+func (p *pagedRepoPort) ListRepoNotifications(_ context.Context, _, _ string, q appuser.NotificationQuery) ([]*model.NotificationThread, error) {
+	var out []*model.NotificationThread
+	for i := (q.Page - 1) * q.Limit; i < q.Page*q.Limit && i < p.n; i++ {
+		out = append(out, &model.NotificationThread{ID: int64(i + 1)})
+	}
+	return out, nil
+}
+
+func TestRepoNotificationsEnvelopeNamesTheNextPage(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name          string
+		n, page, want int
+		hasNext       bool
+	}{
+		{"full page with more threads", 3, 1, 2, true},
+		{"short last page", 3, 2, 1, false},
+		{"exact multiple, full last page", 4, 2, 2, false},
+		{"past the end", 4, 3, 0, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			s := appuser.New(func(context.Context) (appuser.Port, error) {
+				return &pagedRepoPort{n: c.n}, nil
+			})
+			got, err := s.RepoNotifications(context.Background(), appuser.RepoNotificationsInput{
+				Owner: "octo", Repo: "hello",
+				NotificationsInput: appuser.NotificationsInput{Page: c.page, Limit: 2},
+			})
+			if err != nil || len(got.Notifications) != c.want || got.Count != c.want || got.HasNext != c.hasNext || got.Page != c.page || got.Limit != 2 {
+				t.Fatalf("got %+v, %v", got, err)
+			}
+		})
+	}
+}
+
+// pagedNotificationsPort serves n notifications, sliced by the page and limit
+// the use case passes.
+type pagedNotificationsPort struct {
+	stubPort
+	n int
+}
+
+func (p *pagedNotificationsPort) ListNotifications(_ context.Context, q appuser.NotificationQuery) ([]*model.NotificationThread, error) {
+	var out []*model.NotificationThread
+	for i := (q.Page - 1) * q.Limit; i < q.Page*q.Limit && i < p.n; i++ {
+		out = append(out, &model.NotificationThread{ID: int64(i + 1)})
+	}
+	return out, nil
+}
+
+func TestNotificationsEnvelopeNamesTheNextPage(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name          string
+		n, page, want int
+		hasNext       bool
+	}{
+		{"full page with more threads", 3, 1, 2, true},
+		{"short last page", 3, 2, 1, false},
+		{"exact multiple, full last page", 4, 2, 2, false},
+		{"past the end", 4, 3, 0, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			s := appuser.New(func(context.Context) (appuser.Port, error) {
+				return &pagedNotificationsPort{n: c.n}, nil
+			})
+			got, err := s.Notifications(context.Background(), appuser.NotificationsInput{Page: c.page, Limit: 2})
+			if err != nil || len(got.Notifications) != c.want || got.Count != c.want || got.HasNext != c.hasNext || got.Page != c.page || got.Limit != 2 {
+				t.Fatalf("got %+v, %v", got, err)
 			}
 		})
 	}

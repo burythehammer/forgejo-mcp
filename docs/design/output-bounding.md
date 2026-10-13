@@ -84,8 +84,9 @@ also surface this as a `total_count` field, parsed with the shared
 the adapter's X-Total-Count helper (`pkg/forge/sdk/pagination.go`) rather than
 a bespoke per-tool copy; the port hands the tool a `TotalCount *int`. When the header is absent or unparsable, OMIT the key — never
 emit `total_count: 0`, which reads as "confirmed zero rows" rather than
-"unknown." Today this covers `search_issues`, `list_repo_hooks`,
-`list_wiki_pages`, and `get_wiki_revisions`.
+"unknown." Today this covers `search_issues`, `list_repo_hooks`, and `get_wiki_revisions`.
+`list_wiki_pages` does not: its `X-Total-Count` counts raw wiki tree entries rather than
+pages, so the total is not exact and the key is omitted.
 
 A pagination envelope is not on its own a reason to add the field: the
 endpoint has to actually send the header. Forgejo's handlers call
@@ -96,10 +97,6 @@ therefore do NOT carry `total_count`: a key that is structurally always
 absent is a promise the tool cannot keep, and a mock that injects the header
 proves only the plumbing, not the availability. Check the upstream handler
 (or a live response) before adding the field to a new tool.
-
-Tools that still return a bare array with no pagination envelope at all
-(most `list_*`/`search_*` tools — see "Retrofitting existing tools" below) are
-out of scope for `total_count` until they gain an envelope in the first place.
 
 Envelope `total_count` always means the same thing: the grand total the server
 reports for the whole query, not the size of the payload in hand. It usually
@@ -114,6 +111,37 @@ rows they carry — `operation/branchprotection/resources_branchprotection.go`,
 Those are an existing contract and are deliberately left alone. New envelopes
 MUST NOT follow them: reserve `total_count` for the server grand total and call
 a local count `count`.
+
+## Where the bound lives
+
+Bounding is code, not a checklist a tool author re-implements. The rules above
+are enforced in these places:
+
+- **List use cases** (`app/<domain>/`) hand their request to the list module,
+  `app/list`. Every paged list uses `list.Run` and returns the envelope with
+  `has_next`; `list.Items` is gone, and a list with no continuation marker is
+  still an envelope with `has_next`, derived by `list.Run`. Two other entry
+  points remain for the cases `list.Run` does not fit: `list.Window` reads one
+  page through a port's ceiling and takes `has_next` from the port's own report
+  (the label lists, whose endpoint reports it, make no probe), and `list.Cut`
+  serves a list Forgejo does not page. The module applies the
+  instance ceiling (`list.Ceiling`, read from the port per call, never cached at
+  package level), refuses a limit above a known ceiling with `OverCeilingError`
+  rather than clamping it, and probes for a next page only when the ceiling is
+  unknown. The page/limit defaults come from `list.Normalize`,
+  `list.Given` and `list.DefaultLimit`. A new list tool calls the module and
+  adds no defaults or ceiling check of its own.
+- **Argument reading** (`operation/<domain>/handlers.go`) uses
+  `decode.PageOr` (an absent or zero number takes the default) and
+  `decode.IntOr` (the default applies to the truncated number). These are the
+  only copies of that rule; do not add a local `pageOr`.
+- **Embedded lists in resources** use `operation/resource.Bounded`, which
+  applies the `EmbeddedListCap` ceiling and writes the truncation sentinel.
+
+Some per-handler `paging` helpers in `operation/{tracking,org,user,search}` and
+in `app/{wiki,pull}` remain. Each still has callers and each differs in how it
+treats page 0, which the goldens pin. Do not copy one for a new tool; call the
+list module.
 
 ## Documentation contract
 
@@ -138,31 +166,19 @@ When adding a tool in `operation/{domain}/`, answer in the PR description:
 
 If any answer is "none" or "unclear", the tool is not ready to merge.
 
-## Retrofitting existing tools
+## Open retrofit work
 
-**There is no open umbrella issue.** This section used to point at
-[#124](https://git.b4mad.industries/agentic-forges/forgejo-mcp/issues/124) as one.
-That issue was closed on 2026-05-12 and was scoped to `get_pull_request_diff`
-paging specifically, not to the retrofit as a whole — the pointer had been stale
-long enough that a contributor followed it and found a closed issue
-([#593](https://git.b4mad.industries/agentic-forges/forgejo-mcp/issues/593)).
-
-File retrofit work as standalone issues, one tool at a time, each referencing
-this document. If the retrofit is picked up as a campaign rather than
-opportunistically, open a fresh umbrella and link it here.
-
-Two shapes of retrofit, which are worth keeping distinct:
+Two shapes of retrofit remain open. File each as a standalone issue, one tool at a
+time, referencing this document. Both change a tool's output shape, so the issue
+says so.
 
 1. **Add a missing bound.** A tool whose output is data-proportional and exposes
    no `page`/`limit`, range, or per-file parameter at all. This is the sub-rule 2
    gap and the original motivation for this document.
 2. **Shrink an already-bounded payload.** A tool that honours `page`/`limit` but
    returns raw SDK structs, so a bounded page is still enormous. Field projection
-   is the fix, and the resource layer is the precedent — `forgejo://…/issues`
+   is the fix, and the resource layer is the precedent: `forgejo://…/issues`
    returns projected rows with no bodies while the equivalent list tool does not.
    [#596](https://git.b4mad.industries/agentic-forges/forgejo-mcp/issues/596)
-   (`list_repo_pull_requests`, where `PRBranchInfo` embeds a complete `Repository`
-   twice per row) is the worked example.
-
-Both change a tool's output shape, so both are breaking for existing callers and
-should say so in the issue rather than in the release notes alone.
+   is the worked example: `list_repo_pull_requests` still embeds a complete
+   `Repository` twice per row through `PRBranchInfo` (`app/model/model.go`).

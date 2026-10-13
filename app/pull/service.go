@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/internal/split"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/diff"
 )
 
@@ -102,14 +103,20 @@ const (
 	defaultFilesLimit = 50
 )
 
-func paging(page, limit, defLimit int) Paging {
+func paging(page, limit, defLimit int, c list.Ceiling) Paging {
 	if page == 0 {
 		page = 1
 	}
 	if limit == 0 {
-		limit = defLimit
+		limit = list.DefaultLimit(defLimit, c)
 	}
 	return Paging{Page: page, Limit: limit}
+}
+
+// ceiling reads the instance's pagination ceiling through the port, per call.
+func (s *Service) ceiling(ctx context.Context) list.Ceiling {
+	max, known := s.port.MaxResponseItems(ctx)
+	return list.Ceiling{Max: max, Known: known}
 }
 
 func milestoneID(s string) (int64, error) {
@@ -123,21 +130,30 @@ func milestoneID(s string) (int64, error) {
 	return id, nil
 }
 
-// List returns a repository's pull requests.
-func (s *Service) List(ctx context.Context, in ListInput) ([]*model.PullRequest, error) {
-	q := ListQuery{State: in.State, Sort: in.Sort, Paging: paging(in.Page, in.Limit, defaultLimit)}
+// List returns one page of a repository's pull requests with its next marker.
+func (s *Service) List(ctx context.Context, in ListInput) (model.PullRequestPage, error) {
+	c := s.ceiling(ctx)
+	q := ListQuery{State: in.State, Sort: in.Sort, Paging: paging(in.Page, in.Limit, defaultLimit, c)}
 	if q.State == "" {
 		q.State = "open"
 	}
 	var err error
 	if q.Milestone, err = milestoneID(in.Milestone); err != nil {
-		return nil, err
+		return model.PullRequestPage{}, err
 	}
-	prs, err := s.port.ListPullRequests(ctx, in.Owner, in.Repo, q)
+	page, err := list.Run(ctx, list.Paging(q.Paging), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullRequest], error) {
+		qq := q
+		qq.Paging = Paging(p)
+		prs, err := s.port.ListPullRequests(ctx, in.Owner, in.Repo, qq)
+		if err != nil {
+			return list.Batch[*model.PullRequest]{}, fmt.Errorf("get pull request list err: %w", err)
+		}
+		return list.Batch[*model.PullRequest]{Items: prs}, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("get pull request list err: %w", err)
+		return model.PullRequestPage{}, err
 	}
-	return prs, nil
+	return model.PullRequestPage{PullRequests: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // Create opens a pull request.
@@ -183,13 +199,20 @@ func (s *Service) Merge(ctx context.Context, in MergeRequest) (MergeResult, erro
 	return MergeResult{Scheduled: in.WhenChecksSucceed}, nil
 }
 
-// Files lists the changed files of a pull request.
-func (s *Service) Files(ctx context.Context, in PagedPR) ([]*model.ChangedFile, error) {
-	files, err := s.port.ListPullRequestFiles(ctx, in.Owner, in.Repo, in.Index, paging(in.Page, in.Limit, defaultFilesLimit))
+// Files lists one page of the changed files of a pull request with its next marker.
+func (s *Service) Files(ctx context.Context, in PagedPR) (model.ChangedFilePage, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, list.Paging(paging(in.Page, in.Limit, defaultFilesLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.ChangedFile], error) {
+		files, err := s.port.ListPullRequestFiles(ctx, in.Owner, in.Repo, in.Index, Paging(p))
+		if err != nil {
+			return list.Batch[*model.ChangedFile]{}, fmt.Errorf("list pull request files err: %w", err)
+		}
+		return list.Batch[*model.ChangedFile]{Items: files}, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("list pull request files err: %w", err)
+		return model.ChangedFilePage{}, err
 	}
-	return files, nil
+	return model.ChangedFilePage{Files: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // Diff returns a pull request's unified diff, or only the section for
@@ -209,13 +232,20 @@ func (s *Service) Diff(ctx context.Context, in DiffInput) (string, error) {
 	return slice, nil
 }
 
-// Reviews lists the reviews of a pull request.
-func (s *Service) Reviews(ctx context.Context, in PagedPR) ([]*model.PullReview, error) {
-	reviews, err := s.port.ListPullReviews(ctx, in.Owner, in.Repo, in.Index, paging(in.Page, in.Limit, defaultLimit))
+// Reviews lists one page of the reviews of a pull request with its next marker.
+func (s *Service) Reviews(ctx context.Context, in PagedPR) (model.PullReviewPage, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, list.Paging(paging(in.Page, in.Limit, defaultLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullReview], error) {
+		reviews, err := s.port.ListPullReviews(ctx, in.Owner, in.Repo, in.Index, Paging(p))
+		if err != nil {
+			return list.Batch[*model.PullReview]{}, fmt.Errorf("list pull reviews err: %w", err)
+		}
+		return list.Batch[*model.PullReview]{Items: reviews}, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("list pull reviews err: %w", err)
+		return model.PullReviewPage{}, err
 	}
-	return reviews, nil
+	return model.PullReviewPage{Reviews: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // Review returns one review.

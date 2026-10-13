@@ -193,3 +193,7 @@ func TestGolden(t *testing.T) {
 		})
 	}
 }
+
+// MaxResponseItems reports an unknown ceiling: the branch protection goldens
+// pin the paging contract without a ceiling, as they always have.
+func (s *stubBP) MaxResponseItems(context.Context) (int, bool) { return 0, false }

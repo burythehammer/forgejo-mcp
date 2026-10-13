@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List workflow runs for a repository",
+  "description": "List workflow runs for a repository. Returns a response envelope {workflow_runs, page, limit, count, total_count, has_next}; total_count is present only when Forgejo reports it. has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "event": {
