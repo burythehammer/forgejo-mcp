@@ -340,8 +340,8 @@ func TestIssueComments(t *testing.T) {
 	}
 	id := float64(c.ID)
 
-	var list []forgejo_sdk.Comment
-	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": idx}), &list); err != nil || len(list) != 1 {
+	var list commentsEnvelope
+	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": idx}), &list); err != nil || len(list.Comments) != 1 {
 		t.Fatalf("list: %v %+v", err, list)
 	}
 	if !strings.Contains(call(t, h.GetIssueCommentFn, map[string]any{"comment_id": id}), "first") {
@@ -370,8 +370,8 @@ func TestListIssueComments_SinceBefore(t *testing.T) {
 		t.Fatalf("before: %q", msg)
 	}
 	future := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
-	var list []forgejo_sdk.Comment
-	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": float64(idx), "since": future}), &list); err != nil || len(list) != 0 {
+	var list commentsEnvelope
+	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": float64(idx), "since": future}), &list); err != nil || len(list.Comments) != 0 {
 		t.Fatalf("since future: %v %+v", err, list)
 	}
 }
@@ -473,4 +473,14 @@ func TestWriteResults_VerboseFalseIsCompact(t *testing.T) {
 	h, _ := newFixture(t)
 	text := call(t, h.CreateIssueFn, map[string]any{"title": "fresh", "verbose": false})
 	assertCompactIssue(t, text)
+}
+
+// commentsEnvelope is the list_issue_comments response: the comments of one
+// page with the continuation signal.
+type commentsEnvelope struct {
+	Comments []forgejo_sdk.Comment `json:"comments"`
+	Page     int                   `json:"page"`
+	Limit    int                   `json:"limit"`
+	Count    int                   `json:"count"`
+	HasNext  bool                  `json:"has_next"`
 }
