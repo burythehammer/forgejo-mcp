@@ -24,7 +24,7 @@ const (
 var (
 	ListRepoTopicsTool = mcp.NewTool(
 		ListRepoTopicsToolName,
-		mcp.WithDescription("List a repository's topics. Bounded by page (default 1) and limit (default 100); returns {topics, page, limit, count}."),
+		mcp.WithDescription("List a repository's topics. Bounded by page (default 1) and limit (default 100); returns a response envelope {topics, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),

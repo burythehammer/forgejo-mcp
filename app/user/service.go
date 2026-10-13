@@ -64,23 +64,35 @@ func (s *Service) Notifications(ctx context.Context, in NotificationsInput) ([]*
 	})
 }
 
-// RepoNotifications lists the notifications of one repository.
-func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInput) ([]*model.NotificationThread, error) {
+// RepoNotifications returns one page of the notifications of one repository,
+// with its next marker.
+func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInput) (model.NotificationPage, error) {
 	q, err := notificationQuery(in.NotificationsInput)
 	if err != nil {
-		return nil, err
+		return model.NotificationPage{}, err
 	}
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.NotificationPage{}, err
 	}
-	return listWindow(ctx, p, q, func(ctx context.Context, q NotificationQuery) ([]*model.NotificationThread, error) {
-		threads, err := p.ListRepoNotifications(ctx, in.Owner, in.Repo, q)
-		if err != nil {
-			return nil, fmt.Errorf("list repo notifications err: %w", err)
-		}
-		return threads, nil
-	})
+	ceiling, known := p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	page, err := list.Run(ctx, list.Normalize(list.Paging{Page: q.Page, Limit: q.Limit}, list.DefaultLimit(20, c)), c,
+		func(ctx context.Context, lp list.Paging) (list.Batch[*model.NotificationThread], error) {
+			qq := q
+			qq.Page, qq.Limit = lp.Page, lp.Limit
+			threads, err := p.ListRepoNotifications(ctx, in.Owner, in.Repo, qq)
+			if err != nil {
+				return list.Batch[*model.NotificationThread]{}, fmt.Errorf("list repo notifications err: %w", err)
+			}
+			return list.Batch[*model.NotificationThread]{Items: threads}, nil
+		})
+	if err != nil {
+		return model.NotificationPage{}, err
+	}
+	return model.NotificationPage{
+		Notifications: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
 }
 
 // listWindow reads one page of a notification list through the list module, so

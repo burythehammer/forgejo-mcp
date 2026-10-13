@@ -19,22 +19,32 @@ type GitService struct{ port GitPort }
 // NewGitService returns the use cases over p.
 func NewGitService(p GitPort) *GitService { return &GitService{port: p} }
 
-// ListBranches lists one page of a repository's branches.
-func (s *GitService) ListBranches(ctx context.Context, owner, repo string, p GitPage) ([]*model.Branch, error) {
-	out, _, err := list.Window(ctx, s.port, list.Paging(p), defaultListLimit,
-		func(ctx context.Context, q list.Paging) ([]*model.Branch, error) {
+// ListBranches returns one page of a repository's branches with its next marker.
+func (s *GitService) ListBranches(ctx context.Context, owner, repo string, p GitPage) (model.BranchPage, error) {
+	c := ceiling(ctx, s.port)
+	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.Branch], error) {
 			out, err := s.port.ListBranches(ctx, owner, repo, GitPage(q))
 			if err != nil {
-				return nil, fmt.Errorf("list branches err: %w", err)
+				return list.Batch[*model.Branch]{}, fmt.Errorf("list branches err: %w", err)
 			}
-			return out, nil
+			return list.Batch[*model.Branch]{Items: out}, nil
 		})
-	return out, err
+	if err != nil {
+		return model.BranchPage{}, err
+	}
+	return model.BranchPage{Branches: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // defaultListLimit is the page size a repository list uses when the caller gives
 // none; the ceiling lowers it when the instance's ceiling is smaller.
 const defaultListLimit = 100
+
+// ceiling reads the instance's pagination ceiling through a port, per call.
+func ceiling(ctx context.Context, src list.CeilingSource) list.Ceiling {
+	max, known := src.MaxResponseItems(ctx)
+	return list.Ceiling{Max: max, Known: known}
+}
 
 // CreateBranch creates a branch from another one.
 func (s *GitService) CreateBranch(ctx context.Context, owner, repo string, in CreateBranchInput) error {
@@ -56,19 +66,24 @@ func (s *GitService) DeleteBranch(ctx context.Context, owner, repo, branch strin
 	return nil
 }
 
-// ListCommits lists one page of a repository's commits, newest first.
-func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q ListCommitsInput) ([]*model.Commit, error) {
-	out, _, err := list.Window(ctx, s.port, list.Paging(q.Page), defaultListLimit,
-		func(ctx context.Context, p list.Paging) ([]*model.Commit, error) {
+// ListCommits returns one page of a repository's commits, newest first, with
+// its next marker.
+func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q ListCommitsInput) (model.CommitPage, error) {
+	c := ceiling(ctx, s.port)
+	page, err := list.Run(ctx, list.Given(list.Paging(q.Page), defaultListLimit, c), c,
+		func(ctx context.Context, p list.Paging) (list.Batch[*model.Commit], error) {
 			in := q
 			in.Page = GitPage(p)
 			out, err := s.port.ListCommits(ctx, owner, repo, in)
 			if err != nil {
-				return nil, fmt.Errorf("list repo commits error: %w", err)
+				return list.Batch[*model.Commit]{}, fmt.Errorf("list repo commits error: %w", err)
 			}
-			return out, nil
+			return list.Batch[*model.Commit]{Items: out}, nil
 		})
-	return out, err
+	if err != nil {
+		return model.CommitPage{}, err
+	}
+	return model.CommitPage{Commits: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // ListContents lists one directory level of a repository at a ref.

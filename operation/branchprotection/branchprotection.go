@@ -34,7 +34,7 @@ const (
 var (
 	ListBranchProtectionsTool = mcp.NewTool(
 		ListBranchProtectionsToolName,
-		mcp.WithDescription("List a repository's branch protection rules (bounded by page/limit)"),
+		mcp.WithDescription("List a repository's branch protection rules (bounded by page/limit). Returns a response envelope {branch_protections, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),

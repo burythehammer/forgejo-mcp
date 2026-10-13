@@ -34,7 +34,7 @@ const (
 var (
 	ListRepoHooksTool = mcp.NewTool(
 		ListRepoHooksToolName,
-		mcp.WithDescription("List repository webhooks. page/limit control pagination (default: page 1, limit 30); no server-imposed ceiling. Returns total_count when Forgejo reports X-Total-Count."),
+		mcp.WithDescription("List repository webhooks. page/limit control pagination (default: page 1, limit 30); no server-imposed ceiling. Returns a response envelope {hooks, page, limit, count, total_count, has_next}; total_count appears only when Forgejo reports X-Total-Count. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),

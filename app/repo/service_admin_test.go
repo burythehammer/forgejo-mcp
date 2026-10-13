@@ -4,6 +4,7 @@ package repo_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -270,4 +271,37 @@ func TestCommitStatusesUnknownCommitIsWrapped(t *testing.T) {
 	s, _ := newAdmin(t)
 	_, err := s.GetCommitStatuses(context.Background(), owner, repo, sha, 1, 30)
 	wantErr(t, err, "get commit statuses: ")
+}
+
+func TestListRepoTopicsPagesReportTheNextMarker(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name          string
+		n, page, want int
+		hasNext       bool
+	}{
+		{"full page with more topics", 5, 1, 2, true},
+		{"middle page", 5, 2, 2, true},
+		{"short last page", 5, 3, 1, false},
+		{"exact multiple, full last page", 4, 2, 2, false},
+		{"past the end", 4, 3, 0, false},
+	}
+	ctx := context.Background()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			s, _ := newAdmin(t)
+			names := make([]string, c.n)
+			for i := range names {
+				names[i] = fmt.Sprintf("topic%d", i+1)
+			}
+			if _, err := s.SetRepoTopics(ctx, owner, repo, str(strings.Join(names, ","))); err != nil {
+				t.Fatal(err)
+			}
+			page, err := s.ListRepoTopics(ctx, owner, repo, apprepo.AdminPaging{Page: c.page, Limit: 2})
+			if err != nil || len(page.Topics) != c.want || page.Count != c.want || page.HasNext != c.hasNext || page.Page != c.page || page.Limit != 2 {
+				t.Fatalf("topics: %+v, %v", page, err)
+			}
+		})
+	}
 }

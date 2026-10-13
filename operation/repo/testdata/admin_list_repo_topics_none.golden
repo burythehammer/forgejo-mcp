@@ -1,3 +1,4 @@
-{"Result":{"topics":[],"page":1,"limit":100,"count":0}}
+{"Result":{"topics":[],"page":1,"limit":100,"count":0,"has_next":false}}
 -- port calls --
 ListRepoTopics ["octo","hello",{"Page":1,"PageSize":100}]
+ListRepoTopics ["octo","hello",{"Page":2,"PageSize":100}]

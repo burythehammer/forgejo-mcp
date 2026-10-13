@@ -1,3 +1,4 @@
-{"Result":{"topics":["go","mcp"],"page":1,"limit":2,"count":2}}
+{"Result":{"topics":["go","mcp"],"page":1,"limit":2,"count":2,"has_next":true}}
 -- port calls --
 ListRepoTopics ["octo","hello",{"Page":1,"PageSize":2}]
+ListRepoTopics ["octo","hello",{"Page":2,"PageSize":2}]
