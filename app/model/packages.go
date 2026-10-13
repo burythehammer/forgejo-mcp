@@ -16,10 +16,10 @@ type PackageVersion struct {
 	Repository string
 }
 
-// PackageList is one page of an owner's package versions.
+// PackageList is one page of an owner's package versions. TotalCount is the
+// grand total when Forgejo reports one; the use case derives has_next from it.
 type PackageList struct {
 	Packages   []PackageVersion
-	HasNext    bool
 	TotalCount *int
 }
 

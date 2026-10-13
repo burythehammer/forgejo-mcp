@@ -61,6 +61,8 @@ type WikiPageSummary struct {
 type WikiPageListResult struct {
 	Pages      []WikiPageSummary `json:"pages"`
 	Page       int               `json:"page"`
+	Limit      int               `json:"limit"`
+	Count      int               `json:"count"`
 	HasNext    bool              `json:"has_next"`
 	TotalCount *int              `json:"total_count,omitempty"`
 }

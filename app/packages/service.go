@@ -46,29 +46,35 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.ListPackagesRe
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
 	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
-	var hasNext bool
-	var total *int
-	rows, err := list.Items(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageVersion], error) {
+	page, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageVersion], error) {
 		got, err := s.port.ListPackages(ctx, r.Owner, ListQuery{Type: r.Type, Query: r.Query, Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[model.PackageVersion]{}, fmt.Errorf("list packages: %w", err)
 		}
-		hasNext, total = got.HasNext, got.TotalCount
-		return list.Batch[model.PackageVersion]{Items: got.Packages}, nil
+		b := list.Batch[model.PackageVersion]{Items: got.Packages}
+		if got.TotalCount != nil {
+			b.Total = list.Total{Count: *got.TotalCount, Known: true}
+		}
+		return b, nil
 	})
 	if err != nil {
 		return model.ListPackagesResult{}, err
 	}
-	packages := make([]model.PackageView, 0, len(rows))
-	for _, row := range rows {
+	packages := make([]model.PackageView, 0, len(page.Items))
+	for _, row := range page.Items {
 		packages = append(packages, view(row))
+	}
+	var total *int
+	if page.Total.Known {
+		n := page.Total.Count
+		total = &n
 	}
 	return model.ListPackagesResult{
 		Packages:   packages,
-		Page:       p.Page,
-		Limit:      p.Limit,
-		Count:      len(packages),
-		HasNext:    hasNext,
+		Page:       page.Page,
+		Limit:      page.Limit,
+		Count:      page.Count,
+		HasNext:    page.HasNext,
 		TotalCount: total,
 	}, nil
 }
@@ -93,35 +99,33 @@ func (s *Service) Delete(ctx context.Context, c Coords) (model.DeletePackageResu
 // ListFiles returns one page of a package version's files. Forgejo does not
 // page the listing, so the page is cut here.
 func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.ListPackageFilesResult, error) {
-	var hasNext bool
-	var total int
-	// A page below 1 is page 1; the limit default is lowered to the ceiling by
-	// list.Window.
-	files, p, err := list.Window(ctx, s.port, list.Paging{Page: max(r.Page, 1), Limit: r.Limit}, defaultLimit,
-		func(ctx context.Context, q list.Paging) ([]model.PackageFileView, error) {
-			listed, err := s.port.ListPackageFiles(ctx, r.Owner, r.Type, r.Name, r.Version)
-			if err != nil {
-				return nil, fmt.Errorf("list package files: %w", err)
-			}
-			all := make([]model.PackageFileView, 0, len(listed))
-			for _, file := range listed {
-				all = append(all, model.PackageFileView(file))
-			}
-			// Forgejo does not page the listing, so the window is cut here.
-			rows, more := list.Cut(all, q)
-			hasNext, total = more, len(all)
-			return rows, nil
-		})
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
+	page, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageFileView], error) {
+		listed, err := s.port.ListPackageFiles(ctx, r.Owner, r.Type, r.Name, r.Version)
+		if err != nil {
+			return list.Batch[model.PackageFileView]{}, fmt.Errorf("list package files: %w", err)
+		}
+		all := make([]model.PackageFileView, 0, len(listed))
+		for _, file := range listed {
+			all = append(all, model.PackageFileView(file))
+		}
+		// Forgejo does not page the listing, so the window is cut here. The whole
+		// listing is the grand total, so has_next needs no probe.
+		rows, _ := list.Cut(all, q)
+		return list.Batch[model.PackageFileView]{Items: rows, Total: list.Total{Count: len(all), Known: true}}, nil
+	})
 	if err != nil {
 		return model.ListPackageFilesResult{}, err
 	}
 	return model.ListPackageFilesResult{
-		Files:      files,
-		Page:       p.Page,
-		Limit:      p.Limit,
-		Count:      len(files),
-		HasNext:    hasNext,
-		TotalCount: total,
+		Files:      page.Items,
+		Page:       page.Page,
+		Limit:      page.Limit,
+		Count:      page.Count,
+		HasNext:    page.HasNext,
+		TotalCount: page.Total.Count,
 	}, nil
 }
 

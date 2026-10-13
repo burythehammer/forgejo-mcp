@@ -5,6 +5,7 @@ package release_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -82,7 +83,7 @@ func TestListFiltersByStateAndNeverReturnsNil(t *testing.T) {
 			t.Fatal(err)
 		}
 		var tags []string
-		for _, r := range got {
+		for _, r := range got.Releases {
 			if r != nil {
 				tags = append(tags, r.TagName)
 			}
@@ -92,8 +93,92 @@ func TestListFiltersByStateAndNeverReturnsNil(t *testing.T) {
 		}
 	}
 	empty, _ := apprelease.New(&stubPort{}).ListReleases(context.Background(), "o", "r", apprelease.ListQuery{State: "draft"})
-	if empty == nil {
+	if empty.Releases == nil {
 		t.Fatal("an empty list must be [] not nil")
+	}
+}
+
+// pagedReleasesPort serves all as Forgejo does: one page per call, cut by the
+// paging the use case asks for. The ceiling is the one the test sets.
+type pagedReleasesPort struct {
+	stubPort
+	all   []*model.Release
+	max   int
+	known bool
+	calls int
+}
+
+func (p *pagedReleasesPort) MaxResponseItems(context.Context) (int, bool) { return p.max, p.known }
+
+func (p *pagedReleasesPort) ListReleases(_ context.Context, _, _ string, pg apprelease.Paging) ([]*model.Release, error) {
+	p.calls++
+	off := (pg.Page - 1) * pg.Limit
+	if off >= len(p.all) {
+		return nil, nil
+	}
+	return p.all[off:min(off+pg.Limit, len(p.all))], nil
+}
+
+// published returns n published releases tagged v1..vn.
+func published(n int) []*model.Release {
+	out := make([]*model.Release, n)
+	for i := range out {
+		out[i] = &model.Release{TagName: fmt.Sprintf("v%d", i+1)}
+	}
+	return out
+}
+
+func TestListReleasesEnvelopeHasNextFromTheProbe(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		page, limit, count int
+		hasNext            bool
+	}{
+		{1, 2, 2, true},  // full page, rows follow
+		{2, 2, 2, false}, // exact multiple: the last page is full
+		{1, 3, 3, true},  // full page of a different size
+		{2, 3, 1, false}, // short last page
+	}
+	for _, c := range cases {
+		p := &pagedReleasesPort{all: published(4)}
+		got, err := apprelease.New(p).ListReleases(context.Background(), "o", "r", apprelease.ListQuery{Paging: apprelease.Paging{Page: c.page, Limit: c.limit}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Page != c.page || got.Limit != c.limit || got.Count != c.count || got.HasNext != c.hasNext {
+			t.Errorf("page %d limit %d: got page=%d limit=%d count=%d has_next=%v, want count=%d has_next=%v",
+				c.page, c.limit, got.Page, got.Limit, got.Count, got.HasNext, c.count, c.hasNext)
+		}
+	}
+}
+
+func TestListReleasesHasNextReadsTheRawPageNotTheFilteredOne(t *testing.T) {
+	t.Parallel()
+	// Draft, published, published, draft: a draft page of two raw rows keeps one
+	// draft, but a further page still follows, so has_next must be true.
+	all := []*model.Release{{TagName: "d1", IsDraft: true}, {TagName: "p1"}, {TagName: "p2"}, {TagName: "d2", IsDraft: true}}
+	p := &pagedReleasesPort{all: all}
+	got, err := apprelease.New(p).ListReleases(context.Background(), "o", "r", apprelease.ListQuery{State: "draft", Paging: apprelease.Paging{Page: 1, Limit: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Count != 1 || !got.HasNext {
+		t.Fatalf("page 1 of drafts: count=%d has_next=%v, want 1 and true", got.Count, got.HasNext)
+	}
+}
+
+func TestListReleasesShortPageUnderKnownCeilingIsTheLast(t *testing.T) {
+	t.Parallel()
+	p := &pagedReleasesPort{all: published(3), max: 10, known: true}
+	got, err := apprelease.New(p).ListReleases(context.Background(), "o", "r", apprelease.ListQuery{Paging: apprelease.Paging{Page: 1, Limit: 5}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HasNext || got.Count != 3 {
+		t.Fatalf("got count=%d has_next=%v", got.Count, got.HasNext)
+	}
+	if p.calls != 1 {
+		t.Fatalf("a short page under a known ceiling makes no probe: %d calls", p.calls)
 	}
 }
 
@@ -113,12 +198,39 @@ func TestListAttachmentsPagesAndPastTheEnd(t *testing.T) {
 	p := &stubPort{atts: []*model.Attachment{{ID: 1}, {ID: 2}, {ID: 3}}}
 	svc := apprelease.New(p)
 	page, _ := svc.ListAttachments(context.Background(), "o", "r", 1, apprelease.Paging{Page: 2, Limit: 2})
-	if len(page) != 1 || page[0].ID != 3 {
+	if len(page.Attachments) != 1 || page.Attachments[0].ID != 3 {
 		t.Fatalf("page 2: %+v", page)
 	}
 	beyond, _ := svc.ListAttachments(context.Background(), "o", "r", 1, apprelease.Paging{Page: 9, Limit: 2})
-	if beyond == nil || len(beyond) != 0 {
+	if beyond.Attachments == nil || len(beyond.Attachments) != 0 {
 		t.Fatalf("past the end: %+v", beyond)
+	}
+}
+
+func TestListAttachmentsEnvelopeHasNextFromTheReportedTotal(t *testing.T) {
+	t.Parallel()
+	// Forgejo does not page attachments, so the whole list is the grand total:
+	// has_next comes from it, and no probe is made even under an unknown ceiling.
+	var all []*model.Attachment
+	for i := range 4 {
+		all = append(all, &model.Attachment{ID: int64(i + 1)})
+	}
+	svc := apprelease.New(&stubPort{atts: all})
+	cases := []struct {
+		page, count int
+		hasNext     bool
+	}{
+		{1, 2, true},
+		{2, 2, false}, // exact multiple
+	}
+	for _, c := range cases {
+		got, err := svc.ListAttachments(context.Background(), "o", "r", 1, apprelease.Paging{Page: c.page, Limit: 2})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Page != c.page || got.Limit != 2 || got.Count != c.count || got.HasNext != c.hasNext {
+			t.Errorf("page %d: got page=%d limit=%d count=%d has_next=%v", c.page, got.Page, got.Limit, got.Count, got.HasNext)
+		}
 	}
 }
 
