@@ -325,7 +325,7 @@ List all my repositories
 | `edit_branch_protection` | Edit a rule by `rule` name. Only fields you pass change; omitted fields are left unchanged. |
 | `delete_branch_protection` | Delete a rule by `rule` name |
 | **Webhooks** | |
-| `list_repo_hooks` | List repository webhooks. Bounded by `page` (default 1) + `limit` (default 30, no server-imposed ceiling); returns `{hooks,page,limit,count,total_count,has_next}`, where `total_count` appears only when Forgejo reports `X-Total-Count`. |
+| `list_repo_hooks` | List repository webhooks. Bounded by `page` (default 1) + `limit` (default 30; a limit above the instance's max_response_items is refused); returns `{hooks,page,limit,count,total_count,has_next}`, where `total_count` appears only when Forgejo reports `X-Total-Count`. |
 | `get_repo_hook` | Get a single repository webhook by ID |
 | `create_repo_hook` | Create a repository webhook. The secret is accepted but never echoed in the response. |
 | `edit_repo_hook` | Edit a repository webhook. Only fields you pass change; omitted fields are left unchanged. |
@@ -398,7 +398,7 @@ List all my repositories
 | `dispatch_workflow` | Trigger a workflow run via `workflow_dispatch` event |
 | `list_workflow_runs` | List workflow runs with optional filtering by status, event, or SHA. Paged by `page`/`limit`; returns `{workflow_runs, page, limit, count, total_count?, has_next}` |
 | `get_workflow_run` | Get details of a specific workflow run by ID |
-| `list_action_run_jobs` | List jobs for a Forgejo v16+ workflow run with client-side `page` and `limit` bounds. Returns `{run_id, jobs, page, limit, count, total_count, has_next, next_page?}` |
+| `list_action_run_jobs` | List jobs for a Forgejo v16+ workflow run with client-side `page` and `limit` bounds. Returns `{run_id, jobs, page, limit, count, total_count, has_next, next_page?}`; `total_count` is always present here because Forgejo does not page jobs, so the whole list is read and counted. |
 | `get_action_job_logs` | Read a Forgejo v16+ job log with resumable `offset` and `max_bytes` bounds; defaults to the tail |
 | `cancel_workflow_run` | Cancel a pending or running workflow run. Already-finished runs also return success (HTTP 204); the run is left unchanged |
 | `delete_workflow_run` | Delete a completed workflow run. A live run is an API error. Removes the run and its job logs; Forgejo marks that run's artifacts deleted |
@@ -467,7 +467,7 @@ List all my repositories
 | `edit_release_attachment` | Rename a release attachment |
 | `delete_release_attachment` | Delete a release attachment — destructive |
 | **Wiki** | |
-| `list_wiki_pages` | List pages using `page`/`limit`. Envelope `{pages, page, limit, count, has_next}` and, when Forgejo reports `X-Total-Count`, `total_count`. `total_count` counts upstream's raw wiki tree entries, so it can exceed the number of pages listed on a wiki with subdirectories — an upper bound, not an exact total. |
+| `list_wiki_pages` | List pages using `page`/`limit`. Envelope `{pages, page, limit, count, has_next}`. No `total_count`: Forgejo's `X-Total-Count` counts raw wiki tree entries, not pages, so it is not an exact grand total and is omitted. |
 | `get_wiki_page` | Read decoded Markdown; optional `start_line`/`end_line`, always returns `total_lines`. |
 | `get_wiki_revisions` | List revision history using `page`/`limit`; returns `has_next` and `total_count`, the page's total revision count as reported in the response body. |
 | `create_wiki_page` | Create a page and return its server-normalized `page_name`; slash-separated titles are a flat subpage naming convention (no hierarchy and no automatic parent page), and an existing title is overwritten. |

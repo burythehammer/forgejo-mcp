@@ -28,7 +28,7 @@ const (
 )
 
 var ListWikiPagesTool = mcp.NewTool(ListWikiPagesToolName,
-	mcp.WithDescription("List wiki pages with page/limit pagination. Returns a response envelope {pages, page, limit, count, has_next} and, when Forgejo reports X-Total-Count, total_count. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is upstream's count of raw wiki tree entries, so on a wiki with subdirectories or non-page files it can exceed the number of pages actually listed — treat it as an upper bound, not an exact total."),
+	mcp.WithDescription("List wiki pages with page/limit pagination. Returns a response envelope {pages, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 	mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),

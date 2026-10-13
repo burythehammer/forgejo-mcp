@@ -106,7 +106,7 @@ func TestListJobsPagesTheFullList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.TotalCount != 3 || len(page.Jobs) != 2 || !page.HasNext || page.NextPage != 2 {
+	if page.TotalCount == nil || *page.TotalCount != 3 || len(page.Jobs) != 2 || !page.HasNext || page.NextPage != 2 {
 		t.Fatalf("first page: %+v", page)
 	}
 	last, _ := svc.ListJobs(context.Background(), "o", "r", 9, app.Paging{Page: 2, Limit: 2})
@@ -257,7 +257,7 @@ func TestJobsEnvelopeExactMultiple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Count != 2 || !first.HasNext || first.TotalCount != 4 {
+	if first.Count != 2 || !first.HasNext || first.TotalCount == nil || *first.TotalCount != 4 {
 		t.Fatalf("first page: %+v", first)
 	}
 	last, err := svc.ListJobs(context.Background(), "o", "r", 9, app.Paging{Page: 2, Limit: 2})

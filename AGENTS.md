@@ -51,11 +51,12 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 7. **Bound the output.** If response size depends on data (not tool
    semantics), the tool MUST satisfy [docs/design/output-bounding.md](docs/design/output-bounding.md):
    client-controlled bound + resumability + documented parameters. A list
-   use case gets its bound from the list module (`app/list`: `list.Run`, and
-   the envelope it returns carries `has_next`), not from its own page/limit
-   parsing or ceiling check; read
-   raw page/limit arguments with `decode.PageOr`/`decode.IntOr`. Use the
-   checklist there in the PR description.
+   use case gets its bound from the list module (`app/list`): `list.Run` for
+   a paged list, `list.Window` for a port that reports its own `has_next`, and
+   `list.Cut` for a list Forgejo does not page. It does not do its own
+   page/limit parsing or ceiling check. Read raw page/limit arguments with
+   `decode.PageOr`/`decode.IntOr`. Use the checklist there in the PR
+   description.
 8. **Add the README row.** Every registered tool needs a row in the README
    "Available Tools" table, and every `forgejo://` resource template a row in
    the "Resources" table. `scripts/ci/check-readme-tool-coverage.sh` fails the

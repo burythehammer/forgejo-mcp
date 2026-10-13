@@ -295,7 +295,7 @@
     },
     {
       "name": "edit_repo",
-      "description": "Edit repository settings (PATCH \u2014 only supplied fields change). Providing no fields is an error."
+      "description": "Edit repository settings (PATCH — only supplied fields change). Providing no fields is an error."
     },
     {
       "name": "edit_repo_hook",

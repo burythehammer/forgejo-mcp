@@ -78,28 +78,13 @@ func (s *Service) DeleteOrg(ctx context.Context, org string) error {
 // none.
 const defaultLimit = 100
 
-// fetchPage reads one page of a list through the list module: the instance
-// ceiling applies, a default limit is lowered to it, and a page below 1 is page
-// 1. The continuation marker comes from the module, so no grand total is needed.
-func fetchPage[T any](ctx context.Context, p Port, pg Paging,
-	fetch func(context.Context, list.Paging) ([]T, error),
-) (list.Page[T], error) {
-	ceiling, known := p.MaxResponseItems(ctx)
-	c := list.Ceiling{Max: ceiling, Known: known}
-	return list.Run(ctx, list.Normalize(list.Paging(pg), list.DefaultLimit(defaultLimit, c)), c,
-		func(ctx context.Context, q list.Paging) (list.Batch[T], error) {
-			items, err := fetch(ctx, q)
-			return list.Batch[T]{Items: items}, err
-		})
-}
-
 // MyOrgs returns one page of the organizations of the credential's user.
 func (s *Service) MyOrgs(ctx context.Context, pg Paging) (model.OrganizationPage, error) {
 	p, err := s.port(ctx)
 	if err != nil {
 		return model.OrganizationPage{}, err
 	}
-	page, err := fetchPage(ctx, p, pg, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
+	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
 		orgs, err := p.ListMyOrgs(ctx, q)
 		if err != nil {
 			return nil, fmt.Errorf("list my orgs err: %w", err)
@@ -118,7 +103,7 @@ func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) (model.O
 	if err != nil {
 		return model.OrganizationPage{}, err
 	}
-	page, err := fetchPage(ctx, p, pg, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
+	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
 		orgs, err := p.ListUserOrgs(ctx, user, q)
 		if err != nil {
 			return nil, fmt.Errorf("list user orgs err: %w", err)
@@ -137,7 +122,7 @@ func (s *Service) Members(ctx context.Context, org string, pg Paging) (model.Mem
 	if err != nil {
 		return model.MemberPage{}, err
 	}
-	page, err := fetchPage(ctx, p, pg, func(ctx context.Context, q list.Paging) ([]*model.User, error) {
+	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.User, error) {
 		members, err := p.ListOrgMembers(ctx, org, q)
 		if err != nil {
 			return nil, fmt.Errorf("list org members err: %w", err)
@@ -181,7 +166,7 @@ func (s *Service) Teams(ctx context.Context, org string, pg Paging) (model.TeamP
 	if err != nil {
 		return model.TeamPage{}, err
 	}
-	page, err := fetchPage(ctx, p, pg, func(ctx context.Context, q list.Paging) ([]*model.Team, error) {
+	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Team, error) {
 		teams, err := p.ListOrgTeams(ctx, org, q)
 		if err != nil {
 			return nil, fmt.Errorf("list org teams err: %w", err)
