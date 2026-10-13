@@ -31,6 +31,8 @@ cd "$ROOT"
 # Repo-authored skills with no lock entry (space-separated).
 UNLOCKED="enable-semantic-release"
 
+command -v jq >/dev/null || { echo "check-skills-lock: jq is required but not installed" >&2; exit 1; }
+
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
