@@ -205,3 +205,18 @@ func TestBranchAndCommitPagesReportTheNextMarker(t *testing.T) {
 		})
 	}
 }
+
+func TestBranchAndCommitPageZeroIsTheFirstPage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := NewGitService(&pagedGit{n: 5})
+	pg := GitPage{Page: 0, Limit: 2}
+	b, err := s.ListBranches(ctx, "o", "r", pg)
+	if err != nil || b.Page != 1 || b.Count != 2 || !b.HasNext || b.Branches[0].Name != "b1" {
+		t.Fatalf("branches page 0: %+v, %v", b, err)
+	}
+	m, err := s.ListCommits(ctx, "o", "r", ListCommitsInput{Page: pg})
+	if err != nil || m.Page != 1 || m.Count != 2 || !m.HasNext || m.Commits[0].SHA != "c1" {
+		t.Fatalf("commits page 0: %+v, %v", m, err)
+	}
+}

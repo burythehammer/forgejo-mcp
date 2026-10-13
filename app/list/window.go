@@ -19,7 +19,10 @@ func Window[T any](ctx context.Context, src CeilingSource, pg Paging, def int,
 ) ([]T, Paging, error) {
 	ceiling, known := src.MaxResponseItems(ctx)
 	c := Ceiling{Max: ceiling, Known: known}
-	p := Given(pg, def, c)
+	p := pg
+	if p.Limit < 1 {
+		p.Limit = DefaultLimit(def, c)
+	}
 	if err := check(p, c); err != nil {
 		return nil, p, err
 	}

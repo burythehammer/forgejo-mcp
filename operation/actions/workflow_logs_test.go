@@ -39,7 +39,7 @@ func TestListActionRunJobsFn_PaginatesJobs(t *testing.T) {
 	}
 
 	last := resultOf[model.JobPage](t, h.ListActionRunJobsFn, repoArgs(map[string]any{"run_id": float64(run.ID), "page": 2.0, "limit": 2.0}))
-	if last.TotalCount != 3 || len(last.Jobs) != 1 || last.Jobs[0].Name != "build" || last.HasNext || last.NextPage != 0 {
+	if last.TotalCount == nil || *last.TotalCount != 3 || len(last.Jobs) != 1 || last.Jobs[0].Name != "build" || last.HasNext || last.NextPage != 0 {
 		t.Fatalf("unexpected last page: %+v", last)
 	}
 

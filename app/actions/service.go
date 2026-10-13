@@ -155,7 +155,7 @@ func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64,
 		Page:       page.Page,
 		Limit:      page.Limit,
 		Count:      page.Count,
-		TotalCount: page.Total.Count,
+		TotalCount: totalPtr(page.Total),
 		HasNext:    page.HasNext,
 	}
 	if result.HasNext {
@@ -383,4 +383,13 @@ func toSummaries(secrets []model.Secret) []model.SecretSummary {
 		summaries = append(summaries, summary)
 	}
 	return summaries
+}
+
+// totalPtr is a reported grand total, or nil when the list reported none.
+func totalPtr(t list.Total) *int {
+	if !t.Known {
+		return nil
+	}
+	n := t.Count
+	return &n
 }

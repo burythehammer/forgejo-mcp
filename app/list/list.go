@@ -36,10 +36,14 @@ type Ceiling struct {
 	Known bool
 }
 
-// Given is the paging a list fetches with when the page is passed on exactly as
-// the caller gave it: some tools pin page 0 reaching the server, so the page is
-// not normalized here. A limit below 1 takes def, lowered to a known ceiling.
+// Given is the paging a list that calls Run fetches with. A page below 1 is page
+// 1, so no offset is ever computed from a page of 0 or less. A limit below 1
+// takes def, lowered to a known ceiling. A caller that must pass page 0 through
+// to the server uses Window, which keeps it.
 func Given(p Paging, def int, c Ceiling) Paging {
+	if p.Page < 1 {
+		p.Page = 1
+	}
 	if p.Limit < 1 {
 		p.Limit = DefaultLimit(def, c)
 	}

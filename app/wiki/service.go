@@ -77,8 +77,8 @@ func paging(page, limit float64) (int, int) {
 // List returns one page of a wiki's pages with its next marker. The ceiling
 // check and the default limit come from the list module, and so does the
 // continuation probe. The X-Total-Count the wiki reports counts raw tree
-// entries, not pages, so it is an upper bound and is reported as total_count
-// only, never passed to the module as the grand total has_next is derived from.
+// entries, not pages, so it is not a grand total: it is neither reported as
+// total_count nor passed to the module.
 func (s *Service) List(ctx context.Context, r ListRequest) (model.WikiPageListResult, error) {
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
@@ -86,15 +86,11 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.WikiPageListRe
 	if r.Limit <= 0 {
 		limit = list.DefaultLimit(defaultLimit, c)
 	}
-	var total *int
 	res, err := list.Run(ctx, list.Paging{Page: page, Limit: limit}, c,
 		func(ctx context.Context, p list.Paging) (list.Batch[model.WikiPageMeta], error) {
 			listed, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, p.Page, p.Limit)
 			if err != nil {
 				return list.Batch[model.WikiPageMeta]{}, fmt.Errorf("list wiki pages: %w", err)
-			}
-			if p.Page == page {
-				total = listed.TotalCount
 			}
 			return list.Batch[model.WikiPageMeta]{Items: listed.Pages}, nil
 		})
@@ -106,12 +102,11 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.WikiPageListRe
 		summaries[i] = model.WikiPageSummary{Title: p.Title, PageName: p.SubURL, SubURL: p.SubURL}
 	}
 	return model.WikiPageListResult{
-		Pages:      summaries,
-		Page:       res.Page,
-		Limit:      res.Limit,
-		Count:      res.Count,
-		HasNext:    res.HasNext,
-		TotalCount: total,
+		Pages:   summaries,
+		Page:    res.Page,
+		Limit:   res.Limit,
+		Count:   res.Count,
+		HasNext: res.HasNext,
 	}, nil
 }
 

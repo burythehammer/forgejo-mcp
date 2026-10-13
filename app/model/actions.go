@@ -113,7 +113,7 @@ type JobPage struct {
 	Page       int            `json:"page"`
 	Limit      int            `json:"limit"`
 	Count      int            `json:"count"`
-	TotalCount int            `json:"total_count"`
+	TotalCount *int           `json:"total_count,omitempty"`
 	HasNext    bool           `json:"has_next"`
 	NextPage   int            `json:"next_page,omitempty"`
 }

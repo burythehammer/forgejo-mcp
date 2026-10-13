@@ -300,7 +300,7 @@ func TestGiven_KeepsPageAndDefaultsLimit(t *testing.T) {
 		c    Ceiling
 		want Paging
 	}{
-		{"page 0 is kept", Paging{Page: 0, Limit: 5}, Ceiling{}, Paging{Page: 0, Limit: 5}},
+		{"page 0 is page 1", Paging{Page: 0, Limit: 5}, Ceiling{}, Paging{Page: 1, Limit: 5}},
 		{"absent limit takes default", Paging{Page: 2}, Ceiling{}, Paging{Page: 2, Limit: 100}},
 		{"absent limit lowered to known ceiling", Paging{Page: 1}, Ceiling{Max: 10, Known: true}, Paging{Page: 1, Limit: 10}},
 		{"explicit limit is not defaulted", Paging{Page: 1, Limit: 7}, Ceiling{Max: 10, Known: true}, Paging{Page: 1, Limit: 7}},
@@ -311,5 +311,15 @@ func TestGiven_KeepsPageAndDefaultsLimit(t *testing.T) {
 				t.Fatalf("Given(%+v) = %+v, want %+v", tc.p, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestGiven_PageBelowOneIsPageOne(t *testing.T) {
+	// A list that uses Given must never compute an offset from a page below 1.
+	for _, pg := range []int{0, -3} {
+		got := Given(Paging{Page: pg}, 20, Ceiling{})
+		if got != (Paging{Page: 1, Limit: 20}) {
+			t.Fatalf("Given(page %d) = %+v, want page 1 limit 20", pg, got)
+		}
 	}
 }
