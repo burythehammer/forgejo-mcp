@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # PR gate: runs `make check`, the same steps as a contributor runs locally.
+# The runner is registered as `self-hosted` with no image, so the job brings its
+# own tooling: the golangci-lint image ships Go, gcc, make, curl, git and the
+# pinned linter (a `go install` of it cost ~40s per run).
 name: ci
 on:
   pull_request:
@@ -9,15 +12,22 @@ on:
     branches: [main]
 jobs:
   check:
-    # Must match a label on your Forgejo runner.
     runs-on: self-hosted
+    container:
+      image: golangci/golangci-lint:v2.12.2
     steps:
-      - uses: https://data.forgejo.org/actions/checkout@v4
-      - uses: https://data.forgejo.org/actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      # Preinstalled on the runner when possible (the install takes ~40s).
-      - name: Install golangci-lint if the runner lacks it
-        run: command -v golangci-lint || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+      # jq: used by scripts/ci. nodejs: actions/checkout is a JS action and
+      # runs on the container's own node.
+      - name: Install jq and nodejs, print tool versions
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq jq nodejs
+          for t in go gcc make curl git jq node golangci-lint; do
+            command -v "$t" >/dev/null || { echo "missing tool: $t" >&2; exit 1; }
+          done
+          go version; gcc --version | head -1; make --version | head -1
+          curl --version | head -1; jq --version; node --version
+          golangci-lint version
+      - uses: actions/checkout@v4
       - name: make check
-        run: PATH="$PATH:$(go env GOPATH)/bin" make check
+        run: make check
