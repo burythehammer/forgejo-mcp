@@ -299,7 +299,7 @@ List all my repositories
 | `get_notification_thread` | Get detailed info on a single notification thread |
 | `mark_notification_read` | Mark a single notification thread as read |
 | `mark_all_notifications_read` | Acknowledge all notifications |
-| `list_repo_notifications` | Filter notifications scoped to a single repository |
+| `list_repo_notifications` | Filter notifications scoped to a single repository (page/limit); returns `{notifications,page,limit,count,has_next}` |
 | `mark_repo_notifications_read` | Mark all notifications in a specific repo as read |
 | `search_users` | Search for users |
 | **Repositories** | |
@@ -310,22 +310,22 @@ List all my repositories
 | `edit_repo` | Edit repository settings. Only fields you pass change; omitted fields are left unchanged. Providing no fields is an error. |
 | `search_repos` | Search for repositories |
 | **Topics** | |
-| `list_repo_topics` | List a repository's topics. Bounded by `page` (default 1) + `limit` (default 100); returns `{topics, page, limit, count}`. |
+| `list_repo_topics` | List a repository's topics. Bounded by `page` (default 1) + `limit` (default 100); returns `{topics,page,limit,count,has_next}`. |
 | `set_repo_topics` | Replace all topics. `topics` is a required comma-separated string; an empty string clears. Invalid names are rejected before the request. |
 | `add_repo_topic` | Add one topic |
 | `delete_repo_topic` | Delete one topic |
 | **Branches** | |
-| `list_branches` | List all branches in a repository |
+| `list_branches` | List all branches in a repository (page/limit); returns `{branches,page,limit,count,has_next}` |
 | `create_branch` | Create a new branch |
 | `delete_branch` | Delete a branch |
 | **Branch Protection** | |
-| `list_branch_protections` | List a repository's branch protection rules. Bounded by `page` (1-based) + `limit` (page size); the response echoes `page`/`limit` so callers can fetch the next page. |
+| `list_branch_protections` | List a repository's branch protection rules. Bounded by `page` (1-based) + `limit` (page size); returns `{branch_protections,page,limit,count,has_next}`, so callers can fetch the next page. |
 | `get_branch_protection` | Get a single rule by `rule` name |
 | `create_branch_protection` | Create a rule. Requires `branch_name`; `status_check_contexts` is a comma-separated list of required checks (e.g. `"ci/build,ci/test"`). |
 | `edit_branch_protection` | Edit a rule by `rule` name. Only fields you pass change; omitted fields are left unchanged. |
 | `delete_branch_protection` | Delete a rule by `rule` name |
 | **Webhooks** | |
-| `list_repo_hooks` | List repository webhooks. Bounded by `page` (default 1) + `limit` (default 30, no server-imposed ceiling); returns `total_count` when Forgejo reports `X-Total-Count`. |
+| `list_repo_hooks` | List repository webhooks. Bounded by `page` (default 1) + `limit` (default 30, no server-imposed ceiling); returns `{hooks,page,limit,count,total_count,has_next}`, where `total_count` appears only when Forgejo reports `X-Total-Count`. |
 | `get_repo_hook` | Get a single repository webhook by ID |
 | `create_repo_hook` | Create a repository webhook. The secret is accepted but never echoed in the response. |
 | `edit_repo_hook` | Edit a repository webhook. Only fields you pass change; omitted fields are left unchanged. |
@@ -340,7 +340,7 @@ List all my repositories
 | `delete_file` | Delete a file |
 | `change_files` | Atomically create, update, and delete multiple files in one native Forgejo commit; create/update operations accept `content` or `content_base64`. |
 | **Commits** | |
-| `list_repo_commits` | List commits in a repository |
+| `list_repo_commits` | List commits in a repository (page/limit); returns `{commits,page,limit,count,has_next}` |
 | `get_commit_statuses` | List per-context commit statuses for a full 40-character SHA. Bounded by `page` (default 1) + `limit` (default 30, maximum 50); returns `{sha, statuses, page, limit, count, total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Combined aggregate stays on the commit status resource. Not Actions runs (`list_workflow_runs`). |
 | **Issues** | |
 | `list_repo_issues` | List issues in a repository (page/limit). Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |

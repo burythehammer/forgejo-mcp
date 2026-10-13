@@ -78,7 +78,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.BranchProtecti
 		limit = float64(list.DefaultLimit(100, c))
 	}
 	p := list.Paging{Page: int(page), Limit: int(limit)}
-	bps, err := list.Items(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
+	got, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
 		rules, err := s.port.ListBranchProtections(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[*model.BranchProtection]{}, fmt.Errorf("list branch protections err: %w", err)
@@ -88,7 +88,9 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.BranchProtecti
 	if err != nil {
 		return model.BranchProtectionList{}, err
 	}
-	return model.BranchProtectionList{Page: p.Page, Limit: p.Limit, Count: len(bps), BranchProtections: bps}, nil
+	return model.BranchProtectionList{
+		BranchProtections: got.Items, Page: got.Page, Limit: got.Limit, Count: got.Count, HasNext: got.HasNext,
+	}, nil
 }
 
 // Get returns one rule.

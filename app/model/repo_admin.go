@@ -12,10 +12,11 @@ type RepositoryView struct {
 
 // TopicPage is one page of a repository's topics, as list_repo_topics renders it.
 type TopicPage struct {
-	Topics []string `json:"topics"`
-	Page   int      `json:"page"`
-	Limit  int      `json:"limit"`
-	Count  int      `json:"count"`
+	Topics  []string `json:"topics"`
+	Page    int      `json:"page"`
+	Limit   int      `json:"limit"`
+	Count   int      `json:"count"`
+	HasNext bool     `json:"has_next"`
 }
 
 // StatusItem is one per-context commit status. The commit status resource

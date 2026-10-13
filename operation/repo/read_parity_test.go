@@ -188,16 +188,16 @@ func TestCommitReadParity_ResourceMatchesListEntry(t *testing.T) {
 		t.Fatalf("list_repo_commits: err=%v res=%+v", err, res)
 	}
 	var envelope struct {
-		Result []model.Commit `json:"Result"`
+		Result model.CommitPage `json:"Result"`
 	}
 	if err := json.Unmarshal([]byte(extractText(t, res)), &envelope); err != nil {
 		t.Fatalf("list_repo_commits JSON: %v", err)
 	}
-	listed := envelope.Result
+	listed := envelope.Result.Commits
 	var fromList *model.Commit
 	for i := range listed {
 		if listed[i].SHA == parityCommitSHA2 {
-			fromList = &listed[i]
+			fromList = listed[i]
 		}
 	}
 	if fromList == nil {

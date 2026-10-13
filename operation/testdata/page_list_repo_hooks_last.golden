@@ -1,1 +1,1 @@
-{"Result":{"page":3,"limit":2,"count":1,"total_count":5,"hooks":[{"id":5,"type":"gitea","active":true,"events":["push"],"url":"https://hooks.example/5","content_type":"json","created_at":"2026-01-02T03:04:05Z"}]}}
+{"Result":{"hooks":[{"id":5,"type":"gitea","active":true,"events":["push"],"url":"https://hooks.example/5","content_type":"json","created_at":"2026-01-02T03:04:05Z"}],"page":3,"limit":2,"count":1,"total_count":5,"has_next":false}}

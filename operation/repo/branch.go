@@ -40,7 +40,7 @@ var (
 
 	ListBranchesTool = mcp.NewTool(
 		ListBranchesToolName,
-		mcp.WithDescription("List branches"),
+		mcp.WithDescription("List branches. Returns a response envelope {branches, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),

@@ -20,7 +20,7 @@ const (
 
 var ListRepoCommitsTool = mcp.NewTool(
 	ListRepoCommitsToolName,
-	mcp.WithDescription("List repo commits"),
+	mcp.WithDescription("List repo commits. Returns a response envelope {commits, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 	mcp.WithString("path", mcp.Description("File/dir path")),

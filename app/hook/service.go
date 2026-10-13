@@ -67,29 +67,44 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.HookListResult
 		limit = float64(list.DefaultLimit(30, c))
 	}
 	p := list.Paging{Page: int(page), Limit: int(limit)}
-	var total *int
-	hooks, err := list.Items(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.Hook], error) {
-		got, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
+	got, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.Hook], error) {
+		hooks, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[*model.Hook]{}, fmt.Errorf("list repo hooks: %w", err)
 		}
-		total = got.TotalCount
-		return list.Batch[*model.Hook]{Items: got.Hooks}, nil
+		return list.Batch[*model.Hook]{Items: hooks.Hooks, Total: totalOf(hooks.TotalCount)}, nil
 	})
 	if err != nil {
 		return model.HookListResult{}, err
 	}
-	payloads := make([]model.HookPayload, len(hooks))
-	for i, hk := range hooks {
+	// The grand total, when Forgejo reported one, is what TotalCount carries; a
+	// reported total also decides has_next inside list.Run.
+	var total *int
+	if got.Total.Known {
+		n := got.Total.Count
+		total = &n
+	}
+	payloads := make([]model.HookPayload, len(got.Items))
+	for i, hk := range got.Items {
 		payloads[i] = model.SafeHook(hk)
 	}
 	return model.HookListResult{
-		Page:       p.Page,
-		Limit:      p.Limit,
-		Count:      len(payloads),
+		Page:       got.Page,
+		Limit:      got.Limit,
+		Count:      got.Count,
 		TotalCount: total,
 		Hooks:      payloads,
+		HasNext:    got.HasNext,
 	}, nil
+}
+
+// totalOf turns the grand total a port reports into a list total; a nil count
+// is unknown, never zero.
+func totalOf(n *int) list.Total {
+	if n == nil {
+		return list.Total{}
+	}
+	return list.Total{Count: *n, Known: true}
 }
 
 // Get returns one webhook in its safe form.

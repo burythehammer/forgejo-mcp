@@ -1,3 +1,4 @@
-{"Result":{"page":1,"limit":30,"count":2,"hooks":[{"id":1,"type":"forgejo","active":true,"events":["push"],"url":"https://hooks.example/a","content_type":"json","http_method":"POST","branch_filter":"main","created_at":"2026-01-02T03:04:05Z"},{"id":2,"type":"forgejo","active":true,"events":["push"],"url":"https://hooks.example/a","content_type":"json","http_method":"POST","branch_filter":"main","created_at":"2026-01-02T03:04:05Z"}]}}
+{"Result":{"hooks":[{"id":1,"type":"forgejo","active":true,"events":["push"],"url":"https://hooks.example/a","content_type":"json","http_method":"POST","branch_filter":"main","created_at":"2026-01-02T03:04:05Z"},{"id":2,"type":"forgejo","active":true,"events":["push"],"url":"https://hooks.example/a","content_type":"json","http_method":"POST","branch_filter":"main","created_at":"2026-01-02T03:04:05Z"}],"page":1,"limit":30,"count":2,"has_next":true}}
 -- port calls --
 ListRepoHooks ["octo","hello",{"Page":1,"PageSize":30}]
+ListRepoHooks ["octo","hello",{"Page":2,"PageSize":30}]
