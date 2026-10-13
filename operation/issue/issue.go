@@ -147,7 +147,7 @@ var (
 
 	ListIssueCommentsTool = mcp.NewTool(
 		ListIssueCommentsToolName,
-		mcp.WithDescription("List issue/PR comments"),
+		mcp.WithDescription("List issue/PR comments. Returns a response envelope {comments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.Index)),
@@ -185,7 +185,7 @@ var (
 
 	ListRepoMilestonesTool = mcp.NewTool(
 		ListRepoMilestonesToolName,
-		mcp.WithDescription("List repository milestones"),
+		mcp.WithDescription("List repository milestones. Returns a response envelope {milestones, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -195,7 +195,7 @@ var (
 
 	ListRepoLabelsTool = mcp.NewTool(
 		ListRepoLabelsToolName,
-		mcp.WithDescription("List repository labels. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the response. Each label carries a scope field of \"repo\" or \"org\"."),
+		mcp.WithDescription("List repository labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the labels list; count includes them, while has_next and total_count describe the repository labels only. Each label carries a scope field of \"repo\" or \"org\"."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -205,7 +205,7 @@ var (
 
 	ListOrgLabelsTool = mcp.NewTool(
 		ListOrgLabelsToolName,
-		mcp.WithDescription("List organization-level labels. Each label carries a scope field of \"org\"."),
+		mcp.WithDescription("List organization-level labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. Each label carries a scope field of \"org\"."),
 		mcp.WithString("org", mcp.Required(), mcp.Description("Organization name")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(100)),
@@ -537,7 +537,7 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		if err != nil {
 			return nil, mapErr(repoLabelsURI(a.Owner, a.Repo), err)
 		}
-		return mcpresult.Render(list.Labels, nil)
+		return mcpresult.Render(list.Envelope(), nil)
 	})
 }
 
@@ -547,6 +547,6 @@ func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) 
 		if err != nil {
 			return nil, mapErr(orgLabelsURI(a.Org), err)
 		}
-		return mcpresult.Render(list.Labels, nil)
+		return mcpresult.Render(list.Envelope(), nil)
 	})
 }

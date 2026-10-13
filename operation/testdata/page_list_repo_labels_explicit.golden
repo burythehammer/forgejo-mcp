@@ -1,1 +1,1 @@
-{"Result":[{"id":3,"name":"label 3","color":"00ff00","description":"","url":"","scope":"repo"},{"id":4,"name":"label 4","color":"00ff00","description":"","url":"","scope":"repo"}]}
+{"Result":{"labels":[{"id":3,"name":"label 3","color":"00ff00","description":"","url":"","scope":"repo"},{"id":4,"name":"label 4","color":"00ff00","description":"","url":"","scope":"repo"}],"page":2,"limit":2,"count":2,"has_next":true,"total_count":5}}
