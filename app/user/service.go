@@ -45,23 +45,35 @@ func (s *Service) MyInfo(ctx context.Context) (*model.User, error) {
 	return u, nil
 }
 
-// Notifications lists the notifications of the credential's user.
-func (s *Service) Notifications(ctx context.Context, in NotificationsInput) ([]*model.NotificationThread, error) {
+// Notifications returns one page of the credential's user's notifications,
+// with its next marker.
+func (s *Service) Notifications(ctx context.Context, in NotificationsInput) (model.NotificationPage, error) {
 	q, err := notificationQuery(in)
 	if err != nil {
-		return nil, err
+		return model.NotificationPage{}, err
 	}
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.NotificationPage{}, err
 	}
-	return listWindow(ctx, p, q, func(ctx context.Context, q NotificationQuery) ([]*model.NotificationThread, error) {
-		threads, err := p.ListNotifications(ctx, q)
-		if err != nil {
-			return nil, fmt.Errorf("list notifications err: %w", err)
-		}
-		return threads, nil
-	})
+	ceiling, known := p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	page, err := list.Run(ctx, list.Normalize(list.Paging{Page: q.Page, Limit: q.Limit}, list.DefaultLimit(20, c)), c,
+		func(ctx context.Context, lp list.Paging) (list.Batch[*model.NotificationThread], error) {
+			qq := q
+			qq.Page, qq.Limit = lp.Page, lp.Limit
+			threads, err := p.ListNotifications(ctx, qq)
+			if err != nil {
+				return list.Batch[*model.NotificationThread]{}, fmt.Errorf("list notifications err: %w", err)
+			}
+			return list.Batch[*model.NotificationThread]{Items: threads}, nil
+		})
+	if err != nil {
+		return model.NotificationPage{}, err
+	}
+	return model.NotificationPage{
+		Notifications: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
 }
 
 // RepoNotifications returns one page of the notifications of one repository,
@@ -93,22 +105,6 @@ func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInp
 	return model.NotificationPage{
 		Notifications: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
 	}, nil
-}
-
-// listWindow reads one page of a notification list through the list module, so
-// the instance ceiling applies and a default limit is lowered to it. The
-// notification list has no continuation marker, so no probe is made.
-func listWindow(ctx context.Context, p Port, q NotificationQuery,
-	fetch func(context.Context, NotificationQuery) ([]*model.NotificationThread, error),
-) ([]*model.NotificationThread, error) {
-	ceiling, known := p.MaxResponseItems(ctx)
-	c := list.Ceiling{Max: ceiling, Known: known}
-	return list.Items(ctx, list.Normalize(list.Paging{Page: q.Page, Limit: q.Limit}, list.DefaultLimit(20, c)), c,
-		func(ctx context.Context, lp list.Paging) (list.Batch[*model.NotificationThread], error) {
-			q.Page, q.Limit = lp.Page, lp.Limit
-			threads, err := fetch(ctx, q)
-			return list.Batch[*model.NotificationThread]{Items: threads}, err
-		})
 }
 
 // Thread returns one notification thread.

@@ -20,10 +20,10 @@ func Window[T any](ctx context.Context, src CeilingSource, pg Paging, def int,
 	ceiling, known := src.MaxResponseItems(ctx)
 	c := Ceiling{Max: ceiling, Known: known}
 	p := Given(pg, def, c)
-	items, err := Items(ctx, p, c, func(ctx context.Context, q Paging) (Batch[T], error) {
-		got, err := fetch(ctx, q)
-		return Batch[T]{Items: got}, err
-	})
+	if err := check(p, c); err != nil {
+		return nil, p, err
+	}
+	items, err := fetch(ctx, p)
 	return items, p, err
 }
 

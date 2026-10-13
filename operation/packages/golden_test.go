@@ -77,7 +77,7 @@ func (s *stubPackages) ListPackages(_ context.Context, owner string, opt forge.L
 	}
 	list := forge.PackageList{Packages: []forge.PackageVersion{fixedVersion(), fixedVersion()}, HasNext: s.hasNext}
 	if !s.noTotal {
-		n := 9
+		n := 2
 		list.TotalCount = &n
 	}
 	return list, nil

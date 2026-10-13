@@ -87,7 +87,7 @@
     },
     {
       "name": "check_notifications",
-      "description": "Check and list user notifications"
+      "description": "Check and list user notifications (page/limit). Returns a response envelope {notifications, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "check_org_membership",
@@ -295,7 +295,7 @@
     },
     {
       "name": "edit_repo",
-      "description": "Edit repository settings (PATCH — only supplied fields change). Providing no fields is an error."
+      "description": "Edit repository settings (PATCH \u2014 only supplied fields change). Providing no fields is an error."
     },
     {
       "name": "edit_repo_hook",
@@ -423,19 +423,19 @@
     },
     {
       "name": "list_action_run_artifacts",
-      "description": "List artifacts of a workflow run. Server-paged via page/limit (default 30, max 50); optional name filter."
+      "description": "List artifacts of a workflow run. Server-paged: page (default 1) and limit (default 30, maximum 50) are sent as query parameters, optional name filters by artifact name. Returns {run_id, artifacts, page, limit, count, has_next} and total_count when Forgejo sets X-Total-Count; has_next true means a further page may exist, so re-issue the call with page incremented. A missing run is an error, not an empty list. Metadata only \u2014 does not download zips."
     },
     {
       "name": "list_action_run_jobs",
-      "description": "List jobs for a Forgejo v16+ workflow run with bounded client-side pagination."
+      "description": "List jobs for a Forgejo v16+ workflow run. Results are paged client-side because Forgejo returns the full job list. Returns a response envelope {run_id, jobs, page, limit, count, total_count, has_next, next_page}; has_next true means a further page may exist; re-issue the call with page incremented (next_page) to fetch it."
     },
     {
       "name": "list_branches",
-      "description": "List branches"
+      "description": "List branches. Returns a response envelope {branches, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_branch_protections",
-      "description": "List a repository's branch protection rules (bounded by page/limit)"
+      "description": "List a repository's branch protection rules (bounded by page/limit). Returns a response envelope {branch_protections, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_comment_attachments",
@@ -447,15 +447,15 @@
     },
     {
       "name": "list_issue_comments",
-      "description": "List issue/PR comments"
+      "description": "List issue/PR comments. Returns a response envelope {comments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_issue_tracked_times",
-      "description": "List tracked time entries on an issue or pull request"
+      "description": "List tracked time entries on an issue or pull request. Returns a response envelope {times, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_my_orgs",
-      "description": "List my organizations"
+      "description": "List my organizations. Returns a response envelope {organizations, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_my_repos",
@@ -471,27 +471,27 @@
     },
     {
       "name": "list_org_labels",
-      "description": "List organization-level labels. Each label carries a scope field of \"org\"."
+      "description": "List organization-level labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. Each label carries a scope field of \"org\"."
     },
     {
       "name": "list_org_members",
-      "description": "List members of an organization"
+      "description": "List members of an organization. Returns a response envelope {members, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_org_teams",
-      "description": "List teams in an organization"
+      "description": "List teams in an organization. Returns a response envelope {teams, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_package_files",
-      "description": "List files of one package version. Client-paged; total_count is the fetched length."
+      "description": "List files of one package version. Forgejo returns the full file list with no paging; page (default 1) and limit (default 30, maximum 50) slice it client-side. Returns {files, page, limit, count, has_next, total_count}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the grand total: the number of files in the version (the files endpoint has no X-Total-Count, and its listing is read whole). Each file is id, name, size, sha256."
     },
     {
       "name": "list_packages",
-      "description": "List package versions for a user or org (one row per version)."
+      "description": "List package versions for a user or org (Forgejo SearchVersions: one row per version, not one per name). Optional type and q filter; page (default 1) and limit (default 30, maximum 50) are sent as query parameters. Returns {packages, page, limit, count, has_next} and total_count when Forgejo sets X-Total-Count. has_next true means a further page may exist: it is derived from total_count when Forgejo reports one, and otherwise from probing the next page. Re-issue the call with page incremented to fetch it. A missing owner is an error, not an empty list."
     },
     {
       "name": "list_pull_request_files",
-      "description": "List changed files in a pull request"
+      "description": "List changed files in a pull request. Returns a response envelope {files, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_pull_review_comments",
@@ -499,19 +499,19 @@
     },
     {
       "name": "list_pull_reviews",
-      "description": "List reviews for a pull request"
+      "description": "List reviews for a pull request. Returns a response envelope {reviews, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_release_attachments",
-      "description": "List attachments on a release. The Forgejo API does not paginate this endpoint server-side, so the response is fetched in full and then sliced client-side; large attachment sets are still fully transferred from Forgejo before slicing."
+      "description": "List attachments on a release. Returns a response envelope {attachments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. The Forgejo API does not paginate this endpoint server-side, so the response is fetched in full and then sliced client-side; large attachment sets are still fully transferred from Forgejo before slicing."
     },
     {
       "name": "list_releases",
-      "description": "List releases for a repository. The state filter is applied client-side after pagination, so result size may be smaller than limit even when more matches exist on later pages."
+      "description": "List releases for a repository. Returns a response envelope {releases, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. The state filter is applied client-side after pagination, so count may be smaller than limit even when more matches exist on later pages."
     },
     {
       "name": "list_repo_commits",
-      "description": "List repo commits"
+      "description": "List repo commits. Returns a response envelope {commits, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_repo_contents",
@@ -519,43 +519,43 @@
     },
     {
       "name": "list_repo_hooks",
-      "description": "List repository webhooks. page/limit control pagination (default: page 1, limit 30); no server-imposed ceiling."
+      "description": "List repository webhooks. page/limit control pagination (default: page 1, limit 30); no server-imposed ceiling. Returns a response envelope {hooks, page, limit, count, total_count, has_next}; total_count appears only when Forgejo reports X-Total-Count. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_repo_issues",
-      "description": "List repo issues"
+      "description": "List repo issues (page/limit). Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_repo_labels",
-      "description": "List repository labels"
+      "description": "List repository labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the labels list; count includes them, while has_next and total_count describe the repository labels only. Each label carries a scope field of \"repo\" or \"org\"."
     },
     {
       "name": "list_repo_milestones",
-      "description": "List repository milestones"
+      "description": "List repository milestones. Returns a response envelope {milestones, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_repo_notifications",
-      "description": "Filter notifications scoped to a single repository"
+      "description": "Filter notifications scoped to a single repository (page/limit). Returns a response envelope {notifications, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_repo_pull_requests",
-      "description": "List repo pull requests"
+      "description": "List repo pull requests. Returns a response envelope {pull_requests, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_repo_topics",
-      "description": "List a repository's topics. Bounded by page (default 1) and limit (default 100); returns {topics, page, limit, count}."
+      "description": "List a repository's topics. Bounded by page (default 1) and limit (default 100); returns a response envelope {topics, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_repo_tracked_times",
-      "description": "List tracked time entries across all issues and PRs in a repository"
+      "description": "List tracked time entries across all issues and PRs in a repository. Returns a response envelope {times, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_user_orgs",
-      "description": "List a user's organizations"
+      "description": "List a user's organizations. Returns a response envelope {organizations, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "list_workflow_runs",
-      "description": "List workflow runs for a repository"
+      "description": "List workflow runs for a repository. Returns a response envelope {workflow_runs, page, limit, count, total_count, has_next}; total_count is present only when Forgejo reports it. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "mark_all_notifications_read",
@@ -595,15 +595,15 @@
     },
     {
       "name": "search_org_teams",
-      "description": "Search org teams"
+      "description": "Search org teams. Returns a response envelope {teams, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "search_repos",
-      "description": "Search repos"
+      "description": "Search repos. Returns a response envelope {repositories, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "search_users",
-      "description": "Search users"
+      "description": "Search users. Returns a response envelope {users, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."
     },
     {
       "name": "set_repo_topics",

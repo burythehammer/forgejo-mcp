@@ -114,9 +114,9 @@ func TestCreateIssue_UnresolvedLabelsWriteNothing(t *testing.T) {
 			t.Errorf("labels %q: error %q, want it to contain %q", c.labels, errText(err), c.want)
 		}
 	}
-	issues, err := s.List(context.Background(), apppissue.ListInput{Owner: owner, Repo: repo, State: "all", Paging: apppissue.Paging{Page: 1, Limit: 20}})
-	if err != nil || len(issues) != 0 {
-		t.Fatalf("issues after failed creates = %d (err %v), want none", len(issues), err)
+	page, err := s.List(context.Background(), apppissue.ListInput{Owner: owner, Repo: repo, State: "all", Paging: apppissue.Paging{Page: 1, Limit: 20}})
+	if err != nil || len(page.Issues) != 0 {
+		t.Fatalf("issues after failed creates = %d (err %v), want none", len(page.Issues), err)
 	}
 }
 
@@ -484,5 +484,31 @@ func TestAddLabels_PullRequestIndexResolvesByTheIssueRule(t *testing.T) {
 	}
 	if _, err := s.RemoveLabels(ctx, target(7), " , "); !strings.Contains(errText(err), "labels names nothing") {
 		t.Fatalf("empty list on a pull request: error %q, want the shared names-nothing error", errText(err))
+	}
+}
+
+func TestList_EnvelopeNamesTheNextPage(t *testing.T) {
+	t.Parallel()
+	s, f := fixture(t)
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		mustCreate(t, s, apppissue.CreateInput{Owner: owner, Repo: repo, Title: "t" + strconv.Itoa(i)})
+	}
+	f.SetMaxResponseItems(10)
+
+	first, err := s.List(ctx, apppissue.ListInput{Owner: owner, Repo: repo, State: "all", Paging: apppissue.Paging{Page: 1, Limit: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Issues) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
+		t.Fatalf("first page = %+v, want two issues with a next page", first)
+	}
+
+	last, err := s.List(ctx, apppissue.ListInput{Owner: owner, Repo: repo, State: "all", Paging: apppissue.Paging{Page: 2, Limit: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(last.Issues) != 1 || last.Count != 1 || last.HasNext {
+		t.Fatalf("last page = %+v, want one issue and no next page", last)
 	}
 }

@@ -132,19 +132,6 @@ func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Page[
 	}, nil
 }
 
-// Items fetches one page for a list whose envelope carries no continuation
-// marker. It applies the ceiling and makes no probe request.
-func Items[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) ([]T, error) {
-	if err := check(p, c); err != nil {
-		return nil, err
-	}
-	b, err := fetch(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	return b.Items, nil
-}
-
 func check(p Paging, c Ceiling) error {
 	if c.Known && p.Limit > c.Max {
 		return &OverCeilingError{Limit: p.Limit, Max: c.Max}

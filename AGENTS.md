@@ -51,8 +51,9 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 7. **Bound the output.** If response size depends on data (not tool
    semantics), the tool MUST satisfy [docs/design/output-bounding.md](docs/design/output-bounding.md):
    client-controlled bound + resumability + documented parameters. A list
-   use case gets its bound from the list module (`app/list`: `list.Run` or
-   `list.Items`), not from its own page/limit parsing or ceiling check; read
+   use case gets its bound from the list module (`app/list`: `list.Run`, and
+   the envelope it returns carries `has_next`), not from its own page/limit
+   parsing or ceiling check; read
    raw page/limit arguments with `decode.PageOr`/`decode.IntOr`. Use the
    checklist there in the PR description.
 8. **Add the README row.** Every registered tool needs a row in the README
