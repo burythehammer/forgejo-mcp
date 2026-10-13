@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List wiki pages with page/limit pagination; returns has_next and, when Forgejo reports X-Total-Count, total_count. total_count is upstream's count of raw wiki tree entries, so on a wiki with subdirectories or non-page files it can exceed the number of pages actually listed — treat it as an upper bound, not an exact total.",
+  "description": "List wiki pages with page/limit pagination. Returns a response envelope {pages, page, limit, count, has_next} and, when Forgejo reports X-Total-Count, total_count. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is upstream's count of raw wiki tree entries, so on a wiki with subdirectories or non-page files it can exceed the number of pages actually listed — treat it as an upper bound, not an exact total.",
   "inputSchema": {
     "properties": {
       "limit": {

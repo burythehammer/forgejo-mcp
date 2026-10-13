@@ -165,3 +165,17 @@ func TestRevisionsReportTheTotalAndPaging(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+func TestListEnvelopeOnAnExactMultiple(t *testing.T) {
+	t.Parallel()
+	s := newService(t)
+	create(t, s, "Home", "x")
+	create(t, s, "Guides", "x")
+	got, err := s.List(context.Background(), appwiki.ListRequest{Owner: owner, Repo: repo, Page: 1, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Page != 1 || got.Limit != 2 || got.Count != 2 || got.HasNext {
+		t.Fatalf("exact multiple, last page: got %+v", got)
+	}
+}

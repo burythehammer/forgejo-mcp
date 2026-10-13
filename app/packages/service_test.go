@@ -56,12 +56,12 @@ func TestListEmptyIsAnArrayNotNull(t *testing.T) {
 func TestListCarriesPageAndTotal(t *testing.T) {
 	t.Parallel()
 	zero := 0
-	port := stubPort{list: model.PackageList{Packages: []model.PackageVersion{{ID: 1, Name: "a"}}, HasNext: true, TotalCount: &zero}}
+	port := stubPort{list: model.PackageList{Packages: []model.PackageVersion{{ID: 1, Name: "a"}}, TotalCount: &zero}}
 	got, err := apppkg.New(port).List(context.Background(), apppkg.ListRequest{Owner: "octo", Page: 2, Limit: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Count != 1 || !got.HasNext || got.Page != 2 || got.Limit != 5 || got.TotalCount == nil || *got.TotalCount != 0 {
+	if got.Count != 1 || got.HasNext || got.Page != 2 || got.Limit != 5 || got.TotalCount == nil || *got.TotalCount != 0 {
 		t.Fatalf("got %+v", got)
 	}
 }
@@ -132,3 +132,90 @@ func TestListFilesPastTheEndIsAnEmptyArray(t *testing.T) {
 
 // MaxResponseItems reports an unknown ceiling for the test double.
 func (stubPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+
+// pagedPackagesPort serves all page by page, as Forgejo does. When total is
+// set it reports the grand total, as X-Total-Count does; otherwise it reports
+// none.
+type pagedPackagesPort struct {
+	stubPort
+	all   []model.PackageVersion
+	total bool
+	calls int
+}
+
+func (p *pagedPackagesPort) ListPackages(_ context.Context, _ string, q apppkg.ListQuery) (model.PackageList, error) {
+	p.calls++
+	var rows []model.PackageVersion
+	if off := (q.Page - 1) * q.Limit; off < len(p.all) {
+		rows = p.all[off:min(off+q.Limit, len(p.all))]
+	}
+	out := model.PackageList{Packages: rows}
+	if p.total {
+		n := len(p.all)
+		out.TotalCount = &n
+	}
+	return out, nil
+}
+
+func versions(n int) []model.PackageVersion {
+	out := make([]model.PackageVersion, n)
+	for i := range out {
+		out[i] = model.PackageVersion{ID: int64(i + 1), Name: "pkg"}
+	}
+	return out
+}
+
+func TestListHasNextFromTheReportedTotalWithoutProbe(t *testing.T) {
+	t.Parallel()
+	p := &pagedPackagesPort{all: versions(3), total: true}
+	s := apppkg.New(p)
+	first, err := s.List(context.Background(), apppkg.ListRequest{Owner: "octo", Page: 1, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Count != 2 || !first.HasNext || first.Page != 1 || first.Limit != 2 {
+		t.Fatalf("page 1: got %+v", first)
+	}
+	if p.calls != 1 {
+		t.Fatalf("a reported total makes no probe: %d calls", p.calls)
+	}
+	last, err := s.List(context.Background(), apppkg.ListRequest{Owner: "octo", Page: 2, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last.Count != 1 || last.HasNext {
+		t.Fatalf("page 2: got %+v", last)
+	}
+}
+
+func TestListProbesForTheNextPageWhenNoTotalIsReported(t *testing.T) {
+	t.Parallel()
+	p := &pagedPackagesPort{all: versions(4)}
+	s := apppkg.New(p)
+	exact, err := s.List(context.Background(), apppkg.ListRequest{Owner: "octo", Page: 2, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exact.Count != 2 || exact.HasNext {
+		t.Fatalf("exact multiple, last page: got %+v", exact)
+	}
+	full, err := s.List(context.Background(), apppkg.ListRequest{Owner: "octo", Page: 1, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !full.HasNext {
+		t.Fatalf("full page with rows after it: got %+v", full)
+	}
+}
+
+func TestListFilesEnvelopeOnAnExactMultiple(t *testing.T) {
+	t.Parallel()
+	s := apppkg.New(stubPort{files: []model.PackageFile{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4}}})
+	got, err := s.ListFiles(context.Background(), apppkg.ListFilesRequest{Coords: coords, Page: 2, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Page != 2 || got.Limit != 2 || got.Count != 2 || got.HasNext || got.TotalCount != 4 {
+		t.Fatalf("got %+v", got)
+	}
+}

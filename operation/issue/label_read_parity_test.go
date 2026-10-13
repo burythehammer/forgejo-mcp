@@ -25,11 +25,13 @@ type labelFacts = labelResourcePayload
 // scope field is a tool encoding and is dropped here.
 func labelListFacts(t *testing.T, text string) []labelFacts {
 	t.Helper()
-	var listed []labelFacts
-	if err := unmarshalResult(text, &listed); err != nil {
+	var envelope struct {
+		Labels []labelFacts `json:"labels"`
+	}
+	if err := unmarshalResult(text, &envelope); err != nil {
 		t.Fatal(err)
 	}
-	return listed
+	return envelope.Labels
 }
 
 func parityLabelURI(id int64) string {

@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Search users",
+  "description": "Search users. Returns a response envelope {users, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it.",
   "inputSchema": {
     "properties": {
       "keyword": {

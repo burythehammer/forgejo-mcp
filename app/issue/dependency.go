@@ -27,7 +27,7 @@ func (s *Service) relatedPage(ctx context.Context, what string,
 	fetch func(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.Issue, error),
 	t Target, p Paging,
 ) (model.DependencyPage, error) {
-	issues, used, err := list.Window(ctx, s.port, list.Paging(p), defaultLimit,
+	page, err := runPage(ctx, s.port, list.Paging(p), defaultLimit,
 		func(ctx context.Context, q list.Paging) ([]*model.Issue, error) {
 			got, err := fetch(ctx, t.Owner, t.Repo, t.Index, Paging(q))
 			if err != nil {
@@ -38,7 +38,9 @@ func (s *Service) relatedPage(ctx context.Context, what string,
 	if err != nil {
 		return model.DependencyPage{}, err
 	}
-	return model.DependencyPage{Page: used.Page, Limit: used.Limit, Issues: issues}, nil
+	return model.DependencyPage{
+		Issues: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
 }
 
 // AddDependency makes the issue t depend on dep, which may be in another

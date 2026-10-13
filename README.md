@@ -301,14 +301,14 @@ List all my repositories
 | `mark_all_notifications_read` | Acknowledge all notifications |
 | `list_repo_notifications` | Filter notifications scoped to a single repository |
 | `mark_repo_notifications_read` | Mark all notifications in a specific repo as read |
-| `search_users` | Search for users |
+| `search_users` | Search for users (page/limit); returns `{users,page,limit,count,has_next}` |
 | **Repositories** | |
 | `list_my_repos` | List all repositories you own |
 | `get_repo` | Get a single repository by owner and name |
 | `create_repo` | Create a new repository |
 | `fork_repo` | Fork a repository |
 | `edit_repo` | Edit repository settings. Only fields you pass change; omitted fields are left unchanged. Providing no fields is an error. |
-| `search_repos` | Search for repositories |
+| `search_repos` | Search for repositories (page/limit); returns `{repositories,page,limit,count,has_next}` |
 | **Topics** | |
 | `list_repo_topics` | List a repository's topics. Bounded by `page` (default 1) + `limit` (default 100); returns `{topics, page, limit, count}`. |
 | `set_repo_topics` | Replace all topics. `topics` is a required comma-separated string; an empty string clears. Invalid names are rejected before the request. |
@@ -351,13 +351,13 @@ List all my repositories
 | `remove_issue_labels` | Remove labels from an issue. `labels` takes comma-separated label names or numeric IDs. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
 | `update_issue` | Update an existing issue (requires numeric milestone ID). `due_date` sets the deadline (RFC3339); `clear_due_date=true` removes it. The two are mutually exclusive — setting both is an error, and omitting both leaves the deadline unchanged. `set_labels` replaces the issue's entire label set (names or IDs); an empty string clears every label. `ref` sets the branch the issue is linked to (passed through as given); omitting it leaves it unchanged and an empty string clears it. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full issue. |
 | `issue_state_change` | Open or close an issue. Returns a compact result by default; `verbose=true` returns the full issue |
-| `list_issue_dependencies` | List issues the given issue depends on. Bounded by `page` (1-based) + `limit` (page size); the response echoes `page`/`limit` so callers can fetch the next page. |
-| `list_issue_dependents` | List issues that depend on the given issue. Bounded by `page` (1-based) + `limit` (page size); the response echoes `page`/`limit` so callers can fetch the next page. |
+| `list_issue_dependencies` | List issues the given issue depends on (page/limit); returns `{issues,page,limit,count,has_next}` |
+| `list_issue_dependents` | List issues that depend on the given issue (page/limit); returns `{issues,page,limit,count,has_next}` |
 | `add_issue_dependency` | Make one issue depend on another. The dependency may live in a different repository: optional `depends_on_owner`/`depends_on_repo` default to `owner`/`repo`. |
 | `remove_issue_dependency` | Remove a dependency from an issue. For a cross-repo dependency, optional `dependency_owner`/`dependency_repo` default to `owner`/`repo`. |
-| `list_repo_milestones` | List milestones with their IDs (use with `update_issue`) |
-| `list_repo_labels` | List labels with their IDs. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`). |
-| `list_org_labels` | List organization-level labels with their IDs. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
+| `list_repo_milestones` | List milestones with their IDs (use with `update_issue`) (page/limit); returns `{milestones,page,limit,count,has_next}` |
+| `list_repo_labels` | List labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`). |
+| `list_org_labels` | List organization-level labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
 | `create_repo_label` | Create a repository label (`name`, `color` as 6-digit hex, optional `description`). Returns the numeric `id`; `add_issue_labels` also takes the name. |
 | `edit_repo_label` | Edit a repository label (PATCH — only supplied fields change: `name`, `color`, `description`). |
 | `delete_repo_label` | Delete a repository label. Refuses by default when the label is in use (reports count); set `delete_mode=force` to override. |
@@ -367,7 +367,7 @@ List all my repositories
 | `delete_org_label` | Delete an organization-level label. In-use guard counts across visible org repos (best-effort); `delete_mode=force` overrides. |
 | `get_org_label` | Get a single organization-level label by numeric `id`. |
 | **Comments** | |
-| `list_issue_comments` | List comments on an issue or PR |
+| `list_issue_comments` | List comments on an issue or PR (page/limit); returns `{comments,page,limit,count,has_next}` |
 | `get_issue_comment` | Get a specific comment |
 | `create_issue_comment` | Add a comment to an issue or PR. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `edit_issue_comment` | Edit a comment. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
@@ -393,7 +393,7 @@ List all my repositories
 | `list_packages` | List package versions of a user or org (one row per version). Optional `type` and `q`. Server-paged via `page`/`limit` (default 30, max 50). Envelope `{packages, page, limit, count, has_next, total_count?}`. A missing owner is an error, not an empty list |
 | `get_package` | Get one package version. Does not embed owner/creator users |
 | `delete_package` | Delete one package version (not every version of the name). No preflight. 4xx/5xx stay errors |
-| `list_package_files` | List files of one package version. Client-paged via `page`/`limit` (default 30, max 50); envelope `{files, page, limit, count, has_next, total_count}` (`total_count` is the fetched list length) |
+| `list_package_files` | List files of one package version. Client-paged via `page`/`limit` (default 30, max 50); envelope `{files, page, limit, count, has_next, total_count}` (`total_count` is the grand total: the file count of the version) |
 | **Actions** | |
 | `dispatch_workflow` | Trigger a workflow run via `workflow_dispatch` event |
 | `list_workflow_runs` | List workflow runs with optional filtering by status, event, or SHA. Paged by `page`/`limit`; returns `{workflow_runs, page, limit, count, total_count?, has_next}` |
@@ -411,17 +411,17 @@ List all my repositories
 | `create_or_update_org_action_secret` | Create or update an organization Actions secret. Overwrites any existing secret with the same name; the value is never echoed back |
 | `delete_org_action_secret` | Delete an organization Actions secret |
 | **Organizations** | |
-| `list_my_orgs` | List my organizations |
-| `list_user_orgs` | List a user's organizations |
+| `list_my_orgs` | List my organizations (page/limit); returns `{organizations,page,limit,count,has_next}` |
+| `list_user_orgs` | List a user's organizations (page/limit); returns `{organizations,page,limit,count,has_next}` |
 | `get_org` | Get organization details |
 | `create_org` | Create an organization |
 | `edit_org` | Edit organization settings |
 | `delete_org` | Delete an organization — **destructive and irreversible**: all repos, teams and data are permanently removed |
-| `list_org_members` | List members of an organization |
+| `list_org_members` | List members of an organization (page/limit); returns `{members,page,limit,count,has_next}` |
 | `check_org_membership` | Check if a user is a member of an organization |
 | `remove_org_member` | Remove a member from an organization |
-| `list_org_teams` | List teams in an organization |
-| `search_org_teams` | Search for teams in an organization |
+| `list_org_teams` | List teams in an organization (page/limit); returns `{teams,page,limit,count,has_next}` |
+| `search_org_teams` | Search for teams in an organization (page/limit); returns `{teams,page,limit,count,has_next}` |
 | `create_org_team` | Create a team in an organization |
 | `add_team_member` | Add a user to a team |
 | `remove_team_member` | Remove a user from a team |
@@ -452,7 +452,7 @@ List all my repositories
 | `edit_comment_attachment` | Rename a comment attachment |
 | `delete_comment_attachment` | Delete a comment attachment |
 | **Releases** | |
-| `list_releases` | List releases for a repository (page/limit + client-side `state` filter: all/draft/prerelease/published) |
+| `list_releases` | List releases for a repository (page/limit + client-side `state` filter: all/draft/prerelease/published). Envelope `{releases, page, limit, count, has_next}` |
 | `get_release_by_id` | Get a release by numeric ID |
 | `get_release_by_tag` | Get a release by tag name |
 | `get_latest_release` | Get the latest non-draft, non-prerelease release |
@@ -460,14 +460,14 @@ List all my repositories
 | `edit_release` | Update fields of an existing release (only supplied fields are sent) |
 | `delete_release` | Delete a release by numeric ID — destructive |
 | `delete_release_by_tag` | Delete a release by tag name — destructive, verify tag |
-| `list_release_attachments` | List attachments on a release (response fetched in full, sliced client-side) |
+| `list_release_attachments` | List attachments on a release (response fetched in full, sliced client-side). Envelope `{attachments, page, limit, count, has_next}` |
 | `get_release_attachment` | Get metadata for a single release attachment |
 | `download_release_attachment` | Download a release attachment (inline if < 1 MiB; metadata + URL otherwise) |
 | `create_release_attachment` | Upload a new attachment to a release (base64 content or a file path on the MCP host) |
 | `edit_release_attachment` | Rename a release attachment |
 | `delete_release_attachment` | Delete a release attachment — destructive |
 | **Wiki** | |
-| `list_wiki_pages` | List pages using `page`/`limit`; returns `has_next` and, when Forgejo reports `X-Total-Count`, `total_count`. `total_count` counts upstream's raw wiki tree entries, so it can exceed the number of pages listed on a wiki with subdirectories — an upper bound, not an exact total. |
+| `list_wiki_pages` | List pages using `page`/`limit`. Envelope `{pages, page, limit, count, has_next}` and, when Forgejo reports `X-Total-Count`, `total_count`. `total_count` counts upstream's raw wiki tree entries, so it can exceed the number of pages listed on a wiki with subdirectories — an upper bound, not an exact total. |
 | `get_wiki_page` | Read decoded Markdown; optional `start_line`/`end_line`, always returns `total_lines`. |
 | `get_wiki_revisions` | List revision history using `page`/`limit`; returns `has_next` and `total_count`, the page's total revision count as reported in the response body. |
 | `create_wiki_page` | Create a page and return its server-normalized `page_name`; slash-separated titles are a flat subpage naming convention (no hierarchy and no automatic parent page), and an existing title is overwritten. |
