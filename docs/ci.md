@@ -17,8 +17,8 @@ rules from #12) runs without editing the target.
 
 The PR gate is Forgejo Actions (`.forgejo/workflows/ci.yaml`), which runs
 `make check`, so local and CI results agree by construction. It needs a Forgejo
-runner whose label matches `runs-on` (`docker` is a guess; fix it to your
-runner's label). Until a run is seen on a real PR, treat it as unverified.
+runner whose label matches `runs-on` (`self-hosted`; change it if your
+runner is labelled differently). Until a run is seen on a real PR, treat it as unverified.
 
 The `.tekton/` pipelines are inherited from upstream and are not the gate here.
 They are left in place, unused for PRs, until someone decides to remove them.
