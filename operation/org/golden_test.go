@@ -192,7 +192,7 @@ var goldenCases = []goldenCase{
 	// list_my_orgs
 	{name: "my_orgs_defaults", tool: ListMyOrgsToolName},
 	{name: "my_orgs_paged", tool: ListMyOrgsToolName, args: map[string]any{"page": float64(2), "limit": float64(5)}},
-	{name: "my_orgs_zero_page_kept", tool: ListMyOrgsToolName, args: map[string]any{"page": float64(0)}},
+	{name: "my_orgs_zero_page_is_first", tool: ListMyOrgsToolName, args: map[string]any{"page": float64(0)}},
 	// The original handler took these only as JSON numbers; a string is absent.
 	{name: "my_orgs_string_paging", tool: ListMyOrgsToolName, args: map[string]any{"page": "2", "limit": "5"}},
 	{name: "my_orgs_fractional_paging", tool: ListMyOrgsToolName, args: map[string]any{"page": 2.9, "limit": 5.5}},

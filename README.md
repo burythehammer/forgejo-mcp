@@ -301,14 +301,14 @@ List all my repositories
 | `mark_all_notifications_read` | Acknowledge all notifications |
 | `list_repo_notifications` | Filter notifications scoped to a single repository |
 | `mark_repo_notifications_read` | Mark all notifications in a specific repo as read |
-| `search_users` | Search for users |
+| `search_users` | Search for users (page/limit); returns `{users,page,limit,count,has_next}` |
 | **Repositories** | |
 | `list_my_repos` | List all repositories you own |
 | `get_repo` | Get a single repository by owner and name |
 | `create_repo` | Create a new repository |
 | `fork_repo` | Fork a repository |
 | `edit_repo` | Edit repository settings. Only fields you pass change; omitted fields are left unchanged. Providing no fields is an error. |
-| `search_repos` | Search for repositories |
+| `search_repos` | Search for repositories (page/limit); returns `{repositories,page,limit,count,has_next}` |
 | **Topics** | |
 | `list_repo_topics` | List a repository's topics. Bounded by `page` (default 1) + `limit` (default 100); returns `{topics, page, limit, count}`. |
 | `set_repo_topics` | Replace all topics. `topics` is a required comma-separated string; an empty string clears. Invalid names are rejected before the request. |
@@ -411,17 +411,17 @@ List all my repositories
 | `create_or_update_org_action_secret` | Create or update an organization Actions secret. Overwrites any existing secret with the same name; the value is never echoed back |
 | `delete_org_action_secret` | Delete an organization Actions secret |
 | **Organizations** | |
-| `list_my_orgs` | List my organizations |
-| `list_user_orgs` | List a user's organizations |
+| `list_my_orgs` | List my organizations (page/limit); returns `{organizations,page,limit,count,has_next}` |
+| `list_user_orgs` | List a user's organizations (page/limit); returns `{organizations,page,limit,count,has_next}` |
 | `get_org` | Get organization details |
 | `create_org` | Create an organization |
 | `edit_org` | Edit organization settings |
 | `delete_org` | Delete an organization — **destructive and irreversible**: all repos, teams and data are permanently removed |
-| `list_org_members` | List members of an organization |
+| `list_org_members` | List members of an organization (page/limit); returns `{members,page,limit,count,has_next}` |
 | `check_org_membership` | Check if a user is a member of an organization |
 | `remove_org_member` | Remove a member from an organization |
-| `list_org_teams` | List teams in an organization |
-| `search_org_teams` | Search for teams in an organization |
+| `list_org_teams` | List teams in an organization (page/limit); returns `{teams,page,limit,count,has_next}` |
+| `search_org_teams` | Search for teams in an organization (page/limit); returns `{teams,page,limit,count,has_next}` |
 | `create_org_team` | Create a team in an organization |
 | `add_team_member` | Add a user to a team |
 | `remove_team_member` | Remove a user from a team |
