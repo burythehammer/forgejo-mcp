@@ -112,12 +112,12 @@ func TestIssueReadParity_ToolAndResourceAgree(t *testing.T) {
 	}
 
 	// Comments: the resource embeds the thread the list tool returns.
-	var listed []forgejo_sdk.Comment
+	var listed commentsEnvelope
 	if err := unmarshalResult(call(t, h.ListIssueCommentsFn, map[string]any{"index": float64(iss.Index)}), &listed); err != nil {
 		t.Fatal(err)
 	}
 	var fromTool, fromResource []commentFact
-	for _, c := range listed {
+	for _, c := range listed.Comments {
 		fromTool = append(fromTool, commentFact{ID: c.ID, Author: c.Poster.UserName, Body: c.Body})
 	}
 	for _, c := range p.RecentComments {

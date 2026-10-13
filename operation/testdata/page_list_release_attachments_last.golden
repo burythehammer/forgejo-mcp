@@ -1,1 +1,1 @@
-{"Result":[{"id":5,"name":"asset-5.txt","size":1,"download_count":0,"created_at":"2026-01-02T03:04:05Z","uuid":"00000000-0000-0000-0000-000000000005","browser_download_url":"https://forgejo.fake/attachments/00000000-0000-0000-0000-000000000005"}]}
+{"Result":{"attachments":[{"id":5,"name":"asset-5.txt","size":1,"download_count":0,"created_at":"2026-01-02T03:04:05Z","uuid":"00000000-0000-0000-0000-000000000005","browser_download_url":"https://forgejo.fake/attachments/00000000-0000-0000-0000-000000000005"}],"page":3,"limit":2,"count":1,"has_next":false}}

@@ -116,6 +116,21 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*model.Issue, error
 // defaultLimit is the page size a list or search uses when the caller gives none.
 const defaultLimit = 20
 
+// runPage reads one page of a list whose endpoint reports no grand total,
+// through the list module: a default limit is lowered to a known ceiling, a
+// limit above it is refused, and has_next comes from at most one probe.
+func runPage[T any](ctx context.Context, src list.CeilingSource, p list.Paging, def int,
+	fetch func(context.Context, list.Paging) ([]T, error),
+) (list.Page[T], error) {
+	ceiling, known := src.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	p = list.Normalize(p, list.DefaultLimit(def, c))
+	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[T], error) {
+		got, err := fetch(ctx, q)
+		return list.Batch[T]{Items: got}, err
+	})
+}
+
 // sortOrders are the Forgejo API's valid sort values for listing issues. The
 // SDK has no field for them, so they are listed here.
 var sortOrders = []string{
@@ -315,11 +330,11 @@ func (s *Service) ChangeState(ctx context.Context, t Target, state string) (*mod
 }
 
 // Milestones lists a repository's milestones. State defaults to open.
-func (s *Service) Milestones(ctx context.Context, owner, repo string, m MilestoneList) ([]*model.Milestone, error) {
+func (s *Service) Milestones(ctx context.Context, owner, repo string, m MilestoneList) (model.MilestonePage, error) {
 	if m.State == "" {
 		m.State = "open"
 	}
-	items, _, err := list.Window(ctx, s.port, list.Paging(m.Paging), milestoneDefaultLimit,
+	page, err := runPage(ctx, s.port, list.Paging(m.Paging), milestoneDefaultLimit,
 		func(ctx context.Context, p list.Paging) ([]*model.Milestone, error) {
 			q := m
 			q.Paging = Paging(p)
@@ -329,7 +344,12 @@ func (s *Service) Milestones(ctx context.Context, owner, repo string, m Mileston
 			}
 			return milestones, nil
 		})
-	return items, err
+	if err != nil {
+		return model.MilestonePage{}, err
+	}
+	return model.MilestonePage{
+		Milestones: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+	}, nil
 }
 
 // milestoneDefaultLimit is the page size a milestone list uses when the caller

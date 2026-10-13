@@ -17,7 +17,7 @@ const (
 var (
 	ListOrgMembersTool = mcp.NewTool(
 		ListOrgMembersToolName,
-		mcp.WithDescription("List members of an organization"),
+		mcp.WithDescription("List members of an organization. Returns a response envelope {members, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
 		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),

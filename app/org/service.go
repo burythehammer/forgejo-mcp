@@ -74,56 +74,80 @@ func (s *Service) DeleteOrg(ctx context.Context, org string) error {
 	return nil
 }
 
-// MyOrgs lists the organizations of the credential's user.
-func (s *Service) MyOrgs(ctx context.Context, pg Paging) ([]*model.Organization, error) {
+// defaultLimit is the page size an organization list uses when the caller gives
+// none.
+const defaultLimit = 100
+
+// fetchPage reads one page of a list through the list module: the instance
+// ceiling applies, a default limit is lowered to it, and a page below 1 is page
+// 1. The continuation marker comes from the module, so no grand total is needed.
+func fetchPage[T any](ctx context.Context, p Port, pg Paging,
+	fetch func(context.Context, list.Paging) ([]T, error),
+) (list.Page[T], error) {
+	ceiling, known := p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: ceiling, Known: known}
+	return list.Run(ctx, list.Normalize(list.Paging(pg), list.DefaultLimit(defaultLimit, c)), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[T], error) {
+			items, err := fetch(ctx, q)
+			return list.Batch[T]{Items: items}, err
+		})
+}
+
+// MyOrgs returns one page of the organizations of the credential's user.
+func (s *Service) MyOrgs(ctx context.Context, pg Paging) (model.OrganizationPage, error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.OrganizationPage{}, err
 	}
-	orgs, _, err := list.Window(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
+	page, err := fetchPage(ctx, p, pg, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
 		orgs, err := p.ListMyOrgs(ctx, q)
 		if err != nil {
 			return nil, fmt.Errorf("list my orgs err: %w", err)
 		}
 		return orgs, nil
 	})
-	return orgs, err
+	if err != nil {
+		return model.OrganizationPage{}, err
+	}
+	return model.OrganizationPage{Organizations: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
-// defaultLimit is the page size an organization list uses when the caller gives
-// none.
-const defaultLimit = 100
-
-// UserOrgs lists the organizations of a user.
-func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) ([]*model.Organization, error) {
+// UserOrgs returns one page of the organizations of a user.
+func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) (model.OrganizationPage, error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.OrganizationPage{}, err
 	}
-	orgs, _, err := list.Window(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
+	page, err := fetchPage(ctx, p, pg, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
 		orgs, err := p.ListUserOrgs(ctx, user, q)
 		if err != nil {
 			return nil, fmt.Errorf("list user orgs err: %w", err)
 		}
 		return orgs, nil
 	})
-	return orgs, err
+	if err != nil {
+		return model.OrganizationPage{}, err
+	}
+	return model.OrganizationPage{Organizations: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
-// Members lists the members of an organization.
-func (s *Service) Members(ctx context.Context, org string, pg Paging) ([]*model.User, error) {
+// Members returns one page of the members of an organization.
+func (s *Service) Members(ctx context.Context, org string, pg Paging) (model.MemberPage, error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.MemberPage{}, err
 	}
-	members, _, err := list.Window(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.User, error) {
+	page, err := fetchPage(ctx, p, pg, func(ctx context.Context, q list.Paging) ([]*model.User, error) {
 		members, err := p.ListOrgMembers(ctx, org, q)
 		if err != nil {
 			return nil, fmt.Errorf("list org members err: %w", err)
 		}
 		return members, nil
 	})
-	return members, err
+	if err != nil {
+		return model.MemberPage{}, err
+	}
+	return model.MemberPage{Members: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // IsMember reports whether user is a member of org.
@@ -151,20 +175,23 @@ func (s *Service) RemoveMember(ctx context.Context, org, user string) error {
 	return nil
 }
 
-// Teams lists the teams of an organization.
-func (s *Service) Teams(ctx context.Context, org string, pg Paging) ([]*model.Team, error) {
+// Teams returns one page of the teams of an organization.
+func (s *Service) Teams(ctx context.Context, org string, pg Paging) (model.TeamPage, error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.TeamPage{}, err
 	}
-	teams, _, err := list.Window(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Team, error) {
+	page, err := fetchPage(ctx, p, pg, func(ctx context.Context, q list.Paging) ([]*model.Team, error) {
 		teams, err := p.ListOrgTeams(ctx, org, q)
 		if err != nil {
 			return nil, fmt.Errorf("list org teams err: %w", err)
 		}
 		return teams, nil
 	})
-	return teams, err
+	if err != nil {
+		return model.TeamPage{}, err
+	}
+	return model.TeamPage{Teams: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
 }
 
 // CreateTeam creates a team in an organization. An empty permission is read.

@@ -181,14 +181,14 @@ func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	rels, err := svc.ListReleases(ctx, a.Owner, a.Repo, apprelease.ListQuery{
+	page, err := svc.ListReleases(ctx, a.Owner, a.Repo, apprelease.ListQuery{
 		State:  state,
 		Paging: apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)},
 	})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.TextResult(rels)
+	return to.TextResult(page)
 }
 
 func (h handlers) GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -359,11 +359,11 @@ func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	list, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)})
+	page, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.TextResult(list)
+	return to.TextResult(page)
 }
 
 func (h handlers) GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

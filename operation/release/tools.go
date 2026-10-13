@@ -38,7 +38,7 @@ const (
 var (
 	ListReleasesTool = mcp.NewTool(
 		ListReleasesToolName,
-		mcp.WithDescription("List releases for a repository. The state filter is applied client-side after pagination, so result size may be smaller than limit even when more matches exist on later pages."),
+		mcp.WithDescription("List releases for a repository. Returns a response envelope {releases, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. The state filter is applied client-side after pagination, so count may be smaller than limit even when more matches exist on later pages."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -114,7 +114,7 @@ var (
 
 	ListReleaseAttachmentsTool = mcp.NewTool(
 		ListReleaseAttachmentsToolName,
-		mcp.WithDescription("List attachments on a release. The Forgejo API does not paginate this endpoint server-side, so the response is fetched in full and then sliced client-side; large attachment sets are still fully transferred from Forgejo before slicing."),
+		mcp.WithDescription("List attachments on a release. Returns a response envelope {attachments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. The Forgejo API does not paginate this endpoint server-side, so the response is fetched in full and then sliced client-side; large attachment sets are still fully transferred from Forgejo before slicing."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("release_id", mcp.Required(), mcp.Description(params.ReleaseID)),

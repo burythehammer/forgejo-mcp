@@ -1,3 +1,4 @@
-{"Result":[{"id":6,"username":"one","full_name":"Octo Org","avatar_url":"https://f.example/a.png","description":"d","website":"https://o.example","location":"here","visibility":"public"},{"id":6,"username":"two","full_name":"Octo Org","avatar_url":"https://f.example/a.png","description":"d","website":"https://o.example","location":"here","visibility":"public"}]}
+{"Result":{"organizations":[{"id":6,"username":"one","full_name":"Octo Org","avatar_url":"https://f.example/a.png","description":"d","website":"https://o.example","location":"here","visibility":"public"},{"id":6,"username":"two","full_name":"Octo Org","avatar_url":"https://f.example/a.png","description":"d","website":"https://o.example","location":"here","visibility":"public"}],"page":2,"limit":5,"count":2,"has_next":true}}
 -- port calls --
 ListMyOrgs [{"Page":2,"PageSize":5}]
+ListMyOrgs [{"Page":3,"PageSize":5}]

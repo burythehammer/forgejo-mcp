@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List attachments on a release. The Forgejo API does not paginate this endpoint server-side, so the response is fetched in full and then sliced client-side; large attachment sets are still fully transferred from Forgejo before slicing.",
+  "description": "List attachments on a release. Returns a response envelope {attachments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. The Forgejo API does not paginate this endpoint server-side, so the response is fetched in full and then sliced client-side; large attachment sets are still fully transferred from Forgejo before slicing.",
   "inputSchema": {
     "properties": {
       "limit": {

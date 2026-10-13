@@ -49,7 +49,7 @@ func (a adapter) ListPackages(ctx context.Context, owner string, q apppkg.ListQu
 	for i, v := range list.Packages {
 		rows[i] = version(v)
 	}
-	return model.PackageList{Packages: rows, HasNext: list.HasNext, TotalCount: list.TotalCount}, nil
+	return model.PackageList{Packages: rows, TotalCount: list.TotalCount}, nil
 }
 
 func (a adapter) GetPackage(ctx context.Context, owner, packageType, name, ver string) (*model.PackageVersion, error) {

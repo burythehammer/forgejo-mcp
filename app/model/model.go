@@ -309,11 +309,3 @@ type IssueSearchPage struct {
 	HasNext    bool     `json:"has_next"`
 	TotalCount *int     `json:"total_count,omitempty"`
 }
-
-// DependencyPage is one page of an issue's dependencies or dependents, with
-// the page and limit that were requested so the caller can fetch the next.
-type DependencyPage struct {
-	Page   int      `json:"page"`
-	Limit  int      `json:"limit"`
-	Issues []*Issue `json:"issues"`
-}

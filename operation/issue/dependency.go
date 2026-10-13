@@ -26,7 +26,7 @@ const (
 var (
 	ListIssueDependenciesTool = mcp.NewTool(
 		ListIssueDependenciesToolName,
-		mcp.WithDescription("List issues that the given issue depends on. Pagination uses page (1-based) and limit (page size); the response echoes page and limit so callers can fetch the next page. Returns an empty list if the issue has no dependencies. This tool fails if the repository has disabled issue dependencies."),
+		mcp.WithDescription("List issues that the given issue depends on. Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. Returns an empty issues list if the issue has no dependencies. This tool fails if the repository has disabled issue dependencies."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
@@ -36,7 +36,7 @@ var (
 
 	ListIssueDependentsTool = mcp.NewTool(
 		ListIssueDependentsToolName,
-		mcp.WithDescription("List issues that depend on the given issue. Pagination uses page (1-based) and limit (page size); the response echoes page and limit so callers can fetch the next page. Returns an empty list if no issue depends on it. This tool fails if the repository has disabled issue dependencies."),
+		mcp.WithDescription("List issues that depend on the given issue. Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. Returns an empty issues list if no issue depends on it. This tool fails if the repository has disabled issue dependencies."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),

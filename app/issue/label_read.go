@@ -24,11 +24,28 @@ type LabelPage struct {
 }
 
 // LabelList is one label list read: the labels, each with its scope, and what
-// the server reported past the page of the catalogue it paged.
+// the server reported past the page of the catalogue it paged. Page and Limit
+// are the paging the read used, after the default and the ceiling.
 type LabelList struct {
 	Labels []model.ScopedLabel
 	More   bool
 	Total  Total
+	Page   int
+	Limit  int
+}
+
+// Envelope is the response of the label list tools: the labels with the paging
+// used. HasNext is the server's own report of rows past the page, and TotalCount
+// is the server's grand total when it reported one.
+func (l LabelList) Envelope() model.ScopedLabelPage {
+	out := model.ScopedLabelPage{
+		Labels: l.Labels, Page: l.Page, Limit: l.Limit, Count: len(l.Labels), HasNext: l.More,
+	}
+	if l.Total.Known {
+		n := l.Total.Count
+		out.TotalCount = &n
+	}
+	return out
 }
 
 // ReadRepoLabels is the one read behind the list_repo_labels tool and the
@@ -38,7 +55,7 @@ type LabelList struct {
 // own rows only, because the organization's labels are not paged here.
 func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (LabelList, error) {
 	var page LabelPage
-	labels, _, err := list.Window(ctx, s.port, list.Paging(in.Paging), labelsDefaultLimit,
+	labels, used, err := list.Window(ctx, s.port, list.Paging(in.Paging), labelsDefaultLimit,
 		func(ctx context.Context, p list.Paging) ([]*model.Label, error) {
 			got, err := s.port.ListRepoLabelsPage(ctx, in.Owner, in.Repo, Paging(p))
 			if err != nil {
@@ -61,7 +78,7 @@ func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (Label
 		}
 		merged = append(merged, orgs.Labels...)
 	}
-	return LabelList{Labels: merged, More: page.More, Total: page.Total}, nil
+	return LabelList{Labels: merged, More: page.More, Total: page.Total, Page: used.Page, Limit: used.Limit}, nil
 }
 
 // ReadOrgLabels is the one read behind the list_org_labels tool and the
@@ -72,7 +89,7 @@ func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (Labe
 		p.Page = 1
 	}
 	var page LabelPage
-	labels, _, err := list.Window(ctx, s.port, list.Paging(p), labelsDefaultLimit,
+	labels, used, err := list.Window(ctx, s.port, list.Paging(p), labelsDefaultLimit,
 		func(ctx context.Context, q list.Paging) ([]*model.Label, error) {
 			got, err := s.port.ListOrgLabelsPage(ctx, org, Paging(q))
 			if err != nil {
@@ -88,5 +105,5 @@ func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (Labe
 	for _, l := range labels {
 		out = append(out, model.ScopedLabel{Label: *l, Scope: "org"})
 	}
-	return LabelList{Labels: out, More: page.More, Total: page.Total}, nil
+	return LabelList{Labels: out, More: page.More, Total: page.Total, Page: used.Page, Limit: used.Limit}, nil
 }

@@ -19,7 +19,7 @@ const (
 var (
 	SearchUsersTool = mcp.NewTool(
 		SearchUsersToolName,
-		mcp.WithDescription("Search users"),
+		mcp.WithDescription("Search users. Returns a response envelope {users, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("keyword", mcp.Description(params.Keyword)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(100)),
@@ -27,7 +27,7 @@ var (
 
 	SearchOrgTeamsTool = mcp.NewTool(
 		SearchOrgTeamsToolName,
-		mcp.WithDescription("Search org teams"),
+		mcp.WithDescription("Search org teams. Returns a response envelope {teams, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithString("keyword", mcp.Description(params.Keyword)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -36,7 +36,7 @@ var (
 
 	SearchReposTool = mcp.NewTool(
 		SearchReposToolName,
-		mcp.WithDescription("Search repos"),
+		mcp.WithDescription("Search repos. Returns a response envelope {repositories, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("keyword", mcp.Description(params.Keyword)),
 		mcp.WithString("sort", mcp.Description(params.Sort), mcp.DefaultString("updated")),
 		mcp.WithString("order", mcp.Description(params.Order), mcp.DefaultString("desc")),
