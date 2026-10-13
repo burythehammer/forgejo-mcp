@@ -22,16 +22,30 @@ type stubPort struct {
 	last  string
 	query apptracking.TimeQuery
 	add   apptracking.AddTime
+	// times are the rows the server holds; a list is served one page of them.
+	times []*model.TrackedTime
+}
+
+// servePage returns the rows a server-paged list sends for q.
+func servePage(all []*model.TrackedTime, q apptracking.TimeQuery) []*model.TrackedTime {
+	lo := (q.Page - 1) * q.Limit
+	if lo < 0 || lo > len(all) {
+		lo = len(all)
+	}
+	return all[lo:min(lo+q.Limit, len(all))]
 }
 
 func (p *stubPort) ListIssueTrackedTimes(_ context.Context, _, _ string, _ int64, q apptracking.TimeQuery) ([]*model.TrackedTime, error) {
 	p.last, p.query = "issue", q
+	if p.times != nil {
+		return servePage(p.times, q), p.err
+	}
 	return []*model.TrackedTime{{ID: 1, Time: 90}}, p.err
 }
 
 func (p *stubPort) ListRepoTrackedTimes(_ context.Context, _, _ string, q apptracking.TimeQuery) ([]*model.TrackedTime, error) {
 	p.last, p.query = "repo", q
-	return nil, p.err
+	return servePage(p.times, q), p.err
 }
 
 func (p *stubPort) ListMyTrackedTimes(context.Context) ([]*model.TrackedTime, error) {
@@ -182,7 +196,9 @@ func TestIssueTimesFilterAndPageWithoutUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.query.Since.IsZero() || p.query.Before.IsZero() || p.query.Page != 2 || p.query.Limit != 5 || p.query.User != "" {
+	// The requested page is fetched, then the next one is probed for has_next,
+	// so the last request the port saw is page 3.
+	if p.query.Since.IsZero() || p.query.Before.IsZero() || p.query.Page != 3 || p.query.Limit != 5 || p.query.User != "" {
 		t.Fatalf("query %+v", p.query)
 	}
 }
@@ -250,3 +266,47 @@ func TestSourceFailureIsReturnedAsIs(t *testing.T) {
 
 // MaxResponseItems reports an unknown ceiling for the test double.
 func (*stubPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+
+// TestTimesEnvelopeSaysWhetherMoreFollow covers the four shapes a tracked-time
+// page can take. Forgejo reports no grand total for these lists, so has_next is
+// settled by one probe of the next page: a full page may be the last one.
+func TestTimesEnvelopeSaysWhetherMoreFollow(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		n           int
+		page, limit int
+		count       int
+		hasNext     bool
+	}{
+		{"full page with more", 5, 1, 2, 2, true},
+		{"short last page", 5, 3, 2, 1, false},
+		{"exact multiple last page", 4, 2, 2, 2, false},
+		{"full page before exact end", 4, 1, 2, 2, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			times := make([]*model.TrackedTime, tc.n)
+			for i := range times {
+				times[i] = &model.TrackedTime{ID: int64(i + 1)}
+			}
+			p := &stubPort{times: times}
+			lookups := 0
+			svc := service(p, &lookups)
+			issue, err := svc.IssueTimes(context.Background(), apptracking.IssueTimesInput{IssueRef: ref, Page: tc.page, Limit: tc.limit})
+			if err != nil {
+				t.Fatal(err)
+			}
+			repo, err := svc.RepoTimes(context.Background(), apptracking.RepoTimesInput{Owner: "octo", Repo: "hello", Page: tc.page, Limit: tc.limit})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, got := range []model.TrackedTimePage{issue, repo} {
+				if got.Count != tc.count || len(got.Times) != tc.count || got.HasNext != tc.hasNext || got.Page != tc.page || got.Limit != tc.limit {
+					t.Fatalf("page %+v, want count %d has_next %v page %d limit %d", got, tc.count, tc.hasNext, tc.page, tc.limit)
+				}
+			}
+		})
+	}
+}

@@ -43,7 +43,7 @@ const (
 var (
 	ListActionRunArtifactsTool = mcp.NewTool(
 		ListActionRunArtifactsToolName,
-		mcp.WithDescription("List artifacts of a workflow run. Server-paged: page (default 1) and limit (default 30, maximum 50) are sent as query parameters, optional name filters by artifact name. Returns {run_id, artifacts, page, limit, count} and total_count when Forgejo sets X-Total-Count. A missing run is an error, not an empty list. Metadata only — does not download zips."),
+		mcp.WithDescription("List artifacts of a workflow run. Server-paged: page (default 1) and limit (default 30, maximum 50) are sent as query parameters, optional name filters by artifact name. Returns {run_id, artifacts, page, limit, count, has_next} and total_count when Forgejo sets X-Total-Count; has_next true means a further page may exist, so re-issue the call with page incremented. A missing run is an error, not an empty list. Metadata only — does not download zips."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("run_id", mcp.Required(), mcp.Description(params.RunID), mcp.Min(1)),

@@ -396,18 +396,18 @@ List all my repositories
 | `list_package_files` | List files of one package version. Client-paged via `page`/`limit` (default 30, max 50); envelope `{files, page, limit, count, has_next, total_count}` (`total_count` is the grand total: the file count of the version) |
 | **Actions** | |
 | `dispatch_workflow` | Trigger a workflow run via `workflow_dispatch` event |
-| `list_workflow_runs` | List workflow runs with optional filtering by status, event, or SHA |
+| `list_workflow_runs` | List workflow runs with optional filtering by status, event, or SHA. Paged by `page`/`limit`; returns `{workflow_runs, page, limit, count, total_count?, has_next}` |
 | `get_workflow_run` | Get details of a specific workflow run by ID |
-| `list_action_run_jobs` | List jobs for a Forgejo v16+ workflow run with client-side `page` and `limit` bounds |
+| `list_action_run_jobs` | List jobs for a Forgejo v16+ workflow run with client-side `page` and `limit` bounds. Returns `{run_id, jobs, page, limit, count, total_count, has_next, next_page?}` |
 | `get_action_job_logs` | Read a Forgejo v16+ job log with resumable `offset` and `max_bytes` bounds; defaults to the tail |
 | `cancel_workflow_run` | Cancel a pending or running workflow run. Already-finished runs also return success (HTTP 204); the run is left unchanged |
 | `delete_workflow_run` | Delete a completed workflow run. A live run is an API error. Removes the run and its job logs; Forgejo marks that run's artifacts deleted |
-| `list_action_run_artifacts` | List artifacts of a workflow run. Server-paged via `page`/`limit` (default 30, max 50); optional `name` filter. Envelope `{artifacts, page, limit, count, total_count?}` |
+| `list_action_run_artifacts` | List artifacts of a workflow run. Server-paged via `page`/`limit` (default 30, max 50); optional `name` filter. Envelope `{run_id, artifacts, page, limit, count, total_count?, has_next}` |
 | `get_action_artifact` | Get metadata for one Actions artifact. Does not download the zip |
-| `list_repo_action_secrets` | List a repository's Actions secrets (names only; Forgejo never returns values). Client-paged via `page`/`limit` (default 30, max 50) |
+| `list_repo_action_secrets` | List a repository's Actions secrets (names only; Forgejo never returns values). Client-paged via `page`/`limit` (default 30, max 50); returns `{owner, repo, secrets, page, limit, count, has_next}` |
 | `create_or_update_repo_action_secret` | Create or update a repository Actions secret. Overwrites any existing secret with the same name; the value is never echoed back |
 | `delete_repo_action_secret` | Delete a repository Actions secret |
-| `list_org_action_secrets` | List an organization's Actions secrets (names only; Forgejo never returns values). Client-paged via `page`/`limit` (default 30, max 50) |
+| `list_org_action_secrets` | List an organization's Actions secrets (names only; Forgejo never returns values). Client-paged via `page`/`limit` (default 30, max 50); returns `{org, secrets, page, limit, count, has_next}` |
 | `create_or_update_org_action_secret` | Create or update an organization Actions secret. Overwrites any existing secret with the same name; the value is never echoed back |
 | `delete_org_action_secret` | Delete an organization Actions secret |
 | **Organizations** | |
@@ -428,8 +428,8 @@ List all my repositories
 | `add_team_repo` | Add a repository to a team |
 | `remove_team_repo` | Remove a repository from a team |
 | **Time Tracking** | |
-| `list_issue_tracked_times` | List tracked time entries on an issue or PR |
-| `list_repo_tracked_times` | List tracked time entries across a repository |
+| `list_issue_tracked_times` | List tracked time entries on an issue or PR (page/limit); returns `{times, page, limit, count, has_next}` |
+| `list_repo_tracked_times` | List tracked time entries across a repository (page/limit); returns `{times, page, limit, count, has_next}` |
 | `list_my_tracked_times` | List your own tracked time entries |
 | `add_issue_time` | Log time against an issue or PR (accepts seconds or duration like `15m`) |
 | `reset_issue_time` | Delete ALL tracked time entries on an issue or PR (destructive) |

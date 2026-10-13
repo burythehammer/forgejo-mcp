@@ -32,24 +32,71 @@ func (s *Service) Dispatch(ctx context.Context, owner, repo, workflow string, in
 	return s.p.ActionsURL(owner, repo), nil
 }
 
-// ListRuns returns one page of workflow runs.
-func (s *Service) ListRuns(ctx context.Context, owner, repo string, q RunQuery) (model.WorkflowRunList, error) {
-	var total int64
-	runs, _, err := list.Window(ctx, s.p, list.Paging(q.Paging), defaultRunsLimit,
-		func(ctx context.Context, p list.Paging) ([]model.WorkflowRun, error) {
+// ceiling reads the instance's pagination ceiling through the port, per call.
+func (s *Service) ceiling(ctx context.Context) list.Ceiling {
+	max, known := s.p.MaxResponseItems(ctx)
+	return list.Ceiling{Max: max, Known: known}
+}
+
+// pageOf is the paging a list fetches with: a page below 1 is page 1, and a
+// limit below 1 takes def, lowered to a known ceiling.
+func pageOf(p list.Paging, def int, c list.Ceiling) list.Paging {
+	return list.Given(list.Normalize(p, 0), def, c)
+}
+
+// ListRuns returns one page of workflow runs with its next marker. Forgejo's
+// X-Total-Count is the grand total; a zero total beside rows means the header
+// was absent, so the total is then unknown and the next page is probed.
+func (s *Service) ListRuns(ctx context.Context, owner, repo string, q RunQuery) (model.WorkflowRunPage, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, pageOf(list.Paging(q.Paging), defaultRunsLimit, c), c,
+		func(ctx context.Context, p list.Paging) (list.Batch[model.WorkflowRun], error) {
 			qq := q
 			qq.Paging = Paging(p)
 			got, err := s.p.ListWorkflowRuns(ctx, owner, repo, qq)
 			if err != nil {
-				return nil, fmt.Errorf("failed to list workflow runs: %w", err)
+				return list.Batch[model.WorkflowRun]{}, fmt.Errorf("failed to list workflow runs: %w", err)
 			}
-			total = got.TotalCount
-			return got.WorkflowRuns, nil
+			total := list.Total{Count: int(got.TotalCount), Known: got.TotalCount > 0 || len(got.WorkflowRuns) == 0}
+			return list.Batch[model.WorkflowRun]{Items: got.WorkflowRuns, Total: total}, nil
 		})
 	if err != nil {
-		return model.WorkflowRunList{}, err
+		return model.WorkflowRunPage{}, err
 	}
-	return model.WorkflowRunList{TotalCount: total, WorkflowRuns: runs}, nil
+	out := model.WorkflowRunPage{
+		WorkflowRuns: toRunRows(page.Items),
+		Page:         page.Page,
+		Limit:        page.Limit,
+		Count:        page.Count,
+		HasNext:      page.HasNext,
+	}
+	if page.Total.Known {
+		total := page.Total.Count
+		out.TotalCount = &total
+	}
+	return out, nil
+}
+
+// toRunRows renders workflow runs as the list tool shows them.
+func toRunRows(runs []model.WorkflowRun) []model.WorkflowRunRow {
+	rows := make([]model.WorkflowRunRow, 0, len(runs))
+	for _, r := range runs {
+		row := model.WorkflowRunRow{
+			ID: r.ID, Title: r.Title, Status: r.Status, Event: r.Event, Ref: r.PrettyRef,
+			CommitSHA: r.CommitSHA, HTMLURL: r.HTMLURL,
+		}
+		if r.TriggerUser != nil {
+			row.TriggerUser = *r.TriggerUser
+		}
+		if !r.Started.IsZero() {
+			row.StartedAt = r.Started.Format(time.RFC3339)
+		}
+		if !r.Stopped.IsZero() {
+			row.StoppedAt = r.Stopped.Format(time.RFC3339)
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 // Page sizes the actions lists use when the caller gives none. The ceiling
@@ -87,35 +134,32 @@ func (s *Service) DeleteRun(ctx context.Context, owner, repo string, runID int64
 }
 
 // ListJobs returns one page of a run's jobs. Forgejo does not page jobs, so
-// the page is cut here.
+// the page is cut here, and the full count is the grand total.
 func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64, p Paging) (model.JobPage, error) {
-	var total int
-	var hasNext bool
-	jobs, used, err := list.Window(ctx, s.p, list.Paging(p), defaultJobsLimit,
-		func(ctx context.Context, q list.Paging) ([]model.ActionRunJob, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, pageOf(list.Paging(p), defaultJobsLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[model.ActionRunJob], error) {
 			all, err := s.p.ListRunJobs(ctx, owner, repo, runID)
 			if err != nil {
-				return nil, fmt.Errorf("list action run jobs: %w", err)
+				return list.Batch[model.ActionRunJob]{}, fmt.Errorf("list action run jobs: %w", err)
 			}
-			// Forgejo does not page the job list, so the window is cut here.
-			total = len(all)
-			rows, more := list.Cut(all, q)
-			hasNext = more
-			return rows, nil
+			rows, _ := list.Cut(all, q)
+			return list.Batch[model.ActionRunJob]{Items: rows, Total: list.Total{Count: len(all), Known: true}}, nil
 		})
 	if err != nil {
 		return model.JobPage{}, err
 	}
 	result := model.JobPage{
 		RunID:      runID,
-		Jobs:       jobs,
-		Page:       used.Page,
-		Limit:      used.Limit,
-		TotalCount: total,
-		HasNext:    hasNext,
+		Jobs:       page.Items,
+		Page:       page.Page,
+		Limit:      page.Limit,
+		Count:      page.Count,
+		TotalCount: page.Total.Count,
+		HasNext:    page.HasNext,
 	}
 	if result.HasNext {
-		result.NextPage = used.Page + 1
+		result.NextPage = page.Page + 1
 	}
 	return result, nil
 }
@@ -172,31 +216,39 @@ func (s *Service) JobLog(ctx context.Context, owner, repo string, q JobLogQuery)
 	return result, nil
 }
 
-// ListArtifacts returns one page of a run's artifacts.
+// ListArtifacts returns one page of a run's artifacts with its next marker.
 func (s *Service) ListArtifacts(ctx context.Context, owner, repo string, runID int64, q ArtifactQuery) (model.ArtifactPage, error) {
-	var total *int
-	artifacts, used, err := list.Window(ctx, s.p, list.Paging(q.Paging), defaultArtifactsLimit,
-		func(ctx context.Context, p list.Paging) ([]model.ActionArtifact, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, pageOf(list.Paging(q.Paging), defaultArtifactsLimit, c), c,
+		func(ctx context.Context, p list.Paging) (list.Batch[model.ActionArtifact], error) {
 			qq := q
 			qq.Paging = Paging(p)
 			got, err := s.p.ListRunArtifacts(ctx, owner, repo, runID, qq)
 			if err != nil {
-				return nil, fmt.Errorf("list action run artifacts: %w", err)
+				return list.Batch[model.ActionArtifact]{}, fmt.Errorf("list action run artifacts: %w", err)
 			}
-			total = got.TotalCount
-			return got.Artifacts, nil
+			b := list.Batch[model.ActionArtifact]{Items: got.Artifacts}
+			if got.TotalCount != nil {
+				b.Total = list.Total{Count: *got.TotalCount, Known: true}
+			}
+			return b, nil
 		})
 	if err != nil {
 		return model.ArtifactPage{}, err
 	}
-	return model.ArtifactPage{
-		RunID:      runID,
-		Artifacts:  artifacts,
-		Page:       used.Page,
-		Limit:      used.Limit,
-		Count:      len(artifacts),
-		TotalCount: total,
-	}, nil
+	out := model.ArtifactPage{
+		RunID:     runID,
+		Artifacts: page.Items,
+		Page:      page.Page,
+		Limit:     page.Limit,
+		Count:     page.Count,
+		HasNext:   page.HasNext,
+	}
+	if page.Total.Known {
+		total := page.Total.Count
+		out.TotalCount = &total
+	}
+	return out, nil
 }
 
 // GetArtifact returns the metadata of one artifact.
@@ -208,27 +260,30 @@ func (s *Service) GetArtifact(ctx context.Context, owner, repo string, artifactI
 	return a, nil
 }
 
-// ListRepoSecrets returns one page of a repository's secret names.
+// ListRepoSecrets returns one page of a repository's secret names with its next
+// marker. Forgejo reports no total for secrets, so the next page is probed.
 func (s *Service) ListRepoSecrets(ctx context.Context, owner, repo string, p Paging) (model.RepoSecretPage, error) {
-	secrets, used, err := list.Window(ctx, s.p, list.Paging(p), defaultSecretsLimit,
-		func(ctx context.Context, q list.Paging) ([]model.Secret, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, pageOf(list.Paging(p), defaultSecretsLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[model.Secret], error) {
 			got, err := s.p.ListRepoSecrets(ctx, owner, repo, Paging(q))
 			if err != nil {
-				return nil, fmt.Errorf("list repo action secrets: %w", err)
+				return list.Batch[model.Secret]{}, fmt.Errorf("list repo action secrets: %w", err)
 			}
-			return got, nil
+			return list.Batch[model.Secret]{Items: got}, nil
 		})
 	if err != nil {
 		return model.RepoSecretPage{}, err
 	}
-	summaries := toSummaries(secrets)
+	summaries := toSummaries(page.Items)
 	return model.RepoSecretPage{
 		Owner:   owner,
 		Repo:    repo,
 		Secrets: summaries,
-		Page:    used.Page,
-		Limit:   used.Limit,
+		Page:    page.Page,
+		Limit:   page.Limit,
 		Count:   len(summaries),
+		HasNext: page.HasNext,
 	}, nil
 }
 
@@ -248,26 +303,29 @@ func (s *Service) DeleteRepoSecret(ctx context.Context, owner, repo, name string
 	return nil
 }
 
-// ListOrgSecrets returns one page of an organization's secret names.
+// ListOrgSecrets returns one page of an organization's secret names with its
+// next marker. Forgejo reports no total for secrets, so the next page is probed.
 func (s *Service) ListOrgSecrets(ctx context.Context, org string, p Paging) (model.OrgSecretPage, error) {
-	secrets, used, err := list.Window(ctx, s.p, list.Paging(p), defaultSecretsLimit,
-		func(ctx context.Context, q list.Paging) ([]model.Secret, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, pageOf(list.Paging(p), defaultSecretsLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[model.Secret], error) {
 			got, err := s.p.ListOrgSecrets(ctx, org, Paging(q))
 			if err != nil {
-				return nil, fmt.Errorf("list org action secrets: %w", err)
+				return list.Batch[model.Secret]{}, fmt.Errorf("list org action secrets: %w", err)
 			}
-			return got, nil
+			return list.Batch[model.Secret]{Items: got}, nil
 		})
 	if err != nil {
 		return model.OrgSecretPage{}, err
 	}
-	summaries := toSummaries(secrets)
+	summaries := toSummaries(page.Items)
 	return model.OrgSecretPage{
 		Org:     org,
 		Secrets: summaries,
-		Page:    used.Page,
-		Limit:   used.Limit,
+		Page:    page.Page,
+		Limit:   page.Limit,
 		Count:   len(summaries),
+		HasNext: page.HasNext,
 	}, nil
 }
 

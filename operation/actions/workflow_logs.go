@@ -47,7 +47,7 @@ const (
 var (
 	ListActionRunJobsTool = mcp.NewTool(
 		ListActionRunJobsToolName,
-		mcp.WithDescription("List jobs for a Forgejo v16+ workflow run. Results are paged client-side because Forgejo returns the full job list."),
+		mcp.WithDescription("List jobs for a Forgejo v16+ workflow run. Results are paged client-side because Forgejo returns the full job list. Returns a response envelope {run_id, jobs, page, limit, count, total_count, has_next, next_page}; has_next true means a further page may exist; re-issue the call with page incremented (next_page) to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("run_id", mcp.Required(), mcp.Description(params.RunID), mcp.Min(1)),
