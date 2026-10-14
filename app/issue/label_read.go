@@ -20,7 +20,7 @@ const labelsDefaultLimit = 100
 type LabelPage struct {
 	Labels []*model.Label
 	More   bool
-	Total  Total
+	Total  *int
 }
 
 // LabelList is one label list read: the labels, each with its scope, and what
@@ -29,7 +29,7 @@ type LabelPage struct {
 type LabelList struct {
 	Labels []model.ScopedLabel
 	More   bool
-	Total  Total
+	Total  *int
 	Page   int
 	Limit  int
 }
@@ -38,14 +38,12 @@ type LabelList struct {
 // used. HasNext is the server's own report of rows past the page, and TotalCount
 // is the server's grand total when it reported one.
 func (l LabelList) Envelope() model.ScopedLabelPage {
-	out := model.ScopedLabelPage{
-		Labels: l.Labels, Page: l.Page, Limit: l.Limit, Count: len(l.Labels), HasNext: l.More,
+	return model.ScopedLabelPage{
+		Labels: l.Labels,
+		PageMeta: model.PageMeta{
+			Page: l.Page, Limit: l.Limit, Count: len(l.Labels), HasNext: l.More, TotalCount: l.Total,
+		},
 	}
-	if l.Total.Known {
-		n := l.Total.Count
-		out.TotalCount = &n
-	}
-	return out
 }
 
 // ReadRepoLabels is the one read behind the list_repo_labels tool and the

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 )
 
 // corpus is a fixed list of n items 1..n, served the way Forgejo serves a
@@ -203,14 +205,14 @@ func TestRun_UnknownCeilingNeverRejects(t *testing.T) {
 
 func TestRun_PassesTotalThrough(t *testing.T) {
 	fetch := func(context.Context, Paging) (Batch[int], error) {
-		return Batch[int]{Items: []int{1}, Total: Total{Count: 42, Known: true}}, nil
+		return Batch[int]{Items: []int{1}, Total: ptr.To(42)}, nil
 	}
 	page, err := Run(context.Background(), Paging{Page: 1, Limit: 1}, Ceiling{Max: 10, Known: true}, fetch)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.Total != (Total{Count: 42, Known: true}) {
-		t.Fatalf("total = %+v", page.Total)
+	if page.Total == nil || *page.Total != 42 {
+		t.Fatalf("total = %v", page.Total)
 	}
 }
 
@@ -219,7 +221,7 @@ func withTotal(items []int, total int) Fetch[int] {
 	inner := fetchFrom(items, nil)
 	return func(ctx context.Context, p Paging) (Batch[int], error) {
 		b, err := inner(ctx, p)
-		b.Total = Total{Count: total, Known: true}
+		b.Total = ptr.To(total)
 		return b, err
 	}
 }

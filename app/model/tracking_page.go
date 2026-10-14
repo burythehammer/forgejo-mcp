@@ -6,9 +6,6 @@ package model
 // list_repo_tracked_times: one page of tracked times with the continuation
 // signal of docs/design/output-bounding.md.
 type TrackedTimePage struct {
-	Times   []*TrackedTime `json:"times"`
-	Page    int            `json:"page"`
-	Limit   int            `json:"limit"`
-	Count   int            `json:"count"`
-	HasNext bool           `json:"has_next"`
+	Times []*TrackedTime `json:"times"`
+	PageMeta
 }

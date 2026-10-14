@@ -214,10 +214,10 @@ func (s *Service) labelUsage(ctx context.Context, owner, repo, label string) (in
 	if err != nil {
 		return 0, fmt.Errorf("count label usage: %w", err)
 	}
-	if total.Known {
-		return total.Count, nil
+	if total == nil {
+		return 0, nil
 	}
-	return 0, nil
+	return *total, nil
 }
 
 // orgLabelUsage counts, best-effort, the issues and pull requests in an

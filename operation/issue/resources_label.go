@@ -253,11 +253,11 @@ func labelIDs(labels []model.ScopedLabel) []string {
 
 // knownTotal is the server's total when it reported one, and zero otherwise,
 // which WithMoreRemaining reads as "total unknown".
-func knownTotal(t apppissue.Total) int {
-	if !t.Known {
+func knownTotal(t *int) int {
+	if t == nil {
 		return 0
 	}
-	return t.Count
+	return *t
 }
 
 // clampToCeiling lowers a resource's limit to the instance ceiling when one is

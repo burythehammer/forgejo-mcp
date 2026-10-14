@@ -115,7 +115,7 @@ func (s *Service) List(ctx context.Context, in ListInput) (model.IssuePage, erro
 		return model.IssuePage{}, err
 	}
 	return model.IssuePage{
-		Issues: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+		Issues: page.Items, PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 
@@ -188,20 +188,12 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (model.IssueSearch
 			if err != nil {
 				return list.Batch[*model.Issue]{}, fmt.Errorf("search issues err: %w", err)
 			}
-			return list.Batch[*model.Issue]{Items: issues, Total: list.Total(total)}, nil
+			return list.Batch[*model.Issue]{Items: issues, Total: total}, nil
 		})
 	if err != nil {
 		return model.IssueSearchPage{}, err
 	}
-	var totalCount *int
-	if page.Total.Known {
-		n := page.Total.Count
-		totalCount = &n
-	}
-	return model.IssueSearchPage{
-		Issues: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count,
-		HasNext: page.HasNext, TotalCount: totalCount,
-	}, nil
+	return model.IssueSearchPage{Issues: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // Create opens an issue. Labels resolve before the POST, not after it: a typo
@@ -354,7 +346,7 @@ func (s *Service) Milestones(ctx context.Context, owner, repo string, m Mileston
 		return model.MilestonePage{}, err
 	}
 	return model.MilestonePage{
-		Milestones: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+		Milestones: page.Items, PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 

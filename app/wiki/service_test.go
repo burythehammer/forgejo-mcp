@@ -161,7 +161,7 @@ func TestRevisionsReportTheTotalAndPaging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Revisions) != 1 || !got.HasNext || got.TotalCount != 2 {
+	if len(got.Revisions) != 1 || !got.HasNext || got.TotalCount == nil || *got.TotalCount != 2 {
 		t.Fatalf("got %+v", got)
 	}
 }

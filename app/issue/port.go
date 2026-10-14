@@ -24,7 +24,7 @@ type Port interface {
 	ListIssues(ctx context.Context, owner, repo string, q IssueList) ([]*model.Issue, error)
 	// SearchIssues searches across every repository of q.Owner and reports the
 	// total when Forgejo gives one.
-	SearchIssues(ctx context.Context, q SearchQuery) ([]*model.Issue, Total, error)
+	SearchIssues(ctx context.Context, q SearchQuery) ([]*model.Issue, *int, error)
 	// MaxResponseItems is the instance's pagination ceiling; ok is false when
 	// it cannot be determined.
 	MaxResponseItems(ctx context.Context) (limit int, ok bool)
@@ -60,9 +60,9 @@ type Port interface {
 	// page past the end is empty.
 	ListOrgRepoNames(ctx context.Context, org string, p Paging) ([]string, error)
 	// CountIssuesLabelled counts the issues and pull requests of a repository
-	// that carry the named label. Total.Known is false when Forgejo does not
-	// report a total.
-	CountIssuesLabelled(ctx context.Context, owner, repo, label string) (Total, error)
+	// that carry the named label. The total is nil when Forgejo does not report
+	// one.
+	CountIssuesLabelled(ctx context.Context, owner, repo, label string) (*int, error)
 
 	ListIssueDependencies(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.Issue, error)
 	ListIssueDependents(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.Issue, error)
@@ -79,13 +79,6 @@ type Target struct {
 // Paging selects a page of a list. The use cases pass it on as given; the
 // MCP adapter applies the tool's defaults.
 type Paging struct{ Page, Limit int }
-
-// Total is a count a list reports. Known is false when the server did not
-// report one, in which case Count means nothing.
-type Total struct {
-	Count int
-	Known bool
-}
 
 // IssueList filters and pages a repository's issue list. Milestones and Labels
 // are already split into names or IDs; nil means no filter.

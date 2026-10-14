@@ -33,7 +33,7 @@ func (s *Service) Users(ctx context.Context, q UserQuery) (model.UserSearchPage,
 	if err != nil {
 		return model.UserSearchPage{}, err
 	}
-	return model.UserSearchPage{Users: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.UserSearchPage{Users: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // OrgTeams returns one page of the teams of org matching q.
@@ -49,7 +49,7 @@ func (s *Service) OrgTeams(ctx context.Context, org string, q TeamQuery) (model.
 	if err != nil {
 		return model.TeamSearchPage{}, err
 	}
-	return model.TeamSearchPage{Teams: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.TeamSearchPage{Teams: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // Repos returns one page of the repositories matching q.
@@ -65,5 +65,5 @@ func (s *Service) Repos(ctx context.Context, q RepoQuery) (model.RepositoryPage,
 	if err != nil {
 		return model.RepositoryPage{}, err
 	}
-	return model.RepositoryPage{Repositories: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.RepositoryPage{Repositories: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }

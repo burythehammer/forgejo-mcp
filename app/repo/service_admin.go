@@ -157,7 +157,7 @@ func (s *AdminService) ListRepoTopics(ctx context.Context, owner, repo string, p
 	if topics == nil {
 		topics = []string{}
 	}
-	return model.TopicPage{Topics: topics, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.TopicPage{Topics: topics, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // SetRepoTopics replaces every topic of a repository with the comma-separated

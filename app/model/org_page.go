@@ -6,26 +6,17 @@ package model
 // of organizations with the continuation signal of docs/design/output-bounding.md.
 type OrganizationPage struct {
 	Organizations []*Organization `json:"organizations"`
-	Page          int             `json:"page"`
-	Limit         int             `json:"limit"`
-	Count         int             `json:"count"`
-	HasNext       bool            `json:"has_next"`
+	PageMeta
 }
 
 // MemberPage is the response of list_org_members.
 type MemberPage struct {
 	Members []*User `json:"members"`
-	Page    int     `json:"page"`
-	Limit   int     `json:"limit"`
-	Count   int     `json:"count"`
-	HasNext bool    `json:"has_next"`
+	PageMeta
 }
 
 // TeamPage is the response of list_org_teams.
 type TeamPage struct {
-	Teams   []*Team `json:"teams"`
-	Page    int     `json:"page"`
-	Limit   int     `json:"limit"`
-	Count   int     `json:"count"`
-	HasNext bool    `json:"has_next"`
+	Teams []*Team `json:"teams"`
+	PageMeta
 }

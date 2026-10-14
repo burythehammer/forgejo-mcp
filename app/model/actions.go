@@ -159,18 +159,12 @@ type RepoSecretPage struct {
 	Owner   string          `json:"owner"`
 	Repo    string          `json:"repo"`
 	Secrets []SecretSummary `json:"secrets"`
-	Page    int             `json:"page"`
-	Limit   int             `json:"limit"`
-	Count   int             `json:"count"`
-	HasNext bool            `json:"has_next"`
+	PageMeta
 }
 
 // OrgSecretPage is the list_org_action_secrets output.
 type OrgSecretPage struct {
 	Org     string          `json:"org"`
 	Secrets []SecretSummary `json:"secrets"`
-	Page    int             `json:"page"`
-	Limit   int             `json:"limit"`
-	Count   int             `json:"count"`
-	HasNext bool            `json:"has_next"`
+	PageMeta
 }

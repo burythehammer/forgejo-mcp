@@ -302,10 +302,6 @@ type Comment struct {
 // IssueSearchPage is the response of search_issues: the issues with the
 // continuation signal of docs/design/output-bounding.md.
 type IssueSearchPage struct {
-	Issues     []*Issue `json:"issues"`
-	Page       int      `json:"page"`
-	Limit      int      `json:"limit"`
-	Count      int      `json:"count"`
-	HasNext    bool     `json:"has_next"`
-	TotalCount *int     `json:"total_count,omitempty"`
+	Issues []*Issue `json:"issues"`
+	PageMeta
 }

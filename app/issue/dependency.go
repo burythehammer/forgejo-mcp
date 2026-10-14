@@ -39,7 +39,7 @@ func (s *Service) relatedPage(ctx context.Context, what string,
 		return model.DependencyPage{}, err
 	}
 	return model.DependencyPage{
-		Issues: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+		Issues: page.Items, PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 

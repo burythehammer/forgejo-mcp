@@ -121,8 +121,8 @@ func TestReadRepoLabels_ReportsMoreRowsOfTheRepository(t *testing.T) {
 	if len(first.Labels) != 2 || !first.More {
 		t.Fatalf("page 1: %d labels, more=%v; want 2, true", len(first.Labels), first.More)
 	}
-	if !first.Total.Known || first.Total.Count != 5 {
-		t.Fatalf("page 1 total: %+v; want known 5", first.Total)
+	if first.Total == nil || *first.Total != 5 {
+		t.Fatalf("page 1 total: %v; want known 5", first.Total)
 	}
 
 	last, err := s.ReadRepoLabels(ctx, apppissue.RepoLabelsInput{

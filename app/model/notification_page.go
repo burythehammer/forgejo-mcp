@@ -6,8 +6,5 @@ package model
 // repository's notification threads.
 type NotificationPage struct {
 	Notifications []*NotificationThread `json:"notifications"`
-	Page          int                   `json:"page"`
-	Limit         int                   `json:"limit"`
-	Count         int                   `json:"count"`
-	HasNext       bool                  `json:"has_next"`
+	PageMeta
 }

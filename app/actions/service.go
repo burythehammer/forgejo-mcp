@@ -12,6 +12,7 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 )
 
 // ErrLogRangeOverflow is returned when offset and max_bytes together exceed
@@ -57,7 +58,7 @@ func (s *Service) ListRuns(ctx context.Context, owner, repo string, q RunQuery) 
 			if err != nil {
 				return list.Batch[model.WorkflowRun]{}, fmt.Errorf("failed to list workflow runs: %w", err)
 			}
-			total := list.Total{Count: int(got.TotalCount), Known: got.TotalCount > 0 || len(got.WorkflowRuns) == 0}
+			total := runTotal(got.TotalCount, len(got.WorkflowRuns))
 			return list.Batch[model.WorkflowRun]{Items: got.WorkflowRuns, Total: total}, nil
 		})
 	if err != nil {
@@ -70,10 +71,7 @@ func (s *Service) ListRuns(ctx context.Context, owner, repo string, q RunQuery) 
 		Count:        page.Count,
 		HasNext:      page.HasNext,
 	}
-	if page.Total.Known {
-		total := page.Total.Count
-		out.TotalCount = &total
-	}
+	out.TotalCount = page.Total
 	return out, nil
 }
 
@@ -144,7 +142,7 @@ func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64,
 				return list.Batch[model.ActionRunJob]{}, fmt.Errorf("list action run jobs: %w", err)
 			}
 			rows, _ := list.Cut(all, q)
-			return list.Batch[model.ActionRunJob]{Items: rows, Total: list.Total{Count: len(all), Known: true}}, nil
+			return list.Batch[model.ActionRunJob]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {
 		return model.JobPage{}, err
@@ -155,7 +153,7 @@ func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64,
 		Page:       page.Page,
 		Limit:      page.Limit,
 		Count:      page.Count,
-		TotalCount: totalPtr(page.Total),
+		TotalCount: page.Total,
 		HasNext:    page.HasNext,
 	}
 	if result.HasNext {
@@ -227,11 +225,7 @@ func (s *Service) ListArtifacts(ctx context.Context, owner, repo string, runID i
 			if err != nil {
 				return list.Batch[model.ActionArtifact]{}, fmt.Errorf("list action run artifacts: %w", err)
 			}
-			b := list.Batch[model.ActionArtifact]{Items: got.Artifacts}
-			if got.TotalCount != nil {
-				b.Total = list.Total{Count: *got.TotalCount, Known: true}
-			}
-			return b, nil
+			return list.Batch[model.ActionArtifact]{Items: got.Artifacts, Total: got.TotalCount}, nil
 		})
 	if err != nil {
 		return model.ArtifactPage{}, err
@@ -244,10 +238,7 @@ func (s *Service) ListArtifacts(ctx context.Context, owner, repo string, runID i
 		Count:     page.Count,
 		HasNext:   page.HasNext,
 	}
-	if page.Total.Known {
-		total := page.Total.Count
-		out.TotalCount = &total
-	}
+	out.TotalCount = page.Total
 	return out, nil
 }
 
@@ -277,13 +268,10 @@ func (s *Service) ListRepoSecrets(ctx context.Context, owner, repo string, p Pag
 	}
 	summaries := toSummaries(page.Items)
 	return model.RepoSecretPage{
-		Owner:   owner,
-		Repo:    repo,
-		Secrets: summaries,
-		Page:    page.Page,
-		Limit:   page.Limit,
-		Count:   len(summaries),
-		HasNext: page.HasNext,
+		Owner:    owner,
+		Repo:     repo,
+		Secrets:  summaries,
+		PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 
@@ -320,12 +308,9 @@ func (s *Service) ListOrgSecrets(ctx context.Context, org string, p Paging) (mod
 	}
 	summaries := toSummaries(page.Items)
 	return model.OrgSecretPage{
-		Org:     org,
-		Secrets: summaries,
-		Page:    page.Page,
-		Limit:   page.Limit,
-		Count:   len(summaries),
-		HasNext: page.HasNext,
+		Org:      org,
+		Secrets:  summaries,
+		PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 
@@ -385,11 +370,12 @@ func toSummaries(secrets []model.Secret) []model.SecretSummary {
 	return summaries
 }
 
-// totalPtr is a reported grand total, or nil when the list reported none.
-func totalPtr(t list.Total) *int {
-	if !t.Known {
-		return nil
+// runTotal is the grand total of a workflow-run page. A zero total beside rows
+// means the header was absent, so the total is unknown; an empty page reports
+// its own zero.
+func runTotal(total int64, rows int) *int {
+	if total > 0 || rows == 0 {
+		return ptr.To(int(total))
 	}
-	n := t.Count
-	return &n
+	return nil
 }

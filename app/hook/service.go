@@ -72,18 +72,13 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.HookListResult
 		if err != nil {
 			return list.Batch[*model.Hook]{}, fmt.Errorf("list repo hooks: %w", err)
 		}
-		return list.Batch[*model.Hook]{Items: hooks.Hooks, Total: totalOf(hooks.TotalCount)}, nil
+		return list.Batch[*model.Hook]{Items: hooks.Hooks, Total: hooks.TotalCount}, nil
 	})
 	if err != nil {
 		return model.HookListResult{}, err
 	}
 	// The grand total, when Forgejo reported one, is what TotalCount carries; a
 	// reported total also decides has_next inside list.Run.
-	var total *int
-	if got.Total.Known {
-		n := got.Total.Count
-		total = &n
-	}
 	payloads := make([]model.HookPayload, len(got.Items))
 	for i, hk := range got.Items {
 		payloads[i] = model.SafeHook(hk)
@@ -92,19 +87,10 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.HookListResult
 		Page:       got.Page,
 		Limit:      got.Limit,
 		Count:      got.Count,
-		TotalCount: total,
+		TotalCount: got.Total,
 		Hooks:      payloads,
 		HasNext:    got.HasNext,
 	}, nil
-}
-
-// totalOf turns the grand total a port reports into a list total; a nil count
-// is unknown, never zero.
-func totalOf(n *int) list.Total {
-	if n == nil {
-		return list.Total{}
-	}
-	return list.Total{Count: *n, Known: true}
 }
 
 // Get returns one webhook in its safe form.

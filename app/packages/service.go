@@ -8,6 +8,7 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 )
 
 // Service runs the package use cases over a Port. Build one per request from
@@ -51,11 +52,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.ListPackagesRe
 		if err != nil {
 			return list.Batch[model.PackageVersion]{}, fmt.Errorf("list packages: %w", err)
 		}
-		b := list.Batch[model.PackageVersion]{Items: got.Packages}
-		if got.TotalCount != nil {
-			b.Total = list.Total{Count: *got.TotalCount, Known: true}
-		}
-		return b, nil
+		return list.Batch[model.PackageVersion]{Items: got.Packages, Total: got.TotalCount}, nil
 	})
 	if err != nil {
 		return model.ListPackagesResult{}, err
@@ -64,19 +61,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.ListPackagesRe
 	for _, row := range page.Items {
 		packages = append(packages, view(row))
 	}
-	var total *int
-	if page.Total.Known {
-		n := page.Total.Count
-		total = &n
-	}
-	return model.ListPackagesResult{
-		Packages:   packages,
-		Page:       page.Page,
-		Limit:      page.Limit,
-		Count:      page.Count,
-		HasNext:    page.HasNext,
-		TotalCount: total,
-	}, nil
+	return model.ListPackagesResult{Packages: packages, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // Get returns one package version.
@@ -114,19 +99,12 @@ func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.List
 		// Forgejo does not page the listing, so the window is cut here. The whole
 		// listing is the grand total, so has_next needs no probe.
 		rows, _ := list.Cut(all, q)
-		return list.Batch[model.PackageFileView]{Items: rows, Total: list.Total{Count: len(all), Known: true}}, nil
+		return list.Batch[model.PackageFileView]{Items: rows, Total: ptr.To(len(all))}, nil
 	})
 	if err != nil {
 		return model.ListPackageFilesResult{}, err
 	}
-	return model.ListPackageFilesResult{
-		Files:      page.Items,
-		Page:       page.Page,
-		Limit:      page.Limit,
-		Count:      page.Count,
-		HasNext:    page.HasNext,
-		TotalCount: page.Total.Count,
-	}, nil
+	return model.ListPackageFilesResult{Files: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 func view(src model.PackageVersion) model.PackageView {

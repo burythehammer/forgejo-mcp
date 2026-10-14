@@ -9,6 +9,7 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 )
 
 // Service is the release use cases: one method per tool.
@@ -46,13 +47,10 @@ func (s *Service) ListReleases(ctx context.Context, owner, repo string, q ListQu
 	if rels == nil {
 		rels = []*model.Release{}
 	}
-	return model.ReleasePage{
-		Releases: rels,
-		Page:     page.Page,
-		Limit:    page.Limit,
-		Count:    len(rels),
-		HasNext:  page.HasNext,
-	}, nil
+	// The state filter runs after paging, so the count is what survives it.
+	meta := model.PageMetaOf(page)
+	meta.Count = len(rels)
+	return model.ReleasePage{Releases: rels, PageMeta: meta}, nil
 }
 
 // defaultLimit is the page size a release list uses when the caller gives none.
@@ -164,7 +162,7 @@ func (s *Service) ListAttachments(ctx context.Context, owner, repo string, relea
 				return list.Batch[*model.Attachment]{}, fmt.Errorf("list release attachments err: %w", err)
 			}
 			rows, _ := list.Cut(all, q)
-			return list.Batch[*model.Attachment]{Items: rows, Total: list.Total{Count: len(all), Known: true}}, nil
+			return list.Batch[*model.Attachment]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {
 		return model.AttachmentPage{}, err
@@ -175,11 +173,16 @@ func (s *Service) ListAttachments(ctx context.Context, owner, repo string, relea
 	}
 	return model.AttachmentPage{
 		Attachments: atts,
-		Page:        page.Page,
-		Limit:       page.Limit,
-		Count:       page.Count,
-		HasNext:     page.HasNext,
+		PageMeta:    attachmentMeta(page),
 	}, nil
+}
+
+// attachmentMeta is the page's metadata without a total: the attachment list
+// has never reported one, though the whole list is read to page it.
+func attachmentMeta(page list.Page[*model.Attachment]) model.PageMeta {
+	meta := model.PageMetaOf(page)
+	meta.TotalCount = nil
+	return meta
 }
 
 // GetAttachment returns one asset's metadata.

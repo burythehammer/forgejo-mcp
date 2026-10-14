@@ -33,7 +33,7 @@ func (s *GitService) ListBranches(ctx context.Context, owner, repo string, p Git
 	if err != nil {
 		return model.BranchPage{}, err
 	}
-	return model.BranchPage{Branches: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.BranchPage{Branches: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // defaultListLimit is the page size a repository list uses when the caller gives
@@ -83,7 +83,7 @@ func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q List
 	if err != nil {
 		return model.CommitPage{}, err
 	}
-	return model.CommitPage{Commits: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.CommitPage{Commits: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // ListContents lists one directory level of a repository at a ref.

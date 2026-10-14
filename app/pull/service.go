@@ -153,7 +153,7 @@ func (s *Service) List(ctx context.Context, in ListInput) (model.PullRequestPage
 	if err != nil {
 		return model.PullRequestPage{}, err
 	}
-	return model.PullRequestPage{PullRequests: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.PullRequestPage{PullRequests: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // Create opens a pull request.
@@ -212,7 +212,7 @@ func (s *Service) Files(ctx context.Context, in PagedPR) (model.ChangedFilePage,
 	if err != nil {
 		return model.ChangedFilePage{}, err
 	}
-	return model.ChangedFilePage{Files: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.ChangedFilePage{Files: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // Diff returns a pull request's unified diff, or only the section for
@@ -245,7 +245,7 @@ func (s *Service) Reviews(ctx context.Context, in PagedPR) (model.PullReviewPage
 	if err != nil {
 		return model.PullReviewPage{}, err
 	}
-	return model.PullReviewPage{Reviews: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.PullReviewPage{Reviews: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // Review returns one review.
