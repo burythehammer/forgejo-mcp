@@ -76,6 +76,48 @@ func TestOfIssueRead_EmptyFieldsAreNotNull(t *testing.T) {
 	}
 }
 
+func samplePullRequest() *model.PullRequest {
+	return &model.PullRequest{
+		Index:     7,
+		HTMLURL:   "https://forge.example/o/r/pulls/7",
+		Title:     "Compact me",
+		Body:      "a long body that the read shape carries",
+		State:     "open",
+		Poster:    &model.User{UserName: "matt", Email: "matt@example.test"},
+		Labels:    []*model.Label{{Name: "bug"}},
+		Assignees: []*model.User{{UserName: "alice"}},
+		Head:      &model.PRBranchInfo{Name: "feat", Ref: "feat", Sha: "abc123"},
+		Base:      &model.PRBranchInfo{Name: "main", Ref: "main", Sha: "def456"},
+		Mergeable: true,
+		Comments:  2,
+		Updated:   &updated,
+	}
+}
+
+// TestOfPullRequestRead_EmptyFieldsAreNotNull: an open pull request with no
+// labels or assignees renders them as [], and its absent merge and close times
+// and merge commit as null, the full entity's convention for absent values.
+func TestOfPullRequestRead_EmptyFieldsAreNotNull(t *testing.T) {
+	t.Parallel()
+	pr := samplePullRequest()
+	pr.Labels, pr.Assignees = nil, nil
+	b, err := json.Marshal(OfPullRequestRead(pr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{
+		"labels": "[]", "assignees": "[]", "closed_at": "null", "merged_at": "null", "merge_commit_sha": "null",
+	} {
+		if string(got[k]) != want {
+			t.Errorf("%s = %s, want %s", k, got[k], want)
+		}
+	}
+}
+
 func TestOfIssue_CompactFieldsOnly(t *testing.T) {
 	t.Parallel()
 	b, err := json.Marshal(OfIssue(sampleIssue()))

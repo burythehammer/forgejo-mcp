@@ -27,9 +27,10 @@ type handlers struct{ forge forge.Factory }
 // them in agreement with the tool definitions.
 
 type getArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	Verbose bool    `json:"verbose"`
 }
 
 type listArgs struct {
@@ -165,7 +166,7 @@ func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolR
 		if err != nil {
 			return nil, mapErr(pullResourceURI(a.Owner, a.Repo, in.Index), err)
 		}
-		return mcpresult.Render(read.PR, nil)
+		return compact.RenderPullRequestRead(read.PR, nil, a.Verbose)
 	})
 }
 

@@ -374,7 +374,7 @@ List all my repositories
 | `delete_issue_comment` | Delete a comment |
 | **Pull Requests** | |
 | `list_repo_pull_requests` | List pull requests in a repository (page/limit); returns `{pull_requests,page,limit,count,has_next}` |
-| `get_pull_request_by_index` | Get a specific pull request |
+| `get_pull_request_by_index` | Get a specific pull request. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, head and base branch names, body, merged, merged_at, closed_at, mergeable, merge_commit_sha, head_sha, comments); `verbose=true` returns the full pull request |
 | `create_pull_request` | Create a new pull request. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, head, base); the submitted body is not echoed back. `verbose=true` returns the full pull request |
 | `update_pull_request` | Update an existing pull request. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full pull request |
 | `list_pull_reviews` | List reviews for a pull request (page/limit); returns `{reviews,page,limit,count,has_next}` |

@@ -6,10 +6,11 @@
 // what changed, and the optional `verbose` argument restores the full entity.
 //
 // One shape is defined per entity kind here, so every write tool that returns
-// an issue or a pull request agrees on it. get_issue_by_index is the one read
-// that returns a compact result by default: its IssueRead is the issue write
-// shape plus the fields a status check needs. Other read tools and the
-// forgejo:// resources keep the full entity.
+// an issue or a pull request agrees on it. get_issue_by_index and
+// get_pull_request_by_index are the reads that return a compact result by
+// default: IssueRead and PullRequestRead are the write shape plus the fields a
+// status check needs. Other read tools and the forgejo:// resources keep the
+// full entity.
 package compact
 
 import (
@@ -53,6 +54,23 @@ type IssueRead struct {
 	Closed   *time.Time `json:"closed_at"`
 	Ref      string     `json:"ref"`
 	Comments int        `json:"comments"`
+}
+
+// PullRequestRead is the compact result of get_pull_request_by_index: the pull
+// request write shape plus the body, the merge and close times, the merge
+// commit, the head commit, the mergeable flag and the comment count. The
+// poster, the merger, the milestone and the nested repositories are
+// verbose-only.
+type PullRequestRead struct {
+	PullRequest
+	Body           string     `json:"body"`
+	Merged         bool       `json:"merged"`
+	MergedAt       *time.Time `json:"merged_at"`
+	Closed         *time.Time `json:"closed_at"`
+	Mergeable      bool       `json:"mergeable"`
+	MergeCommitSHA *string    `json:"merge_commit_sha"`
+	HeadSHA        string     `json:"head_sha"`
+	Comments       int        `json:"comments"`
 }
 
 // Comment is the compact result of a comment write: the comment's ID, its URL
@@ -122,6 +140,24 @@ func OfIssueRead(iss *model.Issue) IssueRead {
 	}
 }
 
+// OfPullRequestRead returns the compact read shape of a pull request.
+func OfPullRequestRead(pr *model.PullRequest) PullRequestRead {
+	out := PullRequestRead{
+		PullRequest:    OfPullRequest(pr),
+		Body:           pr.Body,
+		Merged:         pr.HasMerged,
+		MergedAt:       pr.Merged,
+		Closed:         pr.Closed,
+		Mergeable:      pr.Mergeable,
+		MergeCommitSHA: pr.MergedCommitID,
+		Comments:       pr.Comments,
+	}
+	if pr.Head != nil {
+		out.HeadSHA = pr.Head.Sha
+	}
+	return out
+}
+
 // OfComment returns the compact shape of a comment.
 func OfComment(c *model.Comment) Comment {
 	return Comment{ID: c.ID, URL: c.HTMLURL, Updated: c.Updated}
@@ -151,6 +187,12 @@ func RenderPullRequest(pr *model.PullRequest, err error, verbose bool) (*mcp.Cal
 // caller's: it maps the error itself and passes nil here.
 func RenderIssueRead(iss *model.Issue, err error, verbose bool) (*mcp.CallToolResult, error) {
 	return render(iss, err, verbose, OfIssueRead)
+}
+
+// RenderPullRequestRead sends the result of get_pull_request_by_index. The error
+// path is the caller's: it maps the error itself and passes nil here.
+func RenderPullRequestRead(pr *model.PullRequest, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(pr, err, verbose, OfPullRequestRead)
 }
 
 // RenderComment sends the result of a comment write.

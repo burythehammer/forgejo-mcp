@@ -18,15 +18,32 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// prFacts is what a caller learns about one pull request. The tool and the
-// resource encode it differently, but these facts must agree.
+// prFacts is what a caller learns about one pull request from the facts the
+// compact read carries. The tool and the resource encode it differently, but
+// these facts must agree. The poster and the creation time are verbose-only on
+// the tool, so they are not compared here.
 type prFacts struct {
-	Index                                    int64
-	Title, State, Body, Author               string
-	HeadRef, BaseRef                         string
-	Mergeable                                bool
-	CommentCount                             int
-	CreatedAt, UpdatedAt, ClosedAt, MergedAt string
+	Index                         int64
+	Title, State, Body            string
+	HeadRef, BaseRef              string
+	Mergeable                     bool
+	CommentCount                  int
+	UpdatedAt, ClosedAt, MergedAt string
+}
+
+// compactPR is get_pull_request_by_index's default result as a caller decodes it.
+type compactPR struct {
+	Number    int64      `json:"number"`
+	Title     string     `json:"title"`
+	State     string     `json:"state"`
+	Head      string     `json:"head"`
+	Base      string     `json:"base"`
+	Updated   time.Time  `json:"updated_at"`
+	Body      string     `json:"body"`
+	MergedAt  *time.Time `json:"merged_at"`
+	Closed    *time.Time `json:"closed_at"`
+	Mergeable bool       `json:"mergeable"`
+	Comments  int        `json:"comments"`
 }
 
 // commentFact is one comment of the thread as a caller sees it.
@@ -48,23 +65,12 @@ func prStamp(t *time.Time) string {
 	return t.Format(resourceTimeFormat)
 }
 
-func toolPRFacts(pr model.PullRequest) prFacts {
-	f := prFacts{
-		Index: pr.Index, Title: pr.Title, State: pr.State, Body: pr.Body,
-		Mergeable: pr.Mergeable, CommentCount: pr.Comments,
-		CreatedAt: prStamp(pr.Created), UpdatedAt: prStamp(pr.Updated),
-		ClosedAt: prStamp(pr.Closed), MergedAt: prStamp(pr.Merged),
+func toolPRFacts(pr compactPR) prFacts {
+	return prFacts{
+		Index: pr.Number, Title: pr.Title, State: pr.State, Body: pr.Body,
+		HeadRef: pr.Head, BaseRef: pr.Base, Mergeable: pr.Mergeable, CommentCount: pr.Comments,
+		UpdatedAt: prStamp(&pr.Updated), ClosedAt: prStamp(pr.Closed), MergedAt: prStamp(pr.MergedAt),
 	}
-	if pr.Poster != nil {
-		f.Author = pr.Poster.UserName
-	}
-	if pr.Head != nil {
-		f.HeadRef = pr.Head.Ref
-	}
-	if pr.Base != nil {
-		f.BaseRef = pr.Base.Ref
-	}
-	return f
 }
 
 func resourcePRFacts(t *testing.T, p prResourcePayload, sidecar string) prFacts {
@@ -74,9 +80,9 @@ func resourcePRFacts(t *testing.T, p prResourcePayload, sidecar string) prFacts 
 		t.Fatalf("markdown sidecar has no body separator: %q", sidecar)
 	}
 	return prFacts{
-		Index: p.Index, Title: p.Title, State: p.State, Body: body, Author: p.Author,
+		Index: p.Index, Title: p.Title, State: p.State, Body: body,
 		HeadRef: p.Head.Ref, BaseRef: p.Base.Ref, Mergeable: p.Mergeable, CommentCount: p.CommentCount,
-		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt, ClosedAt: p.ClosedAt, MergedAt: p.MergedAt,
+		UpdatedAt: p.UpdatedAt, ClosedAt: p.ClosedAt, MergedAt: p.MergedAt,
 	}
 }
 
@@ -113,8 +119,8 @@ func TestPRReadParity_ToolAndResourceAgree(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Facts: the tool's pull request and the resource's must carry the same ones.
-	var toolPR model.PullRequest
+	// Facts: the tool's compact read and the resource's pull request must carry the same ones.
+	var toolPR compactPR
 	callJSON(t, h.GetPullRequestByIndexFn, map[string]any{"index": float64(idx)}, &toolPR)
 	var p prResourcePayload
 	var sidecar string

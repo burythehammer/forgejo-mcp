@@ -101,6 +101,27 @@ type stubPulls struct {
 	calls []string
 	fail  error
 	merge forge.MergeResult
+	// pr, when set, is the pull request GetPullRequest returns in place of
+	// fixedPR.
+	pr *forgejo_sdk.PullRequest
+}
+
+// mergedPR is fixedPR as Forgejo reports a merged pull request: closed, with the
+// merged flag set along with the merge time and commit.
+func mergedPR() *forgejo_sdk.PullRequest {
+	pr := fixedPR("fixed")
+	pr.State = forgejo_sdk.StateClosed
+	pr.HasMerged = true
+	return pr
+}
+
+// unmergedPR is fixedPR as Forgejo reports a pull request that is still open: no
+// merge, no merge commit, no close time.
+func unmergedPR() *forgejo_sdk.PullRequest {
+	pr := fixedPR("fixed")
+	pr.State = forgejo_sdk.StateOpen
+	pr.HasMerged, pr.Merged, pr.MergedCommitID, pr.MergedBy, pr.Closed = false, nil, nil, nil, nil
+	return pr
 }
 
 func (s *stubPulls) rec(name string, args ...any) error {
@@ -112,7 +133,11 @@ func (s *stubPulls) rec(name string, args ...any) error {
 }
 
 func (s *stubPulls) GetPullRequest(_ context.Context, o, r string, i int64) (*forgejo_sdk.PullRequest, error) {
-	return fixedPR("fixed"), s.rec("GetPullRequest", o, r, i)
+	pr := s.pr
+	if pr == nil {
+		pr = fixedPR("fixed")
+	}
+	return pr, s.rec("GetPullRequest", o, r, i)
 }
 
 func (s *stubPulls) ListPullRequests(_ context.Context, o, r string, opt forgejo_sdk.ListPullRequestsOptions) ([]*forgejo_sdk.PullRequest, error) {
@@ -216,7 +241,10 @@ type goldenCase struct {
 }
 
 var goldenCases = []goldenCase{
-	{name: "get_pr", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}},
+	{name: "get_pr", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}, stub: func(s *stubPulls) { s.pr = mergedPR() }},
+	{name: "get_pr_open", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}, stub: func(s *stubPulls) { s.pr = unmergedPR() }},
+	// verbose=true restores the full entity; this golden is the pre-compact output.
+	{name: "get_pr_verbose", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7), "verbose": true}},
 	{name: "get_pr_string_index", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": "7"}},
 	// Forgiving argument handling of the original handlers, kept: a missing
 	// required argument is forwarded as its zero value, and a fractional
