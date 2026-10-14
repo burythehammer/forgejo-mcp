@@ -13,6 +13,7 @@ import (
 	"context"
 
 	appissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
@@ -60,14 +61,6 @@ func (a adapter) ListIssues(ctx context.Context, owner, repo string, q appissue.
 	return bridge.Convert[[]*model.Issue](issues, err)
 }
 
-// knownTotal is the grand total a page reports, nil when Forgejo did not say.
-func knownTotal(info forge.PageInfo) *int {
-	if !info.TotalKnown {
-		return nil
-	}
-	return ptr.To(info.TotalCount)
-}
-
 func (a adapter) SearchIssues(ctx context.Context, q appissue.SearchQuery) ([]*model.Issue, *int, error) {
 	issues, info, err := a.s.SearchIssues(ctx, forgejo_sdk.ListIssueOption{
 		Owner:       q.Owner,
@@ -82,7 +75,7 @@ func (a adapter) SearchIssues(ctx context.Context, q appissue.SearchQuery) ([]*m
 		ListOptions: listOptions(q.Paging),
 	})
 	out, cerr := bridge.Convert[[]*model.Issue](issues, err)
-	return out, knownTotal(info), cerr
+	return out, list.Reported(info.TotalCount, info.TotalKnown), cerr
 }
 
 func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
@@ -223,7 +216,7 @@ func labelPage(labels []*forgejo_sdk.Label, info forge.PageInfo, err error) (app
 	return appissue.LabelPage{
 		Labels: out,
 		More:   info.HasNext,
-		Total:  knownTotal(info),
+		Total:  list.Reported(info.TotalCount, info.TotalKnown),
 	}, nil
 }
 
@@ -261,7 +254,7 @@ func (a adapter) CountIssuesLabelled(ctx context.Context, owner, repo, label str
 	if err != nil {
 		return nil, err
 	}
-	return knownTotal(info), nil
+	return list.Reported(info.TotalCount, info.TotalKnown), nil
 }
 
 func (a adapter) ListIssueDependencies(ctx context.Context, owner, repo string, index int64, p appissue.Paging) ([]*model.Issue, error) {

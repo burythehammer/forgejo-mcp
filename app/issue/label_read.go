@@ -41,7 +41,9 @@ func (l LabelList) Envelope() model.ScopedLabelPage {
 	return model.ScopedLabelPage{
 		Labels: l.Labels,
 		PageMeta: model.PageMeta{
-			Page: l.Page, Limit: l.Limit, Count: len(l.Labels), HasNext: l.More, TotalCount: l.Total,
+			PageWindow: model.PageWindow{Page: l.Page, Limit: l.Limit, Count: len(l.Labels)},
+			PageNext:   model.PageNext{HasNext: l.More},
+			PageTotal:  model.PageTotal{TotalCount: l.Total},
 		},
 	}
 }

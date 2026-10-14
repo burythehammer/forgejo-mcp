@@ -58,21 +58,21 @@ func (s *Service) ListRuns(ctx context.Context, owner, repo string, q RunQuery) 
 			if err != nil {
 				return list.Batch[model.WorkflowRun]{}, fmt.Errorf("failed to list workflow runs: %w", err)
 			}
-			total := runTotal(got.TotalCount, len(got.WorkflowRuns))
+			// A zero total beside rows means the header was absent, so the total is then
+			// unknown; an empty page reports its own zero.
+			total := list.Reported(int(got.TotalCount), got.TotalCount > 0 || len(got.WorkflowRuns) == 0)
 			return list.Batch[model.WorkflowRun]{Items: got.WorkflowRuns, Total: total}, nil
 		})
 	if err != nil {
 		return model.WorkflowRunPage{}, err
 	}
-	out := model.WorkflowRunPage{
+	meta := model.PageMetaOf(page)
+	return model.WorkflowRunPage{
 		WorkflowRuns: toRunRows(page.Items),
-		Page:         page.Page,
-		Limit:        page.Limit,
-		Count:        page.Count,
-		HasNext:      page.HasNext,
-	}
-	out.TotalCount = page.Total
-	return out, nil
+		PageWindow:   meta.PageWindow,
+		PageTotal:    meta.PageTotal,
+		PageNext:     meta.PageNext,
+	}, nil
 }
 
 // toRunRows renders workflow runs as the list tool shows them.
@@ -147,14 +147,13 @@ func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64,
 	if err != nil {
 		return model.JobPage{}, err
 	}
+	meta := model.PageMetaOf(page)
 	result := model.JobPage{
 		RunID:      runID,
 		Jobs:       page.Items,
-		Page:       page.Page,
-		Limit:      page.Limit,
-		Count:      page.Count,
-		TotalCount: page.Total,
-		HasNext:    page.HasNext,
+		PageWindow: meta.PageWindow,
+		PageTotal:  meta.PageTotal,
+		PageNext:   meta.PageNext,
 	}
 	if result.HasNext {
 		result.NextPage = page.Page + 1
@@ -230,16 +229,14 @@ func (s *Service) ListArtifacts(ctx context.Context, owner, repo string, runID i
 	if err != nil {
 		return model.ArtifactPage{}, err
 	}
-	out := model.ArtifactPage{
-		RunID:     runID,
-		Artifacts: page.Items,
-		Page:      page.Page,
-		Limit:     page.Limit,
-		Count:     page.Count,
-		HasNext:   page.HasNext,
-	}
-	out.TotalCount = page.Total
-	return out, nil
+	meta := model.PageMetaOf(page)
+	return model.ArtifactPage{
+		RunID:      runID,
+		Artifacts:  page.Items,
+		PageWindow: meta.PageWindow,
+		PageTotal:  meta.PageTotal,
+		PageNext:   meta.PageNext,
+	}, nil
 }
 
 // GetArtifact returns the metadata of one artifact.
@@ -368,14 +365,4 @@ func toSummaries(secrets []model.Secret) []model.SecretSummary {
 		summaries = append(summaries, summary)
 	}
 	return summaries
-}
-
-// runTotal is the grand total of a workflow-run page. A zero total beside rows
-// means the header was absent, so the total is unknown; an empty page reports
-// its own zero.
-func runTotal(total int64, rows int) *int {
-	if total > 0 || rows == 0 {
-		return ptr.To(int(total))
-	}
-	return nil
 }

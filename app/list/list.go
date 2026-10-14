@@ -82,6 +82,15 @@ type Batch[T any] struct {
 	Total *int
 }
 
+// Reported is the grand total of a list when the server reported one, nil when
+// it did not. An unknown total is nil, never zero.
+func Reported(count int, known bool) *int {
+	if !known {
+		return nil
+	}
+	return &count
+}
+
 // Fetch reads one page of a list. It is called with a normalized Paging.
 type Fetch[T any] func(ctx context.Context, p Paging) (Batch[T], error)
 

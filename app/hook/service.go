@@ -77,19 +77,16 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.HookListResult
 	if err != nil {
 		return model.HookListResult{}, err
 	}
-	// The grand total, when Forgejo reported one, is what TotalCount carries; a
-	// reported total also decides has_next inside list.Run.
 	payloads := make([]model.HookPayload, len(got.Items))
 	for i, hk := range got.Items {
 		payloads[i] = model.SafeHook(hk)
 	}
+	meta := model.PageMetaOf(got)
 	return model.HookListResult{
-		Page:       got.Page,
-		Limit:      got.Limit,
-		Count:      got.Count,
-		TotalCount: got.Total,
 		Hooks:      payloads,
-		HasNext:    got.HasNext,
+		PageWindow: meta.PageWindow,
+		PageTotal:  meta.PageTotal,
+		PageNext:   meta.PageNext,
 	}, nil
 }
 

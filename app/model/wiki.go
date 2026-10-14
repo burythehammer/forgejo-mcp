@@ -87,7 +87,7 @@ type WikiRevisionsResult struct {
 	Revisions  []WikiRevisionSummary `json:"revisions"`
 	Page       int                   `json:"page"`
 	HasNext    bool                  `json:"has_next"`
-	TotalCount *int                  `json:"total_count"`
+	TotalCount int                   `json:"total_count"`
 }
 
 // WikiWriteResult is what the create and update tools return.

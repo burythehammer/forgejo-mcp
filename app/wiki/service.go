@@ -11,7 +11,6 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 )
 
 // defaultLimit is the page size when the caller gives none.
@@ -169,7 +168,7 @@ func (s *Service) Revisions(ctx context.Context, r RevisionsRequest) (model.Wiki
 	}
 	// The total is the page's revision count from the body, which the port
 	// reports as Count.
-	return model.WikiRevisionsResult{Revisions: summaries, Page: page, HasNext: hasNext, TotalCount: ptr.To(revisions.Count)}, nil
+	return model.WikiRevisionsResult{Revisions: summaries, Page: page, HasNext: hasNext, TotalCount: revisions.Count}, nil
 }
 
 // Create adds a page and returns its title, name and commit.
