@@ -52,22 +52,14 @@ type PackageFileView struct {
 
 // ListPackagesResult is one page of the list tool's output.
 type ListPackagesResult struct {
-	Packages   []PackageView `json:"packages"`
-	Page       int           `json:"page"`
-	Limit      int           `json:"limit"`
-	Count      int           `json:"count"`
-	HasNext    bool          `json:"has_next"`
-	TotalCount *int          `json:"total_count,omitempty"`
+	Packages []PackageView `json:"packages"`
+	PageMeta
 }
 
 // ListPackageFilesResult is one page of the files tool's output.
 type ListPackageFilesResult struct {
-	Files      []PackageFileView `json:"files"`
-	Page       int               `json:"page"`
-	Limit      int               `json:"limit"`
-	Count      int               `json:"count"`
-	HasNext    bool              `json:"has_next"`
-	TotalCount int               `json:"total_count"`
+	Files []PackageFileView `json:"files"`
+	PageMeta
 }
 
 // DeletePackageResult is what the delete tool returns.

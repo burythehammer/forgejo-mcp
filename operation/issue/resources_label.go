@@ -15,6 +15,7 @@ import (
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/issueadapter"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -153,7 +154,7 @@ func (h handlers) repoLabelsResourceHandler(ctx context.Context, req mcp.ReadRes
 
 	bounded := resource.Bounded(labelIDs(list.Labels), limit, ListRepoLabelsToolName)
 	if list.More {
-		bounded = bounded.WithMoreRemaining(knownTotal(list.Total))
+		bounded = bounded.WithMoreRemaining(ptr.Deref(list.Total, 0))
 	}
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
@@ -214,7 +215,7 @@ func (h handlers) orgLabelsResourceHandler(ctx context.Context, req mcp.ReadReso
 
 	bounded := resource.Bounded(labelIDs(list.Labels), limit, ListOrgLabelsToolName)
 	if list.More {
-		bounded = bounded.WithMoreRemaining(knownTotal(list.Total))
+		bounded = bounded.WithMoreRemaining(ptr.Deref(list.Total, 0))
 	}
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
@@ -249,15 +250,6 @@ func labelIDs(labels []model.ScopedLabel) []string {
 		out[i] = strconv.FormatInt(l.ID, 10)
 	}
 	return out
-}
-
-// knownTotal is the server's total when it reported one, and zero otherwise,
-// which WithMoreRemaining reads as "total unknown".
-func knownTotal(t apppissue.Total) int {
-	if !t.Known {
-		return 0
-	}
-	return t.Count
 }
 
 // clampToCeiling lowers a resource's limit to the instance ceiling when one is

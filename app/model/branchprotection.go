@@ -40,8 +40,5 @@ type BranchProtection struct {
 // echoing the page so a caller can resume pagination.
 type BranchProtectionList struct {
 	BranchProtections []*BranchProtection `json:"branch_protections"`
-	Page              int                 `json:"page"`
-	Limit             int                 `json:"limit"`
-	Count             int                 `json:"count"`
-	HasNext           bool                `json:"has_next"`
+	PageMeta
 }

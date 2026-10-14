@@ -12,6 +12,7 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 )
 
 // ErrLogRangeOverflow is returned when offset and max_bytes together exceed
@@ -57,24 +58,21 @@ func (s *Service) ListRuns(ctx context.Context, owner, repo string, q RunQuery) 
 			if err != nil {
 				return list.Batch[model.WorkflowRun]{}, fmt.Errorf("failed to list workflow runs: %w", err)
 			}
-			total := list.Total{Count: int(got.TotalCount), Known: got.TotalCount > 0 || len(got.WorkflowRuns) == 0}
+			// A zero total beside rows means the header was absent, so the total is then
+			// unknown; an empty page reports its own zero.
+			total := list.Reported(int(got.TotalCount), got.TotalCount > 0 || len(got.WorkflowRuns) == 0)
 			return list.Batch[model.WorkflowRun]{Items: got.WorkflowRuns, Total: total}, nil
 		})
 	if err != nil {
 		return model.WorkflowRunPage{}, err
 	}
-	out := model.WorkflowRunPage{
+	meta := model.PageMetaOf(page)
+	return model.WorkflowRunPage{
 		WorkflowRuns: toRunRows(page.Items),
-		Page:         page.Page,
-		Limit:        page.Limit,
-		Count:        page.Count,
-		HasNext:      page.HasNext,
-	}
-	if page.Total.Known {
-		total := page.Total.Count
-		out.TotalCount = &total
-	}
-	return out, nil
+		PageWindow:   meta.PageWindow,
+		PageTotal:    meta.PageTotal,
+		PageNext:     meta.PageNext,
+	}, nil
 }
 
 // toRunRows renders workflow runs as the list tool shows them.
@@ -144,19 +142,18 @@ func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64,
 				return list.Batch[model.ActionRunJob]{}, fmt.Errorf("list action run jobs: %w", err)
 			}
 			rows, _ := list.Cut(all, q)
-			return list.Batch[model.ActionRunJob]{Items: rows, Total: list.Total{Count: len(all), Known: true}}, nil
+			return list.Batch[model.ActionRunJob]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {
 		return model.JobPage{}, err
 	}
+	meta := model.PageMetaOf(page)
 	result := model.JobPage{
 		RunID:      runID,
 		Jobs:       page.Items,
-		Page:       page.Page,
-		Limit:      page.Limit,
-		Count:      page.Count,
-		TotalCount: totalPtr(page.Total),
-		HasNext:    page.HasNext,
+		PageWindow: meta.PageWindow,
+		PageTotal:  meta.PageTotal,
+		PageNext:   meta.PageNext,
 	}
 	if result.HasNext {
 		result.NextPage = page.Page + 1
@@ -227,28 +224,19 @@ func (s *Service) ListArtifacts(ctx context.Context, owner, repo string, runID i
 			if err != nil {
 				return list.Batch[model.ActionArtifact]{}, fmt.Errorf("list action run artifacts: %w", err)
 			}
-			b := list.Batch[model.ActionArtifact]{Items: got.Artifacts}
-			if got.TotalCount != nil {
-				b.Total = list.Total{Count: *got.TotalCount, Known: true}
-			}
-			return b, nil
+			return list.Batch[model.ActionArtifact]{Items: got.Artifacts, Total: got.TotalCount}, nil
 		})
 	if err != nil {
 		return model.ArtifactPage{}, err
 	}
-	out := model.ArtifactPage{
-		RunID:     runID,
-		Artifacts: page.Items,
-		Page:      page.Page,
-		Limit:     page.Limit,
-		Count:     page.Count,
-		HasNext:   page.HasNext,
-	}
-	if page.Total.Known {
-		total := page.Total.Count
-		out.TotalCount = &total
-	}
-	return out, nil
+	meta := model.PageMetaOf(page)
+	return model.ArtifactPage{
+		RunID:      runID,
+		Artifacts:  page.Items,
+		PageWindow: meta.PageWindow,
+		PageTotal:  meta.PageTotal,
+		PageNext:   meta.PageNext,
+	}, nil
 }
 
 // GetArtifact returns the metadata of one artifact.
@@ -277,13 +265,10 @@ func (s *Service) ListRepoSecrets(ctx context.Context, owner, repo string, p Pag
 	}
 	summaries := toSummaries(page.Items)
 	return model.RepoSecretPage{
-		Owner:   owner,
-		Repo:    repo,
-		Secrets: summaries,
-		Page:    page.Page,
-		Limit:   page.Limit,
-		Count:   len(summaries),
-		HasNext: page.HasNext,
+		Owner:    owner,
+		Repo:     repo,
+		Secrets:  summaries,
+		PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 
@@ -320,12 +305,9 @@ func (s *Service) ListOrgSecrets(ctx context.Context, org string, p Paging) (mod
 	}
 	summaries := toSummaries(page.Items)
 	return model.OrgSecretPage{
-		Org:     org,
-		Secrets: summaries,
-		Page:    page.Page,
-		Limit:   page.Limit,
-		Count:   len(summaries),
-		HasNext: page.HasNext,
+		Org:      org,
+		Secrets:  summaries,
+		PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 
@@ -383,13 +365,4 @@ func toSummaries(secrets []model.Secret) []model.SecretSummary {
 		summaries = append(summaries, summary)
 	}
 	return summaries
-}
-
-// totalPtr is a reported grand total, or nil when the list reported none.
-func totalPtr(t list.Total) *int {
-	if !t.Known {
-		return nil
-	}
-	n := t.Count
-	return &n
 }

@@ -102,11 +102,8 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.WikiPageListRe
 		summaries[i] = model.WikiPageSummary{Title: p.Title, PageName: p.SubURL, SubURL: p.SubURL}
 	}
 	return model.WikiPageListResult{
-		Pages:   summaries,
-		Page:    res.Page,
-		Limit:   res.Limit,
-		Count:   res.Count,
-		HasNext: res.HasNext,
+		Pages:    summaries,
+		PageMeta: model.PageMetaOf(res),
 	}, nil
 }
 

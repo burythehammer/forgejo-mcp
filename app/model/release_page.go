@@ -6,17 +6,11 @@ package model
 // continuation signal of docs/design/output-bounding.md.
 type ReleasePage struct {
 	Releases []*Release `json:"releases"`
-	Page     int        `json:"page"`
-	Limit    int        `json:"limit"`
-	Count    int        `json:"count"`
-	HasNext  bool       `json:"has_next"`
+	PageMeta
 }
 
 // AttachmentPage is the response of list_release_attachments.
 type AttachmentPage struct {
 	Attachments []*Attachment `json:"attachments"`
-	Page        int           `json:"page"`
-	Limit       int           `json:"limit"`
-	Count       int           `json:"count"`
-	HasNext     bool          `json:"has_next"`
+	PageMeta
 }

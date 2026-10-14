@@ -94,7 +94,7 @@ func (s *Service) MyOrgs(ctx context.Context, pg Paging) (model.OrganizationPage
 	if err != nil {
 		return model.OrganizationPage{}, err
 	}
-	return model.OrganizationPage{Organizations: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.OrganizationPage{Organizations: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // UserOrgs returns one page of the organizations of a user.
@@ -113,7 +113,7 @@ func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) (model.O
 	if err != nil {
 		return model.OrganizationPage{}, err
 	}
-	return model.OrganizationPage{Organizations: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.OrganizationPage{Organizations: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // Members returns one page of the members of an organization.
@@ -132,7 +132,7 @@ func (s *Service) Members(ctx context.Context, org string, pg Paging) (model.Mem
 	if err != nil {
 		return model.MemberPage{}, err
 	}
-	return model.MemberPage{Members: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.MemberPage{Members: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // IsMember reports whether user is a member of org.
@@ -176,7 +176,7 @@ func (s *Service) Teams(ctx context.Context, org string, pg Paging) (model.TeamP
 	if err != nil {
 		return model.TeamPage{}, err
 	}
-	return model.TeamPage{Teams: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}, nil
+	return model.TeamPage{Teams: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 // CreateTeam creates a team in an organization. An empty permission is read.

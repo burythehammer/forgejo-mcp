@@ -74,17 +74,21 @@ func (e *OverCeilingError) Error() string {
 	)
 }
 
-// Total is a count a list reports. Known is false when the server did not
-// report one, in which case Count means nothing.
-type Total struct {
-	Count int
-	Known bool
-}
-
-// Batch is what one fetch of a page returns.
+// Batch is what one fetch of a page returns. Total is the server's grand total
+// of the list; it is nil when the server did not report one, which is the one
+// representation of an unknown total in app/list and app/model alike.
 type Batch[T any] struct {
 	Items []T
-	Total Total
+	Total *int
+}
+
+// Reported is the grand total of a list when the server reported one, nil when
+// it did not. An unknown total is nil, never zero.
+func Reported(count int, known bool) *int {
+	if !known {
+		return nil
+	}
+	return &count
 }
 
 // Fetch reads one page of a list. It is called with a normalized Paging.
@@ -98,7 +102,8 @@ type Page[T any] struct {
 	Count int
 	// HasNext reports that more rows follow this page.
 	HasNext bool
-	Total   Total
+	// Total is the grand total the fetch reported, nil when it reported none.
+	Total *int
 }
 
 // Run fetches one page and reports whether a next page exists. A known
@@ -118,11 +123,11 @@ func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Page[
 	}
 	count := len(b.Items)
 	var hasNext bool
-	if b.Total.Known {
+	if b.Total != nil {
 		// A reported grand total decides: rows follow this page when the rows
 		// before it plus this page fall short of the total. No probe is made.
 		before := int64(p.Page-1) * int64(p.Limit)
-		hasNext = before+int64(count) < int64(b.Total.Count)
+		hasNext = before+int64(count) < int64(*b.Total)
 	} else if !c.Known || count >= p.Limit {
 		next, err := fetch(ctx, Paging{Page: p.Page + 1, Limit: p.Limit})
 		if err != nil {

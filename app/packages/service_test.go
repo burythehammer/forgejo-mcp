@@ -106,7 +106,7 @@ func TestListFilesPagesAndReportsHasNext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(second.Files) != 2 || second.Files[0].ID != 3 || !second.HasNext || second.TotalCount != 5 {
+	if len(second.Files) != 2 || second.Files[0].ID != 3 || !second.HasNext || (second.TotalCount == nil || *second.TotalCount != 5) {
 		t.Fatalf("page 2: got %+v", second)
 	}
 	last, err := s.ListFiles(context.Background(), apppkg.ListFilesRequest{Coords: coords, Page: 3, Limit: 2})
@@ -125,7 +125,7 @@ func TestListFilesPastTheEndIsAnEmptyArray(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := json.Marshal(got)
-	if !strings.Contains(string(b), `"files":[]`) || got.TotalCount != 0 {
+	if !strings.Contains(string(b), `"files":[]`) || got.TotalCount == nil || *got.TotalCount != 0 {
 		t.Fatalf("got %s", b)
 	}
 }
@@ -215,7 +215,7 @@ func TestListFilesEnvelopeOnAnExactMultiple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Page != 2 || got.Limit != 2 || got.Count != 2 || got.HasNext || got.TotalCount != 4 {
+	if got.Page != 2 || got.Limit != 2 || got.Count != 2 || got.HasNext || got.TotalCount == nil || *got.TotalCount != 4 {
 		t.Fatalf("got %+v", got)
 	}
 }

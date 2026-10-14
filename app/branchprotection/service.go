@@ -89,7 +89,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.BranchProtecti
 		return model.BranchProtectionList{}, err
 	}
 	return model.BranchProtectionList{
-		BranchProtections: got.Items, Page: got.Page, Limit: got.Limit, Count: got.Count, HasNext: got.HasNext,
+		BranchProtections: got.Items, PageMeta: model.PageMetaOf(got),
 	}, nil
 }
 

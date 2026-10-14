@@ -48,11 +48,9 @@ type WorkflowRunRow struct {
 // total Forgejo reports, nil when it did not report one.
 type WorkflowRunPage struct {
 	WorkflowRuns []WorkflowRunRow `json:"workflow_runs"`
-	Page         int              `json:"page"`
-	Limit        int              `json:"limit"`
-	Count        int              `json:"count"`
-	TotalCount   *int             `json:"total_count,omitempty"`
-	HasNext      bool             `json:"has_next"`
+	PageWindow
+	PageTotal
+	PageNext
 }
 
 // ActionRunJob is one job of a workflow run.
@@ -108,14 +106,12 @@ type Secret struct {
 
 // JobPage is the list_action_run_jobs output.
 type JobPage struct {
-	RunID      int64          `json:"run_id"`
-	Jobs       []ActionRunJob `json:"jobs"`
-	Page       int            `json:"page"`
-	Limit      int            `json:"limit"`
-	Count      int            `json:"count"`
-	TotalCount *int           `json:"total_count,omitempty"`
-	HasNext    bool           `json:"has_next"`
-	NextPage   int            `json:"next_page,omitempty"`
+	RunID int64          `json:"run_id"`
+	Jobs  []ActionRunJob `json:"jobs"`
+	PageWindow
+	PageTotal
+	PageNext
+	NextPage int `json:"next_page,omitempty"`
 }
 
 // JobLogPage is the get_action_job_logs output: one window of a job log and
@@ -139,13 +135,11 @@ type JobLogPage struct {
 
 // ArtifactPage is the list_action_run_artifacts output.
 type ArtifactPage struct {
-	RunID      int64            `json:"run_id"`
-	Artifacts  []ActionArtifact `json:"artifacts"`
-	Page       int              `json:"page"`
-	Limit      int              `json:"limit"`
-	Count      int              `json:"count"`
-	TotalCount *int             `json:"total_count,omitempty"`
-	HasNext    bool             `json:"has_next"`
+	RunID     int64            `json:"run_id"`
+	Artifacts []ActionArtifact `json:"artifacts"`
+	PageWindow
+	PageTotal
+	PageNext
 }
 
 // SecretSummary is one secret as the list tools render it. It has no value.
@@ -159,18 +153,12 @@ type RepoSecretPage struct {
 	Owner   string          `json:"owner"`
 	Repo    string          `json:"repo"`
 	Secrets []SecretSummary `json:"secrets"`
-	Page    int             `json:"page"`
-	Limit   int             `json:"limit"`
-	Count   int             `json:"count"`
-	HasNext bool            `json:"has_next"`
+	PageMeta
 }
 
 // OrgSecretPage is the list_org_action_secrets output.
 type OrgSecretPage struct {
 	Org     string          `json:"org"`
 	Secrets []SecretSummary `json:"secrets"`
-	Page    int             `json:"page"`
-	Limit   int             `json:"limit"`
-	Count   int             `json:"count"`
-	HasNext bool            `json:"has_next"`
+	PageMeta
 }

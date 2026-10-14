@@ -127,7 +127,7 @@ func timePage(page list.Page[*model.TrackedTime]) model.TrackedTimePage {
 	if times == nil {
 		times = []*model.TrackedTime{}
 	}
-	return model.TrackedTimePage{Times: times, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext}
+	return model.TrackedTimePage{Times: times, PageMeta: model.PageMetaOf(page)}
 }
 
 // MyTimes returns the tracked times of the authenticated user.

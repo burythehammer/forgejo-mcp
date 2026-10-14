@@ -13,6 +13,7 @@ import (
 	"context"
 
 	appissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
@@ -60,7 +61,7 @@ func (a adapter) ListIssues(ctx context.Context, owner, repo string, q appissue.
 	return bridge.Convert[[]*model.Issue](issues, err)
 }
 
-func (a adapter) SearchIssues(ctx context.Context, q appissue.SearchQuery) ([]*model.Issue, appissue.Total, error) {
+func (a adapter) SearchIssues(ctx context.Context, q appissue.SearchQuery) ([]*model.Issue, *int, error) {
 	issues, info, err := a.s.SearchIssues(ctx, forgejo_sdk.ListIssueOption{
 		Owner:       q.Owner,
 		State:       forgejo_sdk.StateType(q.State),
@@ -74,7 +75,7 @@ func (a adapter) SearchIssues(ctx context.Context, q appissue.SearchQuery) ([]*m
 		ListOptions: listOptions(q.Paging),
 	})
 	out, cerr := bridge.Convert[[]*model.Issue](issues, err)
-	return out, appissue.Total{Count: info.TotalCount, Known: info.TotalKnown}, cerr
+	return out, list.Reported(info.TotalCount, info.TotalKnown), cerr
 }
 
 func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
@@ -215,7 +216,7 @@ func labelPage(labels []*forgejo_sdk.Label, info forge.PageInfo, err error) (app
 	return appissue.LabelPage{
 		Labels: out,
 		More:   info.HasNext,
-		Total:  appissue.Total{Count: info.TotalCount, Known: info.TotalKnown},
+		Total:  list.Reported(info.TotalCount, info.TotalKnown),
 	}, nil
 }
 
@@ -244,16 +245,16 @@ func (a adapter) ListOrgRepoNames(ctx context.Context, org string, p appissue.Pa
 
 // CountIssuesLabelled asks for one row of the repository's issues carrying the
 // label, in any state: the list's total is the count.
-func (a adapter) CountIssuesLabelled(ctx context.Context, owner, repo, label string) (appissue.Total, error) {
+func (a adapter) CountIssuesLabelled(ctx context.Context, owner, repo, label string) (*int, error) {
 	_, info, err := a.s.ListRepoIssues(ctx, owner, repo, forge.ListIssuesOptions{ListIssueOption: forgejo_sdk.ListIssueOption{
 		State:       forgejo_sdk.StateType("all"),
 		Labels:      []string{label},
 		ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: 1},
 	}})
 	if err != nil {
-		return appissue.Total{}, err
+		return nil, err
 	}
-	return appissue.Total{Count: info.TotalCount, Known: info.TotalKnown}, nil
+	return list.Reported(info.TotalCount, info.TotalKnown), nil
 }
 
 func (a adapter) ListIssueDependencies(ctx context.Context, owner, repo string, index int64, p appissue.Paging) ([]*model.Issue, error) {

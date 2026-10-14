@@ -43,7 +43,7 @@ func (s *Service) Comments(ctx context.Context, in CommentsInput) (model.Comment
 		return model.CommentPage{}, err
 	}
 	return model.CommentPage{
-		Comments: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+		Comments: page.Items, PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 

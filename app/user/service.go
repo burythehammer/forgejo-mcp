@@ -72,7 +72,7 @@ func (s *Service) Notifications(ctx context.Context, in NotificationsInput) (mod
 		return model.NotificationPage{}, err
 	}
 	return model.NotificationPage{
-		Notifications: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+		Notifications: page.Items, PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 
@@ -103,7 +103,7 @@ func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInp
 		return model.NotificationPage{}, err
 	}
 	return model.NotificationPage{
-		Notifications: page.Items, Page: page.Page, Limit: page.Limit, Count: page.Count, HasNext: page.HasNext,
+		Notifications: page.Items, PageMeta: model.PageMetaOf(page),
 	}, nil
 }
 

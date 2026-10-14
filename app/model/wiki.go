@@ -59,11 +59,8 @@ type WikiPageSummary struct {
 
 // WikiPageListResult is one page of the list tool's output.
 type WikiPageListResult struct {
-	Pages   []WikiPageSummary `json:"pages"`
-	Page    int               `json:"page"`
-	Limit   int               `json:"limit"`
-	Count   int               `json:"count"`
-	HasNext bool              `json:"has_next"`
+	Pages []WikiPageSummary `json:"pages"`
+	PageMeta
 }
 
 // WikiPageView is the get tool's output: a page's content, optionally cut to a

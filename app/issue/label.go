@@ -10,6 +10,7 @@ import (
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/labelresolve"
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
 )
 
 const (
@@ -214,10 +215,7 @@ func (s *Service) labelUsage(ctx context.Context, owner, repo, label string) (in
 	if err != nil {
 		return 0, fmt.Errorf("count label usage: %w", err)
 	}
-	if total.Known {
-		return total.Count, nil
-	}
-	return 0, nil
+	return ptr.Deref(total, 0), nil
 }
 
 // orgLabelUsage counts, best-effort, the issues and pull requests in an
