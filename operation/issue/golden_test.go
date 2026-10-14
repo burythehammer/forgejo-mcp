@@ -48,6 +48,7 @@ func TestSchemaSnapshots(t *testing.T) {
 // including the optional verbose flag, in step with their schemas.
 func TestCompactWriteArgsMatchSchemas(t *testing.T) {
 	t.Parallel()
+	mcptest.ArgsMatchSchema(t, GetIssueByIndexTool, getIssueArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueTool, createIssueArgs{})
 	mcptest.ArgsMatchSchema(t, UpdateIssueTool, updateIssueArgs{})
 	mcptest.ArgsMatchSchema(t, IssueStateChangeTool, stateArgs{})
@@ -322,6 +323,8 @@ var errBoom = errors.New("boom")
 var goldenCases = []goldenCase{
 	// get_issue_by_index
 	{name: "get_issue", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7)}},
+	// verbose=true restores the full entity; this golden is the pre-compact output.
+	{name: "get_issue_verbose", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "verbose": true}},
 	{name: "get_issue_string_index", tool: GetIssueByIndexToolName, args: map[string]any{"index": "7"}},
 	// Forgiving argument handling of the original handlers, kept: a missing
 	// required argument is forwarded as its zero value, and a fractional

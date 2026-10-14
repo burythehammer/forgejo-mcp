@@ -6,8 +6,10 @@
 // what changed, and the optional `verbose` argument restores the full entity.
 //
 // One shape is defined per entity kind here, so every write tool that returns
-// an issue or a pull request agrees on it. Read tools and resources keep the
-// full entity.
+// an issue or a pull request agrees on it. get_issue_by_index is the one read
+// that returns a compact result by default: its IssueRead is the issue write
+// shape plus the fields a status check needs. Other read tools and the
+// forgejo:// resources keep the full entity.
 package compact
 
 import (
@@ -40,6 +42,17 @@ type PullRequest struct {
 	Issue
 	Head string `json:"head"`
 	Base string `json:"base"`
+}
+
+// IssueRead is the compact result of get_issue_by_index: the issue write shape
+// plus the body, the close time, the branch ref and the comment count. The
+// poster, the milestone and the nested repository are verbose-only.
+type IssueRead struct {
+	Issue
+	Body     string     `json:"body"`
+	Closed   *time.Time `json:"closed_at"`
+	Ref      string     `json:"ref"`
+	Comments int        `json:"comments"`
 }
 
 // Comment is the compact result of a comment write: the comment's ID, its URL
@@ -98,6 +111,17 @@ func OfPullRequest(pr *model.PullRequest) PullRequest {
 	return out
 }
 
+// OfIssueRead returns the compact read shape of an issue.
+func OfIssueRead(iss *model.Issue) IssueRead {
+	return IssueRead{
+		Issue:    OfIssue(iss),
+		Body:     iss.Body,
+		Closed:   iss.Closed,
+		Ref:      iss.Ref,
+		Comments: iss.Comments,
+	}
+}
+
 // OfComment returns the compact shape of a comment.
 func OfComment(c *model.Comment) Comment {
 	return Comment{ID: c.ID, URL: c.HTMLURL, Updated: c.Updated}
@@ -121,6 +145,12 @@ func RenderIssue(iss *model.Issue, err error, verbose bool) (*mcp.CallToolResult
 // RenderPullRequest sends the result of a pull request write.
 func RenderPullRequest(pr *model.PullRequest, err error, verbose bool) (*mcp.CallToolResult, error) {
 	return render(pr, err, verbose, OfPullRequest)
+}
+
+// RenderIssueRead sends the result of get_issue_by_index. The error path is the
+// caller's: it maps the error itself and passes nil here.
+func RenderIssueRead(iss *model.Issue, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(iss, err, verbose, OfIssueRead)
 }
 
 // RenderComment sends the result of a comment write.

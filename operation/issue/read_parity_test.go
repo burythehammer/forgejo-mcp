@@ -16,14 +16,30 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// issueFacts is what a caller learns about one issue. The tool and the resource
-// encode it differently, but these facts must agree.
+// issueFacts is what a caller learns about one issue from the facts the compact
+// read carries. The tool and the resource encode it differently, but these
+// facts must agree. The poster, milestone, creation time and due date are
+// verbose-only on the tool, so they are not compared here.
 type issueFacts struct {
-	Index                                      int64
-	Title, State, Body, Ref, Author, Milestone string
-	Labels, Assignees                          []string
-	CommentCount                               int
-	CreatedAt, UpdatedAt, ClosedAt, DueDate    string
+	Index                   int64
+	Title, State, Body, Ref string
+	Labels, Assignees       []string
+	CommentCount            int
+	UpdatedAt, ClosedAt     string
+}
+
+// compactIssue is get_issue_by_index's default result as a caller decodes it.
+type compactIssue struct {
+	Number    int64      `json:"number"`
+	Title     string     `json:"title"`
+	State     string     `json:"state"`
+	Labels    []string   `json:"labels"`
+	Assignees []string   `json:"assignees"`
+	Updated   time.Time  `json:"updated_at"`
+	Body      string     `json:"body"`
+	Closed    *time.Time `json:"closed_at"`
+	Ref       string     `json:"ref"`
+	Comments  int        `json:"comments"`
 }
 
 // commentFact is one comment as a caller sees it: its id, author and text.
@@ -42,28 +58,14 @@ func nilIfEmpty(s []string) []string {
 	return s
 }
 
-func toolFactsOf(iss forgejo_sdk.Issue) issueFacts {
+func toolFactsOf(iss compactIssue) issueFacts {
 	f := issueFacts{
-		Index: iss.Index, Title: iss.Title, State: string(iss.State), Body: iss.Body, Ref: iss.Ref,
-		CommentCount: iss.Comments, CreatedAt: parityStamp(iss.Created), UpdatedAt: parityStamp(iss.Updated),
-	}
-	if iss.Poster != nil {
-		f.Author = iss.Poster.UserName
-	}
-	if iss.Milestone != nil {
-		f.Milestone = iss.Milestone.Title
-	}
-	for _, l := range iss.Labels {
-		f.Labels = append(f.Labels, l.Name)
-	}
-	for _, a := range iss.Assignees {
-		f.Assignees = append(f.Assignees, a.UserName)
+		Index: iss.Number, Title: iss.Title, State: iss.State, Body: iss.Body, Ref: iss.Ref,
+		CommentCount: iss.Comments, UpdatedAt: parityStamp(iss.Updated),
+		Labels: nilIfEmpty(iss.Labels), Assignees: nilIfEmpty(iss.Assignees),
 	}
 	if iss.Closed != nil {
 		f.ClosedAt = parityStamp(*iss.Closed)
-	}
-	if iss.Deadline != nil {
-		f.DueDate = parityStamp(*iss.Deadline)
 	}
 	return f
 }
@@ -76,8 +78,7 @@ func resourceFactsOf(t *testing.T, p issueResourcePayload, sidecar string) issue
 	}
 	return issueFacts{
 		Index: p.Index, Title: p.Title, State: p.State, Body: body, Ref: p.Ref,
-		Author: p.Author, Milestone: p.Milestone, CommentCount: p.CommentCount,
-		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt, ClosedAt: p.ClosedAt, DueDate: p.DueDate,
+		CommentCount: p.CommentCount, UpdatedAt: p.UpdatedAt, ClosedAt: p.ClosedAt,
 		Labels: nilIfEmpty(p.Labels), Assignees: nilIfEmpty(p.Assignees),
 	}
 }
@@ -99,8 +100,8 @@ func TestIssueReadParity_ToolAndResourceAgree(t *testing.T) {
 	comment(t, f, iss.Index, "first")
 	comment(t, f, iss.Index, "second")
 
-	// Facts: the tool's issue and the resource's issue must carry the same ones.
-	var toolIssue forgejo_sdk.Issue
+	// Facts: the tool's compact read and the resource's issue must carry the same ones.
+	var toolIssue compactIssue
 	if err := unmarshalResult(call(t, h.GetIssueByIndexFn, map[string]any{"index": float64(iss.Index)}), &toolIssue); err != nil {
 		t.Fatal(err)
 	}

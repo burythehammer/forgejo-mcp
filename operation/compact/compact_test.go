@@ -54,6 +54,28 @@ func keysOf(t *testing.T, text string) map[string]json.RawMessage {
 	return wrapped.Result
 }
 
+// TestOfIssueRead_EmptyFieldsAreNotNull: an open issue with no labels or
+// assignees renders them as [], and its absent close time as null, which is
+// the full entity's convention for an absent timestamp.
+func TestOfIssueRead_EmptyFieldsAreNotNull(t *testing.T) {
+	t.Parallel()
+	iss := sampleIssue()
+	iss.Labels, iss.Assignees, iss.Closed = nil, nil, nil
+	b, err := json.Marshal(OfIssueRead(iss))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{"labels": "[]", "assignees": "[]", "closed_at": "null"} {
+		if string(got[k]) != want {
+			t.Errorf("%s = %s, want %s", k, got[k], want)
+		}
+	}
+}
+
 func TestOfIssue_CompactFieldsOnly(t *testing.T) {
 	t.Parallel()
 	b, err := json.Marshal(OfIssue(sampleIssue()))

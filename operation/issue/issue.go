@@ -57,6 +57,7 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ListRepoIssuesTool = mcp.NewTool(
@@ -270,7 +271,12 @@ type issueRefArgs struct {
 	Index float64 `json:"index" required:"true"`
 }
 
-type getIssueArgs = issueRefArgs
+type getIssueArgs struct {
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	Verbose bool    `json:"verbose"`
+}
 
 type listIssuesArgs struct {
 	Owner      string  `json:"owner" required:"true"`
@@ -403,11 +409,11 @@ func target(a issueRefArgs) apppissue.Target {
 
 func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetIssueByIndexFn", func(ctx context.Context, s *apppissue.Service, a getIssueArgs) (*mcp.CallToolResult, error) {
-		read, err := s.Read(ctx, target(a), apppissue.ReadOptions{})
+		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), apppissue.ReadOptions{})
 		if err != nil {
 			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, int64(a.Index)), err)
 		}
-		return mcpresult.Render(read.Issue, nil)
+		return compact.RenderIssueRead(read.Issue, nil, a.Verbose)
 	})
 }
 
