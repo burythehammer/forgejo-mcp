@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# PR gate: runs `make check`, the same steps as a contributor runs locally.
+# The runner is registered as `self-hosted` with no image, so the job brings its
+# own tooling: the golangci-lint image ships Go, gcc, make, curl, git and the
+# pinned linter (a `go install` of it cost ~40s per run).
+name: ci
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+jobs:
+  check:
+    runs-on: self-hosted
+    container:
+      image: golangci/golangci-lint:v2.12.2
+    steps:
+      # jq: used by scripts/ci. nodejs: actions/checkout is a JS action and
+      # runs on the container's own node.
+      - name: Install jq and nodejs, print tool versions
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq jq nodejs
+          for t in go gcc make curl git jq node golangci-lint; do
+            command -v "$t" >/dev/null || { echo "missing tool: $t" >&2; exit 1; }
+          done
+          go version; gcc --version | head -1; make --version | head -1
+          curl --version | head -1; jq --version; node --version
+          golangci-lint version
+      - uses: actions/checkout@v4
+      - name: make check
+        run: make check

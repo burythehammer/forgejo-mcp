@@ -113,4 +113,3 @@ func (h handlers) ownerResourceHandler(ctx context.Context, req mcp.ReadResource
 		},
 	}, nil
 }
-

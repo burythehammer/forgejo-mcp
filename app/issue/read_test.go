@@ -126,7 +126,7 @@ func TestRead_AsksForOneMoreThanTheCap(t *testing.T) {
 	if _, err := s.Read(context.Background(), target(idx), apppissue.ReadOptions{CommentCap: 30}); err != nil {
 		t.Fatalf("Read: %v", err)
 	}
-	if asked.Paging.Limit != 31 {
-		t.Fatalf("comment listing limit = %d, want cap+1 = 31", asked.Paging.Limit)
+	if asked.Limit != 31 {
+		t.Fatalf("comment listing limit = %d, want cap+1 = 31", asked.Limit)
 	}
 }
