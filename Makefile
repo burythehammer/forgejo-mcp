@@ -58,17 +58,25 @@ mcpb: build
 check-demos:
 	./scripts/ci/check-spec-demo-anchors.sh
 
-## check: build, vet, test and run the code-level scripts/ci checks
+## check: run every CI check locally (build, vet, gofmt, scripts/ci, lint, race tests)
+# Mirrors .tekton/tasks/go-ci.yaml. Steps run in a fixed order and stop at the
+# first failure, which is named. Guardrail scripts are discovered under
+# scripts/ci/, so a new script runs without editing this target.
 # Left out on purpose: check-castra-release-onboarding.sh asks the forge about
 # this repo's release setup (not a code check) and check-pr-ci-ran.sh needs a PR
-# number. Run them by hand when releasing or reviewing a PR.
-CI_SKIP := check-castra-release-onboarding.sh check-pr-ci-ran.sh
+# number; openspec-validate.sh needs the openspec CLI and runs in its own CI
+# pipeline. Run them by hand when releasing or reviewing a PR.
+# Not run locally: mod-tidy-check (make vendor), govulncheck, license-check.
+CI_SKIP := check-castra-release-onboarding.sh check-pr-ci-ran.sh openspec-validate.sh
 .PHONY: check
 check:
-	$(GO) build ./...
-	$(GO) vet ./...
-	$(GO) test ./...
-	@for s in scripts/ci/*.sh; do \
+	@step() { name=$$1; shift; echo "== $$name"; "$$@" || { echo "check FAILED at step: $$name" >&2; exit 1; }; }; \
+	step build $(GO) build ./... && \
+	step vet $(GO) vet ./... && \
+	step gofmt sh -c 'out=$$(gofmt -l . | grep -v "^\.gocache/" | grep -v "^\.gomodcache/" || true); [ -z "$$out" ] || { echo "Files not gofmt-clean:"; echo "$$out"; exit 1; }' && \
+	for s in scripts/ci/*.sh; do \
 		case " $(CI_SKIP) " in *" $$(basename $$s) "*) continue;; esac; \
-		echo "== $$s"; sh $$s || exit 1; \
-	done
+		step "$$s" sh $$s || exit 1; \
+	done && \
+	step lint sh -c 'command -v golangci-lint >/dev/null || { echo "golangci-lint not installed (CI uses v2.12.2)"; exit 1; }; golangci-lint run --timeout=5m ./...' && \
+	step test-race $(GO) test -race -shuffle=on -count=1 ./...

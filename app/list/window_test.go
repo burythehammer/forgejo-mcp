@@ -4,6 +4,7 @@ package list
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -78,7 +79,8 @@ func TestWindow_OverKnownCeilingRefuses(t *testing.T) {
 			called = true
 			return nil, nil
 		})
-	if _, ok := err.(*OverCeilingError); !ok {
+	var over *OverCeilingError
+	if !errors.As(err, &over) {
 		t.Fatalf("err = %v, want *OverCeilingError", err)
 	}
 	if called {

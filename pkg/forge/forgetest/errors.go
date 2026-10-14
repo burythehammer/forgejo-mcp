@@ -67,7 +67,7 @@ func RunErrors(t *testing.T, newHarness func(t *testing.T) Harness) {
 				t.Fatalf("got %v (status %d), want kind %v", err, forge.StatusCode(err), c.kind)
 			}
 			for _, other := range kinds {
-				if other != c.kind && errors.Is(err, other) {
+				if other != c.kind && errors.Is(err, other) { //nolint:errorlint // comparing the kinds themselves, not a wrapped error
 					t.Fatalf("got %v, which also matches %v", err, other)
 				}
 			}
