@@ -166,7 +166,7 @@ func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolR
 		if err != nil {
 			return nil, mapErr(pullResourceURI(a.Owner, a.Repo, in.Index), err)
 		}
-		return compact.RenderPullRequestRead(read.PR, nil, a.Verbose)
+		return compact.RenderPullRequestRead(read.PR, a.Verbose)
 	})
 }
 

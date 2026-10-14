@@ -413,7 +413,7 @@ func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest
 		if err != nil {
 			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, int64(a.Index)), err)
 		}
-		return compact.RenderIssueRead(read.Issue, nil, a.Verbose)
+		return compact.RenderIssueRead(read.Issue, a.Verbose)
 	})
 }
 

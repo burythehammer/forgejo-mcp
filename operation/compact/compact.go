@@ -183,16 +183,16 @@ func RenderPullRequest(pr *model.PullRequest, err error, verbose bool) (*mcp.Cal
 	return render(pr, err, verbose, OfPullRequest)
 }
 
-// RenderIssueRead sends the result of get_issue_by_index. The error path is the
-// caller's: it maps the error itself and passes nil here.
-func RenderIssueRead(iss *model.Issue, err error, verbose bool) (*mcp.CallToolResult, error) {
-	return render(iss, err, verbose, OfIssueRead)
+// RenderIssueRead sends the result of get_issue_by_index. The caller maps the
+// read's error itself and calls this only with a non-nil issue.
+func RenderIssueRead(iss *model.Issue, verbose bool) (*mcp.CallToolResult, error) {
+	return render(iss, nil, verbose, OfIssueRead)
 }
 
-// RenderPullRequestRead sends the result of get_pull_request_by_index. The error
-// path is the caller's: it maps the error itself and passes nil here.
-func RenderPullRequestRead(pr *model.PullRequest, err error, verbose bool) (*mcp.CallToolResult, error) {
-	return render(pr, err, verbose, OfPullRequestRead)
+// RenderPullRequestRead sends the result of get_pull_request_by_index. The caller
+// maps the read's error itself and calls this only with a non-nil pull request.
+func RenderPullRequestRead(pr *model.PullRequest, verbose bool) (*mcp.CallToolResult, error) {
+	return render(pr, nil, verbose, OfPullRequestRead)
 }
 
 // RenderComment sends the result of a comment write.
