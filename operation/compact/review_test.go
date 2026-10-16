@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
@@ -41,7 +42,7 @@ func TestOfReviewRead_LoginNotUser(t *testing.T) {
 	if len(got) != 11 {
 		t.Fatalf("compact review read has %d keys, want 11: %s", len(got), b)
 	}
-	if got["reviewer"] != "matt" || got["state"] != "APPROVED" || got["comments_count"] != float64(1) {
+	if got["author"] != "matt" || got["state"] != "APPROVED" || got["comments_count"] != float64(1) {
 		t.Fatalf("fields wrong: %s", b)
 	}
 	for _, leak := range []string{`"user"`, `"team"`, `"pull_request_url"`, "matt@example.test", "core"} {
@@ -65,8 +66,27 @@ func TestOfReviewRead_NoReviewerIsEmptyLogin(t *testing.T) {
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatal(err)
 	}
-	if string(got["reviewer"]) != `""` {
-		t.Fatalf("reviewer = %s, want \"\"", got["reviewer"])
+	if string(got["author"]) != `""` {
+		t.Fatalf("author = %s, want \"\"", got["author"])
+	}
+}
+
+// TestOfReviewRead_PendingSubmittedIsNull: a pending review has no submission
+// time, so submitted_at renders null rather than the zero time.
+func TestOfReviewRead_PendingSubmittedIsNull(t *testing.T) {
+	t.Parallel()
+	r := sampleReview()
+	r.Submitted = time.Time{}
+	b, err := json.Marshal(OfReviewRead(r))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if string(got["submitted_at"]) != "null" {
+		t.Fatalf("submitted_at = %s, want null: %s", got["submitted_at"], b)
 	}
 }
 
@@ -77,7 +97,7 @@ func TestRenderReviewRead_DefaultIsCompactVerboseIsFull(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := keysOf(t, sampleTextOf(t, res))
-	if got["reviewer"] == nil || got["state"] == nil || got["user"] != nil {
+	if got["author"] == nil || got["state"] == nil || got["user"] != nil {
 		t.Fatalf("default review read keys wrong: %v", got)
 	}
 
@@ -86,7 +106,7 @@ func TestRenderReviewRead_DefaultIsCompactVerboseIsFull(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = keysOf(t, sampleTextOf(t, res))
-	if got["user"] == nil || got["team"] == nil || got["reviewer"] != nil {
+	if got["user"] == nil || got["team"] == nil || got["author"] != nil {
 		t.Fatalf("verbose review read must be the full entity, keys: %v", got)
 	}
 }

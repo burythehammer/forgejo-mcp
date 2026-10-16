@@ -14,7 +14,7 @@
 // list_repo_pull_requests returns a PullList, the same for pull requests.
 // get_issue_comment returns a CommentRead: the comment's id, url, author login,
 // body and timestamps. get_pull_review returns a ReviewRead: the review's id,
-// url, reviewer login, state, body, commit and flags, and its inline comment
+// url, author login, state, body, commit and flags, and its inline comment
 // count. Other read tools and the forgejo:// resources keep the full entity.
 package compact
 
@@ -171,9 +171,9 @@ type IssueList struct {
 	model.PageMeta
 }
 
-// Map projects each element of a page to its compact shape. An empty page maps
-// to [] rather than null, so the envelope still reads as a list.
-func Map[T any, C any](in []*T, of func(*T) C) []C {
+// mapPage projects each element of a page to its compact shape. An empty page
+// maps to [] rather than null, so the envelope still reads as a list.
+func mapPage[T any, C any](in []*T, of func(*T) C) []C {
 	out := make([]C, 0, len(in))
 	for _, v := range in {
 		out = append(out, of(v))
@@ -181,14 +181,10 @@ func Map[T any, C any](in []*T, of func(*T) C) []C {
 	return out
 }
 
-// OfIssueList returns the compact shape of a list_repo_issues page.
-func OfIssueList(p *model.IssuePage) IssueList {
-	return IssueList{Issues: Map(p.Issues, OfIssue), PageMeta: p.PageMeta}
-}
-
-// OfIssueSearchList returns the compact shape of a search_issues page.
-func OfIssueSearchList(p *model.IssueSearchPage) IssueList {
-	return IssueList{Issues: Map(p.Issues, OfIssue), PageMeta: p.PageMeta}
+// OfIssueList returns the compact shape of one page of issues: the elements of
+// list_repo_issues or search_issues, under the page's own model.PageMeta.
+func OfIssueList(issues []*model.Issue, meta model.PageMeta) IssueList {
+	return IssueList{Issues: mapPage(issues, OfIssue), PageMeta: meta}
 }
 
 // PullList is the compact result of list_repo_pull_requests: one page whose
@@ -201,7 +197,7 @@ type PullList struct {
 
 // OfPullList returns the compact shape of a list_repo_pull_requests page.
 func OfPullList(p *model.PullRequestPage) PullList {
-	return PullList{PullRequests: Map(p.PullRequests, OfPullRequest), PageMeta: p.PageMeta}
+	return PullList{PullRequests: mapPage(p.PullRequests, OfPullRequest), PageMeta: p.PageMeta}
 }
 
 // CommentRead is the compact result of get_issue_comment: the comment's ID and
@@ -273,13 +269,17 @@ func RenderPullRequestRead(pr *model.PullRequest, verbose bool) (*mcp.CallToolRe
 // RenderIssueList sends the result of list_repo_issues: the compact page, or the
 // full page when verbose. The caller maps the error itself.
 func RenderIssueList(p model.IssuePage, err error, verbose bool) (*mcp.CallToolResult, error) {
-	return render(&p, err, verbose, OfIssueList)
+	return render(&p, err, verbose, func(p *model.IssuePage) IssueList {
+		return OfIssueList(p.Issues, p.PageMeta)
+	})
 }
 
 // RenderIssueSearchList sends the result of search_issues: the compact page, or
 // the full page when verbose. The caller maps the error itself.
 func RenderIssueSearchList(p model.IssueSearchPage, err error, verbose bool) (*mcp.CallToolResult, error) {
-	return render(&p, err, verbose, OfIssueSearchList)
+	return render(&p, err, verbose, func(p *model.IssueSearchPage) IssueList {
+		return OfIssueList(p.Issues, p.PageMeta)
+	})
 }
 
 // RenderPullList sends the result of list_repo_pull_requests: the compact page,
@@ -300,25 +300,26 @@ func RenderCommentRead(c *model.Comment, err error, verbose bool) (*mcp.CallTool
 }
 
 // ReviewRead is the compact result of get_pull_review: the review's ID and URL,
-// its reviewer's login, state, body, commit and flags, the inline comment count
-// and the submission time. The reviewer's user object, the team, and the
-// pull request URL are verbose-only.
+// its author's login, state, body, commit and flags, the inline comment count
+// and the submission time, which is null while the review is pending. The
+// author's user object, the team, and the pull request URL are verbose-only.
 type ReviewRead struct {
-	ID        int64     `json:"id"`
-	URL       string    `json:"url"`
-	Reviewer  string    `json:"reviewer"`
-	State     string    `json:"state"`
-	Body      string    `json:"body"`
-	CommitID  string    `json:"commit_id"`
-	Stale     bool      `json:"stale"`
-	Dismissed bool      `json:"dismissed"`
-	Official  bool      `json:"official"`
-	Comments  int       `json:"comments_count"`
-	Submitted time.Time `json:"submitted_at"`
+	ID        int64      `json:"id"`
+	URL       string     `json:"url"`
+	Author    string     `json:"author"`
+	State     string     `json:"state"`
+	Body      string     `json:"body"`
+	CommitID  string     `json:"commit_id"`
+	Stale     bool       `json:"stale"`
+	Dismissed bool       `json:"dismissed"`
+	Official  bool       `json:"official"`
+	Comments  int        `json:"comments_count"`
+	Submitted *time.Time `json:"submitted_at"`
 }
 
 // OfReviewRead returns the compact read shape of a review. A review with no
-// reviewer has an empty login rather than a null one.
+// author has an empty login rather than a null one, and a review with no
+// submission time has a null one.
 func OfReviewRead(r *model.PullReview) ReviewRead {
 	out := ReviewRead{
 		ID:        r.ID,
@@ -330,10 +331,13 @@ func OfReviewRead(r *model.PullReview) ReviewRead {
 		Dismissed: r.Dismissed,
 		Official:  r.Official,
 		Comments:  r.CodeCommentsCount,
-		Submitted: r.Submitted,
+	}
+	if !r.Submitted.IsZero() {
+		submitted := r.Submitted
+		out.Submitted = &submitted
 	}
 	if r.Reviewer != nil {
-		out.Reviewer = r.Reviewer.UserName
+		out.Author = r.Reviewer.UserName
 	}
 	return out
 }

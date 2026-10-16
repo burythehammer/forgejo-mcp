@@ -265,7 +265,7 @@ func TestIssueListEmptyPage_KeepsElementsAndEnvelope(t *testing.T) {
 	p := model.IssuePage{PageMeta: model.PageMeta{
 		PageWindow: model.PageWindow{Page: 2, Limit: 20, Count: 0},
 	}}
-	got, err := json.Marshal(OfIssueList(&p))
+	got, err := json.Marshal(OfIssueList(p.Issues, p.PageMeta))
 	if err != nil {
 		t.Fatal(err)
 	}
