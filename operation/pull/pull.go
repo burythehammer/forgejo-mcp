@@ -44,6 +44,7 @@ var (
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	CreatePullRequestTool = mcp.NewTool(

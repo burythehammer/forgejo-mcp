@@ -10,8 +10,9 @@
 // get_pull_request_by_index are the reads that return a compact result by
 // default: IssueRead and PullRequestRead are the write shape plus the fields a
 // status check needs. list_repo_issues and search_issues return an IssueList,
-// one compact issue per element inside the unchanged paging envelope. Other read
-// tools and the forgejo:// resources keep the full entity.
+// one compact issue per element inside the unchanged paging envelope, and
+// list_repo_pull_requests returns a PullList, the same for pull requests. Other
+// read tools and the forgejo:// resources keep the full entity.
 package compact
 
 import (
@@ -187,6 +188,19 @@ func OfIssueSearchList(p *model.IssueSearchPage) IssueList {
 	return IssueList{Issues: Map(p.Issues, OfIssue), PageMeta: p.PageMeta}
 }
 
+// PullList is the compact result of list_repo_pull_requests: one page whose
+// pull requests are the compact pull request shape. The envelope is the page's
+// own model.PageMeta, unchanged, so paging code reads the same either way.
+type PullList struct {
+	PullRequests []PullRequest `json:"pull_requests"`
+	model.PageMeta
+}
+
+// OfPullList returns the compact shape of a list_repo_pull_requests page.
+func OfPullList(p *model.PullRequestPage) PullList {
+	return PullList{PullRequests: Map(p.PullRequests, OfPullRequest), PageMeta: p.PageMeta}
+}
+
 // OfComment returns the compact shape of a comment.
 func OfComment(c *model.Comment) Comment {
 	return Comment{ID: c.ID, URL: c.HTMLURL, Updated: c.Updated}
@@ -234,6 +248,12 @@ func RenderIssueList(p model.IssuePage, err error, verbose bool) (*mcp.CallToolR
 // the full page when verbose. The caller maps the error itself.
 func RenderIssueSearchList(p model.IssueSearchPage, err error, verbose bool) (*mcp.CallToolResult, error) {
 	return render(&p, err, verbose, OfIssueSearchList)
+}
+
+// RenderPullList sends the result of list_repo_pull_requests: the compact page,
+// or the full page when verbose. The caller maps the error itself.
+func RenderPullList(p model.PullRequestPage, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(&p, err, verbose, OfPullList)
 }
 
 // RenderComment sends the result of a comment write.

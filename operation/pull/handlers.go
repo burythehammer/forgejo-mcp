@@ -41,6 +41,7 @@ type listArgs struct {
 	Milestone string  `json:"milestone"`
 	Page      float64 `json:"page"`
 	Limit     float64 `json:"limit"`
+	Verbose   bool    `json:"verbose"`
 }
 
 type createArgs struct {
@@ -172,9 +173,10 @@ func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolR
 
 func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoPullRequestsFn", func(ctx context.Context, s *apppull.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.List(ctx, apppull.ListInput{
+		page, err := s.List(ctx, apppull.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: a.State, Sort: a.Sort, Milestone: a.Milestone, Page: int(a.Page), Limit: int(a.Limit),
-		}))
+		})
+		return compact.RenderPullList(page, err, a.Verbose)
 	})
 }
 

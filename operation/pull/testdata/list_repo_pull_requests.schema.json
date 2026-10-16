@@ -38,6 +38,10 @@
         "default": "open",
         "description": "State (open|closed|all)",
         "type": "string"
+      },
+      "verbose": {
+        "description": "Return the full entity instead of the compact summary. Default false.",
+        "type": "boolean"
       }
     },
     "required": [

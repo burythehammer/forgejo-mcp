@@ -274,3 +274,20 @@ func TestIssueListEmptyPage_KeepsElementsAndEnvelope(t *testing.T) {
 		t.Fatalf("empty page = %s, want %s", got, want)
 	}
 }
+
+// An empty pull request page renders its elements as [] and keeps the
+// envelope, the same as an issue page.
+func TestPullListEmptyPage_KeepsElementsAndEnvelope(t *testing.T) {
+	t.Parallel()
+	p := model.PullRequestPage{PageMeta: model.PageMeta{
+		PageWindow: model.PageWindow{Page: 2, Limit: 20, Count: 0},
+	}}
+	got, err := json.Marshal(OfPullList(&p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `{"pull_requests":[],"page":2,"limit":20,"count":0,"has_next":false}`
+	if string(got) != want {
+		t.Fatalf("empty page = %s, want %s", got, want)
+	}
+}
