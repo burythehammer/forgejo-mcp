@@ -90,6 +90,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.PRIndex)),
 		mcp.WithNumber("id", mcp.Required(), mcp.Description("Review ID")),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ListPullReviewCommentsTool = mcp.NewTool(

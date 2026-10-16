@@ -13,8 +13,9 @@
 // one compact issue per element inside the unchanged paging envelope, and
 // list_repo_pull_requests returns a PullList, the same for pull requests.
 // get_issue_comment returns a CommentRead: the comment's id, url, author login,
-// body and timestamps. Other read tools and the forgejo:// resources keep the
-// full entity.
+// body and timestamps. get_pull_review returns a ReviewRead: the review's id,
+// url, reviewer login, state, body, commit and flags, and its inline comment
+// count. Other read tools and the forgejo:// resources keep the full entity.
 package compact
 
 import (
@@ -296,4 +297,49 @@ func RenderComment(c *model.Comment, err error, verbose bool) (*mcp.CallToolResu
 // the full comment when verbose. The caller passes the read's error through.
 func RenderCommentRead(c *model.Comment, err error, verbose bool) (*mcp.CallToolResult, error) {
 	return render(c, err, verbose, OfCommentRead)
+}
+
+// ReviewRead is the compact result of get_pull_review: the review's ID and URL,
+// its reviewer's login, state, body, commit and flags, the inline comment count
+// and the submission time. The reviewer's user object, the team, and the
+// pull request URL are verbose-only.
+type ReviewRead struct {
+	ID        int64     `json:"id"`
+	URL       string    `json:"url"`
+	Reviewer  string    `json:"reviewer"`
+	State     string    `json:"state"`
+	Body      string    `json:"body"`
+	CommitID  string    `json:"commit_id"`
+	Stale     bool      `json:"stale"`
+	Dismissed bool      `json:"dismissed"`
+	Official  bool      `json:"official"`
+	Comments  int       `json:"comments_count"`
+	Submitted time.Time `json:"submitted_at"`
+}
+
+// OfReviewRead returns the compact read shape of a review. A review with no
+// reviewer has an empty login rather than a null one.
+func OfReviewRead(r *model.PullReview) ReviewRead {
+	out := ReviewRead{
+		ID:        r.ID,
+		URL:       r.HTMLURL,
+		State:     r.State,
+		Body:      r.Body,
+		CommitID:  r.CommitID,
+		Stale:     r.Stale,
+		Dismissed: r.Dismissed,
+		Official:  r.Official,
+		Comments:  r.CodeCommentsCount,
+		Submitted: r.Submitted,
+	}
+	if r.Reviewer != nil {
+		out.Reviewer = r.Reviewer.UserName
+	}
+	return out
+}
+
+// RenderReviewRead sends the result of get_pull_review: the compact read, or the
+// full review when verbose. The caller passes the read's error through.
+func RenderReviewRead(r *model.PullReview, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(r, err, verbose, OfReviewRead)
 }

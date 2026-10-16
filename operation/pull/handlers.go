@@ -81,6 +81,16 @@ type reviewArgs struct {
 	ID    float64 `json:"id" required:"true"`
 }
 
+// getReviewArgs is get_pull_review's own argument struct, so its verbose flag
+// does not reach the review tools that share reviewArgs.
+type getReviewArgs struct {
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	ID      float64 `json:"id" required:"true"`
+	Verbose bool    `json:"verbose"`
+}
+
 type mergeArgs struct {
 	Owner             string  `json:"owner" required:"true"`
 	Repo              string  `json:"repo" required:"true"`
@@ -204,8 +214,9 @@ func (h handlers) ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest
 }
 
 func (h handlers) GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetPullReviewFn", func(ctx context.Context, s *apppull.Service, a reviewArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Review(ctx, reviewRef(a)))
+	return run(ctx, h, req, "GetPullReviewFn", func(ctx context.Context, s *apppull.Service, a getReviewArgs) (*mcp.CallToolResult, error) {
+		review, err := s.Review(ctx, reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID}))
+		return compact.RenderReviewRead(review, err, a.Verbose)
 	})
 }
 

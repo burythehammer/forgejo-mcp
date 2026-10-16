@@ -11,6 +11,7 @@
 
 * **pull:** `create_pull_request` and `update_pull_request` now return the same compact result by default: number, url, title, state, label names, assignee logins, updated_at, head and base. The submitted body and the user object are no longer echoed back. Pass `verbose: true` to get the full pull request, which was the previous default. Tool names are unchanged; the input schemas gain only the optional `verbose` boolean.
 * **issue:** `get_issue_comment` now returns a compact result by default: id, url, the author's login, body, created_at and updated_at, in place of the full comment with its nested user object. Pass `verbose: true` to get the full comment, which was the previous default. The tool's input schema gains only the optional `verbose` boolean. Resources are unchanged.
+* **pull:** `get_pull_review` now returns a compact result by default: id, url, the reviewer's login, state, body, commit_id, stale, dismissed, official, comments_count and submitted_at, in place of the full review with its nested user and team objects. Pass `verbose: true` to get the full review, which was the previous default. The tool's input schema gains only the optional `verbose` boolean. Resources are unchanged.
 
 ## [3.2.0](https://git.b4mad.industries/agentic-forges/forgejo-mcp/compare/v3.1.0...v3.2.0) (2026-09-16)
 

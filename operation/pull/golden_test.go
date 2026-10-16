@@ -280,6 +280,8 @@ var goldenCases = []goldenCase{
 	{name: "list_reviews_defaults", tool: ListPullReviewsToolName, args: map[string]any{"index": float64(7)}},
 	{name: "list_reviews_paged", tool: ListPullReviewsToolName, args: map[string]any{"index": float64(7), "page": float64(3), "limit": float64(9)}},
 	{name: "get_review", tool: GetPullReviewToolName, args: map[string]any{"index": float64(7), "id": float64(21)}},
+	// verbose=true restores the full review; this golden is the pre-compact output.
+	{name: "get_review_verbose", tool: GetPullReviewToolName, args: map[string]any{"index": float64(7), "id": float64(21), "verbose": true}},
 	{name: "list_review_comments", tool: ListPullReviewCommentsToolName, args: map[string]any{"index": float64(7), "id": float64(21)}},
 	{name: "merge_ok", tool: MergePullRequestToolName, args: map[string]any{"index": float64(7), "style": "squash", "title": "t", "message": "m", "delete_branch_after_merge": true, "force_merge": true},
 		stub: func(s *stubPulls) { s.merge = forge.MergeResult{Merged: true, StatusCode: 200} }},
