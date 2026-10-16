@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
 )
@@ -72,6 +73,87 @@ func TestRenderComment_DefaultIsCompactVerboseIsFull(t *testing.T) {
 func TestRenderComment_ErrorIsPassedThrough(t *testing.T) {
 	t.Parallel()
 	res, err := RenderComment(nil, errTest, false)
+	if err == nil && (res == nil || !res.IsError) {
+		t.Fatalf("expected an error, got res=%+v err=%v", res, err)
+	}
+}
+
+// TestOfCommentRead_LoginAndBodyNotUser: the read shape carries the author as a
+// plain login string and the body, and no nested user object.
+func TestOfCommentRead_LoginAndBodyNotUser(t *testing.T) {
+	t.Parallel()
+	b, err := json.Marshal(OfCommentRead(sampleComment()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{
+		"id":         float64(31),
+		"url":        "https://forge.example/o/r/issues/7#issuecomment-31",
+		"author":     "matt",
+		"body":       "a long comment body that must not be echoed back",
+		"created_at": updated.Format(time.RFC3339Nano),
+		"updated_at": updated.Format(time.RFC3339Nano),
+	}
+	if len(got) != len(want) {
+		t.Fatalf("compact comment read has %d keys, want %d: %s", len(got), len(want), b)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %v, want %v: %s", k, got[k], v, b)
+		}
+	}
+	if strings.Contains(string(b), "matt@example.test") || strings.Contains(string(b), `"user"`) {
+		t.Fatalf("user object leaked: %s", b)
+	}
+}
+
+// TestOfCommentRead_NoPosterIsEmptyAuthor: a comment without a poster renders
+// the author as "", not null, so the field keeps its type.
+func TestOfCommentRead_NoPosterIsEmptyAuthor(t *testing.T) {
+	t.Parallel()
+	c := sampleComment()
+	c.Poster = nil
+	b, err := json.Marshal(OfCommentRead(c))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if string(got["author"]) != `""` {
+		t.Fatalf("author = %s, want \"\"", got["author"])
+	}
+}
+
+func TestRenderCommentRead_DefaultIsCompactVerboseIsFull(t *testing.T) {
+	t.Parallel()
+	res, err := RenderCommentRead(sampleComment(), nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := keysOf(t, sampleTextOf(t, res))
+	if got["author"] == nil || got["body"] == nil || got["user"] != nil {
+		t.Fatalf("default comment read keys wrong: %v", got)
+	}
+
+	res, err = RenderCommentRead(sampleComment(), nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = keysOf(t, sampleTextOf(t, res))
+	if got["user"] == nil || got["author"] != nil {
+		t.Fatalf("verbose comment read must be the full entity, keys: %v", got)
+	}
+}
+
+func TestRenderCommentRead_ErrorIsPassedThrough(t *testing.T) {
+	t.Parallel()
+	res, err := RenderCommentRead(nil, errTest, false)
 	if err == nil && (res == nil || !res.IsError) {
 		t.Fatalf("expected an error, got res=%+v err=%v", res, err)
 	}

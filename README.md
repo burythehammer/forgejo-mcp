@@ -368,7 +368,7 @@ List all my repositories
 | `get_org_label` | Get a single organization-level label by numeric `id`. |
 | **Comments** | |
 | `list_issue_comments` | List comments on an issue or PR (page/limit); returns `{comments,page,limit,count,has_next}` |
-| `get_issue_comment` | Get a specific comment |
+| `get_issue_comment` | Get a specific comment. Returns a compact result by default (id, url, author login, body, created_at, updated_at); `verbose=true` returns the full comment |
 | `create_issue_comment` | Add a comment to an issue or PR. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `edit_issue_comment` | Edit a comment. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `delete_issue_comment` | Delete a comment |

@@ -11,8 +11,10 @@
 // default: IssueRead and PullRequestRead are the write shape plus the fields a
 // status check needs. list_repo_issues and search_issues return an IssueList,
 // one compact issue per element inside the unchanged paging envelope, and
-// list_repo_pull_requests returns a PullList, the same for pull requests. Other
-// read tools and the forgejo:// resources keep the full entity.
+// list_repo_pull_requests returns a PullList, the same for pull requests.
+// get_issue_comment returns a CommentRead: the comment's id, url, author login,
+// body and timestamps. Other read tools and the forgejo:// resources keep the
+// full entity.
 package compact
 
 import (
@@ -201,9 +203,38 @@ func OfPullList(p *model.PullRequestPage) PullList {
 	return PullList{PullRequests: Map(p.PullRequests, OfPullRequest), PageMeta: p.PageMeta}
 }
 
+// CommentRead is the compact result of get_issue_comment: the comment's ID and
+// URL, its author's login, the body, and when it was created and last updated.
+// The nested user object and the other URLs are verbose-only. The write shape
+// Comment is unchanged.
+type CommentRead struct {
+	ID      int64     `json:"id"`
+	URL     string    `json:"url"`
+	Author  string    `json:"author"`
+	Body    string    `json:"body"`
+	Created time.Time `json:"created_at"`
+	Updated time.Time `json:"updated_at"`
+}
+
 // OfComment returns the compact shape of a comment.
 func OfComment(c *model.Comment) Comment {
 	return Comment{ID: c.ID, URL: c.HTMLURL, Updated: c.Updated}
+}
+
+// OfCommentRead returns the compact read shape of a comment. A comment with no
+// poster has an empty author rather than a null one.
+func OfCommentRead(c *model.Comment) CommentRead {
+	out := CommentRead{
+		ID:      c.ID,
+		URL:     c.HTMLURL,
+		Body:    c.Body,
+		Created: c.Created,
+		Updated: c.Updated,
+	}
+	if c.Poster != nil {
+		out.Author = c.Poster.UserName
+	}
+	return out
 }
 
 // render sends a write's result: the use case's error, the full entity when
@@ -259,4 +290,10 @@ func RenderPullList(p model.PullRequestPage, err error, verbose bool) (*mcp.Call
 // RenderComment sends the result of a comment write.
 func RenderComment(c *model.Comment, err error, verbose bool) (*mcp.CallToolResult, error) {
 	return render(c, err, verbose, OfComment)
+}
+
+// RenderCommentRead sends the result of get_issue_comment: the compact read, or
+// the full comment when verbose. The caller passes the read's error through.
+func RenderCommentRead(c *model.Comment, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(c, err, verbose, OfCommentRead)
 }

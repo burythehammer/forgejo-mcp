@@ -165,6 +165,7 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("comment_id", mcp.Required(), mcp.Description(params.CommentID)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	EditIssueCommentTool = mcp.NewTool(
@@ -361,6 +362,13 @@ type commentArgs struct {
 	CommentID float64 `json:"comment_id" required:"true"`
 }
 
+type getCommentArgs struct {
+	Owner     string  `json:"owner" required:"true"`
+	Repo      string  `json:"repo" required:"true"`
+	CommentID float64 `json:"comment_id" required:"true"`
+	Verbose   bool    `json:"verbose"`
+}
+
 type editCommentArgs struct {
 	Owner     string  `json:"owner" required:"true"`
 	Repo      string  `json:"repo" required:"true"`
@@ -509,8 +517,9 @@ func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolReque
 }
 
 func (h handlers) GetIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a commentArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Comment(ctx, a.Owner, a.Repo, int64(a.CommentID)))
+	return run(ctx, h, req, "GetIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a getCommentArgs) (*mcp.CallToolResult, error) {
+		c, err := s.Comment(ctx, a.Owner, a.Repo, int64(a.CommentID))
+		return compact.RenderCommentRead(c, err, a.Verbose)
 	})
 }
 

@@ -56,6 +56,7 @@ func TestCompactWriteArgsMatchSchemas(t *testing.T) {
 	mcptest.ArgsMatchSchema(t, IssueStateChangeTool, stateArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueCommentTool, createCommentArgs{})
 	mcptest.ArgsMatchSchema(t, EditIssueCommentTool, editCommentArgs{})
+	mcptest.ArgsMatchSchema(t, GetIssueCommentTool, getCommentArgs{})
 	mcptest.ArgsMatchSchema(t, AddIssueLabelsTools, labelsArgs{})
 	mcptest.ArgsMatchSchema(t, RemoveIssueLabelsTools, labelsArgs{})
 }
@@ -392,6 +393,8 @@ var goldenCases = []goldenCase{
 	{name: "list_issue_comments_bad_before", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7), "before": "x"}},
 	{name: "list_issue_comments_port_error", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7)}, stub: failing("ListIssueComments", errBoom)},
 	{name: "get_issue_comment", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}},
+	// verbose=true restores the full comment; this golden is the pre-compact output.
+	{name: "get_issue_comment_verbose", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "verbose": true}},
 	{name: "get_issue_comment_port_error", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}, stub: failing("GetIssueComment", errBoom)},
 	{name: "edit_issue_comment", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}},
 	{name: "edit_issue_comment_port_error", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}, stub: failing("EditIssueComment", errBoom)},
