@@ -34,5 +34,5 @@ The thin layer that exposes a use case as an MCP tool: it owns the tool definiti
 _Avoid_: handler (as the concept), tool function, adapter (unqualified)
 
 **Compact result**:
-The default summary shape of a tool's entity, returned by the write tools and by `get_issue_by_index` and `get_pull_request_by_index`. Passing `verbose: true` returns the full entity instead.
+The default summary shape of a tool's entity. The write tools return it, and so do the entities in a list result and the single reads of an issue, a pull request, a comment and a review. Passing `verbose: true` returns the full entity instead.
 _Avoid_: short result, slim response
