@@ -257,3 +257,20 @@ func TestVerboseDescription_IsGeneric(t *testing.T) {
 		t.Fatalf("VerboseDescription = %q, want %q", VerboseDescription, want)
 	}
 }
+
+// An empty page must still render its elements as [] and keep the envelope
+// fields, so a client paging through a list sees the same keys as a full page.
+func TestIssueListEmptyPage_KeepsElementsAndEnvelope(t *testing.T) {
+	t.Parallel()
+	p := model.IssuePage{PageMeta: model.PageMeta{
+		PageWindow: model.PageWindow{Page: 2, Limit: 20, Count: 0},
+	}}
+	got, err := json.Marshal(OfIssueList(&p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `{"issues":[],"page":2,"limit":20,"count":0,"has_next":false}`
+	if string(got) != want {
+		t.Fatalf("empty page = %s, want %s", got, want)
+	}
+}

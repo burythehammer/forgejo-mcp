@@ -9,8 +9,9 @@
 // an issue or a pull request agrees on it. get_issue_by_index and
 // get_pull_request_by_index are the reads that return a compact result by
 // default: IssueRead and PullRequestRead are the write shape plus the fields a
-// status check needs. Other read tools and the forgejo:// resources keep the
-// full entity.
+// status check needs. list_repo_issues and search_issues return an IssueList,
+// one compact issue per element inside the unchanged paging envelope. Other read
+// tools and the forgejo:// resources keep the full entity.
 package compact
 
 import (
@@ -158,6 +159,34 @@ func OfPullRequestRead(pr *model.PullRequest) PullRequestRead {
 	return out
 }
 
+// IssueList is the compact result of list_repo_issues and search_issues: one
+// page whose issues are the compact issue shape. The envelope is the page's own
+// model.PageMeta, unchanged, so paging code reads the same either way.
+type IssueList struct {
+	Issues []Issue `json:"issues"`
+	model.PageMeta
+}
+
+// Map projects each element of a page to its compact shape. An empty page maps
+// to [] rather than null, so the envelope still reads as a list.
+func Map[T any, C any](in []*T, of func(*T) C) []C {
+	out := make([]C, 0, len(in))
+	for _, v := range in {
+		out = append(out, of(v))
+	}
+	return out
+}
+
+// OfIssueList returns the compact shape of a list_repo_issues page.
+func OfIssueList(p *model.IssuePage) IssueList {
+	return IssueList{Issues: Map(p.Issues, OfIssue), PageMeta: p.PageMeta}
+}
+
+// OfIssueSearchList returns the compact shape of a search_issues page.
+func OfIssueSearchList(p *model.IssueSearchPage) IssueList {
+	return IssueList{Issues: Map(p.Issues, OfIssue), PageMeta: p.PageMeta}
+}
+
 // OfComment returns the compact shape of a comment.
 func OfComment(c *model.Comment) Comment {
 	return Comment{ID: c.ID, URL: c.HTMLURL, Updated: c.Updated}
@@ -193,6 +222,18 @@ func RenderIssueRead(iss *model.Issue, verbose bool) (*mcp.CallToolResult, error
 // maps the read's error itself and calls this only with a non-nil pull request.
 func RenderPullRequestRead(pr *model.PullRequest, verbose bool) (*mcp.CallToolResult, error) {
 	return render(pr, nil, verbose, OfPullRequestRead)
+}
+
+// RenderIssueList sends the result of list_repo_issues: the compact page, or the
+// full page when verbose. The caller maps the error itself.
+func RenderIssueList(p model.IssuePage, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(&p, err, verbose, OfIssueList)
+}
+
+// RenderIssueSearchList sends the result of search_issues: the compact page, or
+// the full page when verbose. The caller maps the error itself.
+func RenderIssueSearchList(p model.IssueSearchPage, err error, verbose bool) (*mcp.CallToolResult, error) {
+	return render(&p, err, verbose, OfIssueSearchList)
 }
 
 // RenderComment sends the result of a comment write.

@@ -49,6 +49,8 @@ func TestSchemaSnapshots(t *testing.T) {
 func TestCompactWriteArgsMatchSchemas(t *testing.T) {
 	t.Parallel()
 	mcptest.ArgsMatchSchema(t, GetIssueByIndexTool, getIssueArgs{})
+	mcptest.ArgsMatchSchema(t, ListRepoIssuesTool, listIssuesArgs{})
+	mcptest.ArgsMatchSchema(t, SearchIssuesTool, searchArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueTool, createIssueArgs{})
 	mcptest.ArgsMatchSchema(t, UpdateIssueTool, updateIssueArgs{})
 	mcptest.ArgsMatchSchema(t, IssueStateChangeTool, stateArgs{})
@@ -335,6 +337,8 @@ var goldenCases = []goldenCase{
 
 	// list_repo_issues
 	{name: "list_issues_defaults", tool: ListRepoIssuesToolName},
+	// verbose=true restores the full page; this golden is the pre-compact output.
+	{name: "list_issues_verbose", tool: ListRepoIssuesToolName, args: map[string]any{"verbose": true}},
 	{name: "list_issues_explicit_empty_state", tool: ListRepoIssuesToolName, args: map[string]any{"state": ""}},
 	{name: "list_issues_non_string_state", tool: ListRepoIssuesToolName, args: map[string]any{"state": float64(5)}},
 	{name: "list_issues_filtered", tool: ListRepoIssuesToolName, args: map[string]any{"state": "closed", "type": "issues", "milestones": "1,2", "labels": "bug,ui", "sort": "latest", "page": float64(2), "limit": float64(5)}},
@@ -347,6 +351,8 @@ var goldenCases = []goldenCase{
 
 	// search_issues
 	{name: "search_issues_defaults", tool: SearchIssuesToolName},
+	// verbose=true restores the full page; this golden is the pre-compact output.
+	{name: "search_issues_verbose", tool: SearchIssuesToolName, args: map[string]any{"verbose": true}},
 	{name: "search_issues_known_total", tool: SearchIssuesToolName, args: map[string]any{"limit": float64(2)}, stub: func(s *goldenStub) {
 		s.info = forge.PageInfo{HasNext: true, TotalCount: 42, TotalKnown: true}
 	}},

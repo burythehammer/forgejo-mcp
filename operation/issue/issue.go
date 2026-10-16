@@ -72,6 +72,7 @@ var (
 		mcp.WithString("sort", mcp.Description("Server-side sort order. One of: relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate. Default is the API's own default (latest).")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	CreateIssueTool = mcp.NewTool(
@@ -231,6 +232,7 @@ var (
 		mcp.WithString("mentioned_by", mcp.Description("Filter by mentioned username")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 )
 
@@ -288,6 +290,7 @@ type listIssuesArgs struct {
 	Sort       string  `json:"sort"`
 	Page       float64 `json:"page"`
 	Limit      float64 `json:"limit"`
+	Verbose    bool    `json:"verbose"`
 }
 
 type createIssueArgs struct {
@@ -400,6 +403,7 @@ type searchArgs struct {
 	MentionedBy string  `json:"mentioned_by"`
 	Page        float64 `json:"page"`
 	Limit       float64 `json:"limit"`
+	Verbose     bool    `json:"verbose"`
 }
 
 // target is the issue a call names.
@@ -424,22 +428,24 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.State != nil {
 			state = *a.State
 		}
-		return mcpresult.Render(s.List(ctx, apppissue.ListInput{
+		page, err := s.List(ctx, apppissue.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
 			Milestones: a.Milestones, Labels: a.Labels,
 			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
-		}))
+		})
+		return compact.RenderIssueList(page, err, a.Verbose)
 	})
 }
 
 func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchIssuesFn", func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
 		// Out-of-range page and limit values are corrected by the use case.
-		return mcpresult.Render(s.Search(ctx, apppissue.SearchInput{
+		page, err := s.Search(ctx, apppissue.SearchInput{
 			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
 			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
 			Paging: apppissue.Paging{Page: int(a.Page), Limit: int(a.Limit)},
-		}))
+		})
+		return compact.RenderIssueSearchList(page, err, a.Verbose)
 	})
 }
 
