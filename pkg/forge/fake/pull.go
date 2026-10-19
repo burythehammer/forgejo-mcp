@@ -37,6 +37,16 @@ type pullRecord struct {
 	comments []*forgejo_sdk.Comment
 	reviews  []*reviewRecord
 	nextID   int64
+	// decline, when set, is the answer every merge of this pull request gets
+	// in place of the fake's own (see SetMergeDecline).
+	decline *mergeDecline
+}
+
+// mergeDecline is a declined merge's answer: the status and the message Forgejo
+// gives with it. An empty message stands for a body that is not JSON.
+type mergeDecline struct {
+	statusCode int
+	message    string
 }
 
 type reviewRecord struct {
@@ -100,6 +110,20 @@ func (f *Forgejo) SetPullRequestDiff(owner, repo string, index int64, diff strin
 		return err
 	}
 	p.diff = diff
+	return nil
+}
+
+// SetMergeDecline makes every merge of a pull request declined with statusCode
+// and message, as a Forgejo that refuses the merge for a reason of its own
+// would. An empty message stands for an answer whose body is not JSON.
+func (f *Forgejo) SetMergeDecline(owner, repo string, index int64, statusCode int, message string) error {
+	f.pulls.mu.Lock()
+	defer f.pulls.mu.Unlock()
+	p, err := f.pulls.pull(owner, repo, index)
+	if err != nil {
+		return err
+	}
+	p.decline = &mergeDecline{statusCode: statusCode, message: message}
 	return nil
 }
 
@@ -253,10 +277,19 @@ func (f *Forgejo) MergePullRequest(_ context.Context, owner, repo string, index 
 	if err != nil {
 		// Forgejo answers a merge of an unknown pull request with 404, which
 		// the SDK reports as a status, not an error.
-		return forge.MergeResult{StatusCode: http.StatusNotFound}, nil
+		return forge.MergeResult{StatusCode: http.StatusNotFound, Message: "pull request does not exist"}, nil
 	}
-	if p.pr.HasMerged || p.pr.State != forgejo_sdk.StateOpen || !p.pr.Mergeable {
-		return forge.MergeResult{StatusCode: http.StatusMethodNotAllowed}, nil
+	if p.decline != nil {
+		return forge.MergeResult{StatusCode: p.decline.statusCode, Message: p.decline.message}, nil
+	}
+	if p.pr.HasMerged {
+		return forge.MergeResult{StatusCode: http.StatusMethodNotAllowed, Message: "Pull request has already been merged"}, nil
+	}
+	if p.pr.State != forgejo_sdk.StateOpen {
+		return forge.MergeResult{StatusCode: http.StatusMethodNotAllowed, Message: "Pull request is closed"}, nil
+	}
+	if !p.pr.Mergeable {
+		return forge.MergeResult{StatusCode: http.StatusMethodNotAllowed, Message: "Pull request is not mergeable"}, nil
 	}
 	if opt.MergeWhenChecksSucceed {
 		return forge.MergeResult{StatusCode: http.StatusCreated}, nil

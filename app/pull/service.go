@@ -194,7 +194,7 @@ func (s *Service) Merge(ctx context.Context, in MergeRequest) (MergeResult, erro
 		return MergeResult{}, fmt.Errorf("merge pull request err: %w", err)
 	}
 	if !out.Merged && !in.WhenChecksSucceed {
-		return MergeResult{}, &MergeDeclinedError{StatusCode: out.StatusCode}
+		return MergeResult{}, &MergeDeclinedError{StatusCode: out.StatusCode, Message: out.Message}
 	}
 	return MergeResult{Scheduled: in.WhenChecksSucceed}, nil
 }

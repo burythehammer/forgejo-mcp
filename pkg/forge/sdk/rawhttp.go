@@ -215,6 +215,47 @@ func (r *rawClient) doJSONWithHeader(ctx context.Context, method, pathOrURL stri
 	return resp.Header, nil
 }
 
+// maxStatusBody bounds the body doStatus keeps. A Forgejo error message is a
+// few hundred bytes; anything longer is not a message the caller can use.
+const maxStatusBody = 64 << 10
+
+// doStatus performs an authenticated JSON request and returns the answer's
+// status and a bounded copy of its body, whatever the status. Only a failure to
+// get an answer at all is an error: what a non-2xx answer means is the caller's
+// to decide, so the body is not lost to an error value.
+func (r *rawClient) doStatus(ctx context.Context, method, pathOrURL string, body any) (int, []byte, error) {
+	full, err := r.resolveURL(pathOrURL)
+	if err != nil {
+		return 0, nil, err
+	}
+	var bodyReader io.Reader
+	if body != nil {
+		buf, err := json.Marshal(body)
+		if err != nil {
+			return 0, nil, fmt.Errorf("marshal body: %w", err)
+		}
+		bodyReader = bytes.NewReader(buf)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, full, bodyReader)
+	if err != nil {
+		return 0, nil, fmt.Errorf("build request: %w", err)
+	}
+	r.setCommonHeaders(req)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := r.doRequest(ctx, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxStatusBody))
+	if err != nil {
+		return resp.StatusCode, nil, fmt.Errorf("read response: %w", err)
+	}
+	return resp.StatusCode, data, nil
+}
+
 // doJSONList is like doJSON but treats 404 as "empty list" (no error,
 // out left at its zero value).
 func (r *rawClient) doJSONList(ctx context.Context, method, pathOrURL string, out any) error {

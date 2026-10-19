@@ -289,6 +289,10 @@ var goldenCases = []goldenCase{
 		stub: func(s *stubPulls) { s.merge = forge.MergeResult{StatusCode: 201} }},
 	{name: "merge_declined", tool: MergePullRequestToolName, args: map[string]any{"index": float64(7), "style": "merge"},
 		stub: func(s *stubPulls) { s.merge = forge.MergeResult{StatusCode: 405} }},
+	{name: "merge_declined_message", tool: MergePullRequestToolName, args: map[string]any{"index": float64(7), "style": "merge"},
+		stub: func(s *stubPulls) {
+			s.merge = forge.MergeResult{StatusCode: 422, Message: "Pull request has merge conflicts"}
+		}},
 	{name: "merge_port_error", tool: MergePullRequestToolName, args: map[string]any{"index": float64(7), "style": "merge"}, stub: func(s *stubPulls) { s.fail = errors.New("boom") }},
 	{name: "files_defaults", tool: ListPullRequestFilesToolName, args: map[string]any{"index": float64(7)}},
 	{name: "files_paged", tool: ListPullRequestFilesToolName, args: map[string]any{"index": float64(7), "page": float64(2), "limit": float64(10)}},

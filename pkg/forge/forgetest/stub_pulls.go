@@ -68,7 +68,17 @@ func (s *Stub) mountPulls(mux *http.ServeMux) {
 			writeErr(w, err)
 			return
 		}
-		w.WriteHeader(res.StatusCode)
+		switch {
+		case res.StatusCode < http.StatusMultipleChoices:
+			w.WriteHeader(res.StatusCode)
+		case res.Message != "":
+			writeJSON(w, res.StatusCode, map[string]string{"message": res.Message})
+		default:
+			// A declined answer whose body is not JSON, as a proxy might send.
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(res.StatusCode)
+			_, _ = w.Write([]byte("declined\n"))
+		}
 	})
 	mux.HandleFunc("GET "+pullsBase+"/{index}/files", func(w http.ResponseWriter, r *http.Request) {
 		out, err := f.ListPullRequestFiles(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "index"),

@@ -51,4 +51,8 @@ type MergeResult struct {
 	// StatusCode is the HTTP status of the answer; 201 means the merge was
 	// scheduled for when checks succeed.
 	StatusCode int
+	// Message is Forgejo's own explanation of a declined merge, from the
+	// "message" field of a JSON answer. It is empty when the merge went through
+	// or was scheduled, and when a declined answer had no such JSON message.
+	Message string
 }
