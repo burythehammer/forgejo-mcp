@@ -38,10 +38,7 @@ func TestRepoAdminContract(t *testing.T) {
 
 func TestPullsContract(t *testing.T) {
 	t.Parallel()
-	forgetest.RunPulls(t, func(t *testing.T) forgetest.Harness {
-		stub := forgetest.NewStub(t)
-		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
-	})
+	forgetest.RunPulls(t, harness)
 }
 
 func TestOrgsContract(t *testing.T) {

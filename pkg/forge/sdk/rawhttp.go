@@ -249,6 +249,9 @@ func (r *rawClient) doStatus(ctx context.Context, method, pathOrURL string, body
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
+	// A body over maxStatusBody is cut off silently. The cut JSON does not
+	// parse, so a caller reading the message gets "" and reports the status
+	// alone, not a partial message.
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxStatusBody))
 	if err != nil {
 		return resp.StatusCode, nil, fmt.Errorf("read response: %w", err)
