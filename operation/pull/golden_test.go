@@ -101,6 +101,30 @@ type stubPulls struct {
 	calls []string
 	fail  error
 	merge forge.MergeResult
+	// pr, when set, is the pull request GetPullRequest returns in place of
+	// fixedPR.
+	pr *forgejo_sdk.PullRequest
+	// prs, when set, is the page ListPullRequests returns in place of the two
+	// fixedPR entries.
+	prs []*forgejo_sdk.PullRequest
+}
+
+// mergedPR is fixedPR as Forgejo reports a merged pull request: closed, with the
+// merged flag set along with the merge time and commit.
+func mergedPR() *forgejo_sdk.PullRequest {
+	pr := fixedPR("fixed")
+	pr.State = forgejo_sdk.StateClosed
+	pr.HasMerged = true
+	return pr
+}
+
+// unmergedPR is fixedPR as Forgejo reports a pull request that is still open: no
+// merge, no merge commit, no close time.
+func unmergedPR() *forgejo_sdk.PullRequest {
+	pr := fixedPR("fixed")
+	pr.State = forgejo_sdk.StateOpen
+	pr.HasMerged, pr.Merged, pr.MergedCommitID, pr.MergedBy, pr.Closed = false, nil, nil, nil, nil
+	return pr
 }
 
 func (s *stubPulls) rec(name string, args ...any) error {
@@ -112,11 +136,19 @@ func (s *stubPulls) rec(name string, args ...any) error {
 }
 
 func (s *stubPulls) GetPullRequest(_ context.Context, o, r string, i int64) (*forgejo_sdk.PullRequest, error) {
-	return fixedPR("fixed"), s.rec("GetPullRequest", o, r, i)
+	pr := s.pr
+	if pr == nil {
+		pr = fixedPR("fixed")
+	}
+	return pr, s.rec("GetPullRequest", o, r, i)
 }
 
 func (s *stubPulls) ListPullRequests(_ context.Context, o, r string, opt forgejo_sdk.ListPullRequestsOptions) ([]*forgejo_sdk.PullRequest, error) {
-	return []*forgejo_sdk.PullRequest{fixedPR("one"), fixedPR("two")}, s.rec("ListPullRequests", o, r, opt)
+	prs := s.prs
+	if prs == nil {
+		prs = []*forgejo_sdk.PullRequest{fixedPR("one"), fixedPR("two")}
+	}
+	return prs, s.rec("ListPullRequests", o, r, opt)
 }
 
 func (s *stubPulls) CreatePullRequest(_ context.Context, o, r string, opt forgejo_sdk.CreatePullRequestOption) (*forgejo_sdk.PullRequest, error) {
@@ -216,7 +248,10 @@ type goldenCase struct {
 }
 
 var goldenCases = []goldenCase{
-	{name: "get_pr", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}},
+	{name: "get_pr", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}, stub: func(s *stubPulls) { s.pr = mergedPR() }},
+	{name: "get_pr_open", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}, stub: func(s *stubPulls) { s.pr = unmergedPR() }},
+	// verbose=true restores the full entity; this golden is the pre-compact output.
+	{name: "get_pr_verbose", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7), "verbose": true}},
 	{name: "get_pr_string_index", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": "7"}},
 	// Forgiving argument handling of the original handlers, kept: a missing
 	// required argument is forwarded as its zero value, and a fractional
@@ -226,7 +261,14 @@ var goldenCases = []goldenCase{
 	{name: "list_prs_fractional_paging", tool: ListRepoPullRequestsToolName, args: map[string]any{"page": 2.9, "limit": 3.5}},
 	{name: "merge_missing_style", tool: MergePullRequestToolName, args: map[string]any{"index": float64(7)}},
 	{name: "get_pr_port_error", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7)}, stub: func(s *stubPulls) { s.fail = errors.New("boom") }},
-	{name: "list_prs_defaults", tool: ListRepoPullRequestsToolName},
+	// A merged and an open pull request, each with head and base branches.
+	{name: "list_prs_defaults", tool: ListRepoPullRequestsToolName, stub: func(s *stubPulls) {
+		open := unmergedPR()
+		open.Index, open.Title = 8, "open"
+		s.prs = []*forgejo_sdk.PullRequest{mergedPR(), open}
+	}},
+	// verbose=true restores the full page; this golden is the pre-compact output.
+	{name: "list_prs_verbose", tool: ListRepoPullRequestsToolName, args: map[string]any{"verbose": true}},
 	{name: "list_prs_filtered", tool: ListRepoPullRequestsToolName, args: map[string]any{"state": "all", "sort": "oldest", "milestone": "4", "page": float64(2), "limit": float64(5)}},
 	{name: "list_prs_bad_milestone", tool: ListRepoPullRequestsToolName, args: map[string]any{"milestone": "soon"}},
 	{name: "create_pr", tool: CreatePullRequestToolName, args: map[string]any{"head": "feat", "base": "main", "title": "T", "body": "B"}},
@@ -238,6 +280,8 @@ var goldenCases = []goldenCase{
 	{name: "list_reviews_defaults", tool: ListPullReviewsToolName, args: map[string]any{"index": float64(7)}},
 	{name: "list_reviews_paged", tool: ListPullReviewsToolName, args: map[string]any{"index": float64(7), "page": float64(3), "limit": float64(9)}},
 	{name: "get_review", tool: GetPullReviewToolName, args: map[string]any{"index": float64(7), "id": float64(21)}},
+	// verbose=true restores the full review; this golden is the pre-compact output.
+	{name: "get_review_verbose", tool: GetPullReviewToolName, args: map[string]any{"index": float64(7), "id": float64(21), "verbose": true}},
 	{name: "list_review_comments", tool: ListPullReviewCommentsToolName, args: map[string]any{"index": float64(7), "id": float64(21)}},
 	{name: "merge_ok", tool: MergePullRequestToolName, args: map[string]any{"index": float64(7), "style": "squash", "title": "t", "message": "m", "delete_branch_after_merge": true, "force_merge": true},
 		stub: func(s *stubPulls) { s.merge = forge.MergeResult{Merged: true, StatusCode: 200} }},

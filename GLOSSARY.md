@@ -32,3 +32,7 @@ _Avoid_: handler, service, operation
 **MCP adapter**:
 The thin layer that exposes a use case as an MCP tool: it owns the tool definition and input schema, decodes arguments into the tool's argument struct, calls the use case, and renders its result as MCP output. It lives under `operation/<domain>/`, in `handlers.go`, and its struct is named `handlers`. Those file and type names are the only place "handler" appears in the code, and they mean this layer.
 _Avoid_: handler (as the concept), tool function, adapter (unqualified)
+
+**Compact result**:
+The default summary shape of a tool's entity. The write tools return it, and so do the entities in a list result and the single reads of an issue, a pull request, a comment and a review. Passing `verbose: true` returns the full entity instead.
+_Avoid_: short result, slim response

@@ -31,6 +31,7 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.PRIndex)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ListRepoPullRequestsTool = mcp.NewTool(
@@ -43,6 +44,7 @@ var (
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	CreatePullRequestTool = mcp.NewTool(
@@ -88,6 +90,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.PRIndex)),
 		mcp.WithNumber("id", mcp.Required(), mcp.Description("Review ID")),
+		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ListPullReviewCommentsTool = mcp.NewTool(

@@ -343,9 +343,9 @@ List all my repositories
 | `list_repo_commits` | List commits in a repository (page/limit); returns `{commits,page,limit,count,has_next}` |
 | `get_commit_statuses` | List per-context commit statuses for a full 40-character SHA. Bounded by `page` (default 1) + `limit` (default 30, maximum 50); returns `{sha, statuses, page, limit, count, total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Combined aggregate stays on the commit status resource. Not Actions runs (`list_workflow_runs`). |
 | **Issues** | |
-| `list_repo_issues` | List issues in a repository (page/limit); returns `{issues,page,limit,count,has_next}`. Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |
-| `search_issues` | Search issues across every repository of one owner (page/limit); returns `{issues,page,limit,count,has_next,total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count` |
-| `get_issue_by_index` | Get a specific issue |
+| `list_repo_issues` | List issues in a repository (page/limit); returns `{issues,page,limit,count,has_next}`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues. Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |
+| `search_issues` | Search issues across every repository of one owner (page/limit); returns `{issues,page,limit,count,has_next,total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues |
+| `get_issue_by_index` | Get a specific issue. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, body, closed_at, ref, comments); `verbose=true` returns the full issue |
 | `create_issue` | Create a new issue. Optional `labels` (comma-separated names or IDs), `assignees` (comma-separated usernames) and `milestone` (numeric ID) are applied by the same request that creates the issue. Optional `ref` links the issue to a branch (Forgejo's issue `ref` field, passed through as given). Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
 | `add_issue_labels` | Add labels to an issue. `labels` takes comma-separated label names or numeric IDs; an unrecognised name is an error and nothing is applied. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
 | `remove_issue_labels` | Remove labels from an issue. `labels` takes comma-separated label names or numeric IDs. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
@@ -368,17 +368,17 @@ List all my repositories
 | `get_org_label` | Get a single organization-level label by numeric `id`. |
 | **Comments** | |
 | `list_issue_comments` | List comments on an issue or PR (page/limit); returns `{comments,page,limit,count,has_next}` |
-| `get_issue_comment` | Get a specific comment |
+| `get_issue_comment` | Get a specific comment. Returns a compact result by default (id, url, author login, body, created_at, updated_at); `verbose=true` returns the full comment |
 | `create_issue_comment` | Add a comment to an issue or PR. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `edit_issue_comment` | Edit a comment. Returns a compact result by default (id, url, updated_at; the body is not echoed back); `verbose=true` returns the full comment |
 | `delete_issue_comment` | Delete a comment |
 | **Pull Requests** | |
-| `list_repo_pull_requests` | List pull requests in a repository (page/limit); returns `{pull_requests,page,limit,count,has_next}` |
-| `get_pull_request_by_index` | Get a specific pull request |
+| `list_repo_pull_requests` | List pull requests in a repository (page/limit); returns `{pull_requests,page,limit,count,has_next}`. Each pull request is a compact result by default (number, url, title, state, label names, assignee logins, updated_at, head and base branch names); `verbose=true` returns the full pull requests |
+| `get_pull_request_by_index` | Get a specific pull request. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, head and base branch names, body, merged, merged_at, closed_at, mergeable, merge_commit_sha, head_sha, comments); `verbose=true` returns the full pull request |
 | `create_pull_request` | Create a new pull request. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, head, base); the submitted body is not echoed back. `verbose=true` returns the full pull request |
 | `update_pull_request` | Update an existing pull request. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full pull request |
 | `list_pull_reviews` | List reviews for a pull request (page/limit); returns `{reviews,page,limit,count,has_next}` |
-| `get_pull_review` | Get a specific pull request review |
+| `get_pull_review` | Get a specific pull request review. Returns a compact result by default (id, url, author login, state, body, commit_id, stale, dismissed, official, comments_count, submitted_at); `verbose=true` returns the full review |
 | `list_pull_review_comments` | List comments on a pull request review |
 | `list_pull_request_files` | List changed files in a pull request (page/limit); returns `{files,page,limit,count,has_next}`. Use the returned filenames as the `file_path` argument to `get_pull_request_diff`. |
 | `get_pull_request_diff` | Get the unified diff of a pull request. Optional `file_path` returns only that file's hunks (matches on either pre- or post-rename path). |

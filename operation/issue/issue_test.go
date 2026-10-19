@@ -5,7 +5,9 @@ package issue
 import (
 	"context"
 	"encoding/json"
-
+	"reflect"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +56,41 @@ func TestGetIssueByIndex(t *testing.T) {
 	}
 }
 
+// resultKeys returns the sorted keys of the object a tool wrapped in {"Result": ...}.
+func resultKeys(t *testing.T, text string) []string {
+	t.Helper()
+	var wrapped struct{ Result map[string]json.RawMessage }
+	if err := json.Unmarshal([]byte(text), &wrapped); err != nil {
+		t.Fatalf("not a result envelope: %v\n%s", err, text)
+	}
+	keys := make([]string, 0, len(wrapped.Result))
+	for k := range wrapped.Result {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// TestGetIssueByIndex_CompactByDefault: a call without verbose returns the
+// compact read (the write shape plus body, closed_at, ref and comments) and
+// no user object; verbose=true returns the full entity.
+func TestGetIssueByIndex_CompactByDefault(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	idx := openIssue(t, f, "hello")
+	args := map[string]any{"index": float64(idx)}
+
+	want := []string{"assignees", "body", "closed_at", "comments", "labels", "number", "ref", "state", "title", "updated_at", "url"}
+	if got := resultKeys(t, call(t, h.GetIssueByIndexFn, args)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("default keys = %v, want %v", got, want)
+	}
+
+	args["verbose"] = true
+	if got := resultKeys(t, call(t, h.GetIssueByIndexFn, args)); !slices.Contains(got, "user") || !slices.Contains(got, "repository") {
+		t.Fatalf("verbose keys = %v, want the full entity with user and repository", got)
+	}
+}
+
 func TestGetIssueByIndex_ReturnsRefAndDueDate(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
@@ -62,7 +99,8 @@ func TestGetIssueByIndex_ReturnsRefAndDueDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := decodeIssue(t, call(t, h.GetIssueByIndexFn, map[string]any{"index": float64(iss.Index)}))
+	// The due date is verbose-only; the compact read carries the ref.
+	got := decodeIssue(t, call(t, h.GetIssueByIndexFn, map[string]any{"index": float64(iss.Index), "verbose": true}))
 	if got.Ref != "refs/heads/dev" || got.Deadline == nil || !got.Deadline.Equal(due) {
 		t.Fatalf("ref=%q deadline=%v", got.Ref, got.Deadline)
 	}

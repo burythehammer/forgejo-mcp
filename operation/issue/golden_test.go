@@ -48,11 +48,15 @@ func TestSchemaSnapshots(t *testing.T) {
 // including the optional verbose flag, in step with their schemas.
 func TestCompactWriteArgsMatchSchemas(t *testing.T) {
 	t.Parallel()
+	mcptest.ArgsMatchSchema(t, GetIssueByIndexTool, getIssueArgs{})
+	mcptest.ArgsMatchSchema(t, ListRepoIssuesTool, listIssuesArgs{})
+	mcptest.ArgsMatchSchema(t, SearchIssuesTool, searchArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueTool, createIssueArgs{})
 	mcptest.ArgsMatchSchema(t, UpdateIssueTool, updateIssueArgs{})
 	mcptest.ArgsMatchSchema(t, IssueStateChangeTool, stateArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueCommentTool, createCommentArgs{})
 	mcptest.ArgsMatchSchema(t, EditIssueCommentTool, editCommentArgs{})
+	mcptest.ArgsMatchSchema(t, GetIssueCommentTool, getCommentArgs{})
 	mcptest.ArgsMatchSchema(t, AddIssueLabelsTools, labelsArgs{})
 	mcptest.ArgsMatchSchema(t, RemoveIssueLabelsTools, labelsArgs{})
 }
@@ -322,6 +326,8 @@ var errBoom = errors.New("boom")
 var goldenCases = []goldenCase{
 	// get_issue_by_index
 	{name: "get_issue", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7)}},
+	// verbose=true restores the full entity; this golden is the pre-compact output.
+	{name: "get_issue_verbose", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "verbose": true}},
 	{name: "get_issue_string_index", tool: GetIssueByIndexToolName, args: map[string]any{"index": "7"}},
 	// Forgiving argument handling of the original handlers, kept: a missing
 	// required argument is forwarded as its zero value, and a fractional
@@ -332,6 +338,8 @@ var goldenCases = []goldenCase{
 
 	// list_repo_issues
 	{name: "list_issues_defaults", tool: ListRepoIssuesToolName},
+	// verbose=true restores the full page; this golden is the pre-compact output.
+	{name: "list_issues_verbose", tool: ListRepoIssuesToolName, args: map[string]any{"verbose": true}},
 	{name: "list_issues_explicit_empty_state", tool: ListRepoIssuesToolName, args: map[string]any{"state": ""}},
 	{name: "list_issues_non_string_state", tool: ListRepoIssuesToolName, args: map[string]any{"state": float64(5)}},
 	{name: "list_issues_filtered", tool: ListRepoIssuesToolName, args: map[string]any{"state": "closed", "type": "issues", "milestones": "1,2", "labels": "bug,ui", "sort": "latest", "page": float64(2), "limit": float64(5)}},
@@ -344,6 +352,8 @@ var goldenCases = []goldenCase{
 
 	// search_issues
 	{name: "search_issues_defaults", tool: SearchIssuesToolName},
+	// verbose=true restores the full page; this golden is the pre-compact output.
+	{name: "search_issues_verbose", tool: SearchIssuesToolName, args: map[string]any{"verbose": true}},
 	{name: "search_issues_known_total", tool: SearchIssuesToolName, args: map[string]any{"limit": float64(2)}, stub: func(s *goldenStub) {
 		s.info = forge.PageInfo{HasNext: true, TotalCount: 42, TotalKnown: true}
 	}},
@@ -383,6 +393,8 @@ var goldenCases = []goldenCase{
 	{name: "list_issue_comments_bad_before", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7), "before": "x"}},
 	{name: "list_issue_comments_port_error", tool: ListIssueCommentsToolName, args: map[string]any{"index": float64(7)}, stub: failing("ListIssueComments", errBoom)},
 	{name: "get_issue_comment", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}},
+	// verbose=true restores the full comment; this golden is the pre-compact output.
+	{name: "get_issue_comment_verbose", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "verbose": true}},
 	{name: "get_issue_comment_port_error", tool: GetIssueCommentToolName, args: map[string]any{"comment_id": float64(31)}, stub: failing("GetIssueComment", errBoom)},
 	{name: "edit_issue_comment", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}},
 	{name: "edit_issue_comment_port_error", tool: EditIssueCommentToolName, args: map[string]any{"comment_id": float64(31), "body": "x"}, stub: failing("EditIssueComment", errBoom)},

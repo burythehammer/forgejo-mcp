@@ -54,6 +54,70 @@ func keysOf(t *testing.T, text string) map[string]json.RawMessage {
 	return wrapped.Result
 }
 
+// TestOfIssueRead_EmptyFieldsAreNotNull: an open issue with no labels or
+// assignees renders them as [], and its absent close time as null, which is
+// the full entity's convention for an absent timestamp.
+func TestOfIssueRead_EmptyFieldsAreNotNull(t *testing.T) {
+	t.Parallel()
+	iss := sampleIssue()
+	iss.Labels, iss.Assignees, iss.Closed = nil, nil, nil
+	b, err := json.Marshal(OfIssueRead(iss))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{"labels": "[]", "assignees": "[]", "closed_at": "null"} {
+		if string(got[k]) != want {
+			t.Errorf("%s = %s, want %s", k, got[k], want)
+		}
+	}
+}
+
+func samplePullRequest() *model.PullRequest {
+	return &model.PullRequest{
+		Index:     7,
+		HTMLURL:   "https://forge.example/o/r/pulls/7",
+		Title:     "Compact me",
+		Body:      "a long body that the read shape carries",
+		State:     "open",
+		Poster:    &model.User{UserName: "matt", Email: "matt@example.test"},
+		Labels:    []*model.Label{{Name: "bug"}},
+		Assignees: []*model.User{{UserName: "alice"}},
+		Head:      &model.PRBranchInfo{Name: "feat", Ref: "feat", Sha: "abc123"},
+		Base:      &model.PRBranchInfo{Name: "main", Ref: "main", Sha: "def456"},
+		Mergeable: true,
+		Comments:  2,
+		Updated:   &updated,
+	}
+}
+
+// TestOfPullRequestRead_EmptyFieldsAreNotNull: an open pull request with no
+// labels or assignees renders them as [], and its absent merge and close times
+// and merge commit as null, the full entity's convention for absent values.
+func TestOfPullRequestRead_EmptyFieldsAreNotNull(t *testing.T) {
+	t.Parallel()
+	pr := samplePullRequest()
+	pr.Labels, pr.Assignees = nil, nil
+	b, err := json.Marshal(OfPullRequestRead(pr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{
+		"labels": "[]", "assignees": "[]", "closed_at": "null", "merged_at": "null", "merge_commit_sha": "null",
+	} {
+		if string(got[k]) != want {
+			t.Errorf("%s = %s, want %s", k, got[k], want)
+		}
+	}
+}
+
 func TestOfIssue_CompactFieldsOnly(t *testing.T) {
 	t.Parallel()
 	b, err := json.Marshal(OfIssue(sampleIssue()))
@@ -191,5 +255,39 @@ func TestVerboseDescription_IsGeneric(t *testing.T) {
 	const want = "Return the full entity instead of the compact summary. Default false."
 	if VerboseDescription != want {
 		t.Fatalf("VerboseDescription = %q, want %q", VerboseDescription, want)
+	}
+}
+
+// An empty page must still render its elements as [] and keep the envelope
+// fields, so a client paging through a list sees the same keys as a full page.
+func TestIssueListEmptyPage_KeepsElementsAndEnvelope(t *testing.T) {
+	t.Parallel()
+	p := model.IssuePage{PageMeta: model.PageMeta{
+		PageWindow: model.PageWindow{Page: 2, Limit: 20, Count: 0},
+	}}
+	got, err := json.Marshal(OfIssueList(p.Issues, p.PageMeta))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `{"issues":[],"page":2,"limit":20,"count":0,"has_next":false}`
+	if string(got) != want {
+		t.Fatalf("empty page = %s, want %s", got, want)
+	}
+}
+
+// An empty pull request page renders its elements as [] and keeps the
+// envelope, the same as an issue page.
+func TestPullListEmptyPage_KeepsElementsAndEnvelope(t *testing.T) {
+	t.Parallel()
+	p := model.PullRequestPage{PageMeta: model.PageMeta{
+		PageWindow: model.PageWindow{Page: 2, Limit: 20, Count: 0},
+	}}
+	got, err := json.Marshal(OfPullList(&p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `{"pull_requests":[],"page":2,"limit":20,"count":0,"has_next":false}`
+	if string(got) != want {
+		t.Fatalf("empty page = %s, want %s", got, want)
 	}
 }

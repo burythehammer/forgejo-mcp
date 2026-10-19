@@ -27,9 +27,10 @@ type handlers struct{ forge forge.Factory }
 // them in agreement with the tool definitions.
 
 type getArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	Verbose bool    `json:"verbose"`
 }
 
 type listArgs struct {
@@ -40,6 +41,7 @@ type listArgs struct {
 	Milestone string  `json:"milestone"`
 	Page      float64 `json:"page"`
 	Limit     float64 `json:"limit"`
+	Verbose   bool    `json:"verbose"`
 }
 
 type createArgs struct {
@@ -77,6 +79,16 @@ type reviewArgs struct {
 	Repo  string  `json:"repo" required:"true"`
 	Index float64 `json:"index" required:"true"`
 	ID    float64 `json:"id" required:"true"`
+}
+
+// getReviewArgs is get_pull_review's own argument struct, so its verbose flag
+// does not reach the review tools that share reviewArgs.
+type getReviewArgs struct {
+	Owner   string  `json:"owner" required:"true"`
+	Repo    string  `json:"repo" required:"true"`
+	Index   float64 `json:"index" required:"true"`
+	ID      float64 `json:"id" required:"true"`
+	Verbose bool    `json:"verbose"`
 }
 
 type mergeArgs struct {
@@ -165,15 +177,16 @@ func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolR
 		if err != nil {
 			return nil, mapErr(pullResourceURI(a.Owner, a.Repo, in.Index), err)
 		}
-		return mcpresult.Render(read.PR, nil)
+		return compact.RenderPullRequestRead(read.PR, a.Verbose)
 	})
 }
 
 func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoPullRequestsFn", func(ctx context.Context, s *apppull.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.List(ctx, apppull.ListInput{
+		page, err := s.List(ctx, apppull.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: a.State, Sort: a.Sort, Milestone: a.Milestone, Page: int(a.Page), Limit: int(a.Limit),
-		}))
+		})
+		return compact.RenderPullList(page, err, a.Verbose)
 	})
 }
 
@@ -201,8 +214,9 @@ func (h handlers) ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest
 }
 
 func (h handlers) GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetPullReviewFn", func(ctx context.Context, s *apppull.Service, a reviewArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Review(ctx, reviewRef(a)))
+	return run(ctx, h, req, "GetPullReviewFn", func(ctx context.Context, s *apppull.Service, a getReviewArgs) (*mcp.CallToolResult, error) {
+		review, err := s.Review(ctx, reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID}))
+		return compact.RenderReviewRead(review, err, a.Verbose)
 	})
 }
 
