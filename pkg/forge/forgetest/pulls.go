@@ -177,6 +177,17 @@ func RunPulls(t *testing.T, newHarness func(t *testing.T) Harness) {
 				}
 			}
 		}},
+		{"declined merge stays declined when checks succeed is set", func(t *testing.T, h Harness) {
+			pr := newPR(t, h, "m", "fm")
+			must(t, h.Seed.SetMergeDecline(Owner, Repo, pr.Index, 422, "Pull request has merge conflicts"))
+			res, err := h.Port.MergePullRequest(ctx, Owner, Repo, pr.Index, forgejo_sdk.MergePullRequestOption{
+				Style: forgejo_sdk.MergeStyleMerge, MergeWhenChecksSucceed: true,
+			})
+			must(t, err)
+			if res.Merged || res.StatusCode != 422 || res.Message != "Pull request has merge conflicts" {
+				t.Fatalf("got %+v, want declined with 422 and Forgejo's message", res)
+			}
+		}},
 		{"declined merge whose body is not JSON reports the status alone", func(t *testing.T, h Harness) {
 			pr := newPR(t, h, "m", "fm")
 			must(t, h.Seed.SetMergeDecline(Owner, Repo, pr.Index, 422, ""))

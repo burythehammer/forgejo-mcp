@@ -145,6 +145,23 @@ func TestMergeReportsSchedulingAndDeclines(t *testing.T) {
 	}
 }
 
+func TestMergeDeclinedWhenChecksSucceedReportsMessage(t *testing.T) {
+	t.Parallel()
+	s, f := newService(t)
+	i := open(t, s, "declined but scheduled")
+	if err := f.SetMergeDecline(owner, repo, i, 422, "Pull request has merge conflicts"); err != nil {
+		t.Fatal(err)
+	}
+	res, err := s.Merge(context.Background(), apppull.MergeRequest{PR: pr(i), Style: "merge", WhenChecksSucceed: true})
+	var declined *apppull.MergeDeclinedError
+	if !errors.As(err, &declined) || declined.StatusCode != 422 || declined.Message != "Pull request has merge conflicts" {
+		t.Fatalf("got %+v, %v; want MergeDeclinedError 422 with Forgejo's message", res, err)
+	}
+	if res.Scheduled {
+		t.Fatal("a declined merge is not scheduled")
+	}
+}
+
 const diff = "diff --git a/a.go b/a.go\n+a\ndiff --git a/b.go b/b.go\n+b\n"
 
 func TestDiffWholeOrOneFile(t *testing.T) {
