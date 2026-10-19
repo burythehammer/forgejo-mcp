@@ -5,7 +5,6 @@ package sdk
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
@@ -43,9 +42,9 @@ func jsonMessage(body []byte) string {
 // file path is escaped on its own, so the slashes that separate directories
 // stay path separators while a segment cannot retarget the request.
 func contentsPath(owner, repo, filePath string) string {
-	parts := strings.Split(filePath, "/")
-	for i, p := range parts {
-		parts[i] = url.PathEscape(p)
+	segments := []any{"repos", owner, repo, "contents"}
+	for _, p := range strings.Split(filePath, "/") {
+		segments = append(segments, p)
 	}
-	return forge.APIPath("repos", owner, repo, "contents") + "/" + strings.Join(parts, "/")
+	return forge.APIPath(segments...)
 }
