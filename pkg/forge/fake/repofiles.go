@@ -400,6 +400,9 @@ func (f *Forgejo) UpdateFile(_ context.Context, owner, repo, filePath string, op
 }
 
 func (f *Forgejo) DeleteFile(_ context.Context, owner, repo, filePath string, opt forgejo_sdk.DeleteFileOptions) error {
+	if err := f.refused("DeleteFile"); err != nil {
+		return err
+	}
 	f.files.mu.Lock()
 	defer f.files.mu.Unlock()
 	r, err := f.files.repo(owner, repo)

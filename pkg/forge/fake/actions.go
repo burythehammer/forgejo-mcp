@@ -172,6 +172,9 @@ func (f *Forgejo) ActionsURL(owner, repo string) string {
 }
 
 func (f *Forgejo) DispatchWorkflow(_ context.Context, owner, repo, workflow string, opt forgejo_sdk.DispatchWorkflowOption) error {
+	if err := f.refused("DispatchWorkflow"); err != nil {
+		return err
+	}
 	if !f.repoExists(owner, repo) {
 		return notFound("repository")
 	}
@@ -429,6 +432,9 @@ func (f *Forgejo) ListRepoActionSecrets(_ context.Context, owner, repo string, o
 }
 
 func (f *Forgejo) SetRepoActionSecret(_ context.Context, owner, repo string, opt forgejo_sdk.CreateSecretOption) error {
+	if err := f.refused("SetRepoActionSecret"); err != nil {
+		return err
+	}
 	if !f.repoExists(owner, repo) {
 		return notFound("repository")
 	}
@@ -438,6 +444,9 @@ func (f *Forgejo) SetRepoActionSecret(_ context.Context, owner, repo string, opt
 }
 
 func (f *Forgejo) DeleteRepoActionSecret(_ context.Context, owner, repo, name string) error {
+	if err := f.refused("DeleteRepoActionSecret"); err != nil {
+		return err
+	}
 	if !f.repoExists(owner, repo) {
 		return notFound("repository")
 	}
@@ -465,6 +474,9 @@ func (f *Forgejo) ListOrgActionSecrets(_ context.Context, org string, opt forgej
 }
 
 func (f *Forgejo) SetOrgActionSecret(_ context.Context, org string, opt forgejo_sdk.CreateSecretOption) error {
+	if err := f.refused("SetOrgActionSecret"); err != nil {
+		return err
+	}
 	f.actions.mu.Lock()
 	defer f.actions.mu.Unlock()
 	s, err := f.orgSecrets(org)
@@ -475,6 +487,9 @@ func (f *Forgejo) SetOrgActionSecret(_ context.Context, org string, opt forgejo_
 }
 
 func (f *Forgejo) DeleteOrgActionSecret(_ context.Context, org, name string) error {
+	if err := f.refused("DeleteOrgActionSecret"); err != nil {
+		return err
+	}
 	f.actions.mu.Lock()
 	defer f.actions.mu.Unlock()
 	s, err := f.orgSecrets(org)

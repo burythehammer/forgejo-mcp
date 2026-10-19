@@ -237,18 +237,25 @@ func (f *Forgejo) CreateBranch(_ context.Context, owner, repo string, opt forgej
 	return &c, nil
 }
 
-// DeleteBranch mirrors the SDK: Forgejo's refusals (unknown repository or
-// branch, the default branch) are a delete that did not happen, not errors.
+// DeleteBranch mirrors the SDK: a branch Forgejo deletes is true; a refusal
+// (unknown repository or branch, the default branch) is an error carrying the
+// status and Forgejo's message, and nothing is deleted.
 func (f *Forgejo) DeleteBranch(_ context.Context, owner, repo, branch string) (bool, error) {
+	if err := f.refused("DeleteBranch"); err != nil {
+		return false, err
+	}
 	f.admin.mu.Lock()
 	defer f.admin.mu.Unlock()
 	r, err := f.adminRepo(owner, repo)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 	i := r.branch(branch)
-	if i < 0 || branch == r.repo.DefaultBranch {
-		return false, nil
+	if i < 0 {
+		return false, statusErr(http.StatusNotFound, "branch does not exist")
+	}
+	if branch == r.repo.DefaultBranch {
+		return false, statusErr(http.StatusForbidden, "branch is the default branch and cannot be deleted")
 	}
 	r.branches = append(r.branches[:i], r.branches[i+1:]...)
 	return true, nil

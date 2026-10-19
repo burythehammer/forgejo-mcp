@@ -227,6 +227,9 @@ func (f *Forgejo) ListOrgMembers(_ context.Context, org string, opt forgejo_sdk.
 }
 
 func (f *Forgejo) CheckOrgMembership(_ context.Context, org, login string) (bool, error) {
+	if err := f.refused("CheckOrgMembership"); err != nil {
+		return false, err
+	}
 	f.orgs.mu.Lock()
 	defer f.orgs.mu.Unlock()
 	o, err := f.orgs.find(org)

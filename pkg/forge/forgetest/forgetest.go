@@ -50,6 +50,9 @@ type Seeder interface {
 	AddAttachmentComment(owner, repo string, commentID int64)
 	// FailIssues makes every issue call answer with an HTTP status (0 clears it).
 	FailIssues(status int)
+	// Refuse makes the named port method decline with status and message, as
+	// Forgejo does with a JSON body (status 0 clears it).
+	Refuse(op string, status int, message string)
 
 	// Actions.
 	AddActionsOrg(org string)

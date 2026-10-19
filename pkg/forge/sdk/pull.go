@@ -4,9 +4,7 @@ package sdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
-	"strings"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
@@ -49,21 +47,9 @@ func (a *Adapter) MergePullRequest(ctx context.Context, owner, repo string, inde
 	}
 	res := forge.MergeResult{Merged: status == http.StatusOK, StatusCode: status}
 	if status < http.StatusOK || status >= http.StatusMultipleChoices {
-		res.Message = mergeMessage(body)
+		res.Message = jsonMessage(body)
 	}
 	return res, nil
-}
-
-// mergeMessage is the "message" of a JSON answer, or "" when the body is not
-// JSON with one.
-func mergeMessage(body []byte) string {
-	var answer struct {
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal(body, &answer); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(answer.Message)
 }
 
 func (a *Adapter) GetPullRequestDiff(_ context.Context, owner, repo string, index int64) ([]byte, error) {
