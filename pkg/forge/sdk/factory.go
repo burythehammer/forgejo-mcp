@@ -62,7 +62,7 @@ func NewFactory(cfg config.Forgejo, version string) *Factory {
 		hc = &http.Client{Timeout: sharedHTTPClient.Timeout, Transport: tr}
 	}
 	if cfg.TLS.SkipVerify {
-		log.Warn("TLS certificate verification is OFF for the Forgejo instance (-tls-skip-verify); "+
+		log.Warn("TLS certificate verification is OFF for the Forgejo instance (--tls-skip-verify); "+
 			"the server does not check who it is talking to",
 			log.SanitizedURLField("url", cfg.URL),
 		)

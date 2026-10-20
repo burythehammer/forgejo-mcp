@@ -62,8 +62,6 @@ type Forgejo struct {
 // TLS holds how the server verifies a Forgejo certificate. The zero value
 // verifies against the system roots only.
 type TLS struct {
-	// CAFile is the PEM bundle the operator gave, as read. Empty when none.
-	CAFile string
 	// CAPool holds the system roots with the bundle's certificates appended.
 	// Nil when no bundle was given.
 	CAPool *x509.CertPool

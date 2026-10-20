@@ -17,9 +17,9 @@ import (
 // tlsEveryPath serves a TLS instance that answers every raw-HTTP path the
 // adapter uses: the version probe, a JSON POST, a text job log, a same-origin
 // attachment download and a multipart attachment upload.
-func tlsEveryPath(t *testing.T) *httptest.Server {
+func tlsEveryPath(t *testing.T) (*httptest.Server, *x509.CertPool) {
 	t.Helper()
-	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return tlsServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/version":
 			_, _ = w.Write([]byte(`{"version":"12.0.0"}`))
@@ -38,8 +38,6 @@ func tlsEveryPath(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte(`{}`))
 		}
 	}))
-	t.Cleanup(srv.Close)
-	return srv
 }
 
 // rawPathCalls is one call per raw-HTTP mechanism in the adapter, made through
@@ -78,10 +76,7 @@ func TestTLSEveryRawPathHonoursTheConfig(t *testing.T) {
 	for _, pc := range rawPathCalls {
 		t.Run(pc.name, func(t *testing.T) {
 			t.Parallel()
-			srv := tlsEveryPath(t)
-
-			pool := x509.NewCertPool()
-			pool.AddCert(srv.Certificate())
+			srv, pool := tlsEveryPath(t)
 
 			cases := []struct {
 				name    string
@@ -89,7 +84,7 @@ func TestTLSEveryRawPathHonoursTheConfig(t *testing.T) {
 				wantErr bool
 			}{
 				{"default refuses untrusted certificate", config.TLS{}, true},
-				{"CA in bundle succeeds", config.TLS{CAPool: pool, CAFile: "ca.pem"}, false},
+				{"CA in bundle succeeds", config.TLS{CAPool: pool}, false},
 				{"skip-verify succeeds", config.TLS{SkipVerify: true}, false},
 			}
 			for _, tc := range cases {

@@ -52,31 +52,46 @@ func writeFile(t *testing.T, name string, data []byte) string {
 func TestLoadTLSDefaultsToVerifyingWithNoBundle(t *testing.T) {
 	t.Parallel()
 	cfg, _ := mustLoad(t, nil, env("FORGEJO_URL", "https://f.example.org"))
-	if cfg.Forgejo.TLS.CAFile != "" || cfg.Forgejo.TLS.CAPool != nil || cfg.Forgejo.TLS.SkipVerify {
+	if cfg.Forgejo.TLS.CAPool != nil || cfg.Forgejo.TLS.SkipVerify {
 		t.Fatalf("TLS = %+v, want zero value", cfg.Forgejo.TLS)
 	}
 }
 
 func TestLoadTLSPrecedence(t *testing.T) {
 	t.Parallel()
-	bundle := writeFile(t, "ca.pem", selfSignedPEM(t))
-	other := writeFile(t, "other.pem", selfSignedPEM(t))
+	bundleData := selfSignedPEM(t)
+	otherData := selfSignedPEM(t)
+	bundle := writeFile(t, "ca.pem", bundleData)
+	other := writeFile(t, "other.pem", otherData)
 	base := []string{"FORGEJO_URL", "https://f.example.org"}
 
+	// poolOf is the system roots plus data: what the loaded pool must equal
+	// when that bundle was the one chosen.
+	poolOf := func(data []byte) *x509.CertPool {
+		p, err := x509.SystemCertPool()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !p.AppendCertsFromPEM(data) {
+			t.Fatal("test bundle has no certificate")
+		}
+		return p
+	}
+
 	cases := []struct {
-		name     string
-		args     []string
-		env      []string
-		wantFile string
-		wantSkip bool
+		name       string
+		args       []string
+		env        []string
+		wantBundle []byte // nil: no bundle expected
+		wantSkip   bool
 	}{
-		{name: "ca flag", args: []string{"-tls-ca", bundle}, wantFile: bundle},
-		{name: "ca env", env: []string{"FORGEJO_TLS_CA", bundle}, wantFile: bundle},
-		{name: "ca flag beats env", args: []string{"-tls-ca", bundle},
-			env: []string{"FORGEJO_TLS_CA", other}, wantFile: bundle},
-		{name: "skip flag", args: []string{"-tls-skip-verify"}, wantSkip: true},
+		{name: "ca flag", args: []string{"--tls-ca", bundle}, wantBundle: bundleData},
+		{name: "ca env", env: []string{"FORGEJO_TLS_CA", bundle}, wantBundle: bundleData},
+		{name: "ca flag beats env", args: []string{"--tls-ca", bundle},
+			env: []string{"FORGEJO_TLS_CA", other}, wantBundle: bundleData},
+		{name: "skip flag", args: []string{"--tls-skip-verify"}, wantSkip: true},
 		{name: "skip env", env: []string{"FORGEJO_TLS_SKIP_VERIFY", "true"}, wantSkip: true},
-		{name: "skip flag beats env false", args: []string{"-tls-skip-verify"},
+		{name: "skip flag beats env false", args: []string{"--tls-skip-verify"},
 			env: []string{"FORGEJO_TLS_SKIP_VERIFY", "false"}, wantSkip: true},
 		{name: "skip env false is off", env: []string{"FORGEJO_TLS_SKIP_VERIFY", "false"}},
 	}
@@ -86,14 +101,20 @@ func TestLoadTLSPrecedence(t *testing.T) {
 			e := append(append([]string{}, base...), tc.env...)
 			cfg, _ := mustLoad(t, tc.args, env(e...))
 			got := cfg.Forgejo.TLS
-			if got.CAFile != tc.wantFile {
-				t.Errorf("CAFile = %q, want %q", got.CAFile, tc.wantFile)
-			}
 			if got.SkipVerify != tc.wantSkip {
 				t.Errorf("SkipVerify = %v, want %v", got.SkipVerify, tc.wantSkip)
 			}
-			if tc.wantFile != "" && got.CAPool == nil {
-				t.Errorf("CAPool is nil although a bundle was given")
+			if tc.wantBundle == nil {
+				if got.CAPool != nil {
+					t.Errorf("CAPool set although no bundle was given")
+				}
+				return
+			}
+			if got.CAPool == nil {
+				t.Fatalf("CAPool is nil although a bundle was given")
+			}
+			if !got.CAPool.Equal(poolOf(tc.wantBundle)) {
+				t.Errorf("CAPool holds the wrong bundle, want the one from %q", tc.name)
 			}
 		})
 	}
@@ -108,7 +129,7 @@ func TestLoadTLSRejectsBadBundles(t *testing.T) {
 	for name, path := range map[string]string{"unreadable": missing, "no certificates": empty} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, _, err := Load([]string{"-tls-ca", path}, base, build)
+			_, _, err := Load([]string{"--tls-ca", path}, base, build)
 			if err == nil {
 				t.Fatalf("Load accepted %s bundle %q", name, path)
 			}
