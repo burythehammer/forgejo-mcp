@@ -37,6 +37,20 @@ const (
 	MaxContentB64Bytes = 90 * 1024 * 1024
 )
 
+// contentLimit is the base64 cap Open enforces. It is MaxContentB64Bytes unless
+// a test lowers it through SetContentLimitForTest, so the oversized-upload tests
+// need not allocate 90 MiB strings.
+var contentLimit = MaxContentB64Bytes
+
+// SetContentLimitForTest sets the base64 cap Open enforces to n and returns a
+// function that restores the previous value. Tests only: production never calls
+// it, so the limit stays MaxContentB64Bytes.
+func SetContentLimitForTest(n int) (restore func()) {
+	previous := contentLimit
+	contentLimit = n
+	return func() { contentLimit = previous }
+}
+
 // filePathUploadsEnabled reports whether AllowFilePathEnv is set to a truthy value.
 func filePathUploadsEnabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(AllowFilePathEnv))) {
@@ -104,8 +118,8 @@ func Open(source Source) (io.ReadCloser, string, error) {
 		}
 		// Reject an oversized argument before paying to allocate/decode it —
 		// see MaxContentB64Bytes.
-		if len(*source.Content) > MaxContentB64Bytes {
-			return nil, "", fmt.Errorf("content too large: %d base64 bytes exceeds the %d byte limit", len(*source.Content), MaxContentB64Bytes)
+		if len(*source.Content) > contentLimit {
+			return nil, "", fmt.Errorf("content too large: %d base64 bytes exceeds the %d byte limit", len(*source.Content), contentLimit)
 		}
 		raw, err := base64.StdEncoding.DecodeString(*source.Content)
 		if err != nil {
