@@ -11,7 +11,7 @@ import (
 	"context"
 	"io"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // Port is the release domain as the use cases need it, in repo-owned types.

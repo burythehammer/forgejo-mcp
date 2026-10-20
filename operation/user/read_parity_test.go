@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apporg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/org"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/orgadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/org"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/orgadapter"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"

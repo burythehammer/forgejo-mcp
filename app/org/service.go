@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // Service runs the organization, membership and team use cases. It holds only

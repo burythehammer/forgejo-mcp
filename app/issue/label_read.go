@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // labelsDefaultLimit is the page size a repository or organization label

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // Comments lists an issue's (or pull request's) comments, within the optional

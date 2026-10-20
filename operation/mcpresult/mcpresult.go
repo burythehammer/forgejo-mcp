@@ -8,7 +8,7 @@ package mcpresult
 import (
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/to"
 )
 
 // Fail sends a use case's error to the client. It is returned as the handler's

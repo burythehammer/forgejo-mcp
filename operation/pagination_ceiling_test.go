@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/attachment"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/pull"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/repo"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/tracking"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/attachment"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/pull"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/tracking"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/fake"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

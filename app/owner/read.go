@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // Kind says whether an owner is a user or an organization.

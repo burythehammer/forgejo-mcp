@@ -5,7 +5,7 @@ package sdk
 import (
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/forgetest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/forgetest"
 )
 
 // The real adapter, against the shared stub server, must meet the same

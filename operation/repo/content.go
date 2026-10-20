@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/decode"
 )
 
 // selectRepositoryWriteContent resolves the public repository-write content

@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	appwiki "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/wiki"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/wikiadapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/wiki"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/wikiadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

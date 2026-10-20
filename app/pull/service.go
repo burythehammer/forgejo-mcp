@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/split"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/diff"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/split"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/diff"
 )
 
 // Service runs the pull-request use cases over a Port. Build one per request

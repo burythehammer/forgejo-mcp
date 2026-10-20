@@ -55,7 +55,7 @@ Ensure `$GOPATH/bin` (typically `~/go/bin`) is in your PATH.
 > cloning:
 >
 > ```bash
-> go install git.b4mad.industries/agentic-forges/forgejo-mcp/v3@latest
+> go install forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3@latest
 > ```
 
 **Option B: Download Binary**
@@ -904,7 +904,7 @@ See [DEVELOPER.md](DEVELOPER.md) for build instructions, architecture overview, 
 - **Installing from the old Codeberg module path** — `go install
   codeberg.org/goern/forgejo-mcp/v2@latest` still resolves, against the
   read-only mirror, but that mirror lags behind the current release. Use
-  `git.b4mad.industries/agentic-forges/forgejo-mcp/v3@latest` instead.
+  `forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3@latest` instead.
 
   This entry used to say that the new path was not installable until a
   release carried the renamed `go.mod`. That release has happened —

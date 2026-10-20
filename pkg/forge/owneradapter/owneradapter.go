@@ -10,10 +10,10 @@ import (
 	"context"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	appowner "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/owner"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	appowner "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/owner"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/bridge"
 )
 
 // New returns the owner use case's port over u and o.

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apptracking "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/tracking"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/tracking"
 )
 
 // The use cases run against a stub port that holds fixed, repo-owned data and

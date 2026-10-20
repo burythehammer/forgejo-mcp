@@ -5,12 +5,12 @@ package issue
 import (
 	"context"
 
-	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/compact"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/compact"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

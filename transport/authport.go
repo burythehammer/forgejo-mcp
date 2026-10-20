@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 // credential is the Forgejo credential an inbound request carries, as the

@@ -7,10 +7,10 @@ import (
 	"errors"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	appwiki "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/wiki"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/wikiadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/wiki"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/wikiadapter"
 )
 
 // editPage rewrites a page so that its history grows by one revision.

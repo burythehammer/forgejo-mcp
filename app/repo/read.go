@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // The read use cases below are the one read behind each repository, commit and

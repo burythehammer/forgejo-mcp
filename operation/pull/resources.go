@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	apppull "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/pull"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/pulladapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/pull"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/pulladapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

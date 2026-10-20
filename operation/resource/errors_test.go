@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 // The kind comes from the port's error, not from words in its message: a plain

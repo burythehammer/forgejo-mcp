@@ -3,7 +3,7 @@
 package org
 
 import (
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

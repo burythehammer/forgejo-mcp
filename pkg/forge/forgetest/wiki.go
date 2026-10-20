@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 // newWikiPage creates a page in Owner/Repo, making the repository first.

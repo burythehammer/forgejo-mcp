@@ -10,7 +10,7 @@ package repo
 import (
 	"context"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // GitPort is the repository branch, commit, contents and file operations the

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/mcptest"
 )
 
 // The label and comment writes return the compact shape by default, with the

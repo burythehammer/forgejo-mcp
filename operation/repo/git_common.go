@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repogitadapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
+	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/repogitadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

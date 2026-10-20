@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	apppull "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/pull"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/pulladapter"
+	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/pull"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/pulladapter"
 )
 
 // The use cases run against the in-memory fake through the pull adapter: no

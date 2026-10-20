@@ -6,10 +6,10 @@ import (
 	"context"
 	"fmt"
 
-	appversion "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/version"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
+	appversion "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/version"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

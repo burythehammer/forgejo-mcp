@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/labelresolve"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/issueadapter"
+	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/labelresolve"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/issueadapter"
 )
 
 // These tests run the resolver over the in-memory fake through the port

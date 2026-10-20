@@ -12,12 +12,12 @@ package issueadapter
 import (
 	"context"
 
-	appissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
+	appissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/bridge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/ptr"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

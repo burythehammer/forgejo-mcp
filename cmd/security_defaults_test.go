@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
 )
 
 // These tests pin how arguments and environment resolve into settings, and

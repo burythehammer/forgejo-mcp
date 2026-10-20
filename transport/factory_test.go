@@ -3,8 +3,8 @@
 package transport
 
 import (
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/sdk"
 )
 
 // newFactory mirrors operation.newFactory, which the composition root uses in

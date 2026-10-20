@@ -8,11 +8,11 @@ import (
 	"errors"
 	"fmt"
 
-	appowner "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/owner"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/owneradapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	appowner "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/owner"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/owneradapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

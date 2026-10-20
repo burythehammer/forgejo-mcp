@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"strings"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/jwtissuer"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 )
 
 const (

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/forgetest"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repoadminadapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
+	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/forgetest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/repoadminadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/sdk"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

@@ -20,8 +20,8 @@ import (
 	"sync"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"go.uber.org/zap"

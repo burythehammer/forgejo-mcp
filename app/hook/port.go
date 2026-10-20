@@ -10,7 +10,7 @@ package hook
 import (
 	"context"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // DefaultType is the webhook type used when the caller names none: the one

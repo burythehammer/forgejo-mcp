@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/list"
 )
 
 func TestPageMetaOfCopiesTheListPage(t *testing.T) {

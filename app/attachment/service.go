@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/download"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // Service is the attachment use cases: one method per scope and action.

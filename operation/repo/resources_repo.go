@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/repoadminadapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/repoadminadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

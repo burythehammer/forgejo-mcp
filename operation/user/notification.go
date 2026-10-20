@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"time"
 
-	appuser "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/user"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/params"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
+	appuser "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/user"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

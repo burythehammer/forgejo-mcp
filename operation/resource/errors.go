@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 // ResourceError wraps a forgejo URI and an HTTP status code into a structured error

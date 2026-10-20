@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apppull "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/pull"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/pulladapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/pull"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/pulladapter"
 )
 
 // failingThread is a port whose pull thread listing fails, so a read that asks

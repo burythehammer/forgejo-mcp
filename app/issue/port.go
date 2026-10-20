@@ -11,7 +11,7 @@ import (
 	"context"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // Port is the Forgejo issue, label and dependency domains as the use cases
