@@ -122,7 +122,7 @@ func RunPulls(t *testing.T, newHarness func(t *testing.T) Harness) {
 			pr := newPR(t, h, "m", "fm")
 			res, err := h.Port.MergePullRequest(ctx, Owner, Repo, pr.Index, forgejo_sdk.MergePullRequestOption{Style: forgejo_sdk.MergeStyleMerge})
 			must(t, err)
-			if !res.Merged || res.StatusCode != 200 {
+			if !res.Merged || res.StatusCode != 200 || res.Message != "" {
 				t.Fatalf("got %+v, want merged with 200", res)
 			}
 			got, err := h.Port.GetPullRequest(ctx, Owner, Repo, pr.Index)
@@ -142,7 +142,7 @@ func RunPulls(t *testing.T, newHarness func(t *testing.T) Harness) {
 				Style: forgejo_sdk.MergeStyleMerge, MergeWhenChecksSucceed: true,
 			})
 			must(t, err)
-			if res.Merged || res.StatusCode != 201 {
+			if res.Merged || res.StatusCode != 201 || res.Message != "" {
 				t.Fatalf("got %+v, want scheduled (201, not merged)", res)
 			}
 			got, err := h.Port.GetPullRequest(ctx, Owner, Repo, pr.Index)
@@ -157,6 +157,44 @@ func RunPulls(t *testing.T, newHarness func(t *testing.T) Harness) {
 			must(t, err)
 			if res.Merged || res.StatusCode != 404 {
 				t.Fatalf("got %+v, want 404", res)
+			}
+		}},
+		{"declined merge carries Forgejo's own message", func(t *testing.T, h Harness) {
+			pr := newPR(t, h, "m", "fm")
+			for _, c := range []struct {
+				status  int
+				message string
+			}{
+				{422, "Pull request has merge conflicts"},
+				{405, "Pull request is not mergeable"},
+				{409, "Head branch was updated"},
+			} {
+				must(t, h.Seed.SetMergeDecline(Owner, Repo, pr.Index, c.status, c.message))
+				res, err := h.Port.MergePullRequest(ctx, Owner, Repo, pr.Index, forgejo_sdk.MergePullRequestOption{Style: forgejo_sdk.MergeStyleMerge})
+				must(t, err)
+				if res.Merged || res.StatusCode != c.status || res.Message != c.message {
+					t.Fatalf("got %+v, want declined with %d %q", res, c.status, c.message)
+				}
+			}
+		}},
+		{"declined merge stays declined when checks succeed is set", func(t *testing.T, h Harness) {
+			pr := newPR(t, h, "m", "fm")
+			must(t, h.Seed.SetMergeDecline(Owner, Repo, pr.Index, 422, "Pull request has merge conflicts"))
+			res, err := h.Port.MergePullRequest(ctx, Owner, Repo, pr.Index, forgejo_sdk.MergePullRequestOption{
+				Style: forgejo_sdk.MergeStyleMerge, MergeWhenChecksSucceed: true,
+			})
+			must(t, err)
+			if res.Merged || res.StatusCode != 422 || res.Message != "Pull request has merge conflicts" {
+				t.Fatalf("got %+v, want declined with 422 and Forgejo's message", res)
+			}
+		}},
+		{"declined merge whose body is not JSON reports the status alone", func(t *testing.T, h Harness) {
+			pr := newPR(t, h, "m", "fm")
+			must(t, h.Seed.SetMergeDecline(Owner, Repo, pr.Index, 422, ""))
+			res, err := h.Port.MergePullRequest(ctx, Owner, Repo, pr.Index, forgejo_sdk.MergePullRequestOption{Style: forgejo_sdk.MergeStyleMerge})
+			must(t, err)
+			if res.Merged || res.StatusCode != 422 || res.Message != "" {
+				t.Fatalf("got %+v, want declined with 422 and no message", res)
 			}
 		}},
 		{"diff is returned verbatim", func(t *testing.T, h Harness) {

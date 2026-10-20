@@ -39,6 +39,7 @@ type Seeder interface {
 	AddNotification(owner, repo, title string, unread bool) *forgejo_sdk.NotificationThread
 	SetPullRequestDiff(owner, repo string, index int64, diff string) error
 	SetPullRequestFiles(owner, repo string, index int64, files ...*forgejo_sdk.ChangedFile) error
+	SetMergeDecline(owner, repo string, index int64, statusCode int, message string) error
 	AddPullRequestComment(owner, repo string, index int64, author, body string) (*forgejo_sdk.Comment, error)
 	SetFile(owner, repo, branch, path, content string) error
 	AddCommit(owner, repo, sha, message string, paths ...string) error
@@ -49,6 +50,9 @@ type Seeder interface {
 	AddAttachmentComment(owner, repo string, commentID int64)
 	// FailIssues makes every issue call answer with an HTTP status (0 clears it).
 	FailIssues(status int)
+	// Refuse makes the named port method decline with status and message, as
+	// Forgejo does with a JSON body (status 0 clears it).
+	Refuse(op string, status int, message string)
 
 	// Actions.
 	AddActionsOrg(org string)

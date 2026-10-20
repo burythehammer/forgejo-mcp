@@ -83,7 +83,7 @@ func (a adapter) MergePullRequest(ctx context.Context, owner, repo string, index
 		ForceMerge:             in.Force,
 		MergeWhenChecksSucceed: in.WhenChecksSucceed,
 	})
-	return apppull.MergeOutcome{Merged: res.Merged, StatusCode: res.StatusCode}, err
+	return apppull.MergeOutcome{Merged: res.Merged, StatusCode: res.StatusCode, Message: res.Message}, err
 }
 
 func (a adapter) GetPullRequestDiff(ctx context.Context, owner, repo string, index int64) (string, error) {

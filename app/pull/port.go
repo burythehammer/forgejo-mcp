@@ -76,6 +76,8 @@ type MergeInput struct {
 type MergeOutcome struct {
 	Merged     bool
 	StatusCode int
+	// Message is Forgejo's explanation of a declined merge, or "".
+	Message string
 }
 
 // ReviewComment is one inline comment of a new review. Its JSON tags are the

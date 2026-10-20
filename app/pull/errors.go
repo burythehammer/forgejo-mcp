@@ -28,9 +28,17 @@ func (e *DiffFileNotFoundError) Error() string {
 	return fmt.Sprintf("file_path %q not found in pull request diff", e.Path)
 }
 
-// MergeDeclinedError is a merge Forgejo answered but did not carry out.
-type MergeDeclinedError struct{ StatusCode int }
+// MergeDeclinedError is a merge Forgejo answered but did not carry out. Message
+// is Forgejo's reason, when its answer gave one.
+type MergeDeclinedError struct {
+	StatusCode int
+	Message    string
+}
 
 func (e *MergeDeclinedError) Error() string {
-	return fmt.Sprintf("merge pull request: server returned HTTP %d (expected 200)", e.StatusCode)
+	msg := fmt.Sprintf("merge pull request: server returned HTTP %d (expected 200)", e.StatusCode)
+	if e.Message == "" {
+		return msg
+	}
+	return msg + ": " + e.Message
 }

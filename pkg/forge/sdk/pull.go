@@ -4,6 +4,7 @@ package sdk
 
 import (
 	"context"
+	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
@@ -32,14 +33,21 @@ func (a *Adapter) EditPullRequest(_ context.Context, owner, repo string, index i
 	return pr, statusErr(resp, err)
 }
 
-func (a *Adapter) MergePullRequest(_ context.Context, owner, repo string, index int64, opt forgejo_sdk.MergePullRequestOption) (forge.MergeResult, error) {
-	merged, resp, err := a.client.MergePullRequest(owner, repo, index, opt)
-	if err != nil {
-		return forge.MergeResult{}, statusErr(resp, err)
+// MergePullRequest posts the merge once and reads the answer whole. The SDK's
+// merge call discards the body, which is where Forgejo says why it declined a
+// merge, so the call is made raw. A declined merge is an answer, not an error:
+// the caller gets the status and Forgejo's message.
+func (a *Adapter) MergePullRequest(ctx context.Context, owner, repo string, index int64, opt forgejo_sdk.MergePullRequestOption) (forge.MergeResult, error) {
+	if err := opt.Validate(a.client); err != nil {
+		return forge.MergeResult{}, err
 	}
-	res := forge.MergeResult{Merged: merged}
-	if resp != nil && resp.Response != nil {
-		res.StatusCode = resp.StatusCode
+	status, body, err := a.raw.doStatus(ctx, http.MethodPost, forge.APIPath("repos", owner, repo, "pulls", index, "merge"), opt)
+	if err != nil {
+		return forge.MergeResult{}, err
+	}
+	res := forge.MergeResult{Merged: status == http.StatusOK, StatusCode: status}
+	if status < http.StatusOK || status >= http.StatusMultipleChoices {
+		res.Message = jsonMessage(body)
 	}
 	return res, nil
 }

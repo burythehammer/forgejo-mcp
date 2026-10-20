@@ -28,7 +28,7 @@ func TestHooksContract(t *testing.T) {
 
 func harness(t *testing.T) forgetest.Harness {
 	stub := forgetest.NewStub(t)
-	return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)), Seed: stub.Fake}
+	return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
 }
 
 func TestRepoAdminContract(t *testing.T) {

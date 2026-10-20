@@ -43,9 +43,15 @@ func (a *Adapter) UpdateFile(_ context.Context, owner, repo, path string, opt fo
 	return r, statusErr(resp, err)
 }
 
-func (a *Adapter) DeleteFile(_ context.Context, owner, repo, path string, opt forgejo_sdk.DeleteFileOptions) error {
-	resp, err := a.client.DeleteFile(owner, repo, path, opt)
-	return statusErr(resp, err)
+// DeleteFile is raw for the reason given at SetRepoActionSecret: the SDK drops
+// the body of a refusal. Forgejo defaults an empty branch to the default branch,
+// so the SDK's branch lookup for old servers is not repeated here.
+func (a *Adapter) DeleteFile(ctx context.Context, owner, repo, path string, opt forgejo_sdk.DeleteFileOptions) error {
+	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, contentsPath(owner, repo, path), opt)
+	if err != nil {
+		return err
+	}
+	return answered(status, body, http.StatusOK, http.StatusNoContent)
 }
 
 // ChangeFiles has no SDK method, so it goes over raw HTTP to the contents

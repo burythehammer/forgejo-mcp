@@ -183,6 +183,9 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (*model.PullReques
 	return pr, nil
 }
 
+// statusCreated is the HTTP status of a merge scheduled for when checks succeed.
+const statusCreated = 201
+
 // Merge merges a pull request. A merge Forgejo declines is a
 // *MergeDeclinedError, unless it was only to be scheduled.
 func (s *Service) Merge(ctx context.Context, in MergeRequest) (MergeResult, error) {
@@ -193,8 +196,12 @@ func (s *Service) Merge(ctx context.Context, in MergeRequest) (MergeResult, erro
 	if err != nil {
 		return MergeResult{}, fmt.Errorf("merge pull request err: %w", err)
 	}
-	if !out.Merged && !in.WhenChecksSucceed {
-		return MergeResult{}, &MergeDeclinedError{StatusCode: out.StatusCode}
+	// 201 is Forgejo's answer to a merge scheduled for when checks succeed. Any
+	// other non-merged answer is a decline, scheduled or not, and keeps its
+	// status and Forgejo's message.
+	scheduled := in.WhenChecksSucceed && out.StatusCode == statusCreated
+	if !out.Merged && !scheduled {
+		return MergeResult{}, &MergeDeclinedError{StatusCode: out.StatusCode, Message: out.Message}
 	}
 	return MergeResult{Scheduled: in.WhenChecksSucceed}, nil
 }

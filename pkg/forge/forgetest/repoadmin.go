@@ -4,7 +4,10 @@ package forgetest
 
 import (
 	"fmt"
+	"strings"
 	"testing"
+
+	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -33,7 +36,7 @@ func RunRepoAdmin(t *testing.T, newHarness func(t *testing.T) Harness) {
 			wantNotFound(t, err)
 			_, err = h.Port.CreateBranch(ctx, "nobody", "nothing", forgejo_sdk.CreateBranchOption{BranchName: "b"})
 			wantNotFound(t, err)
-			wantNotDeleted(t, h, "nobody", "nothing", "b")
+			wantRefusedDelete(t, h, "nobody", "nothing", "b", 404, "repository not found")
 		}},
 		{"created repository reads back and is listed as mine", func(t *testing.T, h Harness) {
 			r, err := h.Port.CreateRepo(ctx, forgejo_sdk.CreateRepoOption{Name: "fresh", Description: "d", Private: true})
@@ -227,8 +230,8 @@ func RunRepoAdmin(t *testing.T, newHarness func(t *testing.T) Harness) {
 			if fmt.Sprint(adminBranchNames(bs)) != "[main]" {
 				t.Fatalf("got %v", adminBranchNames(bs))
 			}
-			wantNotDeleted(t, h, Owner, Repo, "tmp")
-			wantNotDeleted(t, h, Owner, Repo, "main")
+			wantRefusedDelete(t, h, Owner, Repo, "tmp", 404, "branch does not exist")
+			wantRefusedDelete(t, h, Owner, Repo, "main", 403, "default branch")
 		}},
 	}
 	for _, tc := range cases {
@@ -239,14 +242,17 @@ func RunRepoAdmin(t *testing.T, newHarness func(t *testing.T) Harness) {
 	}
 }
 
-// wantNotDeleted: Forgejo answers a refused branch delete (unknown repository
-// or branch, the default branch) with a non-204 status, which the port reports
-// as "not deleted" rather than as an error.
-func wantNotDeleted(t *testing.T, h Harness, owner, repo, branch string) {
+// wantRefusedDelete: Forgejo refuses a branch delete (unknown repository or
+// branch, the default branch) with a status and a message. The port reports it
+// as an error that keeps both, and nothing is reported deleted.
+func wantRefusedDelete(t *testing.T, h Harness, owner, repo, branch string, status int, message string) {
 	t.Helper()
 	ok, err := h.Port.DeleteBranch(ctx, owner, repo, branch)
-	if err != nil || ok {
-		t.Fatalf("delete of %s/%s %q: ok=%v err=%v, want not deleted", owner, repo, branch, ok, err)
+	if ok || err == nil {
+		t.Fatalf("delete of %s/%s %q: ok=%v err=%v, want a refusal", owner, repo, branch, ok, err)
+	}
+	if forge.StatusCode(err) != status || !strings.Contains(err.Error(), message) {
+		t.Fatalf("delete of %s/%s %q: got %v (status %d), want status %d with %q", owner, repo, branch, err, forge.StatusCode(err), status, message)
 	}
 }
 

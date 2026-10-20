@@ -21,7 +21,7 @@ func TestSmokeOverHTTP(t *testing.T) {
 	t.Parallel()
 	stub := forgetest.NewStub(t)
 	stub.Fake.AddRepo(testOwner, testRepo)
-	port := sdk.NewAdapter(stub.NewClient(t))
+	port := sdk.NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL)
 
 	s := server.NewMCPServer("test", "0")
 	RegisterTool(s, fake.Factory{Forgejo: port})

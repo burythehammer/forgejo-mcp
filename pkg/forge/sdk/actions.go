@@ -20,9 +20,14 @@ func (a *Adapter) ActionsURL(owner, repo string) string {
 	return strings.TrimRight(a.raw.base, "/") + "/" + owner + "/" + repo + "/actions"
 }
 
-func (a *Adapter) DispatchWorkflow(_ context.Context, owner, repo, workflow string, opt forgejo_sdk.DispatchWorkflowOption) error {
-	_, resp, err := a.client.DispatchRepoWorkflow(owner, repo, workflow, opt)
-	return statusErr(resp, err)
+// DispatchWorkflow posts the dispatch raw: the SDK's no-run-info path discards
+// the answer's body, which is where Forgejo says why it refused.
+func (a *Adapter) DispatchWorkflow(ctx context.Context, owner, repo, workflow string, opt forgejo_sdk.DispatchWorkflowOption) error {
+	status, body, err := a.raw.doStatus(ctx, http.MethodPost, forge.APIPath("repos", owner, repo, "actions", "workflows", workflow, "dispatches"), opt)
+	if err != nil {
+		return err
+	}
+	return answered(status, body, http.StatusOK, http.StatusNoContent)
 }
 
 func (a *Adapter) ListWorkflowRuns(_ context.Context, owner, repo string, opt forgejo_sdk.ListActionRunsOption) (*forgejo_sdk.ListActionRunsResponse, error) {
@@ -113,14 +118,26 @@ func (a *Adapter) ListRepoActionSecrets(_ context.Context, owner, repo string, o
 	return secrets, statusErr(resp, err)
 }
 
-func (a *Adapter) SetRepoActionSecret(_ context.Context, owner, repo string, opt forgejo_sdk.CreateSecretOption) error {
-	resp, err := a.client.CreateRepoActionSecret(owner, repo, opt)
-	return statusErr(resp, err)
+// SetRepoActionSecret and the other secret writes below are raw for the same
+// reason as DispatchWorkflow: the SDK turns 404 and 400 into fixed words and
+// every other status into a bare one, dropping Forgejo's message.
+func (a *Adapter) SetRepoActionSecret(ctx context.Context, owner, repo string, opt forgejo_sdk.CreateSecretOption) error {
+	if err := opt.Validate(); err != nil {
+		return err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodPut, forge.APIPath("repos", owner, repo, "actions", "secrets", opt.Name), opt)
+	if err != nil {
+		return err
+	}
+	return answered(status, body, http.StatusCreated, http.StatusNoContent)
 }
 
-func (a *Adapter) DeleteRepoActionSecret(_ context.Context, owner, repo, name string) error {
-	resp, err := a.client.DeleteRepoActionSecret(owner, repo, name)
-	return statusErr(resp, err)
+func (a *Adapter) DeleteRepoActionSecret(ctx context.Context, owner, repo, name string) error {
+	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, forge.APIPath("repos", owner, repo, "actions", "secrets", name), nil)
+	if err != nil {
+		return err
+	}
+	return answered(status, body, http.StatusNoContent)
 }
 
 func (a *Adapter) ListOrgActionSecrets(_ context.Context, org string, opt forgejo_sdk.ListOptions) ([]*forgejo_sdk.Secret, error) {
@@ -128,12 +145,21 @@ func (a *Adapter) ListOrgActionSecrets(_ context.Context, org string, opt forgej
 	return secrets, statusErr(resp, err)
 }
 
-func (a *Adapter) SetOrgActionSecret(_ context.Context, org string, opt forgejo_sdk.CreateSecretOption) error {
-	resp, err := a.client.CreateOrgActionSecret(org, opt)
-	return statusErr(resp, err)
+func (a *Adapter) SetOrgActionSecret(ctx context.Context, org string, opt forgejo_sdk.CreateSecretOption) error {
+	if err := opt.Validate(); err != nil {
+		return err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodPut, forge.APIPath("orgs", org, "actions", "secrets", opt.Name), opt)
+	if err != nil {
+		return err
+	}
+	return answered(status, body, http.StatusCreated, http.StatusNoContent)
 }
 
-func (a *Adapter) DeleteOrgActionSecret(_ context.Context, org, name string) error {
-	resp, err := a.client.DeleteOrgActionSecret(org, name)
-	return statusErr(resp, err)
+func (a *Adapter) DeleteOrgActionSecret(ctx context.Context, org, name string) error {
+	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, forge.APIPath("orgs", org, "actions", "secrets", name), nil)
+	if err != nil {
+		return err
+	}
+	return answered(status, body, http.StatusNoContent)
 }

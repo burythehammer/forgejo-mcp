@@ -4,6 +4,7 @@ package sdk
 
 import (
 	"context"
+	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
@@ -47,9 +48,20 @@ func (a *Adapter) ListOrgMembers(_ context.Context, org string, opt forgejo_sdk.
 	return users, statusErr(resp, err)
 }
 
-func (a *Adapter) CheckOrgMembership(_ context.Context, org, user string) (bool, error) {
-	ok, resp, err := a.client.CheckOrgMembership(org, user)
-	return ok, statusErr(resp, err)
+// CheckOrgMembership is raw so that a refusal keeps Forgejo's message: a 404 is
+// "not a member", and any other status that is not 204 is a failure.
+func (a *Adapter) CheckOrgMembership(ctx context.Context, org, user string) (bool, error) {
+	status, body, err := a.raw.doStatus(ctx, http.MethodGet, forge.APIPath("orgs", org, "members", user), nil)
+	if err != nil {
+		return false, err
+	}
+	if status == http.StatusNotFound {
+		return false, nil
+	}
+	if err := answered(status, body, http.StatusNoContent); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (a *Adapter) RemoveOrgMember(_ context.Context, org, user string) error {

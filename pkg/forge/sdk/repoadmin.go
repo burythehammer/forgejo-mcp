@@ -4,6 +4,7 @@ package sdk
 
 import (
 	"context"
+	"net/http"
 
 	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
 
@@ -52,9 +53,18 @@ func (a *Adapter) CreateBranch(_ context.Context, owner, repo string, opt forgej
 	return b, statusErr(resp, err)
 }
 
-func (a *Adapter) DeleteBranch(_ context.Context, owner, repo, branch string) (bool, error) {
-	ok, resp, err := a.client.DeleteRepoBranch(owner, repo, branch)
-	return ok, statusErr(resp, err)
+// DeleteBranch is raw so that a refusal keeps its status and Forgejo's message.
+// The SDK's version gate for this endpoint is not repeated: a server too old to
+// have it answers 404, which is reported as the refusal it is.
+func (a *Adapter) DeleteBranch(ctx context.Context, owner, repo, branch string) (bool, error) {
+	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, forge.APIPath("repos", owner, repo, "branches", branch), nil)
+	if err != nil {
+		return false, err
+	}
+	if err := answered(status, body, http.StatusNoContent); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (a *Adapter) CreateRepo(_ context.Context, opt forgejo_sdk.CreateRepoOption) (*forgejo_sdk.Repository, error) {
