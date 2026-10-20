@@ -218,7 +218,6 @@ func TestCreateRejectsBadInputBeforeUploading(t *testing.T) {
 	cases := map[string]map[string]any{
 		"both sources":  {"index": 3.0, "content": b64("x"), "file_path": "/etc/hostname", "filename": "f"},
 		"not base64":    {"index": 3.0, "content": "not base64!!!", "filename": "f"},
-		"oversized":     {"index": 3.0, "content": strings.Repeat("A", upload.MaxContentB64Bytes+1), "filename": "f"},
 		"no filename":   {"index": 3.0, "content": b64("x")},
 		"missing index": {"content": b64("x"), "filename": "f"},
 	}
@@ -229,8 +228,24 @@ func TestCreateRejectsBadInputBeforeUploading(t *testing.T) {
 	if atts, _ := f.ListIssueAttachments(context.Background(), owner, repo, 3); len(atts) != 0 {
 		t.Fatalf("nothing should have been uploaded: %+v", atts)
 	}
-	if msg := fails(t, h.CreateCommentAttachmentFn, map[string]any{"comment_id": 5.0, "content": strings.Repeat("A", upload.MaxContentB64Bytes+1), "filename": "f"}); !strings.Contains(msg, "too large") {
-		t.Fatalf("want a size-limit error, got %s", msg)
+}
+
+// TestCreateRejectsOversizedContent lowers the upload cap, a package variable in
+// pkg/upload, so it does not run in parallel. The oversized argument is small
+// because the cap is lowered, instead of a 90 MiB string.
+func TestCreateRejectsOversizedContent(t *testing.T) {
+	restore := upload.SetContentLimitForTest(1024)
+	t.Cleanup(restore)
+	h, f := newFixture(t)
+	oversized := strings.Repeat("A", 1025)
+	if msg := fails(t, h.CreateIssueAttachmentFn, map[string]any{"index": 3.0, "content": oversized, "filename": "f"}); !strings.Contains(msg, "too large") {
+		t.Fatalf("issue: want a size-limit error, got %s", msg)
+	}
+	if msg := fails(t, h.CreateCommentAttachmentFn, map[string]any{"comment_id": 5.0, "content": oversized, "filename": "f"}); !strings.Contains(msg, "too large") {
+		t.Fatalf("comment: want a size-limit error, got %s", msg)
+	}
+	if atts, _ := f.ListIssueAttachments(context.Background(), owner, repo, 3); len(atts) != 0 {
+		t.Fatalf("nothing should have been uploaded: %+v", atts)
 	}
 }
 
