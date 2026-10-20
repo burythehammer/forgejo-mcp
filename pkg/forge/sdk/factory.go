@@ -26,7 +26,8 @@ import (
 type Factory struct {
 	cfg config.Forgejo
 	ua  string
-	hc  *http.Client
+	hc  *http.Client    // raw-HTTP client
+	tr  *http.Transport // TLS transport shared with the SDK client; nil for the default
 
 	// serverVersion is the Forgejo version read at startup, or nothing. Every
 	// SDK client built afterwards is told it, and so skips the version request
@@ -53,7 +54,20 @@ func NewFactory(cfg config.Forgejo, version string) *Factory {
 			log.Errorf("Forgejo URL is not a valid URL: %v", err)
 		}
 	}
-	return &Factory{cfg: cfg, ua: ua, hc: sharedHTTPClient, settings: &settings{}}
+	// One TLS setting serves both the SDK client and the raw client. Built here,
+	// once per factory; the default keeps the shared client and its keep-alives.
+	tr := tlsTransport(cfg.TLS)
+	hc := sharedHTTPClient
+	if tr != nil {
+		hc = &http.Client{Timeout: sharedHTTPClient.Timeout, Transport: tr}
+	}
+	if cfg.TLS.SkipVerify {
+		log.Warn("TLS certificate verification is OFF for the Forgejo instance (-tls-skip-verify); "+
+			"the server does not check who it is talking to",
+			log.SanitizedURLField("url", cfg.URL),
+		)
+	}
+	return &Factory{cfg: cfg, ua: ua, hc: hc, tr: tr, settings: &settings{}}
 }
 
 // BaseURL is the Forgejo instance the factory serves.
@@ -70,6 +84,11 @@ func (f *Factory) newClient(token string) (*forgejo_sdk.Client, error) {
 	opts := []forgejo_sdk.ClientOption{
 		forgejo_sdk.SetToken(token),
 		forgejo_sdk.SetUserAgent(f.ua),
+	}
+	if f.tr != nil {
+		// No timeout here: the SDK's default client has none, and this only
+		// changes the transport.
+		opts = append(opts, forgejo_sdk.SetHTTPClient(&http.Client{Transport: f.tr}))
 	}
 	if v := f.knownServerVersion(); v != "" {
 		opts = append(opts, forgejo_sdk.SetForgejoVersion(v))
