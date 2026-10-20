@@ -26,8 +26,11 @@ type Adapter struct {
 var _ forge.Forgejo = (*Adapter)(nil)
 
 // NewAdapter binds an adapter to an already-built SDK client. The factory
-// builds its adapters directly; the contract tests use this to point one at a
-// stub server (see WithRawBaseURL for the raw-HTTP half).
+// builds its adapters directly, with the operator's TLS settings on both the
+// SDK and the raw-HTTP client; the contract tests use this to point one at a
+// stub server (see WithRawBaseURL for the raw-HTTP half). Its raw-HTTP client
+// is the default one, so it does not carry the TLS settings: production code
+// must build adapters through the factory.
 //
 // Each domain's methods live in their own file in this package (pull.go, ...),
 // all on *Adapter.
