@@ -15,10 +15,10 @@ import (
 	"sync"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/sdk"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

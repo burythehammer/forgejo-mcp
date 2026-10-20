@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/labelresolve"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/ptr"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/labelresolve"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/ptr"
 )
 
 const (

@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"testing"
 
-	apppissue "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/issue"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/issueadapter"
+	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/issueadapter"
 )
 
 // commentsFail is a port whose comment listing fails. A read that asks for

@@ -9,9 +9,9 @@ package packagesadapter
 import (
 	"context"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/packages"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 // New returns the use cases' port over p.

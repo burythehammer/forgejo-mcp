@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 func TestAnsweredKeepsStatusAndMessage(t *testing.T) {

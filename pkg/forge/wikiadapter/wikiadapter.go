@@ -9,9 +9,9 @@ package wikiadapter
 import (
 	"context"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	appwiki "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/wiki"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/wiki"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 // Source is the part of the Forgejo port the wiki domain uses: its wiki methods

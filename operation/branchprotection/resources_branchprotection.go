@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	appbp "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/branchprotection"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/resource"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/branchprotectionadapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	appbp "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/branchprotection"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/branchprotectionadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

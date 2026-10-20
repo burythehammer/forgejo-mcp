@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	appuser "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/user"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	appuser "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/user"
 )
 
 // The use cases run against a stub port that holds fixed, repo-owned data and

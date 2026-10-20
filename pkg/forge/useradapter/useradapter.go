@@ -11,10 +11,10 @@ package useradapter
 import (
 	"context"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	appuser "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/user"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	appuser "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/user"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

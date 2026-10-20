@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/mcptest"
 )
 
 // TestArgsMatchSchema keeps each tool's argument struct in agreement with its

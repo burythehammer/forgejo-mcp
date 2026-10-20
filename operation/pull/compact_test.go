@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/mcptest"
 )
 
 func TestWriteResults_PullRequestDefaultIsCompact(t *testing.T) {

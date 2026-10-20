@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apprepo "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/repo"
 )
 
 // defaultLimit is the page size when the caller gives none.

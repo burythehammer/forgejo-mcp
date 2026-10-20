@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 )
 
 // LogAPICall logs API call information with timing.

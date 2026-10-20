@@ -7,13 +7,13 @@ import (
 	"errors"
 	"fmt"
 
-	apporg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/org"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/orgadapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/to"
+	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/org"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/orgadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

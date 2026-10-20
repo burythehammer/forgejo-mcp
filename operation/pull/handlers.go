@@ -5,13 +5,13 @@ package pull
 import (
 	"context"
 
-	apppull "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/pull"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/compact"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcpresult"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/pulladapter"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/pull"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/compact"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/pulladapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

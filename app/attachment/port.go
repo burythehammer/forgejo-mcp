@@ -12,7 +12,7 @@ import (
 	"errors"
 	"io"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // Scope says which parent an attachment hangs off: an issue (by its index) or

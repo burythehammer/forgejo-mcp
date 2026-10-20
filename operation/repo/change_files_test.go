@@ -9,7 +9,7 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/decode"
 )
 
 func TestChangeFilesFnAppliesAtomicBatch(t *testing.T) {

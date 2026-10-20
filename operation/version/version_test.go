@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/mcptest"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 // Forgejo's wire shapes for packages. The port's types carry no JSON tags, so

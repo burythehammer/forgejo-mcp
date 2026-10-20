@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/list"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apporg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/org"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/org"
 )
 
 // The use cases run against a stub port that holds fixed, repo-owned data and

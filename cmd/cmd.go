@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"os"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/config"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
 )
 
 // Execute is the composition root: the one place that loads the configuration,

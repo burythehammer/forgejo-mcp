@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	appwiki "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/wiki"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/fake"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/wikiadapter"
+	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/wiki"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/wikiadapter"
 )
 
 // The use cases run against the in-memory fake through the wiki adapter: no

@@ -61,7 +61,7 @@ proof ./cmd/ -run '^TestAuthModeDefaultsToPassthroughWithNothingGiven$'
 
 ```output
 --- PASS: TestAuthModeDefaultsToPassthroughWithNothingGiven
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/cmd
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/cmd
 ```
 
 <!-- evidence-kind: unit-test-output -->
@@ -81,7 +81,7 @@ proof ./operation/ -run '^Test(AnonymousRequestIsRefusedAtTheDoor|AuthenticatedR
 --- PASS: TestAuthenticatedRequestPassesTheDoor
     --- PASS: TestAuthenticatedRequestPassesTheDoor/sse
     --- PASS: TestAuthenticatedRequestPassesTheDoor/http
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#unknown-mode-value -->
@@ -133,7 +133,7 @@ proof ./operation/ -run '^TestRefusedConfigurationIsRefusedBeforeBinding$'
 
 ```output
 --- PASS: TestRefusedConfigurationIsRefusedBeforeBinding
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#operator-token-present -->
@@ -173,7 +173,7 @@ proof ./operation/ -run '^TestPrepareResourceServerRefusesForgejoBefore16$'
 
 ```output
 --- PASS: TestPrepareResourceServerRefusesForgejoBefore16
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#provider-issuer-mismatch -->
@@ -193,9 +193,9 @@ proof ./pkg/oauthrs/ ./operation/ -run '^(TestDiscoveryRefusesAnIssuerThatDiffer
 
 ```output
 --- PASS: TestDiscoveryRefusesAnIssuerThatDiffersByATrailingSlash
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 --- PASS: TestPrepareResourceServerRefusesAProviderIssuerMismatch
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#issuer-url-with-a-trailing-slash -->
@@ -315,7 +315,7 @@ proof ./cmd/ -run '^TestPassthroughRefusesEveryResourceServerSetting$'
     --- PASS: TestPassthroughRefusesEveryResourceServerSetting/-forgejo-jwt-signing-key-file
     --- PASS: TestPassthroughRefusesEveryResourceServerSetting/FORGEJO_MCP_FORGEJO_JWT_PUBLISHED_KEY_FILES
     --- PASS: TestPassthroughRefusesEveryResourceServerSetting/-forgejo-jwt-published-key-files
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/cmd
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/cmd
 ```
 
 <!-- spec-scenario: oauth-resource-server#valid-access-token -->
@@ -349,7 +349,7 @@ proof ./pkg/oauthrs/ -run '^TestValidAccessTokenIsAccepted$'
 
 ```output
 --- PASS: TestValidAccessTokenIsAccepted
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```
 
 <!-- spec-scenario: oauth-resource-server#audience-names-another-resource -->
@@ -369,7 +369,7 @@ proof ./pkg/oauthrs/ -run '^TestInvalidTokensAreRefused$/^audience_names_another
 ```output
 --- PASS: TestInvalidTokensAreRefused
     --- PASS: TestInvalidTokensAreRefused/audience_names_another_resource
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```
 
 <!-- spec-scenario: oauth-resource-server#id-token-presented-as-an-access-token -->
@@ -390,7 +390,7 @@ proof ./pkg/oauthrs/ -run '^TestInvalidTokensAreRefused$/^ID_token_with_(nonce|a
 --- PASS: TestInvalidTokensAreRefused
     --- PASS: TestInvalidTokensAreRefused/ID_token_with_nonce
     --- PASS: TestInvalidTokensAreRefused/ID_token_with_at_hash
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```
 
 <!-- spec-scenario: oauth-resource-server#symmetric-algorithm -->
@@ -411,7 +411,7 @@ proof ./pkg/oauthrs/ -run '^TestInvalidTokensAreRefused$/^(HS256|alg_none)$'
 --- PASS: TestInvalidTokensAreRefused
     --- PASS: TestInvalidTokensAreRefused/HS256
     --- PASS: TestInvalidTokensAreRefused/alg_none
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```
 
 <!-- spec-scenario: oauth-resource-server#opaque-token -->
@@ -431,7 +431,7 @@ proof ./pkg/oauthrs/ -run '^TestInvalidTokensAreRefused$/^opaque_token$'
 ```output
 --- PASS: TestInvalidTokensAreRefused
     --- PASS: TestInvalidTokensAreRefused/opaque_token
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```
 
 <!-- spec-scenario: oauth-resource-server#forgejo-token-scheme -->
@@ -450,7 +450,7 @@ proof ./pkg/oauthrs/ -run '^TestAuthorizationSchemes$'
 
 ```output
 --- PASS: TestAuthorizationSchemes
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```
 
 <!-- spec-scenario: oauth-resource-server#no-token -->
@@ -483,7 +483,7 @@ proof ./operation/ -run '^TestTheMCPEndpointChallengesUniformly$'
 
 ```output
 --- PASS: TestTheMCPEndpointChallengesUniformly
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#expired-and-wrongly-signed-tokens-are-indistinguishable -->
@@ -503,7 +503,7 @@ proof ./operation/ -run '^TestTheMCPEndpointChallengesUniformly$'
 
 ```output
 --- PASS: TestTheMCPEndpointChallengesUniformly
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#burst-of-unknown-key-ids -->
@@ -523,7 +523,7 @@ proof ./pkg/oauthrs/ -run '^TestUnknownKeyIDsTriggerAtMostOneFetchPerInterval$'
 
 ```output
 --- PASS: TestUnknownKeyIDsTriggerAtMostOneFetchPerInterval
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```
 
 <!-- spec-scenario: oauth-resource-server#caller-disconnects-during-a-refetch -->
@@ -543,7 +543,7 @@ proof ./pkg/oauthrs/ -run '^TestARefetchCompletesWhenTheRequestThatTriggeredItIs
 
 ```output
 --- PASS: TestARefetchCompletesWhenTheRequestThatTriggeredItIsCancelled
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```
 
 <!-- spec-scenario: oauth-resource-server#metadata-at-the-path-specific-location -->
@@ -574,7 +574,7 @@ proof ./operation/ -run '^TestProtectedResourceMetadataIsPublishedWithoutAuthent
 
 ```output
 --- PASS: TestProtectedResourceMetadataIsPublishedWithoutAuthentication
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#metadata-with-a-forged-host -->
@@ -597,7 +597,7 @@ proof ./operation/ -run '^(TestProtectedResourceMetadataIsPublishedWithoutAuthen
     --- PASS: TestForgedHostHeaderIsRejected/http
     --- PASS: TestForgedHostHeaderIsRejected/http+resource-server
 --- PASS: TestProtectedResourceMetadataIsPublishedWithoutAuthentication
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#root-openid-discovery -->
@@ -627,7 +627,7 @@ proof ./operation/ -run '^TestOnlyDefinedRoutesAnswerAndNothingRedirects$'
 
 ```output
 --- PASS: TestOnlyDefinedRoutesAnswerAndNothingRedirects
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#trailing-slash -->
@@ -658,7 +658,7 @@ proof ./operation/ -run '^TestOnlyDefinedRoutesAnswerAndNothingRedirects$'
 
 ```output
 --- PASS: TestOnlyDefinedRoutesAnswerAndNothingRedirects
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#forgejo-never-sees-the-inbound-token -->
@@ -677,7 +677,7 @@ proof ./operation/ -run '^TestAToolCallReachesForgejoWithTheMintedTokenOnly$'
 
 ```output
 --- PASS: TestAToolCallReachesForgejoWithTheMintedTokenOnly
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 <!-- spec-scenario: oauth-resource-server#debug-logging-of-a-refusal -->
@@ -696,7 +696,7 @@ proof ./operation/ -run '^TestNeitherTokenIsLoggedAtAnyLevel$'
 
 ```output
 --- PASS: TestNeitherTokenIsLoggedAtAnyLevel
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 ## The `stateless-http-auth` delta
@@ -765,7 +765,7 @@ proof ./operation/ -run '^(TestAToolCallReachesForgejoWithTheMintedTokenOnly|Tes
 ```output
 --- PASS: TestAToolCallReachesForgejoWithTheMintedTokenOnly
 --- PASS: TestNeitherTokenIsLoggedAtAnyLevel
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 ```
 
 ### Scenario: Every Forgejo call in resource-server mode uses a minted token
@@ -788,7 +788,7 @@ proof ./operation/ ./pkg/oauthrs/ -run '^(TestValidateAuthConfig|TestAuthorizati
     --- PASS: TestValidateAuthConfig/cli_mode
     --- PASS: TestValidateAuthConfig/operator_token_present
     --- PASS: TestValidateAuthConfig/operator_token_fallback
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
 --- PASS: TestAuthorizationSchemes
-ok  	git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/oauthrs
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/oauthrs
 ```

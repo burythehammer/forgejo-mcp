@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/operation/mcptest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/mcptest"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

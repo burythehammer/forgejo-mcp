@@ -5,7 +5,7 @@ package sdk
 import (
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/forgetest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/forgetest"
 )
 
 // stubHarness is the real adapter, with its raw-HTTP binding, against a fresh

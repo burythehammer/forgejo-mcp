@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 )
 
 var _ forge.Wiki = (*Adapter)(nil)

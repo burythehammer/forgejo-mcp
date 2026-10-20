@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apppkg "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/packages"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/packages"
 )
 
 // The use cases run against a hand-written port: the behaviour under test is

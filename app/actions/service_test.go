@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	app "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/actions"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/actions"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // stubPort is an in-memory app.Port. Each field is what the matching method

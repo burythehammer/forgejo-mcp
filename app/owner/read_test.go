@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	appowner "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/owner"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	appowner "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/owner"
 )
 
 // stub is a Port whose lookups return fixed results and record whether the

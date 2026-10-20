@@ -11,11 +11,11 @@ import (
 	"context"
 	"errors"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apprelease "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/release"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/pkg/forge/bridge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/download"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apprelease "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/release"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

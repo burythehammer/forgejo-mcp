@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/attachment"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/attachment"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/download"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // stubPort is an in-memory attachment.Port. The fields say what it does.

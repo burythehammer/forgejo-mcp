@@ -10,7 +10,7 @@ package branchprotection
 import (
 	"context"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
 )
 
 // Port is the Forgejo branch protection domain as the use cases need it, in

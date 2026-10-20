@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/download"
-	"git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/model"
-	apprelease "git.b4mad.industries/agentic-forges/forgejo-mcp/v3/app/release"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/download"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/model"
+	apprelease "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/release"
 )
 
 // stubPort is an in-memory apprelease.Port. The fields say what it returns.
