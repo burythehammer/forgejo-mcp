@@ -15,10 +15,10 @@ import (
 	"sync"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -274,7 +274,7 @@ func TestInitFlagParseBug(t *testing.T) {
 // TestNilResponseDeref documents a nil-pointer bug in tool handlers.
 // Many handlers access resp.StatusCode BEFORE checking err != nil.
 // When the forgejo client returns (nil, nil, err), this panics.
-// Example: operation/user/user.go:44
+// Example: internal/operation/user/user.go:44
 //
 //	user, resp, err := client.GetMyUserInfo()
 //	forge.LogAPICall(ctx, "GET", "/user", duration, resp.StatusCode, err) // CRASH if resp==nil

@@ -61,7 +61,7 @@ first. Antipattern checklist lives in `authoring-smells.md`.
 4. **Surface test candidates** — for each scenario slug, grep the following
    paths for test function names or filter strings that resemble the slug:
    - `pkg/**/*_test.go`
-   - `operation/**/*_test.go`
+   - `internal/operation/**/*_test.go`
    - `test/` (if present)
 
    A candidate matches when its function name or `go test -run` filter

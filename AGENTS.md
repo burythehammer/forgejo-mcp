@@ -15,17 +15,17 @@ make vendor         # Tidy and verify Go module dependencies
 ## Architecture Summary
 
 ```
-main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registration) → operation/{domain}/*.go (MCP adapters) → app/{domain}/ (use cases) → pkg/forge/ (port)
+main.go → cmd/cmd.go (CLI parsing) → internal/operation/operation.go (tool registration) → internal/operation/{domain}/*.go (MCP adapters) → internal/app/{domain}/ (use cases) → internal/forge/ (port)
 ```
 
 Key directories:
 
-- `operation/` - MCP adapters by domain: tool definitions, argument decoding, rendering
-- `transport/` - Serve loop (stdio, SSE, streamable HTTP), listener hardening, authentication port and resource-server mode; built from `config.Config` only
-- `app/` - Use cases by domain: MCP-free and SDK-free (`scripts/ci/check-app-boundary.sh`)
-- `pkg/forge/` - The Forgejo port (interfaces, no SDK client; SDK types still appear as data in its signatures until #8, see `docs/adr/0002-forgejo-port-per-domain-over-sdk-types.md`); `pkg/forge/sdk/` is the Forgejo adapter (the real one); `pkg/forge/<domain>adapter/` is a port bridge from a use case's port to it
-- `pkg/to/` - Response formatting helpers
-- `pkg/params/` - Shared parameter descriptions
+- `internal/operation/` - MCP adapters by domain: tool definitions, argument decoding, rendering
+- `internal/transport/` - Serve loop (stdio, SSE, streamable HTTP), listener hardening, authentication port and resource-server mode; built from `config.Config` only
+- `internal/app/` - Use cases by domain: MCP-free and SDK-free (depguard in `.golangci.yml`)
+- `internal/forge/` - The Forgejo port (interfaces, no SDK client; SDK types still appear as data in its signatures until #8, see `docs/adr/0002-forgejo-port-per-domain-over-sdk-types.md`); `internal/forge/sdk/` is the Forgejo adapter (the real one); `internal/forge/<domain>adapter/` is a port bridge from a use case's port to it
+- `internal/to/` - Response formatting helpers
+- `internal/operation/params/` - Shared parameter descriptions
 
 ## File Header
 
@@ -33,14 +33,14 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 
 ## Adding a New Tool
 
-1. Put the logic in a use case in `app/{domain}/` (typed input, repo-owned result). `app/**` must not import mcp-go or the Forgejo SDK (`scripts/ci/check-app-boundary.sh`); reach Forgejo through the port in `pkg/forge/`, bridged by `pkg/forge/<domain>adapter/`
-2. Put the MCP adapter in `operation/{domain}/`: a `mcp.NewTool()` definition, an argument struct (`json:"name"`, `required:"true"`) decoded with `decode.Lax`, then a call to the use case. Numbers are `float64`, except where a tool's error text depends on how the number was given (`operation/actions`, a few others): those type it `any` and read it with a helper, see `operation/actions/args.go` and DEVELOPER.md
+1. Put the logic in a use case in `internal/app/{domain}/` (typed input, repo-owned result). `internal/app/**` must not import mcp-go or the Forgejo SDK (depguard in `.golangci.yml`); reach Forgejo through the port in `internal/forge/`, bridged by `internal/forge/<domain>adapter/`
+2. Put the MCP adapter in `internal/operation/{domain}/`: a `mcp.NewTool()` definition, an argument struct (`json:"name"`, `required:"true"`) decoded with `decode.Lax`, then a call to the use case. Numbers are `float64`, except where a tool's error text depends on how the number was given (`internal/operation/actions`, a few others): those type it `any` and read it with a helper, see `internal/operation/actions/args.go` and DEVELOPER.md
 3. Register in the domain's `RegisterTool(s *server.MCPServer, f forge.Factory)` function
-4. If new domain, import and call in `operation/operation.go`
-5. **Pin it with tests.** `mcptest.SchemaSnapshot` and `mcptest.Golden` per tool, `mcptest.ArgsMatchSchema` per argument struct (`go test ./operation/{domain} -update` writes the files), and use-case tests in `app/{domain}/`
+4. If new domain, import and call in `internal/operation/operation.go`
+5. **Pin it with tests.** `mcptest.SchemaSnapshot` and `mcptest.Golden` per tool, `mcptest.ArgsMatchSchema` per argument struct (`go test ./internal/operation/{domain} -update` writes the files), and use-case tests in `internal/app/{domain}/`
 6. **Go through the port.** The adapter's `run` helper calls `f.For(ctx)` per request and hands the port to the bridge; a new
-   endpoint is a port method, its adapter in `pkg/forge/sdk/`, its fake and a
-   contract case. Nothing outside `pkg/forge/sdk` builds an SDK client or an
+   endpoint is a port method, its adapter in `internal/forge/sdk/`, its fake and a
+   contract case. Nothing outside `internal/forge/sdk` builds an SDK client or an
    HTTP request to Forgejo. **Escape API paths** in the adapter's raw-HTTP
    methods (`a.rawJSON`, `a.rawDo`, `a.raw.doAPIRaw`, `a.raw.doMultipart`):
    build the path with `forge.APIPath("repos", owner, repo, …)` — it escapes
@@ -51,7 +51,7 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 7. **Bound the output.** If response size depends on data (not tool
    semantics), the tool MUST satisfy [docs/design/output-bounding.md](docs/design/output-bounding.md):
    client-controlled bound + resumability + documented parameters. A list
-   use case gets its bound from the list module (`app/list`): `list.Run` for
+   use case gets its bound from the list module (`internal/app/list`): `list.Run` for
    a paged list, `list.Window` for a port that reports its own `has_next`, and
    `list.Cut` for a list Forgejo does not page. It does not do its own
    page/limit parsing or ceiling check. Read raw page/limit arguments with
@@ -61,7 +61,7 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
    "Available Tools" table, and every `forgejo://` resource template a row in
    the "Resources" table. `scripts/ci/check-readme-tool-coverage.sh` fails the
    build on a tool or template with no row: it compares the `…ToolName`
-   constants and registered URI templates under `operation/` against the
+   constants and registered URI templates under `internal/operation/` against the
    tables.
 
 See [DEVELOPER.md](DEVELOPER.md) for complete code examples and patterns.
@@ -72,7 +72,7 @@ Resource templates expose Forgejo entities as `forgejo://` URIs. **Prefer a reso
 
 **Expand the template yourself.** `resources/list` is empty by design (only `resources/templates/list` has them), so a client that only lists resources, such as Claude Code's `ListMcpResourcesTool`, reports none. That is not a broken server: substitute every `{…}` and read the concrete URI, for example `forgejo://repo/burythehammer/forgejo-mcp/pr/533`. `{sha}` must be 40 hex characters; percent-encode `/` as `%2F` and spaces as `%20`.
 
-The template table, expansion gotchas and wiki notes are in [docs/agents/resources.md](docs/agents/resources.md). When adding a template, put it under `operation/<domain>/resources*.go` and use the `operation/resource` package (`ParseXxx`, `Bounded`, `MapForgejoError`).
+The template table, expansion gotchas and wiki notes are in [docs/agents/resources.md](docs/agents/resources.md). When adding a template, put it under `internal/operation/<domain>/resources*.go` and use the `internal/operation/resource` package (`ParseXxx`, `Bounded`, `MapForgejoError`).
 
 ## Blocked Features
 

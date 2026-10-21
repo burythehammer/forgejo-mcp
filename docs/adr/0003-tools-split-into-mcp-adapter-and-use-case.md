@@ -26,3 +26,5 @@ Tool functions in `operation/*` read MCP arguments, call Forgejo, and format MCP
 - Use cases test against the in-memory fake with no MCP in sight.
 - Every tool gains an argument struct, a use case and a result type: more files, in exchange for a mechanical, enforceable boundary.
 - The migration proceeds domain by domain; `version` is the first, proving the decoder, test helpers and CI check.
+
+Note (issue #12): `app/` and `operation/` now live under `internal/`, and the depguard rules in `.golangci.yml` replace `scripts/ci/check-app-boundary.sh`.

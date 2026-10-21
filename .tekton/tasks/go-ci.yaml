@@ -82,14 +82,6 @@ spec:
         git config --global --add safe.directory "$(workspaces.source.path)"
         ./scripts/ci/check-api-path-escaping.sh
 
-    - name: app-boundary
-      image: $(params.GO_IMAGE)
-      script: |
-        #!/usr/bin/env bash
-        set -euo pipefail
-        git config --global --add safe.directory "$(workspaces.source.path)"
-        ./scripts/ci/check-app-boundary.sh
-
     - name: readme-tool-coverage
       image: $(params.GO_IMAGE)
       script: |

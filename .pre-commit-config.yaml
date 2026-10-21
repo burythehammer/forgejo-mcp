@@ -36,17 +36,7 @@ repos:
         entry: scripts/ci/check-api-path-escaping.sh
         language: script
         pass_filenames: false
-        files: ^(operation/.*\.go|pkg/.*\.go|scripts/ci/check-api-path-escaping\.sh)$
-
-      - id: check-app-boundary
-        name: check app/ stays MCP-free and SDK-free
-        description: >-
-          Reject an app/** import of mcp-go or the Forgejo SDK (docs/adr/0003).
-          Mirrors the app-boundary step in .tekton/tasks/go-ci.yaml.
-        entry: scripts/ci/check-app-boundary.sh
-        language: script
-        pass_filenames: false
-        files: ^(app/.*\.go|scripts/ci/check-app-boundary\.sh)$
+        files: ^(internal/operation/.*\.go|internal/(forge|config|log|ptr|to|diff|upload|jwtissuer|oauthrs)/.*\.go|scripts/ci/check-api-path-escaping\.sh)$
 
       - id: check-readme-tool-coverage
         name: check README documents every tool and resource
@@ -57,7 +47,7 @@ repos:
         entry: scripts/ci/check-readme-tool-coverage.sh
         language: script
         pass_filenames: false
-        files: ^(operation/.*\.go|README\.md|scripts/ci/check-readme-tool-coverage\.sh)$
+        files: ^(internal/operation/.*\.go|README\.md|scripts/ci/check-readme-tool-coverage\.sh)$
 
       - id: check-spdx-headers
         name: check SPDX headers on Go and shell sources
@@ -108,7 +98,7 @@ repos:
         entry: scripts/ci/check-doc-tool-names.sh
         language: script
         pass_filenames: false
-        files: ^(operation/.*\.go|AGENTS\.md|README\.md|docs/.*\.md|scripts/ci/check-doc-tool-names\.sh)$
+        files: ^(internal/operation/.*\.go|AGENTS\.md|README\.md|docs/.*\.md|scripts/ci/check-doc-tool-names\.sh)$
 
       - id: check-demos
         name: check anchored spec demos

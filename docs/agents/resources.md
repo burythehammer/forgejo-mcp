@@ -5,7 +5,7 @@ Reference for the `forgejo://` resource templates. The short rule agents need on
 
 Resource templates expose Forgejo entities as `forgejo://` URIs — instance-portable, additive, coexisting with all existing tools (no tool removed). Clients that support `resources/templates/list` and `resources/read` resolve these URIs directly; others fall back to tools transparently.
 
-When adding a new resource template, place it under `operation/<domain>/resources*.go`. Use the `operation/resource` package for URI parsing (`ParseXxx`), embedded-list bounding (`Bounded`), and error mapping (`MapForgejoError`). Embedded lists MUST use `operation/resource.Bounded` so the truncation sentinel stays consistent across resources.
+When adding a new resource template, place it under `internal/operation/<domain>/resources*.go`. Use the `internal/operation/resource` package for URI parsing (`ParseXxx`), embedded-list bounding (`Bounded`), and error mapping (`MapForgejoError`). Embedded lists MUST use `internal/operation/resource.Bounded` so the truncation sentinel stays consistent across resources.
 
 See `openspec/specs/mcp-resources-core/spec.md` for the full normative spec (added by this slice when the change archives).
 
@@ -64,7 +64,7 @@ gotchas on expansion, each also noted per row:
 | `forgejo://repo/{owner}/{repo}/hook/{id}` | application/json | Single repository webhook (secret never returned) |
 | `forgejo://repo/{owner}/{repo}/wiki/{pageName}` | application/json + markdown | Wiki page with bounded revisions; use the normalized `page_name`, encoding literal `/` as `%2F` and spaces as `%20` without double-encoding |
 
-Wiki tools live in `operation/wiki/`. `list_*` enumerates entities; `get_*` fetches one
+Wiki tools live in `internal/operation/wiki/`. `list_*` enumerates entities; `get_*` fetches one
 entity by its server-normalized name. Always reuse the `page_name` returned by create/list.
 Slash-separated titles are only a flat subpage naming convention: Forgejo does not create a
 parent page or store a parent-child relationship. Create any desired parent page separately.

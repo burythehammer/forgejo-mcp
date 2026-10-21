@@ -14,7 +14,7 @@
 # What is compared:
 #
 #   tools      — every `<Name>ToolName = "<tool_name>"` constant under
-#                operation/ (excluding _test.go) against every `| `<name>` `
+#                internal/operation/ (excluding _test.go) against every `| `<name>` `
 #                row in README.md.
 #   resources  — every registered `forgejo://…{…}` URI template (those with a
 #                `{` placeholder, so concrete test URIs are ignored) against
@@ -42,10 +42,10 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 # --- tools -----------------------------------------------------------------
-# The constant form is the contract: operation/**/*.go declares
+# The constant form is the contract: internal/operation/**/*.go declares
 #   SomeToolName = "some_tool"
 grep -rhE '^[[:space:]]*[A-Za-z]+ToolName[[:space:]]*=[[:space:]]*"[a-z_]+"' \
-  operation/ --include='*.go' 2>/dev/null \
+  internal/operation/ --include='*.go' 2>/dev/null \
   | grep -v '_test\.go' \
   | sed -n 's/.*"\([a-z_]*\)".*/\1/p' \
   | sort -u >"$tmp/tools_code"
@@ -58,7 +58,7 @@ comm -23 "$tmp/tools_code" "$tmp/tools_readme" >"$tmp/tools_missing"
 # --- resource templates ----------------------------------------------------
 # Only templates: a URI carrying a `{` placeholder. Concrete forgejo:// URIs in
 # tests and docs are not registrations.
-grep -rhoE '"forgejo://[^"]*\{[^"]*"' operation/ --include='*.go' 2>/dev/null \
+grep -rhoE '"forgejo://[^"]*\{[^"]*"' internal/operation/ --include='*.go' 2>/dev/null \
   | grep -v '_test\.go' \
   | tr -d '"' \
   | sort -u >"$tmp/res_code"

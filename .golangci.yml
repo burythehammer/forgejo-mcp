@@ -6,6 +6,7 @@ linters:
   default: none
   enable:
     - bodyclose
+    - depguard
     - errcheck
     - errorlint
     - govet
@@ -14,6 +15,65 @@ linters:
     - staticcheck
     - unused
   settings:
+    # Dependency rule (docs/adr/0003, DEVELOPER.md "Dependency rule"). Module
+    # prefix: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal.
+    # Production files are held to every rule. Test files are held to the
+    # mcp-go and SDK bans only, because they wire the fake and the port bridges
+    # to drive the use cases and adapters under test. operation.go is the
+    # composition root (Run builds the SDK factory and calls transport.Serve),
+    # so it is exempt from the operation rule.
+    depguard:
+      rules:
+        app:
+          files:
+            - "**/internal/app/**"
+            - "!$test"
+          list-mode: strict
+          allow:
+            - $gostd
+            - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app
+            - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge
+            - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr
+            - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/diff
+          deny:
+            - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/
+              desc: use cases reach Forgejo through the port package, never its adapters
+        app-tests:
+          files:
+            - "**/internal/app/**/*_test.go"
+          deny:
+            - pkg: github.com/mark3labs/mcp-go
+              desc: use cases are MCP-free
+            - pkg: codeberg.org/mvdkleijn/forgejo-sdk
+              desc: use cases are SDK-free
+        operation:
+          files:
+            - "**/internal/operation/**"
+            - "!$test"
+            - "!**/internal/operation/operation.go"
+          deny:
+            - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk
+              desc: MCP adapters reach Forgejo through the port, not the SDK adapter
+            - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake
+              desc: the fake adapter is for tests
+            - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/transport
+              desc: the serve loop is wired only by the composition root
+        transport:
+          files:
+            - "**/internal/transport/**"
+          deny:
+            - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation
+              desc: the serve loop does not know tool logic
+            - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app
+              desc: the serve loop does not know use cases
+        port:
+          files:
+            - "**/internal/forge/*.go"
+          deny:
+            - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation
+              desc: the port sits below its callers
+            - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/transport
+              desc: the port sits below its callers
     errcheck:
       check-type-assertions: false
       check-blank: false

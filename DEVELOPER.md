@@ -54,7 +54,7 @@ This is an MCP (Model Context Protocol) server that exposes Forgejo API operatio
 ### Core Flow
 
 ```
-main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registration) → operation/{domain}/*.go (MCP adapters)
+main.go → cmd/cmd.go (CLI parsing) → internal/operation/operation.go (tool registration) → internal/operation/{domain}/*.go (MCP adapters)
 ```
 
 ### Directory Structure
@@ -62,62 +62,74 @@ main.go → cmd/cmd.go (CLI parsing) → operation/operation.go (tool registrati
 | Directory | Purpose |
 |-----------|---------|
 | `cmd/` | CLI entry point and command parsing |
-| `operation/` | MCP adapters (tool definitions, argument decoding, rendering), organized by domain; tool registration and `Run`, which hands the server to `transport` |
-| `transport/` | Serve loop for stdio, SSE and streamable HTTP; listener hardening (Host and Origin policy, bind validation, refusal limiter, request guard); the authentication port (passthrough and resource-server modes). Built from `config.Config` only |
-| `operation/issue/` | Issue-related tools |
-| `operation/pull/` | Pull request tools |
-| `operation/release/` | Release and release-attachment tools |
-| `operation/repo/` | Repository and branch tools |
-| `operation/search/` | Search tools (users, repos, teams) |
-| `operation/user/` | User info tools |
-| `operation/version/` | Server version tool |
-| `pkg/forge/` | The Forgejo port: per-domain interfaces and the `Factory` (no SDK client import) |
-| `pkg/forge/sdk/` | The Forgejo adapter (the real one): `Factory` (credential policy, startup checks) and `Adapter` over the SDK and one raw-HTTP client; the only package that constructs the SDK client or the raw transport. SDK types may appear in `pkg/forge/*` and on the MCP adapter side (`operation/*`, `pkg/forge/*adapter/`), never under `app/**` |
-| `pkg/forge/fake/` | The fake Forgejo adapter: a stateful in-memory `forge.Forgejo` for tests |
-| `pkg/forge/forgetest/` | Contract suite run against the fake and the SDK Forgejo adapter, and the shared stub server |
-| `app/<domain>/` | Use cases (ADR 0003): typed inputs, a domain port, repo-owned results. No mcp-go or SDK import (`scripts/ci/check-app-boundary.sh`) |
-| `app/model/` | Repo-owned domain types that use cases return (wire-shaped copies of the SDK types) |
-| `app/internal/split/` | The comma-separated list parser the use cases share |
-| `operation/decode/`, `operation/mcptest/` | Argument decoding into per-tool structs; golden, schema-snapshot and args-vs-schema test helpers |
-| `pkg/forge/<domain>adapter/` | Port bridge from a use case's port to `forge.<Domain>`: the one place SDK and repo-owned types are translated |
-| `pkg/to/` | Response formatting helpers (`TextResult`, `ErrorResult`) |
-| `pkg/params/` | Shared parameter descriptions for tool definitions |
-| `pkg/config/` | Typed Config, `Load` and `Validate` |
-| `pkg/log/` | Structured logging utilities |
+| `internal/operation/` | MCP adapters (tool definitions, argument decoding, rendering), organized by domain; tool registration and `Run`, which hands the server to `transport` |
+| `internal/transport/` | Serve loop for stdio, SSE and streamable HTTP; listener hardening (Host and Origin policy, bind validation, refusal limiter, request guard); the authentication port (passthrough and resource-server modes). Built from `config.Config` only |
+| `internal/operation/issue/` | Issue-related tools |
+| `internal/operation/pull/` | Pull request tools |
+| `internal/operation/release/` | Release and release-attachment tools |
+| `internal/operation/repo/` | Repository and branch tools |
+| `internal/operation/search/` | Search tools (users, repos, teams) |
+| `internal/operation/user/` | User info tools |
+| `internal/operation/version/` | Server version tool |
+| `internal/forge/` | The Forgejo port: per-domain interfaces and the `Factory` (no SDK client import) |
+| `internal/forge/sdk/` | The Forgejo adapter (the real one): `Factory` (credential policy, startup checks) and `Adapter` over the SDK and one raw-HTTP client; the only package that constructs the SDK client or the raw transport. SDK types may appear in `internal/forge/*` and on the MCP adapter side (`internal/operation/*`, `internal/forge/*adapter/`), never under `internal/app/**` |
+| `internal/forge/fake/` | The fake Forgejo adapter: a stateful in-memory `forge.Forgejo` for tests |
+| `internal/forge/forgetest/` | Contract suite run against the fake and the SDK Forgejo adapter, and the shared stub server |
+| `internal/app/<domain>/` | Use cases (ADR 0003): typed inputs, a domain port, repo-owned results. No mcp-go or SDK import (depguard in `.golangci.yml`) |
+| `internal/app/model/` | Repo-owned domain types that use cases return (wire-shaped copies of the SDK types) |
+| `internal/app/split/` | The comma-separated list parser the use cases share |
+| `internal/operation/decode/`, `internal/operation/mcptest/` | Argument decoding into per-tool structs; golden, schema-snapshot and args-vs-schema test helpers |
+| `internal/forge/<domain>adapter/` | Port bridge from a use case's port to `forge.<Domain>`: the one place SDK and repo-owned types are translated |
+| `internal/to/` | Response formatting helpers (`TextResult`, `ErrorResult`) |
+| `internal/operation/params/` | Shared parameter descriptions for tool definitions |
+| `internal/config/` | Typed Config, `Load` and `Validate` |
+| `internal/log/` | Structured logging utilities |
+
+### Dependency rule
+
+Imports point one way. The depguard rules in `.golangci.yml` enforce it in the lint step (`make check` and CI):
+
+- `internal/app/` imports only `internal/app`, the port package `internal/forge` (its root, not its subpackages), `internal/ptr` and `internal/diff`. It never imports mcp-go or the Forgejo SDK.
+- `internal/operation/` does not import `internal/forge/sdk`, `internal/forge/fake` or `internal/transport`.
+- `internal/transport/` does not import `internal/operation` or `internal/app`.
+- The port package `internal/forge` (root files) does not import `internal/operation` or `internal/transport`.
+- Port bridges (`internal/forge/<domain>adapter/`) may import use cases and are outside the port rule.
+
+Exemptions: test files in `internal/app` are held only to the mcp-go and SDK bans, and test files in `internal/operation` are outside the operation rule, because they wire the fake and SDK adapter to drive the code under test. `internal/operation/operation.go` is the composition root (it builds the SDK factory and calls `transport.Serve`) and is outside the operation rule too.
 
 ## The Forgejo port and migrating a domain
 
 Every domain reaches Forgejo through a port. The pull domain
-(`operation/pull/`, `pkg/forge/pull.go`) is the reference; copy its shape. A
+(`internal/operation/pull/`, `internal/forge/pull.go`) is the reference; copy its shape. A
 domain has:
 
-1. **Port** (`pkg/forge/<domain>.go`). An interface named for what the tools
+1. **Port** (`internal/forge/<domain>.go`). An interface named for what the tools
    need, SDK types as plain data, `ctx` first. Server failures are
    `*forge.StatusError` (use `forge.IsNotFound`); a decline that Forgejo reports
    as a status rather than an error is a result field (see `forge.MergeResult`).
-   Embed the interface in `forge.Forgejo` (`pkg/forge/forge.go`).
-2. **Forgejo adapter** (`pkg/forge/sdk/<domain>.go`). Methods on `*Adapter`, a
+   Embed the interface in `forge.Forgejo` (`internal/forge/forge.go`).
+2. **Forgejo adapter** (`internal/forge/sdk/<domain>.go`). Methods on `*Adapter`, a
    one-line `var _ forge.<Domain> = (*Adapter)(nil)`, and every SDK call wrapped
    in `statusErr(resp, err)`. Raw-HTTP workarounds go here too, with
    `forge.APIPath`, through the adapter's single raw path (`a.rawJSON` /
    `a.rawDo` / `a.raw.*`), which targets the adapter's own instance with the
    request's own credential.
-3. **Fake** (`pkg/forge/fake/<domain>.go`). Methods on `*fake.Forgejo` with its
+3. **Fake** (`internal/forge/fake/<domain>.go`). Methods on `*fake.Forgejo` with its
    own state struct (and mutex) held in one new field on `fake.Forgejo`. It
    must behave like Forgejo: round-trips, 404 for unknown things, pagination via
    `page`. Add seeding helpers for what the port cannot write (the pull fake's
    `AddRepo`, `SetPullRequestDiff`).
-4. **Contract cases** (`pkg/forge/forgetest/<domain>.go`, `RunXxx`). Behaviour
+4. **Contract cases** (`internal/forge/forgetest/<domain>.go`, `RunXxx`). Behaviour
    through the port only, never HTTP traffic. Add the seeding methods to
    `Seeder`, then give the stub server the REST routes
    (`forgetest/stub_<domain>.go`, a thin translation onto `Stub.Fake`) and call
    `RunXxx` from `fake/contract_test.go` and `sdk/contract_test.go`. The stub
    answers the SDK startup probe in one place, `forgetest.WriteVersion`.
 5. **MCP adapters take the factory.** `RegisterTool(s, f forge.Factory)` /
-   `RegisterResource(s, f)`, a `handlers{forge: f}` struct (in each `operation/<domain>/handlers.go`) whose methods call
+   `RegisterResource(s, f)`, a `handlers{forge: f}` struct (in each `internal/operation/<domain>/handlers.go`) whose methods call
    `h.forge.For(ctx)` per request (so each request gets its own credential), and
-   thread `f` through `operation/operation.go` and `cmd/cli.go`.
-6. **MCP adapter tests on the fake** (`operation/<domain>/*_test.go`). Build a fresh
+   thread `f` through `internal/operation/operation.go` and `cmd/cli.go`.
+6. **MCP adapter tests on the fake** (`internal/operation/<domain>/*_test.go`). Build a fresh
    `fake.New()` per test, call the MCP adapter, assert on the tool result, and
    `t.Parallel()`. No `flag.*`, no package-level Forgejo state, no `httptest`
    server.
@@ -129,38 +141,38 @@ policy: it serves a request's own token, or the shared operator client for a
 context marked by `forge.WithOperatorCredential`, and refuses anything else.
 Whether a request with no token of its own may use the operator's credential
 (the `-allow-operator-token-fallback` decision) is the authentication port's, in
-`transport/authport.go`, which sets that mark. `Factory.VerifyConnection(ctx)` is
+`internal/transport/authport.go`, which sets that mark. `Factory.VerifyConnection(ctx)` is
 the startup gate `transport.Serve` calls before serving.
 
 ## Splitting a domain into MCP adapters and use cases
 
-ADR 0003 splits every tool into an MCP adapter (`operation/<domain>`) and an
-MCP-free use case (`app/<domain>`). `version` is the smallest example, `pull`
+ADR 0003 splits every tool into an MCP adapter (`internal/operation/<domain>`) and an
+MCP-free use case (`internal/app/<domain>`). `version` is the smallest example, `pull`
 (all 16 pull tools) the reference for a domain with a port, and `issue` (the 16
 issue tools with their 8 label and 4 dependency tools) the one with the most
 moving parts: label-name resolution and the `update_issue` ordering both live
-in `app/issue`. Per domain:
+in `internal/app/issue`. Per domain:
 
 1. **Pin first.** Before moving anything, write the characterisation tests
    against the existing code: `mcptest.SchemaSnapshot` for each tool and
    `mcptest.Golden` for each case's output and error text (see
-   `operation/pull/golden_test.go`: a stub `forge.Forgejo` returning fixed,
+   `internal/operation/pull/golden_test.go`: a stub `forge.Forgejo` returning fixed,
    fully populated SDK data and recording the port calls, rendered together).
-   Create the files with `go test ./operation/<domain> -update`. They must pass
+   Create the files with `go test ./internal/operation/<domain> -update`. They must pass
    unchanged after the move: tool names, schemas, output bytes and error text
    are frozen.
-2. **Use case** (`app/<domain>`): a `Port` interface in repo-owned types
+2. **Use case** (`internal/app/<domain>`): a `Port` interface in repo-owned types
    (`port.go`), a `Service` with one method per tool taking a typed input
    (`service.go`; defaults and parsing live here), and the few typed error
    kinds callers can act on (`errors.go`; text must stay what the tool said,
    Forgejo failures are wrapped `fmt.Errorf("<op> err: %w", err)`). Results come
-   from `app/model`; add the wire-shaped types a domain needs there.
-3. **Port bridge** (`pkg/forge/<domain>adapter`): `New(forge.<Domain>) app.Port`
-   translates inputs to SDK options and converts SDK results to `app/model`
+   from `internal/app/model`; add the wire-shaped types a domain needs there.
+3. **Port bridge** (`internal/forge/<domain>adapter`): `New(forge.<Domain>) app.Port`
+   translates inputs to SDK options and converts SDK results to `internal/app/model`
    values through JSON. `shape_test.go` there fails if an SDK upgrade changes a
    shape the model copies. The shared `forge.<Domain>` stays SDK-typed (the
    resources and contract suite use it) until #8 retires it.
-4. **MCP adapter** (`operation/<domain>/handlers.go`): one argument struct per
+4. **MCP adapter** (`internal/operation/<domain>/handlers.go`): one argument struct per
    tool (`json:"name"`, `required:"true"` so `ArgsMatchSchema` checks them against the
    schema). Decode with `decode.Lax`, not `decode.Args`, while the wire contract
    is frozen: the pre-split tools never rejected a missing or mistyped argument,
@@ -173,12 +185,12 @@ in `app/issue`. Per domain:
    (`mcp.NewToolResultError`). Keep the exported `XxxTool` definitions and
    `XxxToolName` constants as they were.
 
-   Three refinements came with `issue` (`operation/issue/`, 28 tools):
+   Three refinements came with `issue` (`internal/operation/issue/`, 28 tools):
    - **Defaults that test for zero live in the adapter, before truncation.**
      The pre-split tools defaulted `page == 0` on the float, so `0.5` was passed
-     on as `0`. `decode.PageOr` keeps that (in `operation/decode/page.go`); the
+     on as `0`. `decode.PageOr` keeps that (in `internal/operation/decode/page.go`); the
      use case does not default a page or limit it is handed. A list use case
-     then bounds the page through the list module (`app/list`).
+     then bounds the page through the list module (`internal/app/list`).
    - **Pointer fields where presence matters.** An argument whose "given but
      empty" differs from "not given" (`labels`, `assignees`, `set_labels`,
      `ref`, a label's `name`, `state` on `list_repo_issues`) is a `*string`
@@ -198,14 +210,14 @@ in `app/issue`. Per domain:
      error even when no credential resolved. A use case that validates (parses
      a time, checks a duration) takes a `Source` (`func(ctx) (Port, error)`)
      instead of a port, and looks the port up only after its checks. The
-     adapter passes `h.source()`. `app/tracking` and `app/user` do this.
+     adapter passes `h.source()`. `internal/app/tracking` and `internal/app/user` do this.
    - **Optional numbers.** A pointer to a number reads a JSON number only; a
      numeric string is read only when the field is tagged `numeric:"string"`
      (for the tools that used `to.Float64`). Plain number fields keep reading
      numeric strings. Pick per field to match the pre-split tool.
-5. **Tests.** Use cases: `app/<domain>/service_test.go`, an external test
+5. **Tests.** Use cases: `internal/app/<domain>/service_test.go`, an external test
    package over the in-memory fake through the bridge (no SDK import allowed
-   under `app/`, so seed through the fake's SDK-free helpers or the use case
+   under `internal/app/`, so seed through the fake's SDK-free helpers or the use case
    itself). Adapter: the goldens and snapshots, `mcptest.ArgsMatchSchema` per
    argument struct, a thin table test that tools reach their use case, the
    failure paths, and one `httptest` smoke test through the real SDK adapter
@@ -219,25 +231,25 @@ in `app/issue`. Per domain:
 
 A tool is two parts and a bridge (ADR 0003): a use case that knows nothing
 about MCP, and an MCP adapter that decodes the request, calls the use case and
-renders the result. The pull domain (`app/pull`, `operation/pull`,
-`pkg/forge/pulladapter`) is the reference; copy its shape.
+renders the result. The pull domain (`internal/app/pull`, `internal/operation/pull`,
+`internal/forge/pulladapter`) is the reference; copy its shape.
 
 | Part | Where | Knows about |
 |------|-------|-------------|
-| Use case | `app/<domain>/` (`service.go`, `port.go`, `errors.go`) | Typed input, its own `Port`, repo-owned results. No mcp-go, no Forgejo SDK |
-| Port bridge | `pkg/forge/<domain>adapter/` | Converts the use case's `Port` to `forge.<Domain>` (SDK types) and the SDK results back to `app/model` |
-| MCP adapter | `operation/<domain>/` | The `mcp.NewTool` definition, the argument struct, decoding, rendering |
+| Use case | `internal/app/<domain>/` (`service.go`, `port.go`, `errors.go`) | Typed input, its own `Port`, repo-owned results. No mcp-go, no Forgejo SDK |
+| Port bridge | `internal/forge/<domain>adapter/` | Converts the use case's `Port` to `forge.<Domain>` (SDK types) and the SDK results back to `internal/app/model` |
+| MCP adapter | `internal/operation/<domain>/` | The `mcp.NewTool` definition, the argument struct, decoding, rendering |
 
-`app/**` must not import mcp-go or the Forgejo SDK. `scripts/ci/check-app-boundary.sh`
+`internal/app/**` must not import mcp-go or the Forgejo SDK. The depguard rules in `.golangci.yml` fail the lint on such an import (see "Dependency rule").
 fails the build on such an import.
 
 ### Step 1: Write the use case
 
-Put the logic in `app/<domain>/service.go`. Defaults and validation live here,
+Put the logic in `internal/app/<domain>/service.go`. Defaults and validation live here,
 so the CLI and the tests get the same behaviour as MCP:
 
 ```go
-// app/mydomain/service.go
+// internal/app/mydomain/service.go
 type ListInput struct {
 	Owner, Repo string
 	Limit       int
@@ -248,16 +260,16 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]model.Thing, error)
 }
 ```
 
-Results are types from `app/model`; add wire-shaped types for a new domain in
-`app/model/<domain>.go`. Failures the caller can act on are typed errors in
+Results are types from `internal/app/model`; add wire-shaped types for a new domain in
+`internal/app/model/<domain>.go`. Failures the caller can act on are typed errors in
 `errors.go`. A new Forgejo call needs a method on the use case's `Port`, a
-method in `pkg/forge/<domain>adapter`, and (if the port itself is new) the
+method in `internal/forge/<domain>adapter`, and (if the port itself is new) the
 steps in "The Forgejo port and migrating a domain" above.
 
 ### Step 2: Write the MCP adapter
 
 ```go
-// operation/mydomain/handlers.go
+// internal/operation/mydomain/handlers.go
 type listArgs struct {
 	Owner string  `json:"owner" required:"true"`
 	Repo  string  `json:"repo" required:"true"`
@@ -279,9 +291,9 @@ func (h handlers) ListThingsFn(ctx context.Context, req mcp.CallToolRequest) (*m
 }
 ```
 
-`run` is the per-domain helper in `operation/pull/handlers.go`: it decodes the
+`run` is the per-domain helper in `internal/operation/pull/handlers.go`: it decodes the
 arguments, calls `h.forge.For(ctx)` for this request's credential and builds the
-use case over the bridge. `mcpresult.Render` (in `operation/mcpresult`, shared by
+use case over the bridge. `mcpresult.Render` (in `internal/operation/mcpresult`, shared by
 every domain) sends the result with `to.TextResult` and any error through
 `mcpresult.Fail`, which uses `to.ErrorResult`.
 
@@ -313,19 +325,19 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 }
 ```
 
-If the domain is new, call its `RegisterTool` from `operation/operation.go`.
+If the domain is new, call its `RegisterTool` from `internal/operation/operation.go`.
 
 ### Step 4: Pin it with tests
 
 - `mcptest.SchemaSnapshot(t, ListThingsTool)` pins the name, description and
   input schema in `testdata/`.
 - `mcptest.Golden(t, name, output)` pins the rendered output and error text for
-  each case, through a stub port (see `operation/pull/golden_test.go`).
+  each case, through a stub port (see `internal/operation/pull/golden_test.go`).
 - `mcptest.ArgsMatchSchema(t, ListThingsTool, listArgs{})` checks the argument
   struct against the schema.
-- `go test ./operation/mydomain -update` writes the golden and snapshot files.
+- `go test ./internal/operation/mydomain -update` writes the golden and snapshot files.
   Review the diff, then run the tests without `-update`.
-- Use-case tests live in `app/<domain>/service_test.go`, in an external test
+- Use-case tests live in `internal/app/<domain>/service_test.go`, in an external test
   package over the in-memory fake through the bridge.
 - Keep one `httptest` smoke test per domain through the real SDK adapter
   (`forgetest.NewStub`).
@@ -341,10 +353,10 @@ Before opening a PR, run `make build`, `go vet ./...`, `go test ./...` and every
 
 Tools that have been split (see "Splitting a domain..." and "Adding a New Tool")
 decode their arguments into a per-tool struct with `decode.Lax`. The tools
-still reading the argument map directly are in `operation/release`,
-`operation/actions`, `operation/attachment`, `operation/packages`,
-`operation/repo` (`file.go`, `change_files.go`), `operation/issue`
-(`dependency.go`) and `operation/user` (`notification.go`). In those:
+still reading the argument map directly are in `internal/operation/release`,
+`internal/operation/actions`, `internal/operation/attachment`, `internal/operation/packages`,
+`internal/operation/repo` (`file.go`, `change_files.go`), `internal/operation/issue`
+(`dependency.go`) and `internal/operation/user` (`notification.go`). In those:
 
 - String parameters: `value, _ := req.Params.Arguments["param"].(string)`
 - Number parameters: `value, _ := req.Params.Arguments["num"].(float64)` (always float64)
@@ -352,7 +364,7 @@ still reading the argument map directly are in `operation/release`,
 
 ### Response Formatting
 
-Use helpers from `pkg/to/`:
+Use helpers from `internal/to/`:
 
 ```go
 // Success response
@@ -364,7 +376,7 @@ return to.ErrorResult(fmt.Errorf("something went wrong: %v", err))
 
 ### Shared Parameter Descriptions
 
-Reuse descriptions from `pkg/params/` for consistency:
+Reuse descriptions from `internal/operation/params/` for consistency:
 
 ```go
 mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner))
@@ -508,4 +520,4 @@ See `docs/plans/` for detailed status:
 - Follow standard Go conventions
 - Use meaningful variable names
 - Add tool descriptions that clearly explain what each tool does
-- Reuse parameter descriptions from `pkg/params/` where applicable
+- Reuse parameter descriptions from `internal/operation/params/` where applicable
