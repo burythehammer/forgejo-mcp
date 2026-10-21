@@ -264,12 +264,15 @@ func TestDownloadReleaseAttachment_AtCapNoBlob(t *testing.T) {
 	}
 }
 
+// TestCreateReleaseAttachment_RejectsBadInput lowers the upload cap, a package
+// variable in internal/upload, so it does not run in parallel. The oversized
+// argument is small because the cap is lowered, instead of a 90 MiB string.
 func TestCreateReleaseAttachment_RejectsBadInput(t *testing.T) {
-	t.Parallel()
+	t.Cleanup(upload.SetContentLimitForTest(1024))
 	h, f := newFixture(t)
 	rid := float64(seed(t, f, "v1", false, false).ID)
 	fails(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": "not base64!!!", "filename": "f"})
-	if msg := fails(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": strings.Repeat("A", upload.MaxContentB64Bytes+1), "filename": "f"}); !strings.Contains(msg, "too large") {
+	if msg := fails(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": strings.Repeat("A", 1025), "filename": "f"}); !strings.Contains(msg, "too large") {
 		t.Fatal(msg)
 	}
 	if atts, _ := f.ListReleaseAttachments(context.Background(), owner, repo, int64(rid)); len(atts) != 0 {
