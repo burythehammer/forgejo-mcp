@@ -629,12 +629,25 @@ You can configure the server using command-line arguments or environment variabl
 | `--forgejo-jwt-published-key-files` | `FORGEJO_MCP_FORGEJO_JWT_PUBLISHED_KEY_FILES` | `resource-server` mode: comma-separated PEM keys published next to the signing key, for key rotation |
 | `--cli` | - | Enter CLI mode for direct tool invocation |
 | `--user-agent` | `FORGEJO_USER_AGENT` | HTTP User-Agent header (default: `forgejo-mcp/<version>`) |
+| `--tls-ca` | `FORGEJO_TLS_CA` | PEM file of CA certificates to trust for the Forgejo instance, added to the system roots (see [Private or self-signed Forgejo certificates](#private-or-self-signed-forgejo-certificates)) |
+| `--tls-skip-verify` | `FORGEJO_TLS_SKIP_VERIFY` | Turn off TLS certificate verification for the Forgejo instance. Off by default; logs a warning at startup (see [Private or self-signed Forgejo certificates](#private-or-self-signed-forgejo-certificates)) |
 | - | `FORGEJO_MCP_ALLOW_FILE_PATH_UPLOAD` | Allow `file_path` attachment uploads to read the host filesystem (`1`/`true`/`yes`/`on`; off by default) |
 | - | `FORGEJO_MCP_UPLOAD_ROOT` | Confine `file_path` uploads to this directory (default: anywhere the process can read) |
 
 Command-line arguments take priority over environment variables.
 
 The `resource-server` settings are refused in `passthrough` mode, so a configuration that sets them but forgets `--auth-mode resource-server` does not start.
+
+### Private or self-signed Forgejo certificates
+
+If your Forgejo instance uses a private CA or a self-signed certificate, the server fails certificate verification on every request by default. Prefer the first option.
+
+- **Trust your CA (recommended).** Point `FORGEJO_TLS_CA` (or `--tls-ca`) at a PEM file holding the CA certificate. It is added to the system roots, not substituted for them, so public certificates still verify. The server refuses to start if the file cannot be read or holds no PEM certificates.
+- **Skip verification (testing only).** Set `FORGEJO_TLS_SKIP_VERIFY=true` (or `--tls-skip-verify`). The server then accepts any certificate from the Forgejo instance. It logs a warning at startup.
+
+The risk of skip-verify: the server no longer checks who it is talking to. Anyone who can intercept traffic between the server and Forgejo can read and alter it, including the access token the server sends. Use it only for a throwaway instance on a network you trust. Do not use it against a production instance.
+
+Both settings apply to every request the server makes to Forgejo, through the SDK client and the raw-HTTP paths alike (JSON, raw, multipart and download). They do not affect OAuth provider lookups in `resource-server` mode.
 
 ### Uploading attachments from the host filesystem
 

@@ -4,6 +4,8 @@
 // Config: explicit flag, then environment variable, then default.
 package config
 
+import "crypto/x509"
+
 // Mode is how the process runs.
 type Mode string
 
@@ -54,6 +56,17 @@ type Forgejo struct {
 	URL       string
 	Token     Secret
 	UserAgent string
+	TLS       TLS
+}
+
+// TLS holds how the server verifies a Forgejo certificate. The zero value
+// verifies against the system roots only.
+type TLS struct {
+	// CAPool holds the system roots with the bundle's certificates appended.
+	// Nil when no bundle was given.
+	CAPool *x509.CertPool
+	// SkipVerify turns certificate verification off. Off by default.
+	SkipVerify bool
 }
 
 // Listen holds the network transport settings.

@@ -10,6 +10,7 @@ package sdk
 import (
 	"context"
 	"net/http"
+	"testing"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
 
@@ -25,13 +26,20 @@ type Adapter struct {
 
 var _ forge.Forgejo = (*Adapter)(nil)
 
-// NewAdapter binds an adapter to an already-built SDK client. The factory
-// builds its adapters directly; the contract tests use this to point one at a
-// stub server (see WithRawBaseURL for the raw-HTTP half).
+// NewAdapter binds an adapter to an already-built SDK client. It is a test seam
+// only: its raw-HTTP client is the default one, without the operator's TLS
+// settings. The factory builds production adapters with those settings on both
+// the SDK and the raw-HTTP client, so production code must go through
+// NewFactory. Callers outside a test binary panic rather than run without TLS.
+// Tests in other packages need it too, so it stays exported; WithRawBaseURL
+// points its raw-HTTP half at a stub server.
 //
 // Each domain's methods live in their own file in this package (pull.go, ...),
 // all on *Adapter.
 func NewAdapter(c *forgejo_sdk.Client) *Adapter {
+	if !testing.Testing() {
+		panic("sdk.NewAdapter is a test seam without TLS settings; build adapters through sdk.NewFactory")
+	}
 	return &Adapter{client: c, raw: newRawClient("", "", ""), settings: &settings{}}
 }
 

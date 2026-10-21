@@ -75,6 +75,8 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		ssePort, httpPort                    int
 		allowFallback, debug                 bool
 		authMode                             string
+		tlsCA                                string
+		tlsSkipVerify                        bool
 	)
 	resource := make(map[string]*string, len(resourceSettings))
 
@@ -89,6 +91,12 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	fs.IntVar(&httpPort, "http-port", 8080, "Port for streamable HTTP transport mode")
 	fs.StringVar(&token, "token", "", "Your personal access token")
 	fs.StringVar(&userAgent, "user-agent", "", "User agent for HTTP requests (default: forgejo-mcp/<version>)")
+	fs.StringVar(&tlsCA, "tls-ca", "",
+		"PEM file of CA certificates trusted for the Forgejo instance, added to the system roots "+
+			"(env: FORGEJO_TLS_CA)")
+	fs.BoolVar(&tlsSkipVerify, "tls-skip-verify", false,
+		"Skip verification of the Forgejo instance's TLS certificate. Off by default; logs a warning "+
+			"(env: FORGEJO_TLS_SKIP_VERIFY)")
 	fs.StringVar(&host, "host", "localhost",
 		"Address the sse and http transports bind to. The default reaches this machine only, "+
 			"binding both 127.0.0.1 and ::1; pass one of those addresses to bind that family alone; "+
@@ -193,6 +201,18 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		// release that does not exist.
 		cfg.Forgejo.UserAgent = "forgejo-mcp/" + build.Version
 	}
+
+	skipVerify := tlsSkipVerify
+	if !passed["tls-skip-verify"] {
+		if v := getenv("FORGEJO_TLS_SKIP_VERIFY"); v != "" {
+			skipVerify = isTruthy(v)
+		}
+	}
+	tlsCfg, err := loadTLS(resolve(tlsCA, "FORGEJO_TLS_CA", "tls-ca"), skipVerify)
+	if err != nil {
+		return Config{}, warns, err
+	}
+	cfg.Forgejo.TLS = tlsCfg
 
 	cfg.Listen.Host = resolve(host, "FORGEJO_MCP_HOST", "host")
 	cfg.Listen.AllowedHosts = splitList(resolve(allowedHosts, "FORGEJO_MCP_ALLOWED_HOSTS", "allowed-hosts"))

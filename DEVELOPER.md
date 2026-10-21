@@ -36,9 +36,9 @@ go mod tidy         # Tidy dependencies
 ./forgejo-mcp --transport sse --url <url> --token <token> --debug
 ```
 
-Environment variables: `FORGEJO_URL`, `FORGEJO_ACCESS_TOKEN`, `FORGEJO_DEBUG`, `FORGEJO_USER_AGENT`
+Environment variables: `FORGEJO_URL`, `FORGEJO_ACCESS_TOKEN`, `FORGEJO_DEBUG`, `FORGEJO_USER_AGENT`, `FORGEJO_TLS_CA`, `FORGEJO_TLS_SKIP_VERIFY` (see the README's "Private or self-signed Forgejo certificates")
 
-CLI options: `--url`, `--token`, `--transport`, `--sse-port`, `--http-port`, `--user-agent`,
+CLI options: `--url`, `--token`, `--transport`, `--sse-port`, `--http-port`, `--user-agent`, `--tls-ca`, `--tls-skip-verify`,
 `--host`, `--allowed-hosts`, `--allowed-origins`, `--allow-operator-token-fallback`
 
 The last four govern the `sse` and `http` transports. `--host` defaults to `127.0.0.1`
