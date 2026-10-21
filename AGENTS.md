@@ -37,7 +37,7 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 2. Put the MCP adapter in `internal/operation/{domain}/`: a `mcp.NewTool()` definition, an argument struct (`json:"name"`, `required:"true"`) decoded with `decode.Lax`, then a call to the use case. Numbers are `float64`, except where a tool's error text depends on how the number was given (`internal/operation/actions`, a few others): those type it `any` and read it with a helper, see `internal/operation/actions/args.go` and DEVELOPER.md
 3. Register in the domain's `RegisterTool(s *server.MCPServer, f forge.Factory)` function
 4. If new domain, import and call in `internal/operation/operation.go`
-5. **Pin it with tests.** `mcptest.SchemaSnapshot` and `mcptest.Golden` per tool, `mcptest.ArgsMatchSchema` per argument struct (`go test ./operation/{domain} -update` writes the files), and use-case tests in `internal/app/{domain}/`
+5. **Pin it with tests.** `mcptest.SchemaSnapshot` and `mcptest.Golden` per tool, `mcptest.ArgsMatchSchema` per argument struct (`go test ./internal/operation/{domain} -update` writes the files), and use-case tests in `internal/app/{domain}/`
 6. **Go through the port.** The adapter's `run` helper calls `f.For(ctx)` per request and hands the port to the bridge; a new
    endpoint is a port method, its adapter in `internal/forge/sdk/`, its fake and a
    contract case. Nothing outside `internal/forge/sdk` builds an SDK client or an

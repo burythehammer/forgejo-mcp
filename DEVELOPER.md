@@ -77,7 +77,7 @@ main.go → cmd/cmd.go (CLI parsing) → internal/operation/operation.go (tool r
 | `internal/forge/forgetest/` | Contract suite run against the fake and the SDK Forgejo adapter, and the shared stub server |
 | `internal/app/<domain>/` | Use cases (ADR 0003): typed inputs, a domain port, repo-owned results. No mcp-go or SDK import (depguard in `.golangci.yml`) |
 | `internal/app/model/` | Repo-owned domain types that use cases return (wire-shaped copies of the SDK types) |
-| `internal/app/internal/split/` | The comma-separated list parser the use cases share |
+| `internal/app/split/` | The comma-separated list parser the use cases share |
 | `internal/operation/decode/`, `internal/operation/mcptest/` | Argument decoding into per-tool structs; golden, schema-snapshot and args-vs-schema test helpers |
 | `internal/forge/<domain>adapter/` | Port bridge from a use case's port to `forge.<Domain>`: the one place SDK and repo-owned types are translated |
 | `internal/to/` | Response formatting helpers (`TextResult`, `ErrorResult`) |
@@ -158,7 +158,7 @@ in `internal/app/issue`. Per domain:
    `mcptest.Golden` for each case's output and error text (see
    `internal/operation/pull/golden_test.go`: a stub `forge.Forgejo` returning fixed,
    fully populated SDK data and recording the port calls, rendered together).
-   Create the files with `go test ./operation/<domain> -update`. They must pass
+   Create the files with `go test ./internal/operation/<domain> -update`. They must pass
    unchanged after the move: tool names, schemas, output bytes and error text
    are frozen.
 2. **Use case** (`internal/app/<domain>`): a `Port` interface in repo-owned types
@@ -335,7 +335,7 @@ If the domain is new, call its `RegisterTool` from `internal/operation/operation
   each case, through a stub port (see `internal/operation/pull/golden_test.go`).
 - `mcptest.ArgsMatchSchema(t, ListThingsTool, listArgs{})` checks the argument
   struct against the schema.
-- `go test ./operation/mydomain -update` writes the golden and snapshot files.
+- `go test ./internal/operation/mydomain -update` writes the golden and snapshot files.
   Review the diff, then run the tests without `-update`.
 - Use-case tests live in `internal/app/<domain>/service_test.go`, in an external test
   package over the in-memory fake through the bridge.

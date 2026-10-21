@@ -117,7 +117,7 @@ The image source is structurally isolated so it can be moved to a dedicated repo
 5. Update ADR cross-references in `docs/design/release-pipeline-migration.md` to point at
    the new location.
 
-No Go code in `internal/operation/`, `pkg/`, `cmd/`, or `main.go` is affected.
+No Go code in `internal/operation/`, `internal/forge/`, `cmd/`, or `main.go` is affected.
 
 ## Architecture
 
