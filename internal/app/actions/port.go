@@ -2,7 +2,7 @@
 
 // Package actions holds the Actions use cases behind the actions tools: workflow
 // dispatch and runs, jobs and logs, artifacts, and action secrets. Like all of
-// internal/app/ it is MCP-free and SDK-free (scripts/ci/check-app-boundary.sh): use
+// internal/app/ it is MCP-free and SDK-free (the depguard rules in .golangci.yml): use
 // cases take typed inputs, reach Forgejo only through Port, and return
 // repo-owned types from internal/app/model for an MCP adapter in internal/operation/actions to
 // render.

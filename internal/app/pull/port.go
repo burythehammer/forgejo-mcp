@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Package pull holds the pull-request use cases behind the pull tools. Like
-// all of internal/app/ it is MCP-free and SDK-free (scripts/ci/check-app-boundary.sh):
+// all of internal/app/ it is MCP-free and SDK-free (the depguard rules in .golangci.yml):
 // use cases take typed inputs, reach Forgejo only through Port, and return
 // repo-owned types from internal/app/model for an MCP adapter in internal/operation/pull to
 // render.

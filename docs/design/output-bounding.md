@@ -81,7 +81,7 @@ list/search API endpoints, carrying the total number of matching rows across
 every page (distinct from `count`, which is the row count on the current page
 alone). Tools whose envelope already carries `page`/`limit`/`has_next` SHOULD
 also surface this as a `total_count` field, parsed with the shared
-the adapter's X-Total-Count helper (`pkg/forge/sdk/pagination.go`) rather than
+the adapter's X-Total-Count helper (`internal/forge/sdk/pagination.go`) rather than
 a bespoke per-tool copy; the port hands the tool a `TotalCount *int`. When the header is absent or unparsable, OMIT the key — never
 emit `total_count: 0`, which reads as "confirmed zero rows" rather than
 "unknown." Today this covers `search_issues`, `list_repo_hooks`, and `get_wiki_revisions`.
@@ -106,8 +106,8 @@ response body instead (`get_wiki_revisions`), it is a plain always-present
 `int`. The per-page row count is `count`, and it is a separate field.
 
 Some pre-existing payloads use the name `total_count` for a LOCAL count of the
-rows they carry — `operation/branchprotection/resources_branchprotection.go`,
-`operation/repo/resources_status.go` and `operation/actions/workflow_logs.go`.
+rows they carry — `internal/operation/branchprotection/resources_branchprotection.go`,
+`internal/operation/repo/resources_status.go` and `internal/operation/actions/workflow_logs.go`.
 Those are an existing contract and are deliberately left alone. New envelopes
 MUST NOT follow them: reserve `total_count` for the server grand total and call
 a local count `count`.
@@ -117,8 +117,8 @@ a local count `count`.
 Bounding is code, not a checklist a tool author re-implements. The rules above
 are enforced in these places:
 
-- **List use cases** (`app/<domain>/`) hand their request to the list module,
-  `app/list`. Every paged list uses `list.Run` and returns the envelope with
+- **List use cases** (`internal/app/<domain>/`) hand their request to the list module,
+  `internal/app/list`. Every paged list uses `list.Run` and returns the envelope with
   `has_next`; `list.Items` is gone, and a list with no continuation marker is
   still an envelope with `has_next`, derived by `list.Run`. Two other entry
   points remain for the cases `list.Run` does not fit: `list.Window` reads one
@@ -131,15 +131,15 @@ are enforced in these places:
   unknown. The page/limit defaults come from `list.Normalize`,
   `list.Given` and `list.DefaultLimit`. A new list tool calls the module and
   adds no defaults or ceiling check of its own.
-- **Argument reading** (`operation/<domain>/handlers.go`) uses
+- **Argument reading** (`internal/operation/<domain>/handlers.go`) uses
   `decode.PageOr` (an absent or zero number takes the default) and
   `decode.IntOr` (the default applies to the truncated number). These are the
   only copies of that rule; do not add a local `pageOr`.
-- **Embedded lists in resources** use `operation/resource.Bounded`, which
+- **Embedded lists in resources** use `internal/operation/resource.Bounded`, which
   applies the `EmbeddedListCap` ceiling and writes the truncation sentinel.
 
-Some per-handler `paging` helpers in `operation/{tracking,org,user,search}` and
-in `app/{wiki,pull}` remain. Each still has callers and each differs in how it
+Some per-handler `paging` helpers in `internal/operation/{tracking,org,user,search}` and
+in `internal/app/{wiki,pull}` remain. Each still has callers and each differs in how it
 treats page 0, which the goldens pin. Do not copy one for a new tool; call the
 list module.
 
@@ -154,7 +154,7 @@ An undocumented cap is the same trap as no cap.
 
 ## Checklist for new tools
 
-When adding a tool in `operation/{domain}/`, answer in the PR description:
+When adding a tool in `internal/operation/{domain}/`, answer in the PR description:
 
 - [ ] Is output size bounded by the tool's own semantics (one fixed-shape
       object)? If yes, exempt — note this and skip the rest.
@@ -181,4 +181,4 @@ says so.
    returns projected rows with no bodies while the equivalent list tool does not.
    [#596](https://git.b4mad.industries/agentic-forges/forgejo-mcp/issues/596)
    is the worked example: `list_repo_pull_requests` still embeds a complete
-   `Repository` twice per row through `PRBranchInfo` (`app/model/model.go`).
+   `Repository` twice per row through `PRBranchInfo` (`internal/app/model/model.go`).

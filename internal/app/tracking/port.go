@@ -2,7 +2,7 @@
 
 // Package tracking holds the time-tracking use cases behind the tracked-time
 // and stopwatch tools. Like all of internal/app/ it is MCP-free and SDK-free
-// (scripts/ci/check-app-boundary.sh): use cases take typed inputs, reach
+// (the depguard rules in .golangci.yml): use cases take typed inputs, reach
 // Forgejo only through Port, and return repo-owned types from internal/app/model for an
 // MCP adapter in internal/operation/tracking to render.
 package tracking

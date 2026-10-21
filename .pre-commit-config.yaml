@@ -38,16 +38,6 @@ repos:
         pass_filenames: false
         files: ^(internal/operation/.*\.go|internal/(forge|config|log|ptr|to|diff|upload|jwtissuer|oauthrs)/.*\.go|scripts/ci/check-api-path-escaping\.sh)$
 
-      - id: check-app-boundary
-        name: check internal/app/ stays MCP-free and SDK-free
-        description: >-
-          Reject an internal/app/** import of mcp-go or the Forgejo SDK (docs/adr/0003).
-          Mirrors the app-boundary step in .tekton/tasks/go-ci.yaml.
-        entry: scripts/ci/check-app-boundary.sh
-        language: script
-        pass_filenames: false
-        files: ^(internal/app/.*\.go|scripts/ci/check-app-boundary\.sh)$
-
       - id: check-readme-tool-coverage
         name: check README documents every tool and resource
         description: >-

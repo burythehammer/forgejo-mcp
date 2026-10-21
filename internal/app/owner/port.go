@@ -2,7 +2,7 @@
 
 // Package owner holds the owner read use case behind the forgejo://owner/{login}
 // resource: a login names a user or, failing that, an organization. Like all of
-// internal/app/ it is MCP-free and SDK-free (scripts/ci/check-app-boundary.sh): it takes a
+// internal/app/ it is MCP-free and SDK-free (the depguard rules in .golangci.yml): it takes a
 // typed login, reaches Forgejo only through Port, and returns repo-owned types
 // from internal/app/model.
 package owner

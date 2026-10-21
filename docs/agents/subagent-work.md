@@ -12,7 +12,7 @@ Read this when you implement a ticket in a worktree, merge subagent branches int
 
 ## Lead merging subagent work
 
-- Run `make check` on the integration branch after every merge. An implementer's "all green" is a claim; the merged tip is the evidence. A merge of two green branches has failed before (`check-app-boundary.sh`).
+- Run `make check` on the integration branch after every merge. An implementer's "all green" is a claim; the merged tip is the evidence. A merge of two green branches has failed before (the since-retired `check-app-boundary.sh`).
 - Put the trailer text and the `make check` instruction in each implementer's prompt, since subagents cannot see memory.
 
 ## Reviewer

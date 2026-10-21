@@ -2,7 +2,7 @@
 
 // Package version is the use case behind the version tool. Packages under
 // internal/app/ are MCP-free: they must not import mcp-go or the Forgejo SDK
-// (scripts/ci/check-app-boundary.sh), so they take plain inputs and return
+// (the depguard rules in .golangci.yml), so they take plain inputs and return
 // repo-owned result types for an MCP adapter in internal/operation/ to render.
 package version
 

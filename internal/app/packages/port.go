@@ -2,7 +2,7 @@
 
 // Package packages holds the package-registry use cases behind the package
 // tools. Like all of internal/app/ it is MCP-free and SDK-free
-// (scripts/ci/check-app-boundary.sh): use cases take typed inputs, reach
+// (the depguard rules in .golangci.yml): use cases take typed inputs, reach
 // Forgejo only through Port, and return repo-owned types from internal/app/model for an
 // MCP adapter in internal/operation/packages to render. The adapter validates the
 // arguments before a use case runs, so a use case takes values it can trust.
