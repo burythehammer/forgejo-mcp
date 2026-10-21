@@ -15,8 +15,8 @@ set -eu
 
 cd "$(dirname "$0")/../.."
 
-hits=$(grep -rnE 'ListTool[[:space:]]*=[[:space:]]*"' --include='*.go' operation \
-	| grep -v '_test\.go:' | grep -v '^operation/resource/' || true)
+hits=$(grep -rnE 'ListTool[[:space:]]*=[[:space:]]*"' --include='*.go' internal/operation \
+	| grep -v '_test\.go:' | grep -v '^internal/operation/resource/' || true)
 
 if [ -n "$hits" ]; then
 	echo "error: a *ListTool field is assigned a bare string literal." >&2

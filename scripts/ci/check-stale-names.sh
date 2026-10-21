@@ -28,7 +28,7 @@ if [ -n "$hits" ]; then
 	echo "" >&2
 	echo "$hits" >&2
 	echo "" >&2
-	echo "Update the doc to the pkg/forge equivalent. docs/plans and" >&2
+	echo "Update the doc to the internal/forge equivalent. docs/plans and" >&2
 	echo "openspec/changes are historical and are not checked." >&2
 	exit 1
 fi

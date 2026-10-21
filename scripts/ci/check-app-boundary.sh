@@ -3,10 +3,10 @@
 #
 # check-app-boundary.sh — keep the use-case layer MCP-free and SDK-free.
 #
-# Packages under app/ are use cases (docs/adr/0003): they take plain inputs,
-# reach Forgejo only through the forgejo port in pkg/forge, and return
-# repo-owned result types. An MCP adapter in operation/ translates to and from
-# MCP. So no non-test or test Go file under app/ may import mcp-go
+# Packages under internal/app/ are use cases (docs/adr/0003): they take plain inputs,
+# reach Forgejo only through the forgejo port in internal/forge, and return
+# repo-owned result types. An MCP adapter in internal/operation/ translates to and from
+# MCP. So no non-test or test Go file under internal/app/ may import mcp-go
 # (github.com/mark3labs/mcp-go) or the Forgejo SDK (codeberg.org/mvdkleijn/
 # forgejo-sdk, or any forgejo-sdk path).
 #
@@ -16,17 +16,17 @@ set -eu
 
 cd "$(dirname "$0")/../.."
 
-[ -d app ] || exit 0
+[ -d internal/app ] || exit 0
 
-hits=$(grep -rnE '"(github\.com/mark3labs/mcp-go|[^"]*forgejo-sdk)[^"]*"' --include='*.go' app || true)
+hits=$(grep -rnE '"(github\.com/mark3labs/mcp-go|[^"]*forgejo-sdk)[^"]*"' --include='*.go' internal/app || true)
 
 if [ -n "$hits" ]; then
-	echo "error: app/** imports mcp-go or the Forgejo SDK." >&2
+	echo "error: internal/app/** imports mcp-go or the Forgejo SDK." >&2
 	echo "" >&2
 	echo "$hits" >&2
 	echo "" >&2
 	echo "Use cases must stay MCP-free: take plain inputs, use the forgejo port" >&2
-	echo "(pkg/forge) and return repo-owned types. See docs/adr/0003." >&2
+	echo "(internal/forge) and return repo-owned types. See docs/adr/0003." >&2
 	exit 1
 fi
 

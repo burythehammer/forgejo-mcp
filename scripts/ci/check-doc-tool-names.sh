@@ -9,7 +9,7 @@
 # written from a grep and from memory.
 #
 # The registered set is the same one check-readme-tool-coverage.sh uses: every
-# `<Name>ToolName = "<tool_name>"` constant under operation/.
+# `<Name>ToolName = "<tool_name>"` constant under internal/operation/.
 #
 # Two rules, because the docs cite tools in two ways:
 #
@@ -47,7 +47,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 grep -rhE '^[[:space:]]*[A-Za-z]+ToolName[[:space:]]*=[[:space:]]*"[a-z_]+"' \
-  operation/ --include='*.go' 2>/dev/null \
+  internal/operation/ --include='*.go' 2>/dev/null \
   | sed -n 's/.*"\([a-z_]*\)".*/\1/p' \
   | sort -u >"$tmp/tools"
 

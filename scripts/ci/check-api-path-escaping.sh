@@ -3,7 +3,7 @@
 #
 # check-api-path-escaping.sh — reject hand-built raw-HTTP API paths.
 #
-# The raw-HTTP client in pkg/forge/sdk (doJSON, doJSONList, doAPIRaw,
+# The raw-HTTP client in internal/forge/sdk (doJSON, doJSONList, doAPIRaw,
 # doMultipart) concatenate the path they are given onto the base URL verbatim.
 # The SDK client, by contrast, escapes every user-supplied segment for us. So a
 # path built with a bare fmt.Sprintf("/repos/%s/%s/...", owner, repo) lets an
@@ -11,7 +11,7 @@
 # request at a different endpoint — which matters most at the DELETE/PATCH
 # call sites.
 #
-# pkg/forge.APIPath() escapes every segment. This checker fails the build if
+# internal/forge.APIPath() escapes every segment. This checker fails the build if
 # a new call site goes back to formatting an API path by hand, i.e. any
 # fmt.Sprintf whose format string starts with a literal "/" — that is the shape
 # of an API path, and it is never the shape of an APIPath() call.
@@ -22,8 +22,10 @@ set -eu
 
 cd "$(dirname "$0")/../.."
 
-# Non-test Go sources under operation/ and pkg/. Vendored code is not ours.
-files=$(find operation pkg -name '*.go' ! -name '*_test.go' | sort)
+# Non-test Go sources under internal/operation/ and the internal/ packages that
+# were pkg/ before the internal/ move (internal/app and internal/transport are
+# not in scope, as before). Vendored code is not ours.
+files=$(find internal/operation internal/forge internal/config internal/log internal/ptr internal/to internal/diff internal/upload internal/jwtissuer internal/oauthrs -name '*.go' ! -name '*_test.go' | sort)
 [ -n "$files" ] || exit 0
 
 # shellcheck disable=SC2086

@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// Package trackingadapter implements the time-tracking use cases' port
+// (internal/app/tracking.Port) over the Forgejo port (forge.Tracking). It is the one
+// place that translates between repo-owned types and SDK types for the
+// time-tracking domain: inputs become SDK options, SDK results become internal/app/model
+// values. Results are converted through their JSON form, which is exactly what
+// a tool renders, so a field the repo-owned type shares by JSON name cannot
+// drift in value.
+package trackingadapter
+
+import (
+	"context"
+
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/tracking"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/bridge"
+
+	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
+)
+
+// New returns the use cases' port over t.
+// Source is the part of the Forgejo port the tracking domain uses: its tracking
+// methods and the instance's pagination ceiling.
+type Source interface {
+	forge.Tracking
+	forge.Ceilings
+}
+
+func New(t Source) apptracking.Port { return adapter{t: t} }
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.t.MaxResponseItems(ctx)
+}
+
+type adapter struct{ t Source }
+
+var _ apptracking.Port = adapter{}
+
+func listOptions(q apptracking.TimeQuery) forgejo_sdk.ListOptions {
+	return forgejo_sdk.ListOptions{Page: q.Page, PageSize: q.Limit}
+}
+
+func (a adapter) ListIssueTrackedTimes(ctx context.Context, owner, repo string, index int64, q apptracking.TimeQuery) ([]*model.TrackedTime, error) {
+	// The user filter is ignored by the issue-level endpoint, so it is not sent.
+	times, err := a.t.ListIssueTrackedTimes(ctx, owner, repo, index, forgejo_sdk.ListTrackedTimesOptions{
+		ListOptions: listOptions(q), Since: q.Since, Before: q.Before,
+	})
+	return bridge.Convert[[]*model.TrackedTime](times, err)
+}
+
+func (a adapter) ListRepoTrackedTimes(ctx context.Context, owner, repo string, q apptracking.TimeQuery) ([]*model.TrackedTime, error) {
+	times, err := a.t.ListRepoTrackedTimes(ctx, owner, repo, forgejo_sdk.ListTrackedTimesOptions{
+		ListOptions: listOptions(q), Since: q.Since, Before: q.Before, User: q.User,
+	})
+	return bridge.Convert[[]*model.TrackedTime](times, err)
+}
+
+func (a adapter) ListMyTrackedTimes(ctx context.Context) ([]*model.TrackedTime, error) {
+	times, err := a.t.ListMyTrackedTimes(ctx)
+	return bridge.Convert[[]*model.TrackedTime](times, err)
+}
+
+func (a adapter) AddIssueTime(ctx context.Context, owner, repo string, index int64, in apptracking.AddTime) (*model.TrackedTime, error) {
+	entry, err := a.t.AddIssueTime(ctx, owner, repo, index, forgejo_sdk.AddTimeOption{
+		Time: in.Seconds, Created: in.Created, User: in.User,
+	})
+	return bridge.Convert[*model.TrackedTime](entry, err)
+}
+
+func (a adapter) ResetIssueTime(ctx context.Context, owner, repo string, index int64) error {
+	return a.t.ResetIssueTime(ctx, owner, repo, index)
+}
+
+func (a adapter) DeleteIssueTimeEntry(ctx context.Context, owner, repo string, index, timeID int64) error {
+	return a.t.DeleteIssueTimeEntry(ctx, owner, repo, index, timeID)
+}
+
+func (a adapter) StartIssueStopwatch(ctx context.Context, owner, repo string, index int64) error {
+	return a.t.StartIssueStopwatch(ctx, owner, repo, index)
+}
+
+func (a adapter) StopIssueStopwatch(ctx context.Context, owner, repo string, index int64) error {
+	return a.t.StopIssueStopwatch(ctx, owner, repo, index)
+}
+
+func (a adapter) CancelIssueStopwatch(ctx context.Context, owner, repo string, index int64) error {
+	return a.t.CancelIssueStopwatch(ctx, owner, repo, index)
+}
+
+func (a adapter) ListMyStopwatches(ctx context.Context) ([]*model.StopWatch, error) {
+	watches, err := a.t.ListMyStopwatches(ctx)
+	return bridge.Convert[[]*model.StopWatch](watches, err)
+}

@@ -11,11 +11,11 @@ import (
 	"sort"
 	"strings"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/resource"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

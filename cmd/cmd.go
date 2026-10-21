@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"os"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation"
 )
 
 // Execute is the composition root: the one place that loads the configuration,

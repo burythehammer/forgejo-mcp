@@ -16,7 +16,7 @@
 // back) and verifies the server-side HTTP handler receives the exact bytes
 // that were sent, byte for byte (via length + sha256).
 //
-// Run:  go test ./test/transport/ -run TestAttachmentSizeSweep -v
+// Run:  go test ./test/internal/transport/ -run TestAttachmentSizeSweep -v
 //
 // The binary under test is built fresh by TestMain into a temp directory —
 // this package is self-contained on a clean checkout and always exercises
