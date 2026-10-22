@@ -58,11 +58,8 @@ func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (list.
 
 // ReadOrgLabels is the one read behind the list_org_labels tool and the
 // forgejo://org/{org}/labels resource. Each label is tagged with scope "org". A
-// page below 1 reads as page 1 and a limit below 1 as the default of 100.
+// limit below 1 takes the default of 100; the page is passed on as given.
 func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (list.Bounded[model.ScopedLabel], error) {
-	if p.Page < 1 {
-		p.Page = 1
-	}
 	bounded, err := list.Window(ctx, s.port, list.Paging(p), labelsDefaultLimit,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Label], error) {
 			got, err := s.port.ListOrgLabelsPage(ctx, org, Paging(q))

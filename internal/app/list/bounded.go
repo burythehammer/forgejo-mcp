@@ -20,10 +20,6 @@ type Bounded[T any] struct {
 	Total *int
 }
 
-// Page is the former name of Bounded. It stays an alias so existing callers
-// compile until they migrate to Bounded.
-type Page[T any] = Bounded[T]
-
 // Map returns b with each row converted by f. The paging and the resume
 // information are kept, so a use case can change the row type of a page
 // without building a new one.

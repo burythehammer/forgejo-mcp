@@ -551,3 +551,60 @@ func seedRepoRoot(t *testing.T, f *fake.Forgejo, n int) {
 		must(t, f.SetFile(pageOwner, pageRepo, "main", fmt.Sprintf("file-%d.md", i), "content"))
 	}
 }
+
+// commitFilesCases are the call shapes of the commit resource's file list: the
+// bare URI (default page of 30, so all five files), page 2 of limit 2, and the
+// last page of limit 2, which holds the fifth file alone.
+var commitFilesCases = []struct {
+	name  string
+	query string
+}{
+	{"default", ""},
+	{"explicit", "page=2&limit=2"},
+	{"last", "page=3&limit=2"},
+}
+
+// TestPaginationCommitFilesGoldens pins the file list of the commit resource at
+// the three call shapes. The file list is paged by query, not by a tool, so the
+// read goes through the server's resources/read dispatch and the golden is the
+// JSON body it returns.
+func TestPaginationCommitFilesGoldens(t *testing.T) {
+	t.Parallel()
+	for _, c := range commitFilesCases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			mcptest.Golden(t, "page_commit_files_"+c.name, []byte(commitFilesRead(t, c.query)))
+		})
+	}
+}
+
+// commitFilesRead seeds a commit with pageItems files and returns the JSON body
+// of its commit resource read at query.
+func commitFilesRead(t *testing.T, query string) string {
+	t.Helper()
+	f := fake.New()
+	f.Now = func() time.Time { return pageNow }
+	seedRepo(t, f)
+	var files []string
+	for i := 1; i <= pageItems; i++ {
+		files = append(files, fmt.Sprintf("file-%d.txt", i))
+	}
+	must(t, f.AddCommit(pageOwner, pageRepo, pageSHA, "commit", files...))
+	s := server.NewMCPServer("test", "0")
+	RegisterCoreResources(s, fake.Factory{Forgejo: f})
+	uri := "forgejo://repo/" + pageOwner + "/" + pageRepo + "/commit/" + pageSHA
+	if query != "" {
+		uri += "?" + query
+	}
+	msg := fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":%q}}`, uri)
+	response := s.HandleMessage(context.Background(), []byte(msg))
+	rpc, ok := response.(mcp.JSONRPCResponse)
+	if !ok {
+		t.Fatalf("resources/read %s: unexpected envelope %#v", uri, response)
+	}
+	result, ok := rpc.Result.(mcp.ReadResourceResult)
+	if !ok || len(result.Contents) == 0 {
+		t.Fatalf("resources/read %s: no contents %#v", uri, rpc.Result)
+	}
+	return result.Contents[0].(mcp.TextResourceContents).Text + "\n"
+}

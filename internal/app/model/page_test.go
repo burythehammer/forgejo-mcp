@@ -11,7 +11,7 @@ import (
 
 func TestPageMetaOfCopiesTheListPage(t *testing.T) {
 	total := 9
-	got := PageMetaOf(list.Page[int]{
+	got := PageMetaOf(list.Bounded[int]{
 		Items: []int{1, 2}, Page: 2, Limit: 5, Count: 2, HasNext: true, Total: &total,
 	})
 	if got.Page != 2 || got.Limit != 5 || got.Count != 2 || !got.HasNext {
@@ -23,7 +23,7 @@ func TestPageMetaOfCopiesTheListPage(t *testing.T) {
 }
 
 func TestPageMetaOfUnknownTotalIsNil(t *testing.T) {
-	got := PageMetaOf(list.Page[int]{Page: 1, Limit: 3, Count: 0})
+	got := PageMetaOf(list.Bounded[int]{Page: 1, Limit: 3, Count: 0})
 	if got.TotalCount != nil {
 		t.Fatalf("unknown total = %v, want nil", got.TotalCount)
 	}

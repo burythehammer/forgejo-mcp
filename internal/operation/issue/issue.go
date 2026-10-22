@@ -566,7 +566,9 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgLabelsFn", func(ctx context.Context, s *apppissue.Service, a orgLabelsArgs) (*mcp.CallToolResult, error) {
-		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)})
+		// A page below 1 reads as page 1: argument reading is the adapter's, not the use case's.
+		page := max(decode.PageOr(a.Page, 1), 1)
+		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: page, Limit: int(a.Limit)})
 		if err != nil {
 			return nil, mapErr(orgLabelsURI(a.Org), err)
 		}

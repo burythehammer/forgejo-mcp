@@ -125,7 +125,7 @@ const defaultLimit = 20
 // limit above it is refused, and has_next comes from at most one probe.
 func runPage[T any](ctx context.Context, src list.CeilingSource, p list.Paging, def int,
 	fetch func(context.Context, list.Paging) ([]T, error),
-) (list.Page[T], error) {
+) (list.Bounded[T], error) {
 	ceiling, known := src.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
 	p = list.Normalize(p, list.DefaultLimit(def, c))

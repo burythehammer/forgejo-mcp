@@ -123,7 +123,7 @@ func pageOf(p list.Paging, c list.Ceiling) list.Paging {
 }
 
 // timePage renders one fetched page; an empty page is an empty list, not null.
-func timePage(page list.Page[*model.TrackedTime]) model.TrackedTimePage {
+func timePage(page list.Bounded[*model.TrackedTime]) model.TrackedTimePage {
 	times := page.Items
 	if times == nil {
 		times = []*model.TrackedTime{}
