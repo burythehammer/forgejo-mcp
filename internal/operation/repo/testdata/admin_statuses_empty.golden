@@ -1,3 +1,4 @@
-{"Result":{"sha":"0123456789abcdef0123456789abcdef01234567","statuses":[],"page":1,"limit":30,"count":0}}
+{"Result":{"sha":"0123456789abcdef0123456789abcdef01234567","statuses":[],"page":1,"limit":30,"count":0,"has_next":false}}
 -- port calls --
 ListCommitStatuses ["octo","hello","0123456789abcdef0123456789abcdef01234567",{"Page":1,"PageSize":30}]
+ListCommitStatuses ["octo","hello","0123456789abcdef0123456789abcdef01234567",{"Page":2,"PageSize":30}]

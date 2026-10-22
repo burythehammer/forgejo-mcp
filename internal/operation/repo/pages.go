@@ -53,6 +53,19 @@ func treePage(b list.Bounded[model.GitEntry], err error) (model.TreePage, error)
 	return model.TreePage{Tree: tree, PageMeta: model.PageMetaOf(b)}, nil
 }
 
+// statusPage renders one page of a commit's statuses under the sha it was asked
+// for; an empty page is an empty list.
+func statusPage(sha string, b list.Bounded[model.StatusItem], err error) (model.CommitStatuses, error) {
+	if err != nil {
+		return model.CommitStatuses{}, err
+	}
+	items := b.Items
+	if items == nil {
+		items = []model.StatusItem{}
+	}
+	return model.CommitStatuses{SHA: sha, Statuses: items, PageMeta: model.PageMetaOf(b)}, nil
+}
+
 // topicPage renders one page of a repository's topics; an empty page is an
 // empty list.
 func topicPage(b list.Bounded[string], err error) (model.TopicPage, error) {

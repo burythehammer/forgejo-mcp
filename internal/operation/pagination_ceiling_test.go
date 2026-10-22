@@ -22,8 +22,7 @@ const ceilingItems = 2
 // ceilingExempt are list tools the instance ceiling does not reach yet. Each is
 // a subtest that skips with its reason, so the gap shows in every run.
 var ceilingExempt = map[string]string{
-	wiki.GetWikiRevisionsToolName:  "the revision history is deliberately not held to the ceiling (see wiki.Service.Revisions)",
-	repo.GetCommitStatusesToolName: "clamps its own limit to 50 rather than calling the list module, so the ceiling is never read",
+	wiki.GetWikiRevisionsToolName: "the revision history is deliberately not held to the ceiling (see wiki.Service.Revisions)",
 }
 
 // TestCeilingListTools pins the instance ceiling on every paged list tool: a

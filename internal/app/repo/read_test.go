@@ -118,7 +118,7 @@ func TestReadCommitStatuses_AggregateState(t *testing.T) {
 	}
 }
 
-func TestReadCommitStatuses_PageAndTotal(t *testing.T) {
+func TestGetCommitStatuses_PageHasNextAndTotal(t *testing.T) {
 	t.Parallel()
 	s, f := readFixture(t)
 	seedCommit(t, f, readSHA, "msg")
@@ -128,18 +128,18 @@ func TestReadCommitStatuses_PageAndTotal(t *testing.T) {
 		}
 	}
 
-	read, err := s.ReadCommitStatuses(context.Background(), readOwner, readRepo, readSHA, 1, 31)
+	read, err := s.GetCommitStatuses(context.Background(), readOwner, readRepo, readSHA, apprepo.AdminPaging{Page: 1, Limit: 31})
 	if err != nil {
-		t.Fatalf("ReadCommitStatuses: %v", err)
+		t.Fatalf("GetCommitStatuses: %v", err)
 	}
-	if len(read.Statuses) != 31 {
-		t.Fatalf("statuses = %d, want the 31 asked for", len(read.Statuses))
+	if len(read.Items) != 31 {
+		t.Fatalf("statuses = %d, want the 31 asked for", len(read.Items))
 	}
-	if read.TotalCount == nil || *read.TotalCount != 40 {
-		t.Fatalf("total = %v, want 40 (the grand total, not the page)", read.TotalCount)
+	if read.Total == nil || *read.Total != 40 {
+		t.Fatalf("total = %v, want 40 (the grand total, not the page)", read.Total)
 	}
-	if read.SHA != readSHA || read.Page != 1 || read.Limit != 31 {
-		t.Fatalf("envelope = sha %q page %d limit %d", read.SHA, read.Page, read.Limit)
+	if !read.HasNext || read.Page != 1 || read.Limit != 31 || read.Count != 31 {
+		t.Fatalf("envelope = page %d limit %d count %d has_next %v", read.Page, read.Limit, read.Count, read.HasNext)
 	}
 }
 
