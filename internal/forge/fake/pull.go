@@ -336,12 +336,12 @@ func (f *Forgejo) ListPullRequestComments(_ context.Context, owner, repo string,
 	return append([]*forgejo_sdk.Comment(nil), p.comments[lo:hi]...), nil
 }
 
-func (f *Forgejo) ListPullReviews(_ context.Context, owner, repo string, index int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, error) {
+func (f *Forgejo) ListPullReviews(_ context.Context, owner, repo string, index int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, forge.PageInfo, error) {
 	f.pulls.mu.Lock()
 	defer f.pulls.mu.Unlock()
 	p, err := f.pulls.pull(owner, repo, index)
 	if err != nil {
-		return nil, err
+		return nil, forge.PageInfo{}, err
 	}
 	lo, hi := page(opt.ListOptions, len(p.reviews))
 	out := make([]*forgejo_sdk.PullReview, 0, hi-lo)
@@ -349,7 +349,7 @@ func (f *Forgejo) ListPullReviews(_ context.Context, owner, repo string, index i
 		cp := *r.review
 		out = append(out, &cp)
 	}
-	return out, nil
+	return out, forge.PageInfo{HasNext: hi < len(p.reviews), TotalCount: len(p.reviews), TotalKnown: true}, nil
 }
 
 func (f *Forgejo) GetPullReview(_ context.Context, owner, repo string, index, id int64) (*forgejo_sdk.PullReview, error) {

@@ -243,11 +243,11 @@ func (s *Service) Diff(ctx context.Context, in DiffInput) (string, error) {
 func (s *Service) Reviews(ctx context.Context, in PagedPR) (model.PullReviewPage, error) {
 	c := s.ceiling(ctx)
 	page, err := list.Run(ctx, list.Paging(paging(in.Page, in.Limit, defaultLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullReview], error) {
-		reviews, err := s.port.ListPullReviews(ctx, in.Owner, in.Repo, in.Index, Paging(p))
+		page, err := s.port.ListPullReviews(ctx, in.Owner, in.Repo, in.Index, Paging(p))
 		if err != nil {
 			return list.Batch[*model.PullReview]{}, fmt.Errorf("list pull reviews err: %w", err)
 		}
-		return list.Batch[*model.PullReview]{Items: reviews}, nil
+		return list.Batch[*model.PullReview]{Items: page.Reviews}, nil
 	})
 	if err != nil {
 		return model.PullReviewPage{}, err
