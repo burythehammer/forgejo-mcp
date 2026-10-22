@@ -4,11 +4,11 @@ package repoadminadapter_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/forgetest"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/repoadminadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
@@ -91,9 +91,8 @@ func TestSmokeUnknownTopicListIsNotFound(t *testing.T) {
 	stub := forgetest.NewStub(t)
 	port := repoadminadapter.New(sdk.NewAdapter(stub.NewClient(t)))
 	_, err := port.ListRepoTopics(context.Background(), "nobody", "nothing", apprepo.AdminPaging{Page: 1, Limit: 25})
-	var nf *apprepo.NotFoundError
-	if !errors.As(err, &nf) {
-		t.Fatalf("got %v, want a NotFoundError", err)
+	if !forge.IsNotFound(err) {
+		t.Fatalf("got %v, want forge.ErrNotFound", err)
 	}
 }
 

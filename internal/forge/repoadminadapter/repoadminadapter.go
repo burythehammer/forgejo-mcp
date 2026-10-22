@@ -110,9 +110,6 @@ func (a adapter) EditRepo(ctx context.Context, owner, repo string, in apprepo.Re
 
 func (a adapter) ListRepoTopics(ctx context.Context, owner, repo string, p apprepo.AdminPaging) ([]string, error) {
 	topics, err := a.s.ListRepoTopics(ctx, owner, repo, forgejo_sdk.ListRepoTopicsOptions{ListOptions: listOptions(p)})
-	if forge.IsNotFound(err) {
-		return nil, &apprepo.NotFoundError{Err: err}
-	}
 	return topics, err
 }
 

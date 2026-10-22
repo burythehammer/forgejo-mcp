@@ -10,6 +10,7 @@ import (
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/attachment"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // listedPort is a stubPort whose List answers a fixed attachment list.
@@ -64,7 +65,7 @@ func TestListDefaultLimitIsTwentyAndPastTheEndIsEmpty(t *testing.T) {
 
 func TestListNotFoundPagesAsAnEmptyList(t *testing.T) {
 	t.Parallel()
-	svc := attachment.New(listedPort{stubPort: &stubPort{listErr: attachment.ErrNotFound}}, time.Minute)
+	svc := attachment.New(listedPort{stubPort: &stubPort{listErr: forge.ErrNotFound}}, time.Minute)
 	page, err := svc.List(context.Background(), "o", "r", attachment.ScopeIssue, 4, attachment.Paging{Page: 1, Limit: 5})
 	if err != nil || page.Items == nil || len(page.Items) != 0 || page.HasNext {
 		t.Fatalf("got %+v, %v", page, err)

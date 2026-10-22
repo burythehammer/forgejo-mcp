@@ -16,7 +16,7 @@ import (
 // cases need it: a repository's record and settings, its topics, and the
 // commit statuses of a commit. internal/forge/repoadminadapter implements it over
 // the Forgejo port. A 404 from Forgejo on a topic list comes back as a
-// *NotFoundError; other failures are ordinary errors for the use case to wrap.
+// forge.ErrNotFound; other failures are ordinary errors for the use case to wrap.
 type AdminPort interface {
 	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
 	// cannot be determined, which is "unknown", never a ceiling of zero.
