@@ -76,6 +76,7 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		transport, urlFlag, token, userAgent string
 		requestTimeout                       string
 		host, allowedHosts, allowedOrigins   string
+		shutdownGrace                        string
 		ssePort, httpPort                    int
 		allowFallback, debug                 bool
 		maxRequestBody                       int64
@@ -116,6 +117,10 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		"Comma-separated web origins allowed to send an Origin header, as full origins "+
 			"(for example: https://console.example.org). Empty means no browser origin is accepted; "+
 			"requests with no Origin header are unaffected")
+	fs.StringVar(&shutdownGrace, "shutdown-grace", DefaultShutdownGrace.String(),
+		"How long in-flight HTTP requests may run after SIGINT or SIGTERM before open connections, "+
+			"including event streams, are closed; a positive Go duration such as 8s or 1m "+
+			"(env: FORGEJO_MCP_SHUTDOWN_GRACE)")
 	fs.BoolVar(&allowFallback, "allow-operator-token-fallback", false,
 		"On the sse and http transports, serve a request that carries no Authorization header using "+
 			"this server's own token. Off by default: it hands this server's forge credential to any "+
@@ -234,6 +239,14 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	cfg.Listen.Host = resolve(host, "FORGEJO_MCP_HOST", "host")
 	cfg.Listen.AllowedHosts = splitList(resolve(allowedHosts, "FORGEJO_MCP_ALLOWED_HOSTS", "allowed-hosts"))
 	cfg.Listen.AllowedOrigins = splitList(resolve(allowedOrigins, "FORGEJO_MCP_ALLOWED_ORIGINS", "allowed-origins"))
+	grace, err := time.ParseDuration(resolve(shutdownGrace, "FORGEJO_MCP_SHUTDOWN_GRACE", "shutdown-grace"))
+	if err != nil {
+		return Config{}, warns, fmt.Errorf("invalid shutdown grace period: %w (use a positive duration such as 8s)", err)
+	}
+	if grace <= 0 {
+		return Config{}, warns, fmt.Errorf("invalid shutdown grace period %v: must be positive", grace)
+	}
+	cfg.Listen.ShutdownGrace = grace
 	cfg.Listen.AllowOperatorTokenFallback = allowFallback
 	if !passed["allow-operator-token-fallback"] {
 		if v := getenv("FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK"); v != "" {

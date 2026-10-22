@@ -625,6 +625,7 @@ You can configure the server using command-line arguments or environment variabl
 | `--transport` | - | Transport mode: `stdio`, `sse`, or `http` |
 | `--sse-port` | - | Port for SSE mode (default: 8080) |
 | `--http-port` | - | Port for streamable HTTP mode (default: 8080) |
+| `--shutdown-grace` | `FORGEJO_MCP_SHUTDOWN_GRACE` | On SIGINT or SIGTERM, how long in-flight `sse`/`http` requests may run before open connections are closed (default: `8s`; any positive Go duration such as `30s` or `2m`, validated at startup). At the deadline, open event streams are closed, so clients see the stream end and should reconnect; the server then exits with status 0 and logs a warning. Set it below your orchestrator's termination timeout |
 | `--host` | `FORGEJO_MCP_HOST` | Address the `sse` and `http` transports bind to (default: `localhost`, reachable from this machine only, binding both `127.0.0.1` and `::1`; pass one of those addresses to bind that family alone) |
 | `--allowed-hosts` | `FORGEJO_MCP_ALLOWED_HOSTS` | Comma-separated `Host` names this server answers to; required when `--host` is not loopback |
 | `--allowed-origins` | `FORGEJO_MCP_ALLOWED_ORIGINS` | Comma-separated web origins allowed to send an `Origin` header, as full origins (`https://console.example.org`). Empty by default |

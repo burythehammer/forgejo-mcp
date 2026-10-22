@@ -39,7 +39,7 @@ func TestLoadDefaults(t *testing.T) {
 		Mode:      ModeServe,
 		Transport: "stdio",
 		Forgejo:   Forgejo{URL: "https://f.example.org", UserAgent: "forgejo-mcp/9.9.9", RequestTimeout: DefaultRequestTimeout},
-		Listen:    Listen{SSEPort: 8080, HTTPPort: 8080, Host: "localhost", MaxRequestBodyBytes: DefaultMaxRequestBodyBytes},
+		Listen:    Listen{SSEPort: 8080, HTTPPort: 8080, Host: "localhost", ShutdownGrace: DefaultShutdownGrace, MaxRequestBodyBytes: DefaultMaxRequestBodyBytes},
 		Auth: Auth{
 			Mode:                 "passthrough",
 			ScopesSupported:      []string{},
