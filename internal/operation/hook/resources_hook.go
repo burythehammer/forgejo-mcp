@@ -14,12 +14,13 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 const (
-	hooksResourceURITemplate = "forgejo://repo/{owner}/{repo}/hooks"
+	hooksResourceURITemplate = "forgejo://repo/{owner}/{repo}/hooks{?page,limit}"
 	hookResourceURITemplate  = "forgejo://repo/{owner}/{repo}/hook/{id}"
 )
 
@@ -45,9 +46,10 @@ func RegisterResources(s *server.MCPServer, f forge.Factory) {
 		h.hooksResourceHandler,
 		mcp.WithTemplateDescription(
 			"Webhooks for a Forgejo repository. "+
-				"URI: forgejo://repo/{owner}/{repo}/hooks. "+
-				"Returns the hooks as a read-only JSON document, bounded to the first "+
-				"EmbeddedListCap hooks; when truncated, use the list_repo_hooks "+
+				"URI: forgejo://repo/{owner}/{repo}/hooks{?page,limit}. "+
+				"Returns the hooks as a read-only JSON document, one page at a time: page "+
+				"(default 1) and limit (default and maximum EmbeddedListCap, 30) select the window. "+
+				"When truncated, pass the next page, or use the list_repo_hooks "+
 				"tool to page through the remainder. Secret fields are never returned.",
 		),
 		mcp.WithTemplateMIMEType("application/json"),
@@ -88,7 +90,8 @@ func (h handlers) hooksResourceHandler(ctx context.Context, req mcp.ReadResource
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	col, err := apphook.New(hookadapter.New(port)).ReadCollection(ctx, p.Owner, p.Repo, resource.EmbeddedListCap)
+	page, limit := resource.PageLimit(req)
+	col, err := apphook.New(hookadapter.New(port)).ReadCollection(ctx, p.Owner, p.Repo, list.Paging{Page: page, Limit: limit})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
@@ -96,13 +99,13 @@ func (h handlers) hooksResourceHandler(ctx context.Context, req mcp.ReadResource
 	payload := hooksCollectionPayload{
 		Owner:     p.Owner,
 		Repo:      p.Repo,
-		Count:     len(col.Hooks),
-		Hooks:     col.Hooks,
-		Truncated: col.Truncated,
+		Count:     col.Count,
+		Hooks:     col.Items,
+		Truncated: col.HasNext,
 	}
-	if col.Truncated {
+	if col.HasNext {
 		// The note names the list tool only when the registry has it.
-		bounded := resource.BoundedResult{Cap: resource.EmbeddedListCap, ListTool: ListRepoHooksToolName, Truncated: true}
+		bounded := resource.BoundedResult{Cap: limit, ListTool: ListRepoHooksToolName, Truncated: true}
 		payload.Sentinel = bounded.Sentinel()
 		payload.ListTool = resource.ToolRef(ListRepoHooksToolName)
 	}

@@ -100,7 +100,7 @@ func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.SafeTextResult(out)
+	return to.SafeTextResult(runPage(out))
 }
 
 func (h handlers) GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

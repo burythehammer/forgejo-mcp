@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	apprelease "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/release"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/releaseadapter"
@@ -188,7 +189,7 @@ func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.TextResult(page)
+	return to.TextResult(model.ReleasePage{Releases: page.Items, PageMeta: model.PageMetaOf(page)})
 }
 
 func (h handlers) GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -363,7 +364,7 @@ func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.TextResult(page)
+	return to.TextResult(model.AttachmentPageOf(page))
 }
 
 func (h handlers) GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

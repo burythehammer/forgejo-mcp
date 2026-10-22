@@ -54,9 +54,9 @@ type EditRequest struct {
 }
 
 // List returns one page of a repository's webhooks, each in its safe form.
-func (s *Service) List(ctx context.Context, r ListRequest) (model.HookListResult, error) {
+func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.HookPayload], error) {
 	if r.Owner == "" || r.Repo == "" {
-		return model.HookListResult{}, fmt.Errorf("owner and repo are required")
+		return list.Bounded[model.HookPayload]{}, fmt.Errorf("owner and repo are required")
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
@@ -69,27 +69,13 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.HookListResult
 		limit = float64(list.DefaultLimit(30, c))
 	}
 	p := list.Paging{Page: int(page), Limit: int(limit)}
-	got, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.Hook], error) {
+	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.HookPayload], error) {
 		hooks, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
-			return list.Batch[*model.Hook]{}, fmt.Errorf("list repo hooks: %w", err)
+			return list.Batch[model.HookPayload]{}, fmt.Errorf("list repo hooks: %w", err)
 		}
-		return list.Batch[*model.Hook]{Items: hooks.Hooks, Total: hooks.TotalCount}, nil
+		return list.Batch[model.HookPayload]{Items: safeHooks(hooks.Hooks), Total: hooks.TotalCount}, nil
 	})
-	if err != nil {
-		return model.HookListResult{}, err
-	}
-	payloads := make([]model.HookPayload, len(got.Items))
-	for i, hk := range got.Items {
-		payloads[i] = model.SafeHook(hk)
-	}
-	meta := model.PageMetaOf(got)
-	return model.HookListResult{
-		Hooks:      payloads,
-		PageWindow: meta.PageWindow,
-		PageTotal:  meta.PageTotal,
-		PageNext:   meta.PageNext,
-	}, nil
 }
 
 // Get returns one webhook in its safe form.

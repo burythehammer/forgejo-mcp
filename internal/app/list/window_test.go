@@ -31,7 +31,8 @@ func TestCut_WindowsAndReportsNext(t *testing.T) {
 		{9, 2, "[]", false},
 	}
 	for _, c := range cases {
-		items, next := Cut(corpus(5), Paging{Page: c.page, Limit: c.limit})
+		cut := Cut(corpus(5), Paging{Page: c.page, Limit: c.limit})
+		items, next := cut.Items, cut.HasNext
 		if fmt.Sprint(items) != c.want || next != c.hasNext {
 			t.Errorf("page %d limit %d: got %v next %v, want %s next %v",
 				c.page, c.limit, items, next, c.want, c.hasNext)
@@ -42,31 +43,31 @@ func TestCut_WindowsAndReportsNext(t *testing.T) {
 func TestWindow_DefaultLimitIsLoweredToAKnownCeiling(t *testing.T) {
 	t.Parallel()
 	var got Paging
-	_, used, err := Window(context.Background(), ceilingOf{max: 3, known: true}, Paging{Page: 1}, 10,
-		func(_ context.Context, p Paging) ([]int, error) {
+	b, err := Window(context.Background(), ceilingOf{max: 3, known: true}, Paging{Page: 1}, 10,
+		func(_ context.Context, p Paging) (Batch[int], error) {
 			got = p
-			return nil, nil
+			return Batch[int]{}, nil
 		})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Limit != 3 || used.Limit != 3 {
-		t.Fatalf("fetched limit %d, reported %d, want 3 (default 10 lowered to the ceiling)", got.Limit, used.Limit)
+	if got.Limit != 3 || b.Limit != 3 {
+		t.Fatalf("fetched limit %d, reported %d, want 3 (default 10 lowered to the ceiling)", got.Limit, b.Limit)
 	}
 }
 
 func TestWindow_PassesPageZeroThroughAsGiven(t *testing.T) {
 	t.Parallel()
 	var got Paging
-	_, used, err := Window(context.Background(), ceilingOf{}, Paging{Page: 0}, 10,
-		func(_ context.Context, p Paging) ([]int, error) {
+	b, err := Window(context.Background(), ceilingOf{}, Paging{Page: 0}, 10,
+		func(_ context.Context, p Paging) (Batch[int], error) {
 			got = p
-			return nil, nil
+			return Batch[int]{}, nil
 		})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Page != 0 || used.Page != 0 {
+	if got.Page != 0 || b.Page != 0 {
 		t.Fatalf("page reached the fetch as %d, want 0 passed through", got.Page)
 	}
 }
@@ -74,10 +75,10 @@ func TestWindow_PassesPageZeroThroughAsGiven(t *testing.T) {
 func TestWindow_OverKnownCeilingRefuses(t *testing.T) {
 	t.Parallel()
 	called := false
-	_, _, err := Window(context.Background(), ceilingOf{max: 3, known: true}, Paging{Page: 1, Limit: 4}, 10,
-		func(context.Context, Paging) ([]int, error) {
+	_, err := Window(context.Background(), ceilingOf{max: 3, known: true}, Paging{Page: 1, Limit: 4}, 10,
+		func(context.Context, Paging) (Batch[int], error) {
 			called = true
-			return nil, nil
+			return Batch[int]{}, nil
 		})
 	var over *OverCeilingError
 	if !errors.As(err, &over) {
@@ -93,13 +94,13 @@ func TestWindow_OverKnownCeilingRefuses(t *testing.T) {
 func TestWindow_MakesNoProbe(t *testing.T) {
 	t.Parallel()
 	var calls int
-	items, _, err := Window(context.Background(), ceilingOf{}, Paging{Page: 1, Limit: 2}, 10,
-		func(_ context.Context, p Paging) ([]int, error) {
+	b, err := Window(context.Background(), ceilingOf{}, Paging{Page: 1, Limit: 2}, 10,
+		func(_ context.Context, p Paging) (Batch[int], error) {
 			calls++
-			return []int{1, 2}, nil
+			return Batch[int]{Items: []int{1, 2}}, nil
 		})
-	if err != nil || len(items) != 2 {
-		t.Fatalf("items = %v, err = %v", items, err)
+	if err != nil || len(b.Items) != 2 {
+		t.Fatalf("items = %v, err = %v", b.Items, err)
 	}
 	if calls != 1 {
 		t.Fatalf("Window made %d fetches, want 1", calls)

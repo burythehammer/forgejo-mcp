@@ -314,7 +314,7 @@ List all my repositories
 | `mark_repo_notifications_read` | Mark all notifications in a specific repo as read |
 | `search_users` | Search for users (page/limit); returns `{users,page,limit,count,has_next}` |
 | **Repositories** | |
-| `list_my_repos` | List all repositories you own |
+| `list_my_repos` | List repositories you own, one page at a time (`page`/`limit`, default 100, capped at the instance maximum). Returns a bare array: a full page may be followed by more, a short page is the last. |
 | `get_repo` | Get a single repository by owner and name |
 | `create_repo` | Create a new repository |
 | `fork_repo` | Fork a repository |
@@ -345,7 +345,7 @@ List all my repositories
 | **Files** | |
 | `get_file_content` | Get the content of a file. Optional `start_line`/`end_line` request a 1-indexed inclusive line range (clamps to file extent; with `with_metadata=true` the range replaces the content and keeps the metadata). A whole file or range over 1 MiB of text is refused with a message asking for a narrower range. |
 | `list_repo_contents` | List files and directories at a path. `path=""` lists the repository root. Returns one level, one page at a time (`page`/`limit`, default 100 entries) with `has_next`; for a full tree use `get_repo_tree` with `recursive=true`. |
-| `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. |
+| `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. `page`/`limit` (default 1000) select one page of the entries. |
 | `create_file` | Create a new file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `update_file` | Update an existing file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `delete_file` | Delete a file |
@@ -501,16 +501,16 @@ Resources that embed a list (issue, pr) cap the embedded array at 30 items. When
 |---|---|---|
 | `forgejo://owner/{owner}` | application/json | User or org profile addressed by login; resolves user first, falls back to org. |
 | `forgejo://repo/{owner}/{repo}` | application/json | Repository overview: identity + counts, no embedded lists. |
-| `forgejo://repo/{owner}/{repo}/commit/{sha}{?page,limit}` | Commit metadata | Immutable per sha. Returns JSON + markdown sidecar. sha must be 40 hex chars. `files` is paged: `page`/`limit` select a page of at most 30 files; when files are cut the response carries `files_total`, `files_page`, `files_limit`, `files_truncated` and `files_next` (the next page's URI). The message is capped at 16 KiB in both blocks, marked `message_truncated` and with a truncation line in the sidecar. |
+| `forgejo://repo/{owner}/{repo}/commit/{sha}{?page,limit,message_page}` | Commit metadata | Immutable per sha. Returns JSON + markdown sidecar. sha must be 40 hex chars. `files` is paged: `page`/`limit` select a page of at most 30 files; when files are cut the response carries `files_total`, `files_page`, `files_limit`, `files_truncated` and `files_next` (the next page's URI). A message over 16 KiB is read in parts of at most 16 KiB: `message_page` (default 1) selects a part; a cut message is marked `message_truncated` with `message_page` and `message_pages`, the sidecar names the next part, and `message_next` gives its URI when one follows. A message that fits in one part is returned whole. |
 | `forgejo://repo/{owner}/{repo}/commit/{sha}/status` | application/json | Combined CI status for a sha: aggregate state + bounded per-context statuses (cap 30, sentinel names list tool `get_commit_statuses`). |
 | `forgejo://repo/{owner}/{repo}/issue/{index}` | application/json (+ text/markdown sidecar) | Issue metadata + rendered body + bounded recent comments (cap 30, sentinel names `list_issue_comments`). |
 | `forgejo://repo/{owner}/{repo}/issues{?state,labels,page,limit}` | application/json | Bounded list of issues as rows — index, title, state, author, labels, assignees, milestone, comment count, timestamps, due date — and **no bodies**. `state` ∈ {open, closed, all} (default `open`); `labels` comma-separated; cap 30, sentinel names `list_repo_issues`. Read the single-issue resource for a body. |
 | `forgejo://repo/{owner}/{repo}/{kind}/{index}/comment/{id}` | application/json (+ text/markdown sidecar) | Single comment by id; kind ∈ {issue, pr}. |
 | `forgejo://repo/{owner}/{repo}/{kind}/{index}/comments{?page,limit}` | application/json | Bounded comment thread with **full bodies** (the single-issue resource excerpts them at 200 chars); kind ∈ {issue, pr}; cap 30, sentinel names `list_issue_comments`. |
 | `forgejo://repo/{owner}/{repo}/pr/{index}` | application/json (+ text/markdown sidecar) | PR metadata, head/base refs, mergeability, bounded recent comments (cap 30, sentinel `list_issue_comments`) and reviews (cap 30, sentinel `list_pull_reviews`). |
-| `forgejo://repo/{owner}/{repo}/branch_protections` | application/json | Bounded list of branch protection rules. |
+| `forgejo://repo/{owner}/{repo}/branch_protections{?page,limit}` | application/json | Bounded list of branch protection rules (page/limit client-controlled, cap 30, sentinel names `list_branch_protections`). |
 | `forgejo://repo/{owner}/{repo}/branch_protection/{rule}` | application/json | Single branch protection rule. Rule names are branch patterns, so encode a literal `/` as `%2F` and spaces as `%20` (`release%2Fv1`); a raw `/` does not resolve. |
-| `forgejo://repo/{owner}/{repo}/hooks` | application/json | Bounded list of repository webhooks (cap 30, sentinel names `list_repo_hooks`). The secret is never returned. |
+| `forgejo://repo/{owner}/{repo}/hooks{?page,limit}` | application/json | Bounded list of repository webhooks (page/limit client-controlled, cap 30, sentinel names `list_repo_hooks`). The secret is never returned. |
 | `forgejo://repo/{owner}/{repo}/hook/{id}` | application/json | Single repository webhook by id. The secret is never returned. |
 | `forgejo://repo/{owner}/{repo}/label/{id}` | application/json | Single repository label by numeric id. |
 | `forgejo://repo/{owner}/{repo}/labels{?page,limit}` | application/json | Bounded list of repository labels (cap 30, sentinel names `list_repo_labels`). |

@@ -316,7 +316,8 @@ func (h handlers) issueCommentsResourceHandler(ctx context.Context, req mcp.Read
 	serverIgnoredBounds := len(rawComments) > limit || (total > 0 && len(rawComments) == total)
 	cutMore := false
 	if serverIgnoredBounds {
-		window, cutMore = list.Cut(rawComments, list.Paging{Page: page, Limit: limit})
+		cut := list.Cut(rawComments, list.Paging{Page: page, Limit: limit})
+		window, cutMore = cut.Items, cut.HasNext
 	}
 
 	items := make([]string, len(window))

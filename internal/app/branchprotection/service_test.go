@@ -51,7 +51,7 @@ func TestListPagesThroughRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Count != 2 || first.Page != 1 || first.Limit != 2 || len(first.BranchProtections) != 2 {
+	if first.Count != 2 || first.Page != 1 || first.Limit != 2 || len(first.Items) != 2 {
 		t.Fatalf("page 1: got %+v", first)
 	}
 	second, err := s.List(context.Background(), appbp.ListRequest{Owner: owner, Repo: repo, Page: 2, Limit: 2})

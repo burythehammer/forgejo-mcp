@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/org"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/orgadapter"
@@ -194,7 +196,7 @@ func (h handlers) GetOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 
 func (h handlers) ListMyOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListMyOrgsFn", func(ctx context.Context, s *apporg.Service, a myOrgsArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.MyOrgs(ctx, paging(a.Page, a.Limit)))
+		return orgPage(s.MyOrgs(ctx, paging(a.Page, a.Limit)))
 	})
 }
 
@@ -203,7 +205,7 @@ func (h handlers) ListUserOrgsFn(ctx context.Context, req mcp.CallToolRequest) (
 		if a.User == nil {
 			return mcpresult.Fail(errUserName)
 		}
-		return mcpresult.Render(s.UserOrgs(ctx, *a.User, paging(a.Page, a.Limit)))
+		return orgPage(s.UserOrgs(ctx, *a.User, paging(a.Page, a.Limit)))
 	})
 }
 
@@ -234,7 +236,7 @@ func (h handlers) ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.Org == nil {
 			return mcpresult.Fail(errOrgName)
 		}
-		return mcpresult.Render(s.Members(ctx, *a.Org, paging(a.Page, a.Limit)))
+		return memberPage(s.Members(ctx, *a.Org, paging(a.Page, a.Limit)))
 	})
 }
 
@@ -273,7 +275,7 @@ func (h handlers) ListOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (
 		if a.Org == nil {
 			return mcpresult.Fail(errOrgName)
 		}
-		return mcpresult.Render(s.Teams(ctx, *a.Org, paging(a.Page, a.Limit)))
+		return teamPage(s.Teams(ctx, *a.Org, paging(a.Page, a.Limit)))
 	})
 }
 
@@ -352,4 +354,28 @@ func (h handlers) RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest)
 		err := s.RemoveTeamRepo(ctx, teamID, *a.Org, *a.Repo)
 		return message(fmt.Sprintf("Repository '%s/%s' removed from team %d", *a.Org, *a.Repo, teamID), err)
 	})
+}
+
+// orgPage renders one page of organizations in the wire form of the list tools.
+func orgPage(b list.Bounded[*model.Organization], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.OrganizationPage{Organizations: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
+}
+
+// memberPage renders one page of organization members in its wire form.
+func memberPage(b list.Bounded[*model.User], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.MemberPage{Members: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
+}
+
+// teamPage renders one page of organization teams in its wire form.
+func teamPage(b list.Bounded[*model.Team], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.TeamPage{Teams: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
 }

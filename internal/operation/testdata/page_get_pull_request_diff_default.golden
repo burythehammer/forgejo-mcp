@@ -1,0 +1,31 @@
+diff --git a/file-1.txt b/file-1.txt
+--- a/file-1.txt
++++ b/file-1.txt
+@@ -1 +1 @@
+-old
++new
+diff --git a/file-2.txt b/file-2.txt
+--- a/file-2.txt
++++ b/file-2.txt
+@@ -1 +1 @@
+-old
++new
+diff --git a/file-3.txt b/file-3.txt
+--- a/file-3.txt
++++ b/file-3.txt
+@@ -1 +1 @@
+-old
++new
+diff --git a/file-4.txt b/file-4.txt
+--- a/file-4.txt
++++ b/file-4.txt
+@@ -1 +1 @@
+-old
++new
+diff --git a/file-5.txt b/file-5.txt
+--- a/file-5.txt
++++ b/file-5.txt
+@@ -1 +1 @@
+-old
++new
+

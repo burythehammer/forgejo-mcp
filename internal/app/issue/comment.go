@@ -13,19 +13,19 @@ import (
 
 // Comments lists an issue's (or pull request's) comments, within the optional
 // since and before window.
-func (s *Service) Comments(ctx context.Context, in CommentsInput) (model.CommentPage, error) {
+func (s *Service) Comments(ctx context.Context, in CommentsInput) (list.Bounded[*model.Comment], error) {
 	var c CommentList
 	if in.Since != "" {
 		t, err := time.Parse(time.RFC3339, in.Since)
 		if err != nil {
-			return model.CommentPage{}, fmt.Errorf("invalid since time format (expected RFC3339): %w", err)
+			return list.Bounded[*model.Comment]{}, fmt.Errorf("invalid since time format (expected RFC3339): %w", err)
 		}
 		c.Since = t
 	}
 	if in.Before != "" {
 		t, err := time.Parse(time.RFC3339, in.Before)
 		if err != nil {
-			return model.CommentPage{}, fmt.Errorf("invalid before time format (expected RFC3339): %w", err)
+			return list.Bounded[*model.Comment]{}, fmt.Errorf("invalid before time format (expected RFC3339): %w", err)
 		}
 		c.Before = t
 	}
@@ -40,11 +40,9 @@ func (s *Service) Comments(ctx context.Context, in CommentsInput) (model.Comment
 			return comments, nil
 		})
 	if err != nil {
-		return model.CommentPage{}, err
+		return list.Bounded[*model.Comment]{}, err
 	}
-	return model.CommentPage{
-		Comments: page.Items, PageMeta: model.PageMetaOf(page),
-	}, nil
+	return page, nil
 }
 
 // Comment returns one comment by its ID.

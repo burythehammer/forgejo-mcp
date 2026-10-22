@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	appuser "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/user"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
@@ -149,6 +151,11 @@ func finish(ctx context.Context, name string, started time.Time, summary string,
 	return to.TextResult(v)
 }
 
+// notificationPage is one page of notifications in the wire form of the list tools.
+func notificationPage(b list.Bounded[*model.NotificationThread]) model.NotificationPage {
+	return model.NotificationPage{Notifications: b.Items, PageMeta: model.PageMetaOf(b)}
+}
+
 func notificationsInput(all bool, since, before string, pageArg, limitArg float64) appuser.NotificationsInput {
 	page, limit := paging(pageArg, limitArg)
 	return appuser.NotificationsInput{All: all, Since: since, Before: before, Page: page, Limit: limit}
@@ -161,7 +168,7 @@ func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequ
 	}
 	page, err := h.service().Notifications(ctx, notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit))
 	logAPICall(ctx, "GET", "/notifications", started, err)
-	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", page.Count), page, err)
+	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", page.Count), notificationPage(page), err)
 }
 
 func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -219,7 +226,7 @@ func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolR
 	})
 	logAPICall(ctx, "GET", apiEndpoint("repos", owner, repo, "notifications"), started, err)
 	return finish(ctx, ListRepoNotificationsToolName, started,
-		fmt.Sprintf("Retrieved %d notifications for repo %s/%s", page.Count, owner, repo), page, err)
+		fmt.Sprintf("Retrieved %d notifications for repo %s/%s", page.Count, owner, repo), notificationPage(page), err)
 }
 
 func (h handlers) MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

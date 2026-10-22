@@ -36,6 +36,19 @@ func TestListOrgLabels_Success(t *testing.T) {
 	}
 }
 
+// A page below 1 reads as page 1: the rendered window names page 1, not the
+// page the caller sent.
+func TestListOrgLabels_NegativePageReadsAsPageOne(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	seedOrgLabels(t, f, "codeberg", 2)
+
+	out := call(t, h.ListOrgLabelsFn, map[string]any{"org": "codeberg", "page": float64(-1)})
+	if !strings.Contains(out, `"page":1,`) {
+		t.Fatalf("page -1 must render as page 1, got %q", out)
+	}
+}
+
 // A missing org is a not-found, not an empty list: an empty answer would read as
 // "no labels" for a mistyped org name.
 func TestListOrgLabels_UnknownOrgIsNotFound(t *testing.T) {

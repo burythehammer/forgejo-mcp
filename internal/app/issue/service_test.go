@@ -115,8 +115,8 @@ func TestCreateIssue_UnresolvedLabelsWriteNothing(t *testing.T) {
 		}
 	}
 	page, err := s.List(context.Background(), apppissue.ListInput{Owner: owner, Repo: repo, State: "all", Paging: apppissue.Paging{Page: 1, Limit: 20}})
-	if err != nil || len(page.Issues) != 0 {
-		t.Fatalf("issues after failed creates = %d (err %v), want none", len(page.Issues), err)
+	if err != nil || len(page.Items) != 0 {
+		t.Fatalf("issues after failed creates = %d (err %v), want none", len(page.Items), err)
 	}
 }
 
@@ -500,7 +500,7 @@ func TestList_EnvelopeNamesTheNextPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first.Issues) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
+	if len(first.Items) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
 		t.Fatalf("first page = %+v, want two issues with a next page", first)
 	}
 
@@ -508,7 +508,7 @@ func TestList_EnvelopeNamesTheNextPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(last.Issues) != 1 || last.Count != 1 || last.HasNext {
+	if len(last.Items) != 1 || last.Count != 1 || last.HasNext {
 		t.Fatalf("last page = %+v, want one issue and no next page", last)
 	}
 }

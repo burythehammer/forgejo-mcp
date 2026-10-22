@@ -40,14 +40,14 @@ func TestReviewCommentsPageWithNoGapOrOverlap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first.Comments) != 2 || first.Comments[0].Body != "c1" || !first.HasNext || first.TotalCount != nil {
+	if len(first.Items) != 2 || first.Items[0].Body != "c1" || !first.HasNext || first.Total == nil || *first.Total != 5 {
 		t.Fatalf("page 1: %+v", first)
 	}
 	last, err := s.ReviewComments(ctx, ref, apppull.Paging{Page: 3, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(last.Comments) != 1 || last.Comments[0].Body != "c5" || last.HasNext {
+	if len(last.Items) != 1 || last.Items[0].Body != "c5" || last.HasNext {
 		t.Fatalf("page 3: %+v", last)
 	}
 }
@@ -59,7 +59,7 @@ func TestReviewCommentsDefaultPageHoldsASmallReview(t *testing.T) {
 	i := open(t, s, "small-review-comments")
 	id := pendingReviewWith(t, s, i, 3)
 	got, err := s.ReviewComments(ctx, apppull.ReviewRef{PR: pr(i), ID: id}, apppull.Paging{})
-	if err != nil || got.Limit != 20 || len(got.Comments) != 3 || got.HasNext {
+	if err != nil || got.Limit != 20 || len(got.Items) != 3 || got.HasNext {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }

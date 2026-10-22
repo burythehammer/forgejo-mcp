@@ -5,6 +5,8 @@ package wiki
 import (
 	"context"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/wiki"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/wikiadapter"
@@ -167,7 +169,7 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 
 func (h handlers) ListWikiPagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListWikiPagesFn", func(ctx context.Context, s *appwiki.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.List(ctx, appwiki.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
+		return wikiPageList(s.List(ctx, appwiki.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
 	})
 }
 
@@ -179,7 +181,7 @@ func (h handlers) GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 func (h handlers) GetWikiRevisionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetWikiRevisionsFn", func(ctx context.Context, s *appwiki.Service, a revisionsArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Revisions(ctx, appwiki.RevisionsRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Page: a.Page, Limit: a.Limit}))
+		return wikiRevisionsResult(s.Revisions(ctx, appwiki.RevisionsRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Page: a.Page, Limit: a.Limit}))
 	})
 }
 
@@ -201,4 +203,24 @@ func (h handlers) DeleteWikiPageFn(ctx context.Context, req mcp.CallToolRequest)
 	return run(ctx, h, req, "DeleteWikiPageFn", func(ctx context.Context, s *appwiki.Service, a pageArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.Delete(ctx, appwiki.PageRef{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName}))
 	})
+}
+
+// wikiPageList renders one page of wiki pages in the list tool's wire form.
+func wikiPageList(b list.Bounded[model.WikiPageSummary], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.WikiPageListResult{Pages: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
+}
+
+// wikiRevisionsResult renders one page of a page's history in the revisions tool's wire form.
+func wikiRevisionsResult(b list.Bounded[model.WikiRevisionSummary], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	total := 0
+	if b.Total != nil {
+		total = *b.Total
+	}
+	return mcpresult.Render(model.WikiRevisionsResult{Revisions: b.Items, Page: b.Page, HasNext: b.HasNext, TotalCount: total}, nil)
 }

@@ -150,7 +150,7 @@ func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolR
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.SafeTextResult(out)
+	return to.SafeTextResult(repoSecretPage(a.Owner, a.Repo, out))
 }
 
 func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -241,7 +241,7 @@ func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRe
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.SafeTextResult(out)
+	return to.SafeTextResult(orgSecretPage(a.Org, out))
 }
 
 func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

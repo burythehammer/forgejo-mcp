@@ -224,7 +224,7 @@ func TestListMyOrgsEnvelopeNamesTheNextPage(t *testing.T) {
 	ctx := context.Background()
 	p := &stubPort{orgs: numbered(5)}
 	first, err := service(p).MyOrgs(ctx, apporg.Paging{Page: 1, Limit: 2})
-	if err != nil || len(first.Organizations) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
+	if err != nil || len(first.Items) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
 		t.Fatalf("page 1 of five: %+v, %v", first, err)
 	}
 	last, err := service(p).MyOrgs(ctx, apporg.Paging{Page: 3, Limit: 2})
@@ -277,11 +277,11 @@ func TestListMembersAndTeamsEnvelopeNameTheNextPage(t *testing.T) {
 	}
 	p := &stubPort{members: members, teams: teams}
 	m, err := service(p).Members(ctx, "o", apporg.Paging{Page: 1, Limit: 2})
-	if err != nil || len(m.Members) != 2 || m.Count != 2 || !m.HasNext {
+	if err != nil || len(m.Items) != 2 || m.Count != 2 || !m.HasNext {
 		t.Fatalf("members page 1: %+v, %v", m, err)
 	}
 	tm, err := service(p).Teams(ctx, "o", apporg.Paging{Page: 2, Limit: 2})
-	if err != nil || len(tm.Teams) != 1 || tm.Count != 1 || tm.HasNext {
+	if err != nil || len(tm.Items) != 1 || tm.Count != 1 || tm.HasNext {
 		t.Fatalf("teams page 2: %+v, %v", tm, err)
 	}
 }
@@ -290,7 +290,7 @@ func TestListUserOrgsEnvelopeNamesTheNextPage(t *testing.T) {
 	t.Parallel()
 	p := &stubPort{orgs: numbered(2)}
 	got, err := service(p).UserOrgs(context.Background(), "u", apporg.Paging{Page: 1, Limit: 2})
-	if err != nil || len(got.Organizations) != 2 || got.HasNext {
+	if err != nil || len(got.Items) != 2 || got.HasNext {
 		t.Fatalf("exact two, limit two: %+v, %v", got, err)
 	}
 }

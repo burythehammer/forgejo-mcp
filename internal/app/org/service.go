@@ -79,10 +79,10 @@ func (s *Service) DeleteOrg(ctx context.Context, org string) error {
 const defaultLimit = 100
 
 // MyOrgs returns one page of the organizations of the credential's user.
-func (s *Service) MyOrgs(ctx context.Context, pg Paging) (model.OrganizationPage, error) {
+func (s *Service) MyOrgs(ctx context.Context, pg Paging) (list.Bounded[*model.Organization], error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return model.OrganizationPage{}, err
+		return list.Bounded[*model.Organization]{}, err
 	}
 	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
 		orgs, err := p.ListMyOrgs(ctx, q)
@@ -92,16 +92,16 @@ func (s *Service) MyOrgs(ctx context.Context, pg Paging) (model.OrganizationPage
 		return orgs, nil
 	})
 	if err != nil {
-		return model.OrganizationPage{}, err
+		return list.Bounded[*model.Organization]{}, err
 	}
-	return model.OrganizationPage{Organizations: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // UserOrgs returns one page of the organizations of a user.
-func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) (model.OrganizationPage, error) {
+func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) (list.Bounded[*model.Organization], error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return model.OrganizationPage{}, err
+		return list.Bounded[*model.Organization]{}, err
 	}
 	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
 		orgs, err := p.ListUserOrgs(ctx, user, q)
@@ -111,16 +111,16 @@ func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) (model.O
 		return orgs, nil
 	})
 	if err != nil {
-		return model.OrganizationPage{}, err
+		return list.Bounded[*model.Organization]{}, err
 	}
-	return model.OrganizationPage{Organizations: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // Members returns one page of the members of an organization.
-func (s *Service) Members(ctx context.Context, org string, pg Paging) (model.MemberPage, error) {
+func (s *Service) Members(ctx context.Context, org string, pg Paging) (list.Bounded[*model.User], error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return model.MemberPage{}, err
+		return list.Bounded[*model.User]{}, err
 	}
 	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.User, error) {
 		members, err := p.ListOrgMembers(ctx, org, q)
@@ -130,9 +130,9 @@ func (s *Service) Members(ctx context.Context, org string, pg Paging) (model.Mem
 		return members, nil
 	})
 	if err != nil {
-		return model.MemberPage{}, err
+		return list.Bounded[*model.User]{}, err
 	}
-	return model.MemberPage{Members: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // IsMember reports whether user is a member of org.
@@ -161,10 +161,10 @@ func (s *Service) RemoveMember(ctx context.Context, org, user string) error {
 }
 
 // Teams returns one page of the teams of an organization.
-func (s *Service) Teams(ctx context.Context, org string, pg Paging) (model.TeamPage, error) {
+func (s *Service) Teams(ctx context.Context, org string, pg Paging) (list.Bounded[*model.Team], error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return model.TeamPage{}, err
+		return list.Bounded[*model.Team]{}, err
 	}
 	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Team, error) {
 		teams, err := p.ListOrgTeams(ctx, org, q)
@@ -174,9 +174,9 @@ func (s *Service) Teams(ctx context.Context, org string, pg Paging) (model.TeamP
 		return teams, nil
 	})
 	if err != nil {
-		return model.TeamPage{}, err
+		return list.Bounded[*model.Team]{}, err
 	}
-	return model.TeamPage{Teams: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // CreateTeam creates a team in an organization. An empty permission is read.
