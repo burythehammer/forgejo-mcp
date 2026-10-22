@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/wiki"
 
 	"github.com/mark3labs/mcp-go/mcp"
