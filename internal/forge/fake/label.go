@@ -170,8 +170,17 @@ func (f *Forgejo) DeleteRepoLabel(_ context.Context, owner, repo string, id int6
 }
 
 func (f *Forgejo) ListOrgLabels(_ context.Context, org string, pg, limit int) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
+	f.orgs.mu.Lock()
+	_, err := f.orgs.find(org)
+	f.orgs.mu.Unlock()
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
+	// A missing org is not found, not an empty list. An org that holds labels
+	// counts as existing: Forgejo cannot hold a label for an org it does not know,
+	// and the fake's seeding creates labels without an org record.
+	if err != nil && len(f.issues.orgLabels[org]) == 0 {
+		return nil, forge.PageInfo{}, err
+	}
 	out, info := labelPage(sortedLabels(f.issues.orgLabels[org]), forgejo_sdk.ListOptions{Page: pg, PageSize: limit}, f.issues.maxItems)
 	return out, info, nil
 }

@@ -4,6 +4,7 @@ package issue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
@@ -73,7 +74,8 @@ func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (Label
 	}
 	if in.IncludeOrg {
 		orgs, err := s.ReadOrgLabels(ctx, in.Owner, in.Paging)
-		if err != nil {
+		// A user owner has no organization labels; the repository already read.
+		if err != nil && !errors.Is(err, ErrOrgNotFound) {
 			return LabelList{}, err
 		}
 		merged = append(merged, orgs.Labels...)

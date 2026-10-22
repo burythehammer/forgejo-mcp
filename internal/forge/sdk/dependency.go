@@ -32,7 +32,7 @@ func (a *Adapter) listIssues(ctx context.Context, owner, repo string, index int6
 	_, err := a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
 	if forge.IsNotFound(err) {
 		_, probe := a.GetIssue(ctx, owner, repo, index)
-		if err := notFoundOr(probe, fmt.Sprintf("issue %d in %s/%s", index, owner, repo)); err != nil {
+		if err := notFoundOr(probe, fmt.Sprintf("issue %d in %s/%s not found", index, owner, repo)); err != nil {
 			return nil, err
 		}
 		return []*forgejo_sdk.Issue{}, nil
