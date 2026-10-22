@@ -1,1 +1,1 @@
-{"Result":{"issues":[{"number":1,"url":"","title":"issue 1","state":"open","labels":[],"assignees":[],"updated_at":"2026-01-02T03:04:05Z"}],"page":3,"limit":2,"count":1,"has_next":false}}
+{"Result":{"issues":[{"number":1,"url":"","title":"issue 1","state":"open","labels":[],"assignees":[],"updated_at":"2026-01-02T03:04:05Z","milestone":null,"is_pull_request":false}],"page":3,"limit":2,"count":1,"has_next":false}}

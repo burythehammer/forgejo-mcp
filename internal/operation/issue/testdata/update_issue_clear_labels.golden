@@ -1,4 +1,4 @@
-{"Result":{"number":7,"url":"https://f.example/octo/hello/issues/7","title":"fixed","state":"open","labels":["bug"],"assignees":["octo"],"updated_at":"2026-02-03T04:05:06Z"}}
+{"Result":{"number":7,"url":"https://f.example/octo/hello/issues/7","title":"fixed","state":"open","labels":["bug"],"assignees":["octo"],"updated_at":"2026-02-03T04:05:06Z","milestone":{"id":4,"title":"v1"},"is_pull_request":true}}
 -- port calls --
 ClearIssueLabels ["octo","hello",7]
 GetIssue ["octo","hello",7]
