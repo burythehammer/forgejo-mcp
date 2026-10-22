@@ -182,9 +182,13 @@ func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
+	pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+	if perr != nil {
+		return to.ErrorResult(perr)
+	}
 	page, err := svc.ListReleases(ctx, a.Owner, a.Repo, apprelease.ListQuery{
 		State:  state,
-		Paging: apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)},
+		Paging: apprelease.Paging{Page: pg, Limit: lim},
 	})
 	if err != nil {
 		return to.ErrorResult(err)
@@ -360,7 +364,11 @@ func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)})
+	pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+	if perr != nil {
+		return to.ErrorResult(perr)
+	}
+	page, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: pg, Limit: lim})
 	if err != nil {
 		return to.ErrorResult(err)
 	}

@@ -84,14 +84,11 @@ type myStopwatchesArgs struct {
 	Limit float64 `json:"limit"`
 }
 
-// paging reads the page and limit arguments: a page of zero is page 1, and a
-// fractional number is truncated. An absent limit stays 0, which the use case
-// replaces with the tool's default, lowered to the instance ceiling.
-func paging(page, limit float64) (int, int) {
-	if page == 0 {
-		page = 1
-	}
-	return int(page), int(limit)
+// paging reads the page and limit arguments through the numeric-argument
+// module (decode.PagingArgs): a zero page is page 1, an absent limit is 0 for
+// the use case's default, and a value that is not a number is refused.
+func paging(page, limit float64) (int, int, error) {
+	return decode.PagingArgs(page, limit)
 }
 
 // run is the shared shape of a tool call: decode the arguments into A, then
@@ -134,7 +131,10 @@ func ref(a issueArgs) apptracking.IssueRef {
 
 func (h handlers) ListIssueTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a issueTimesArgs) (*mcp.CallToolResult, error) {
-		page, limit := paging(a.Page, a.Limit)
+		page, limit, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
 		return mcpresult.Render(s.IssueTimes(ctx, apptracking.IssueTimesInput{
 			IssueRef: ref(issueArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
 			Since:    a.Since, Before: a.Before, Page: page, Limit: limit,
@@ -144,7 +144,10 @@ func (h handlers) ListIssueTrackedTimesFn(ctx context.Context, req mcp.CallToolR
 
 func (h handlers) ListRepoTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a repoTimesArgs) (*mcp.CallToolResult, error) {
-		page, limit := paging(a.Page, a.Limit)
+		page, limit, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
 		return mcpresult.Render(s.RepoTimes(ctx, apptracking.RepoTimesInput{
 			Owner: a.Owner, Repo: a.Repo, Since: a.Since, Before: a.Before, User: a.User, Page: page, Limit: limit,
 		}))
@@ -153,7 +156,10 @@ func (h handlers) ListRepoTrackedTimesFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) ListMyTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListMyTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a myTimesArgs) (*mcp.CallToolResult, error) {
-		page, limit := paging(a.Page, a.Limit)
+		page, limit, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
 		return mcpresult.Render(s.MyTimes(ctx, apptracking.MyTimesInput{Page: page, Limit: limit}))
 	})
 }
@@ -202,7 +208,10 @@ func (h handlers) CancelIssueStopwatchFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) ListMyStopwatchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListMyStopwatchesFn", func(ctx context.Context, s *apptracking.Service, a myStopwatchesArgs) (*mcp.CallToolResult, error) {
-		page, limit := paging(a.Page, a.Limit)
+		page, limit, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
 		return mcpresult.Render(s.MyStopwatches(ctx, apptracking.MyStopwatchesInput{Page: page, Limit: limit}))
 	})
 }

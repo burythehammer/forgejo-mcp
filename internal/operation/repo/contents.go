@@ -82,9 +82,13 @@ func (h handlers) ListRepoContentsFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
+	page, limit, err := decode.PagingArgs(a.Page, a.Limit)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	return gitText(contentsPage(svc.ListContents(ctx, owner, repo, a.Ref, a.Path, apprepo.GitPage{
-		Page:  decode.PageOr(a.Page, 1),
-		Limit: decode.IntOr(a.Limit, 0),
+		Page:  page,
+		Limit: limit,
 	})))
 }
 
@@ -110,8 +114,12 @@ func (h handlers) GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*
 	if err != nil {
 		return to.ErrorResult(err)
 	}
+	page, limit, err := decode.PagingArgs(a.Page, a.Limit)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	return gitText(treePage(svc.GetTree(ctx, owner, repo, ref, apprepo.TreeInput{
 		Recursive: a.Recursive,
-		Page:      apprepo.GitPage{Page: decode.PageOr(a.Page, 1), Limit: decode.IntOr(a.Limit, 0)},
+		Page:      apprepo.GitPage{Page: page, Limit: limit},
 	})))
 }

@@ -278,14 +278,15 @@ func (h handlers) list(ctx context.Context, owner, repo string, sc appattachment
 	if err != nil {
 		return to.ErrorResult(err)
 	}
+	pg, lim, err := decode.PagingArgs(page, limit)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	svc, err := useCases(ctx, h)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	out, err := svc.List(ctx, owner, repo, sc, p, appattachment.Paging{
-		Page:  decode.PageOr(page, 1),
-		Limit: decode.IntOr(limit, 0),
-	})
+	out, err := svc.List(ctx, owner, repo, sc, p, appattachment.Paging{Page: pg, Limit: lim})
 	if err != nil {
 		return to.ErrorResult(err)
 	}

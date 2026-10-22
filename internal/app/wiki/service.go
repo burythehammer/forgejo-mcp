@@ -23,12 +23,12 @@ type Service struct{ port Port }
 // New returns the use cases bound to port.
 func New(port Port) *Service { return &Service{port: port} }
 
-// ListRequest lists a wiki's pages. Page and Limit are the numbers as the
-// caller gave them: a value that is not positive is the default (page 1, 30
-// pages), and a positive fraction truncates.
+// ListRequest lists a wiki's pages. Page and Limit are whole numbers the
+// adapter has already validated; a value below 1 is the default (page 1, 30
+// pages).
 type ListRequest struct {
 	Owner, Repo string
-	Page, Limit float64
+	Page, Limit int
 }
 
 // GetRequest reads a page. StartLine and EndLine are optional line numbers; a
@@ -41,7 +41,7 @@ type GetRequest struct {
 // RevisionsRequest lists a page's history, paged as ListRequest is.
 type RevisionsRequest struct {
 	Owner, Repo, PageName string
-	Page, Limit           float64
+	Page, Limit           int
 }
 
 // CreateRequest creates a page. An empty Message gets a default.
@@ -60,16 +60,15 @@ type PageRef struct {
 	Owner, Repo, PageName string
 }
 
-// paging reads a page and a limit as the tools always have: a value that is
-// not positive is the default, and a positive value is truncated to a whole
-// number.
-func paging(page, limit float64) (int, int) {
+// paging applies the defaults to a validated page and limit: a value below 1 is
+// the default.
+func paging(page, limit int) (int, int) {
 	p, l := 1, defaultLimit
 	if page > 0 {
-		p = int(page)
+		p = page
 	}
 	if limit > 0 {
-		l = int(limit)
+		l = limit
 	}
 	return p, l
 }
@@ -82,7 +81,7 @@ func paging(page, limit float64) (int, int) {
 func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.WikiPageSummary], error) {
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	return list.Run(ctx, list.Request{Page: int(r.Page), Limit: int(r.Limit), Def: defaultLimit}, c,
+	return list.Run(ctx, list.Request{Page: r.Page, Limit: r.Limit, Def: defaultLimit}, c,
 		func(ctx context.Context, p list.Paging) (list.Batch[model.WikiPageSummary], error) {
 			listed, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, p.Page, p.Limit)
 			if err != nil {

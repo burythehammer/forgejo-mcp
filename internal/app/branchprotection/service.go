@@ -22,12 +22,11 @@ func New(port Port) *Service { return &Service{port: port} }
 // RuleRef names one branch protection rule of a repository.
 type RuleRef struct{ Owner, Repo, Rule string }
 
-// ListRequest lists a repository's rules. Page and Limit are the numbers as
-// the caller gave them: zero means page 1 and 100 rules, and a fraction is
-// truncated after that default is applied.
+// ListRequest lists a repository's rules. Page and Limit are whole numbers the
+// adapter has already validated; zero means page 1 and 100 rules.
 type ListRequest struct {
 	Owner, Repo string
-	Page, Limit float64
+	Page, Limit int
 }
 
 // CreateRequest creates a rule. StatusCheckContexts is a comma-separated list,
@@ -69,7 +68,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[*model.
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	return list.Run(ctx, list.Request{Page: int(r.Page), Limit: int(r.Limit), Def: 100}, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
+	return list.Run(ctx, list.Request{Page: r.Page, Limit: r.Limit, Def: 100}, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
 		rules, err := s.port.ListBranchProtections(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[*model.BranchProtection]{}, fmt.Errorf("list branch protections err: %w", err)
