@@ -485,7 +485,9 @@ var goldenCases = []goldenCase{
 	{name: "edit_org_label", tool: EditOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12), "name": "n"}},
 	{name: "edit_org_label_no_fields", tool: EditOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}},
 	{name: "edit_org_label_port_error", tool: EditOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12), "name": "n"}, stub: failing("EditOrgLabel", errBoom)},
-	{name: "delete_org_label_unused", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}},
+	{name: "delete_org_label_unused", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}, stub: func(s *goldenStub) {
+		s.info = forge.PageInfo{TotalCount: 0, TotalKnown: true}
+	}},
 	{name: "delete_org_label_in_use", tool: DeleteOrgLabelToolName, args: map[string]any{"org": "acme", "id": float64(12)}, stub: func(s *goldenStub) {
 		s.info = forge.PageInfo{TotalCount: 3, TotalKnown: true}
 	}},
