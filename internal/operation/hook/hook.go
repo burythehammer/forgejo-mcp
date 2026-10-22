@@ -130,9 +130,9 @@ type listArgs struct {
 }
 
 type hookRefArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	ID    float64 `json:"id" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	ID    any    `json:"id" required:"true" schema:"number"`
 }
 
 type createArgs struct {
@@ -154,7 +154,7 @@ type createArgs struct {
 type editArgs struct {
 	Owner        string     `json:"owner" required:"true"`
 	Repo         string     `json:"repo" required:"true"`
-	ID           float64    `json:"id" required:"true"`
+	ID           any        `json:"id" required:"true" schema:"number"`
 	URL          decode.Arg `json:"url" schema:"string"`
 	ContentType  decode.Arg `json:"content_type" schema:"string"`
 	Secret       decode.Arg `json:"secret" schema:"string"`
@@ -206,7 +206,11 @@ func (h handlers) ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) 
 
 func (h handlers) GetRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Get(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID}))
+		id, err := refID(a.ID)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return mcpresult.Render(s.Get(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: id}))
 	})
 }
 
@@ -221,8 +225,12 @@ func (h handlers) CreateRepoHookFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditRepoHookFn", func(ctx context.Context, s *apphook.Service, a editArgs) (*mcp.CallToolResult, error) {
+		id, err := refID(a.ID)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
 		return mcpresult.Render(s.Edit(ctx, apphook.EditRequest{
-			HookRef: apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID},
+			HookRef: apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: id},
 			URL:     optString(a.URL, "url"), ContentType: optString(a.ContentType, "content_type"),
 			Secret: optString(a.Secret, "secret"), HTTPMethod: optString(a.HTTPMethod, "http_method"),
 			BranchFilter: optString(a.BranchFilter, "branch_filter"), Events: optString(a.Events, "events"),
@@ -233,16 +241,24 @@ func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (
 
 func (h handlers) DeleteRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		if err := s.Delete(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID}); err != nil {
+		id, err := refID(a.ID)
+		if err != nil {
 			return mcpresult.Fail(err)
 		}
-		return to.TextResult(fmt.Sprintf("Deleted webhook %d on %s/%s", int64(a.ID), a.Owner, a.Repo))
+		if err := s.Delete(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: id}); err != nil {
+			return mcpresult.Fail(err)
+		}
+		return to.TextResult(fmt.Sprintf("Deleted webhook %d on %s/%s", id, a.Owner, a.Repo))
 	})
 }
 
 func (h handlers) TestRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "TestRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		if err := s.Test(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID}); err != nil {
+		id, err := refID(a.ID)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		if err := s.Test(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: id}); err != nil {
 			return mcpresult.Fail(err)
 		}
 		return to.TextResult(map[string]bool{"triggered": true})

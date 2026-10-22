@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -22,10 +21,10 @@ func New(port Port) *Service { return &Service{port: port} }
 
 // HookRef names one webhook of a repository. ID is the number as the caller
 // gave it. It must be a positive whole number: zero, a negative number and a
-// fraction are all refused with ErrRequired before any request is made.
+// fraction are refused by the operation adapter with ErrRequired before any request is made.
 type HookRef struct {
 	Owner, Repo string
-	ID          float64
+	ID          int64
 }
 
 // ListRequest lists a repository's webhooks. Page and Limit are the numbers as
@@ -74,7 +73,7 @@ func (s *Service) Get(ctx context.Context, r HookRef) (model.HookPayload, error)
 	if err := r.check(); err != nil {
 		return model.HookPayload{}, err
 	}
-	hk, err := s.port.GetRepoHook(ctx, r.Owner, r.Repo, int64(r.ID))
+	hk, err := s.port.GetRepoHook(ctx, r.Owner, r.Repo, r.ID)
 	if err != nil {
 		return model.HookPayload{}, fmt.Errorf("get repo hook: %w", err)
 	}
@@ -126,7 +125,7 @@ func (s *Service) Edit(ctx context.Context, r EditRequest) (model.HookPayload, e
 	if err := r.check(); err != nil {
 		return model.HookPayload{}, err
 	}
-	id := int64(r.ID)
+	id := r.ID
 	existing, err := s.port.GetRepoHook(ctx, r.Owner, r.Repo, id)
 	if err != nil {
 		return model.HookPayload{}, fmt.Errorf("get repo hook for edit: %w", err)
@@ -170,7 +169,7 @@ func (s *Service) Delete(ctx context.Context, r HookRef) error {
 	if err := r.check(); err != nil {
 		return err
 	}
-	if err := s.port.DeleteRepoHook(ctx, r.Owner, r.Repo, int64(r.ID)); err != nil {
+	if err := s.port.DeleteRepoHook(ctx, r.Owner, r.Repo, r.ID); err != nil {
 		return fmt.Errorf("delete repo hook: %w", err)
 	}
 	return nil
@@ -182,7 +181,7 @@ func (s *Service) Test(ctx context.Context, r HookRef) error {
 	if err := r.check(); err != nil {
 		return err
 	}
-	if err := s.port.TestRepoHook(ctx, r.Owner, r.Repo, int64(r.ID)); err != nil {
+	if err := s.port.TestRepoHook(ctx, r.Owner, r.Repo, r.ID); err != nil {
 		return fmt.Errorf("test repo hook: %w", err)
 	}
 	return nil
@@ -196,7 +195,7 @@ var ErrRequired = errors.New("owner, repo and id are required")
 // refused rather than truncated, so the call never acts on a hook other than
 // the one named. The comparisons are written so NaN and values past int64 fail.
 func (r HookRef) check() error {
-	if r.Owner == "" || r.Repo == "" || !(r.ID >= 1 && r.ID == math.Trunc(r.ID) && r.ID <= math.MaxInt64) {
+	if r.Owner == "" || r.Repo == "" || r.ID < 1 {
 		return ErrRequired
 	}
 	return nil

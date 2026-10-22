@@ -131,7 +131,7 @@ func (h handlers) hookResourceHandler(ctx context.Context, req mcp.ReadResourceR
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	hk, err := apphook.New(hookadapter.New(port)).Get(ctx, apphook.HookRef{Owner: p.Owner, Repo: p.Repo, ID: float64(p.ID)})
+	hk, err := apphook.New(hookadapter.New(port)).Get(ctx, apphook.HookRef{Owner: p.Owner, Repo: p.Repo, ID: p.ID})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
