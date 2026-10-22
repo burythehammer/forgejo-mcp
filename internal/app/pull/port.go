@@ -30,7 +30,7 @@ type Port interface {
 	ListPullRequestFiles(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.ChangedFile, error)
 
 	ListPullRequestComments(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.Comment, error)
-	ListPullReviews(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.PullReview, error)
+	ListPullReviews(ctx context.Context, owner, repo string, index int64, p Paging) (ReviewPage, error)
 	GetPullReview(ctx context.Context, owner, repo string, index, id int64) (*model.PullReview, error)
 	ListPullReviewComments(ctx context.Context, owner, repo string, index, id int64) ([]*model.PullReviewComment, error)
 	CreatePullReview(ctx context.Context, owner, repo string, index int64, in CreateReviewInput) (*model.PullReview, error)
@@ -43,6 +43,15 @@ type Port interface {
 
 // Paging selects a page of a list.
 type Paging struct{ Page, Limit int }
+
+// ReviewPage is one page of a pull request's reviews. Total is the number of
+// the pull request's reviews across all pages; it is valid only when TotalKnown,
+// because the server may not report it.
+type ReviewPage struct {
+	Reviews    []*model.PullReview
+	Total      int
+	TotalKnown bool
+}
 
 // ListQuery filters and pages a pull-request list.
 type ListQuery struct {

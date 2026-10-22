@@ -57,7 +57,11 @@ func (a *Adapter) CreateBranch(_ context.Context, owner, repo string, opt forgej
 // The SDK's version gate for this endpoint is not repeated: a server too old to
 // have it answers 404, which is reported as the refusal it is.
 func (a *Adapter) DeleteBranch(ctx context.Context, owner, repo, branch string) (bool, error) {
-	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, forge.APIPath("repos", owner, repo, "branches", branch), nil)
+	path, err := forge.APIPath("repos", owner, repo, "branches", branch)
+	if err != nil {
+		return false, err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, path, nil)
 	if err != nil {
 		return false, err
 	}

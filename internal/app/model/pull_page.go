@@ -15,6 +15,12 @@ type PullReviewPage struct {
 	PageMeta
 }
 
+// PullReviewCommentPage is the response of list_pull_review_comments.
+type PullReviewCommentPage struct {
+	Comments []*PullReviewComment `json:"comments"`
+	PageMeta
+}
+
 // ChangedFilePage is the response of list_pull_request_files.
 type ChangedFilePage struct {
 	Files []*ChangedFile `json:"files"`

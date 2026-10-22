@@ -41,7 +41,11 @@ func (a *Adapter) MergePullRequest(ctx context.Context, owner, repo string, inde
 	if err := opt.Validate(a.client); err != nil {
 		return forge.MergeResult{}, err
 	}
-	status, body, err := a.raw.doStatus(ctx, http.MethodPost, forge.APIPath("repos", owner, repo, "pulls", index, "merge"), opt)
+	path, err := forge.APIPath("repos", owner, repo, "pulls", index, "merge")
+	if err != nil {
+		return forge.MergeResult{}, err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodPost, path, opt)
 	if err != nil {
 		return forge.MergeResult{}, err
 	}
@@ -67,9 +71,9 @@ func (a *Adapter) ListPullRequestComments(_ context.Context, owner, repo string,
 	return comments, statusErr(resp, err)
 }
 
-func (a *Adapter) ListPullReviews(_ context.Context, owner, repo string, index int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, error) {
+func (a *Adapter) ListPullReviews(_ context.Context, owner, repo string, index int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, forge.PageInfo, error) {
 	reviews, resp, err := a.client.ListPullReviews(owner, repo, index, opt)
-	return reviews, statusErr(resp, err)
+	return reviews, pageInfo(resp), statusErr(resp, err)
 }
 
 func (a *Adapter) GetPullReview(_ context.Context, owner, repo string, index, id int64) (*forgejo_sdk.PullReview, error) {

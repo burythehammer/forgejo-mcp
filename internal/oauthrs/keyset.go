@@ -79,7 +79,7 @@ func NewKeySet(ctx context.Context, jwksURL string, opts KeySetOptions) (*KeySet
 		now:         opts.Now,
 	}
 	if k.client == nil {
-		k.client = newHTTPClient()
+		k.client = NewHTTPClient(nil)
 	}
 	if k.minInterval <= 0 {
 		k.minInterval = DefaultMinRefreshInterval
@@ -208,12 +208,14 @@ func verificationKeys(set jwk.Set) (jwk.Set, error) {
 	return out, nil
 }
 
-// newHTTPClient returns the client used for the provider's documents. It does
+// NewHTTPClient returns the client for the provider's documents, sending its
+// requests through rt. A nil rt selects the default transport. The client does
 // not follow redirects: the operator configured these URLs, and a provider
 // that starts redirecting them should be noticed, not silently followed.
-func newHTTPClient() *http.Client {
+func NewHTTPClient(rt http.RoundTripper) *http.Client {
 	return &http.Client{
-		Timeout: fetchTimeout,
+		Transport: rt,
+		Timeout:   fetchTimeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

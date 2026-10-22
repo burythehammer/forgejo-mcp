@@ -38,7 +38,7 @@ func TestLoadDefaults(t *testing.T) {
 	want := Config{
 		Mode:      ModeServe,
 		Transport: "stdio",
-		Forgejo:   Forgejo{URL: "https://f.example.org", UserAgent: "forgejo-mcp/9.9.9"},
+		Forgejo:   Forgejo{URL: "https://f.example.org", UserAgent: "forgejo-mcp/9.9.9", RequestTimeout: DefaultRequestTimeout},
 		Listen:    Listen{SSEPort: 8080, HTTPPort: 8080, Host: "localhost", MaxRequestBodyBytes: DefaultMaxRequestBodyBytes},
 		Auth: Auth{
 			Mode:                 "passthrough",

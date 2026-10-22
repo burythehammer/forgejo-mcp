@@ -46,7 +46,7 @@ var (
 		mcp.WithDescription("Get a single repository webhook by ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-		mcp.WithNumber("id", mcp.Required(), mcp.Description("Webhook ID")),
+		mcp.WithNumber("id", mcp.Required(), mcp.Description("Webhook ID, a positive whole number; fractions and zero or negative numbers are rejected")),
 	)
 
 	CreateRepoHookTool = mcp.NewTool(
@@ -69,7 +69,7 @@ var (
 		mcp.WithDescription("Edit a repository webhook. Only fields you pass are changed; omitted fields are left untouched."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-		mcp.WithNumber("id", mcp.Required(), mcp.Description("Webhook ID")),
+		mcp.WithNumber("id", mcp.Required(), mcp.Description("Webhook ID, a positive whole number; fractions and zero or negative numbers are rejected")),
 		mcp.WithString("url", mcp.Description("New payload URL")),
 		mcp.WithString("content_type", mcp.Description(`Content type: "json" or "form"`)),
 		mcp.WithString("secret", mcp.Description("New HMAC secret (write-only; not returned)")),
@@ -84,7 +84,7 @@ var (
 		mcp.WithDescription("Delete a repository webhook by ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-		mcp.WithNumber("id", mcp.Required(), mcp.Description("Webhook ID")),
+		mcp.WithNumber("id", mcp.Required(), mcp.Description("Webhook ID, a positive whole number; fractions and zero or negative numbers are rejected")),
 	)
 
 	TestRepoHookTool = mcp.NewTool(
@@ -92,7 +92,7 @@ var (
 		mcp.WithDescription("Trigger a test delivery for a repository webhook. WARNING: each call triggers a live HTTP delivery to the webhook URL."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-		mcp.WithNumber("id", mcp.Required(), mcp.Description("Webhook ID")),
+		mcp.WithNumber("id", mcp.Required(), mcp.Description("Webhook ID, a positive whole number; fractions and zero or negative numbers are rejected")),
 	)
 )
 

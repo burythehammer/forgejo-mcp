@@ -117,6 +117,13 @@ func (e *rsEnv) do(t *testing.T, method, path, authorization string) (*http.Resp
 // the claims before signing.
 func (e *rsEnv) accessToken(t *testing.T, mutate func(map[string]any)) string {
 	t.Helper()
+	return e.signedAccessToken(t, e.fixture.providerKid, mutate)
+}
+
+// signedAccessToken is accessToken with the key ID chosen by the caller, so a
+// test can send a token whose kid is oversized or unknown.
+func (e *rsEnv) signedAccessToken(t *testing.T, kid string, mutate func(map[string]any)) string {
+	t.Helper()
 	now := time.Now().Unix()
 	claims := map[string]any{
 		"iss": e.fixture.providerIssuer, "sub": rsSubject, "aud": []string{rsClientID, "390183248413589505"},
@@ -129,7 +136,7 @@ func (e *rsEnv) accessToken(t *testing.T, mutate func(map[string]any)) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = key.Set(jwk.KeyIDKey, e.fixture.providerKid)
+	_ = key.Set(jwk.KeyIDKey, kid)
 	b := jwt.NewBuilder()
 	for name, value := range claims {
 		b = b.Claim(name, value)

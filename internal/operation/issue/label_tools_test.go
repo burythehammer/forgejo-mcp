@@ -36,12 +36,14 @@ func TestListOrgLabels_Success(t *testing.T) {
 	}
 }
 
-func TestListOrgLabels_UnknownOrgIsEmpty(t *testing.T) {
+// A missing org is a not-found, not an empty list: an empty answer would read as
+// "no labels" for a mistyped org name.
+func TestListOrgLabels_UnknownOrgIsNotFound(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	out := call(t, h.ListOrgLabelsFn, map[string]any{"org": "ghost"})
-	if !strings.Contains(out, "[]") {
-		t.Fatalf("expected an empty list, got %q", out)
+	out := callErr(t, h.ListOrgLabelsFn, map[string]any{"org": "ghost"})
+	if !strings.Contains(out, "not found") {
+		t.Fatalf("expected a not-found error, got %q", out)
 	}
 }
 

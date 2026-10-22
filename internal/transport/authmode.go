@@ -4,7 +4,10 @@ package transport
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net/http"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
@@ -27,6 +30,25 @@ type resourceServer struct {
 	authServer    string
 	scopes        []string
 	audienceClaim string
+}
+
+// providerClient is the one client for the identity provider's discovery and
+// key documents, built once at startup. It trusts the operator's provider CA
+// bundle when one is given; otherwise it uses the default transport. The
+// Forgejo TLS settings never apply to it.
+func providerClient(pool *x509.CertPool) *http.Client {
+	if pool == nil {
+		return oauthrs.NewHTTPClient(nil)
+	}
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		base = &http.Transport{Proxy: http.ProxyFromEnvironment}
+	}
+	tr := base.Clone()
+	// The pool already holds the system roots plus the bundle, so the bundle
+	// is added to the system trust, not substituted for it.
+	tr.TLSClientConfig = &tls.Config{RootCAs: pool}
+	return oauthrs.NewHTTPClient(tr)
 }
 
 // prepareResourceServer runs the startup checks that need I/O, in order: load
@@ -64,11 +86,12 @@ func prepareResourceServer(ctx context.Context, cfg config.Config, factory forge
 			minForgejoMajorForResourceServer, log.SanitizeURL(cfg.Forgejo.URL), version)
 	}
 
-	metadata, err := oauthrs.DiscoverProvider(ctx, nil, a.AuthorizationServer)
+	provider := providerClient(a.AuthorizationServerCAs)
+	metadata, err := oauthrs.DiscoverProvider(ctx, provider, a.AuthorizationServer)
 	if err != nil {
 		return nil, fmt.Errorf("refusing to start: -authorization-server: %w", err)
 	}
-	keys, err := oauthrs.NewKeySet(ctx, metadata.JWKSURI, oauthrs.KeySetOptions{})
+	keys, err := oauthrs.NewKeySet(ctx, metadata.JWKSURI, oauthrs.KeySetOptions{Client: provider})
 	if err != nil {
 		return nil, fmt.Errorf("refusing to start: -authorization-server: %w", err)
 	}

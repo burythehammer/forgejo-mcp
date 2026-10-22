@@ -5,20 +5,30 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Get the unified diff of a pull request. Pass an optional file_path to receive only the hunks for that file (match is exact on either the pre- or post-rename path). Use list_pull_request_files first to discover the file paths in the PR.",
+  "description": "Get the unified diff of a pull request, one page of whole files at a time (page, limit; default 50 files, so a pull request of ordinary size comes back whole). When files follow the page, the output ends with a truncation marker naming the next page. Pass an optional file_path to receive only the hunks for that file (match is exact on either the pre- or post-rename path); file_path ignores page and limit. Use list_pull_request_files first to discover the file paths in the PR.",
   "inputSchema": {
     "properties": {
       "file_path": {
-        "description": "Optional. Return only the diff section for this file (matched on the diff --git boundary). Omit for the full diff.",
+        "description": "Optional. Return only the diff section for this file (matched on the diff --git boundary). Omit for the page of files.",
         "type": "string"
       },
       "index": {
         "description": "PR index",
         "type": "number"
       },
+      "limit": {
+        "default": 50,
+        "description": "Files per page (default 50; a larger limit than the instance maximum is refused).",
+        "type": "number"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
       },
       "repo": {
         "description": "Repository name",

@@ -22,11 +22,13 @@ const (
 var (
 	ListRepoContentsTool = mcp.NewTool(
 		ListRepoContentsToolName,
-		mcp.WithDescription("List the files and directories at a given path in a repository. Use path=\"\" to list the repository root. Returns one level of entries at the specified path; for a full recursive file tree use get_repo_tree with recursive=true."),
+		mcp.WithDescription("List the files and directories at a given path in a repository. Use path=\"\" to list the repository root. Returns one level of entries at the specified path, one page at a time: page and limit (default 100 entries) select the page, and the response carries has_next to say whether more entries follow. For a full recursive file tree use get_repo_tree with recursive=true."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("ref", mcp.Required(), mcp.Description(params.Ref)),
 		mcp.WithString("path", mcp.Required(), mcp.Description("Directory path within the repository (empty string lists the repository root)")),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(100)),
 	)
 
 	GetRepoTreeTool = mcp.NewTool(
@@ -48,6 +50,8 @@ type listRepoContentsArgs struct {
 	Repo  *string `json:"repo" required:"true"`
 	Ref   string  `json:"ref" required:"true"`
 	Path  string  `json:"path" required:"true"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
 }
 
 // getRepoTreeArgs are the arguments of get_repo_tree.
@@ -78,7 +82,10 @@ func (h handlers) ListRepoContentsFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return gitText(svc.ListContents(ctx, owner, repo, a.Ref, a.Path))
+	return gitText(svc.ListContents(ctx, owner, repo, a.Ref, a.Path, apprepo.GitPage{
+		Page:  decode.PageOr(a.Page, 1),
+		Limit: decode.IntOr(a.Limit, 0),
+	}))
 }
 
 func (h handlers) GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

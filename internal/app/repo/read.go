@@ -60,17 +60,76 @@ func (s *AdminService) ReadRepo(ctx context.Context, owner, repo string, opt Rep
 	return read, nil
 }
 
-// CommitStatusRead is one page of a commit's statuses, with the aggregate state
-// of the rows the page holds.
+// CommitStatusRead is one page of a commit's statuses.
 type CommitStatusRead struct {
 	model.CommitStatuses
-	// State is AggregateState over Statuses. The get_commit_statuses tool does not
-	// report it; the commit status resource does.
+}
+
+// maxStatusPages bounds how many pages CommitStatusSummary reads. At
+// maxStatusesLimit a page, a summary sees at most maxStatusPages*maxStatusesLimit
+// statuses.
+const maxStatusPages = 20
+
+// CommitStatusSummary is every status of a commit, read page by page, with the
+// combined state over all of them.
+type CommitStatusSummary struct {
+	// Statuses holds every status read, up to the read ceiling.
+	Statuses []model.StatusItem
+	// TotalCount is Forgejo's grand total, or the number read when Forgejo
+	// reported none.
+	TotalCount int
+	// Complete is false when the ceiling stopped the read before the last status.
+	Complete bool
+	// State is AggregateState over Statuses when Complete, and "unknown" otherwise:
+	// a state is never computed from a partial view.
 	State string
 }
 
-// ReadCommitStatuses returns one page of a commit's per-context statuses, and
-// their aggregate state. A page below 1 is 1; a limit below 1 is the default, and
+// CommitStatusSummary reads all of a full 40-character commit SHA's statuses and
+// aggregates their state. It never reports a state from a partial read.
+func (s *AdminService) CommitStatusSummary(ctx context.Context, owner, repo, sha string) (CommitStatusSummary, error) {
+	if owner == "" || repo == "" {
+		return CommitStatusSummary{}, errors.New("owner and repo are required")
+	}
+	if err := validateSHA(sha); err != nil {
+		return CommitStatusSummary{}, err
+	}
+	var all []model.StatusItem
+	total, known, complete := 0, false, false
+	for page := 1; page <= maxStatusPages; page++ {
+		res, err := s.port.ListCommitStatuses(ctx, owner, repo, sha, AdminPaging{Page: page, Limit: maxStatusesLimit})
+		if err != nil {
+			return CommitStatusSummary{}, fmt.Errorf("get commit statuses: %w", err)
+		}
+		all = append(all, res.Items...)
+		if res.TotalCount != nil {
+			total, known = *res.TotalCount, true
+		}
+		if known {
+			if len(all) >= total {
+				complete = true
+				break
+			}
+			if len(res.Items) == 0 {
+				break
+			}
+		} else if len(res.Items) < maxStatusesLimit {
+			complete = true
+			break
+		}
+	}
+	if !known {
+		total = len(all)
+	}
+	sum := CommitStatusSummary{Statuses: all, TotalCount: total, Complete: complete, State: "unknown"}
+	if complete {
+		sum.State = AggregateState(all)
+	}
+	return sum, nil
+}
+
+// ReadCommitStatuses returns one page of a commit's per-context statuses. Its
+// state is not aggregated here: use CommitStatusSummary for that. A page below 1 is 1; a limit below 1 is the default, and
 // above the maximum it is the maximum.
 func (s *AdminService) ReadCommitStatuses(ctx context.Context, owner, repo, sha string, page, limit int) (CommitStatusRead, error) {
 	if owner == "" || repo == "" {
@@ -105,7 +164,6 @@ func (s *AdminService) ReadCommitStatuses(ctx context.Context, owner, repo, sha 
 			Count:      len(items),
 			TotalCount: res.TotalCount,
 		},
-		State: AggregateState(items),
 	}, nil
 }
 

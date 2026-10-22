@@ -11,6 +11,7 @@ package labelresolve
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -34,6 +35,11 @@ const (
 	// well within this cap.
 	maxCatalogLabels = 2000
 )
+
+// ErrOrgNotFound is what a Catalog reports for an organization Forgejo does not
+// know. A repository owner that is a user yields it, and the resolver then reads
+// the owner as having no organization labels.
+var ErrOrgNotFound = errors.New("organization not found")
 
 // Paging selects one page of a label list.
 type Paging struct{ Page, Limit int }
@@ -116,6 +122,11 @@ func (r *Resolver) assignable(ctx context.Context, owner, repo string) ([]model.
 		func(p Paging) ([]*model.Label, error) {
 			return r.catalog.ListOrgLabels(ctx, owner, p)
 		})
+	// The owner may be a user, which has no organization labels. The repository's
+	// own labels were read first and proved the repository exists.
+	if errors.Is(err, ErrOrgNotFound) {
+		orgLabels, err = nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

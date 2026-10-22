@@ -92,8 +92,8 @@ const (
 	// Attachment parameters
 	AttachmentID       = "Attachment ID"
 	AttachmentName     = "New name for the attachment"
-	AttachmentContent  = "Base64-encoded file bytes to upload. Provide exactly one of content or file_path"
-	AttachmentFilePath = "Path to a file on the forgejo-mcp host. Relative paths resolve from the server process working directory. Disabled unless the host sets FORGEJO_MCP_ALLOW_FILE_PATH_UPLOAD=1, and confined to FORGEJO_MCP_UPLOAD_ROOT when that is set. Provide exactly one of content or file_path"
+	AttachmentContent  = "Base64-encoded file bytes to upload, as a string. Provide exactly one of content or file_path. A non-string value, including null, is rejected (omit the argument instead)"
+	AttachmentFilePath = "Path to a file on the forgejo-mcp host, as a string. Relative paths resolve from the server process working directory. Disabled unless the host sets FORGEJO_MCP_ALLOW_FILE_PATH_UPLOAD=1, and confined to FORGEJO_MCP_UPLOAD_ROOT when that is set. Provide exactly one of content or file_path. A non-string value, including null, is rejected (omit the argument instead)"
 	AttachmentFilename = `Filename to associate with the upload. Required with content; optional with file_path (defaults to the path basename)`
 	AttachmentMIME     = "MIME type hint for uploaded file (optional; inferred from filename if omitted)"
 
@@ -125,8 +125,8 @@ const (
 
 	// Time tracking parameters
 	TimeID         = "Tracked time entry ID"
-	TimeSeconds    = "Time in seconds to log (positive integer). Provide exactly one of seconds or duration."
-	TimeDuration   = `Time as a duration string, e.g. "15m", "1h30m", "45s". Provide exactly one of seconds or duration.`
+	TimeSeconds    = "Time in seconds to log (whole seconds, at least one; fractions are truncated). Provide exactly one of seconds or duration."
+	TimeDuration   = `Time as a duration string, e.g. "15m", "1h30m", "45s"; must be at least one second. Provide exactly one of seconds or duration.`
 	TimeCreatedAt  = "Optional RFC3339 timestamp for when the work happened (defaults to server time)"
 	TimeUserName   = "Optional username to log time on behalf of (requires admin; omit for self)"
 	TimeUserFilter = "Filter results to this username"

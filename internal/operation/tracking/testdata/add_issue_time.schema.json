@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Log time against an issue or pull request. Provide exactly one of 'seconds' or 'duration'.",
+  "description": "Log time against an issue or pull request, at least one whole second. Provide exactly one of 'seconds' or 'duration'.",
   "inputSchema": {
     "properties": {
       "created_at": {
@@ -13,7 +13,7 @@
         "type": "string"
       },
       "duration": {
-        "description": "Time as a duration string, e.g. \"15m\", \"1h30m\", \"45s\". Provide exactly one of seconds or duration.",
+        "description": "Time as a duration string, e.g. \"15m\", \"1h30m\", \"45s\"; must be at least one second. Provide exactly one of seconds or duration.",
         "type": "string"
       },
       "index": {
@@ -29,7 +29,7 @@
         "type": "string"
       },
       "seconds": {
-        "description": "Time in seconds to log (positive integer). Provide exactly one of seconds or duration.",
+        "description": "Time in seconds to log (whole seconds, at least one; fractions are truncated). Provide exactly one of seconds or duration.",
         "type": "number"
       },
       "user_name": {

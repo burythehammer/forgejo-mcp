@@ -37,7 +37,7 @@ func TestArgsMatchSchemas(t *testing.T) {
 		{UpdatePullRequestTool, updateArgs{}},
 		{ListPullReviewsTool, pagedArgs{}},
 		{GetPullReviewTool, getReviewArgs{}},
-		{ListPullReviewCommentsTool, reviewArgs{}},
+		{ListPullReviewCommentsTool, reviewCommentsArgs{}},
 		{MergePullRequestTool, mergeArgs{}},
 		{ListPullRequestFilesTool, pagedArgs{}},
 		{GetPullRequestDiffTool, diffArgs{}},

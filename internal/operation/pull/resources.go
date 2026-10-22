@@ -92,7 +92,9 @@ type prResourcePayload struct {
 	Base prBranchRef `json:"base"`
 
 	CommentCount int `json:"comment_count"`
-	ReviewCount  int `json:"review_count"`
+	// ReviewCount is the pull request's review total. It is omitted when the
+	// reviews were truncated and the server reported no total.
+	ReviewCount *int `json:"review_count,omitempty"`
 
 	RecentComments    []prCommentRef `json:"recent_comments"`
 	CommentsTruncated bool           `json:"comments_truncated,omitempty"`
@@ -194,6 +196,12 @@ func (h handlers) prResourceHandler(ctx context.Context, req mcp.ReadResourceReq
 		mergedAt = pr.Merged.Format(resourceTimeFormat)
 	}
 
+	var reviewCount *int
+	if read.ReviewsTotalKnown {
+		n := read.ReviewsTotal
+		reviewCount = &n
+	}
+
 	headRef, baseRef := prBranchRef{}, prBranchRef{}
 	if pr.Head != nil {
 		headRef = prBranchRef{Label: pr.Head.Name, Ref: pr.Head.Ref, SHA: pr.Head.Sha}
@@ -220,7 +228,7 @@ func (h handlers) prResourceHandler(ctx context.Context, req mcp.ReadResourceReq
 		Head:              headRef,
 		Base:              baseRef,
 		CommentCount:      pr.Comments,
-		ReviewCount:       len(reviewRefs),
+		ReviewCount:       reviewCount,
 		RecentComments:    commentRefs,
 		CommentsTruncated: read.CommentsTruncated,
 		RecentReviews:     reviewRefs,

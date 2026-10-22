@@ -19,22 +19,23 @@ type wikiWriteOptions struct {
 	Message       string `json:"message"`
 }
 
-func wikiRepoPath(owner, repo string) string {
-	return forge.APIPath("repos", owner, repo, "wiki")
-}
-
-// wikiPageSegment makes a page name one escaped path segment, whether the
-// caller passed it plain or already percent-encoded.
-func wikiPageSegment(pageName string) string {
+// wikiPageName makes a page name the plain text of one path segment, whether
+// the caller passed it plain or already percent-encoded. forge.APIPath escapes
+// it, and refuses a name that is "." or "..".
+func wikiPageName(pageName string) string {
 	decoded, err := url.PathUnescape(pageName)
 	if err != nil {
-		decoded = pageName
+		return pageName
 	}
-	return url.PathEscape(decoded)
+	return decoded
 }
 
 func (a *Adapter) ListWikiPages(ctx context.Context, owner, repo string, page, limit int) (forge.WikiPageList, error) {
-	path := fmt.Sprintf("%s/pages?page=%d&limit=%d", wikiRepoPath(owner, repo), page, limit)
+	base, err := forge.APIPath("repos", owner, repo, "wiki")
+	if err != nil {
+		return forge.WikiPageList{}, err
+	}
+	path := fmt.Sprintf("%s/pages?page=%d&limit=%d", base, page, limit)
 	var pages []forge.WikiPageMeta
 	header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &pages)
 	if forge.IsNotFound(err) {
@@ -51,7 +52,10 @@ func (a *Adapter) ListWikiPages(ctx context.Context, owner, repo string, page, l
 
 func (a *Adapter) GetWikiPage(ctx context.Context, owner, repo, pageName string) (*forge.WikiPage, error) {
 	var page forge.WikiPage
-	path := fmt.Sprintf("%s/page/%s", wikiRepoPath(owner, repo), wikiPageSegment(pageName))
+	path, err := forge.APIPath("repos", owner, repo, "wiki", "page", wikiPageName(pageName))
+	if err != nil {
+		return nil, err
+	}
 	if _, err := a.rawJSON(ctx, http.MethodGet, path, nil, &page); err != nil {
 		return nil, err
 	}
@@ -60,7 +64,11 @@ func (a *Adapter) GetWikiPage(ctx context.Context, owner, repo, pageName string)
 
 func (a *Adapter) GetWikiPageRevisions(ctx context.Context, owner, repo, pageName string, page, limit int) (*forge.WikiRevisions, error) {
 	var revisions forge.WikiRevisions
-	path := fmt.Sprintf("%s/revisions/%s?page=%d&limit=%d", wikiRepoPath(owner, repo), wikiPageSegment(pageName), page, limit)
+	base, err := forge.APIPath("repos", owner, repo, "wiki", "revisions", wikiPageName(pageName))
+	if err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("%s?page=%d&limit=%d", base, page, limit)
 	if _, err := a.rawJSON(ctx, http.MethodGet, path, nil, &revisions); err != nil {
 		return nil, err
 	}
@@ -70,7 +78,11 @@ func (a *Adapter) GetWikiPageRevisions(ctx context.Context, owner, repo, pageNam
 func (a *Adapter) CreateWikiPage(ctx context.Context, owner, repo, title, contentBase64, message string) (*forge.WikiPage, error) {
 	var page forge.WikiPage
 	body := wikiWriteOptions{Title: title, ContentBase64: contentBase64, Message: message}
-	if _, err := a.rawJSON(ctx, http.MethodPost, wikiRepoPath(owner, repo)+"/new", body, &page); err != nil {
+	path, err := forge.APIPath("repos", owner, repo, "wiki", "new")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := a.rawJSON(ctx, http.MethodPost, path, body, &page); err != nil {
 		return nil, err
 	}
 	return &page, nil
@@ -79,7 +91,10 @@ func (a *Adapter) CreateWikiPage(ctx context.Context, owner, repo, title, conten
 func (a *Adapter) EditWikiPage(ctx context.Context, owner, repo, pageName, title, contentBase64, message string) (*forge.WikiPage, error) {
 	var page forge.WikiPage
 	body := wikiWriteOptions{Title: title, ContentBase64: contentBase64, Message: message}
-	path := fmt.Sprintf("%s/page/%s", wikiRepoPath(owner, repo), wikiPageSegment(pageName))
+	path, err := forge.APIPath("repos", owner, repo, "wiki", "page", wikiPageName(pageName))
+	if err != nil {
+		return nil, err
+	}
 	if _, err := a.rawJSON(ctx, http.MethodPatch, path, body, &page); err != nil {
 		return nil, err
 	}
@@ -87,7 +102,10 @@ func (a *Adapter) EditWikiPage(ctx context.Context, owner, repo, pageName, title
 }
 
 func (a *Adapter) DeleteWikiPage(ctx context.Context, owner, repo, pageName string) error {
-	path := fmt.Sprintf("%s/page/%s", wikiRepoPath(owner, repo), wikiPageSegment(pageName))
-	_, err := a.rawJSON(ctx, http.MethodDelete, path, nil, nil)
+	path, err := forge.APIPath("repos", owner, repo, "wiki", "page", wikiPageName(pageName))
+	if err != nil {
+		return err
+	}
+	_, err = a.rawJSON(ctx, http.MethodDelete, path, nil, nil)
 	return err
 }

@@ -31,6 +31,12 @@ type PullRead struct {
 	Reviews []*model.PullReview
 	// ReviewsTruncated is true when there are more reviews than ReviewCap.
 	ReviewsTruncated bool
+	// ReviewsTotal is the number of the pull request's reviews, not only the
+	// ones held. It is valid only when ReviewsTotalKnown: when the reviews fit
+	// under the cap it is exact, and when they do not it is the server's total,
+	// which Forgejo may not report.
+	ReviewsTotal      int
+	ReviewsTotalKnown bool
 }
 
 // Read returns one pull request and, when opt asks for them, its discussion
@@ -59,13 +65,16 @@ func (s *Service) Read(ctx context.Context, in PR, opt ReadOptions) (PullRead, e
 	}
 
 	if opt.ReviewCap > 0 {
-		reviews, err := s.port.ListPullReviews(ctx, in.Owner, in.Repo, in.Index, Paging{Limit: opt.ReviewCap + 1})
+		page, err := s.port.ListPullReviews(ctx, in.Owner, in.Repo, in.Index, Paging{Limit: opt.ReviewCap + 1})
 		if err != nil {
 			return PullRead{}, fmt.Errorf("list pull reviews err: %w", err)
 		}
+		reviews := page.Reviews
+		read.ReviewsTotal, read.ReviewsTotalKnown = len(reviews), true
 		if len(reviews) > opt.ReviewCap {
 			read.ReviewsTruncated = true
 			reviews = reviews[:opt.ReviewCap]
+			read.ReviewsTotal, read.ReviewsTotalKnown = page.Total, page.TotalKnown
 		}
 		read.Reviews = reviews
 	}

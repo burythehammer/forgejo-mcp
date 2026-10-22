@@ -32,6 +32,21 @@ func (c catalog) ListOrgLabels(ctx context.Context, org string, p labelresolve.P
 	return c.port.ListOrgLabels(ctx, org, Paging{Page: p.Page, Limit: p.Limit})
 }
 
+// ErrOrgNotFound marks a label read whose organization Forgejo does not know. It
+// is the resolver's sentinel, so the resolver can read a user owner as having no
+// organization labels; the error keeps its message and its forge kind (see
+// AsOrgNotFound).
+var ErrOrgNotFound = labelresolve.ErrOrgNotFound
+
+// AsOrgNotFound marks err, a forge not-found, as ErrOrgNotFound.
+func AsOrgNotFound(err error) error { return orgNotFound{err} }
+
+type orgNotFound struct{ err error }
+
+func (e orgNotFound) Error() string        { return e.err.Error() }
+func (e orgNotFound) Unwrap() error        { return e.err }
+func (e orgNotFound) Is(target error) bool { return target == ErrOrgNotFound }
+
 func (c catalog) MaxResponseItems(ctx context.Context) (int, bool) {
 	return c.port.MaxResponseItems(ctx)
 }
@@ -151,7 +166,8 @@ func (s *Service) EditOrgLabel(ctx context.Context, org string, id int64, in Lab
 
 // DeleteOrgLabel deletes an organization label. Unless force is set, a label
 // that is in use in the organization's visible repositories is kept. That
-// count is best-effort and may under-count repositories the token cannot read.
+// count skips repositories the token cannot read; any other failed count
+// refuses the delete, since an unknown usage must not read as unused.
 func (s *Service) DeleteOrgLabel(ctx context.Context, org string, id int64, force bool) error {
 	if !force {
 		label, err := s.port.GetOrgLabel(ctx, org, id)
@@ -160,7 +176,7 @@ func (s *Service) DeleteOrgLabel(ctx context.Context, org string, id int64, forc
 		}
 		count, cerr := s.orgLabelUsage(ctx, org, label.Name)
 		if cerr != nil {
-			return fmt.Errorf("label %q in-use count failed (token may lack org-repo access); use delete_mode=force to override: %w", label.Name, cerr)
+			return fmt.Errorf("label %q in-use count failed, so the label was not deleted; use delete_mode=force to override: %w", label.Name, cerr)
 		}
 		if count > 0 {
 			return fmt.Errorf("label %q is used by %d issue(s)/PR(s) in visible repos (count excludes inaccessible repos); set delete_mode=force to delete anyway", label.Name, count)
@@ -219,9 +235,9 @@ func (s *Service) labelUsage(ctx context.Context, owner, repo, label string) (in
 }
 
 // orgLabelUsage counts, best-effort, the issues and pull requests in an
-// organization's visible repositories that carry the label. A repository whose
-// count fails adds nothing; a failure to list the repositories is returned with
-// the count so far.
+// organization's visible repositories that carry the label. A repository the
+// token cannot see adds nothing; any other count failure, or a failure to list
+// the repositories, is returned with the count so far.
 func (s *Service) orgLabelUsage(ctx context.Context, org, label string) (int, error) {
 	total := 0
 	for page := 1; ; page++ {
@@ -233,8 +249,18 @@ func (s *Service) orgLabelUsage(ctx context.Context, org, label string) (int, er
 			break
 		}
 		for _, name := range names {
-			n, _ := s.labelUsage(ctx, org, name, label)
-			total += n
+			n, err := s.port.CountIssuesLabelled(ctx, org, name, label)
+			var inaccessible *InaccessibleError
+			if errors.As(err, &inaccessible) {
+				continue
+			}
+			if err != nil {
+				return total, fmt.Errorf("repo %s/%s: label may be in use: %w", org, name, err)
+			}
+			if n == nil {
+				return total, fmt.Errorf("repo %s/%s: label may be in use: Forgejo reported no total", org, name)
+			}
+			total += *n
 		}
 	}
 	return total, nil
