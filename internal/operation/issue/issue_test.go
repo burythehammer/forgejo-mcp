@@ -435,11 +435,17 @@ var compactIssueKeys = []string{"number", "url", "title", "state", "labels", "as
 // and none of the body or the user object.
 func assertCompactIssue(t *testing.T, text string, notContain ...string) {
 	t.Helper()
+	assertCompactKeys(t, text, compactIssueKeys, notContain...)
+}
+
+// assertCompactKeys checks that a write result has exactly the wanted keys.
+func assertCompactKeys(t *testing.T, text string, want []string, notContain ...string) {
+	t.Helper()
 	keys := mcptest.EnvelopeKeys(t, text)
-	if len(keys) != len(compactIssueKeys) {
-		t.Fatalf("compact result has %d keys, want %d: %s", len(keys), len(compactIssueKeys), text)
+	if len(keys) != len(want) {
+		t.Fatalf("compact result has %d keys, want %d: %s", len(keys), len(want), text)
 	}
-	for _, k := range compactIssueKeys {
+	for _, k := range want {
 		if _, ok := keys[k]; !ok {
 			t.Fatalf("compact result misses %q: %s", k, text)
 		}
@@ -456,11 +462,13 @@ func TestWriteResults_CompactByDefault(t *testing.T) {
 	h, f := newFixture(t)
 	idx := float64(openIssue(t, f, "t"))
 
+	// A write that sent a body also reports the hash of the stored body.
+	withHash := append([]string{"body_sha256"}, compactIssueKeys...)
 	created := call(t, h.CreateIssueFn, map[string]any{"title": "fresh", "body": "CREATE-BODY", "assignees": "alice"})
-	assertCompactIssue(t, created, "CREATE-BODY", "@")
+	assertCompactKeys(t, created, withHash, "CREATE-BODY", "@")
 
 	updated := call(t, h.UpdateIssueFn, map[string]any{"index": idx, "title": "renamed", "body": "UPDATE-BODY"})
-	assertCompactIssue(t, updated, "UPDATE-BODY", "@")
+	assertCompactKeys(t, updated, withHash, "UPDATE-BODY", "@")
 
 	closed := call(t, h.IssueStateChangeFn, map[string]any{"index": idx, "state": "closed"})
 	assertCompactIssue(t, closed, "@")

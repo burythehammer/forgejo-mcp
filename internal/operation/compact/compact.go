@@ -60,6 +60,14 @@ type Issue struct {
 	IsPullRequest bool       `json:"is_pull_request"`
 }
 
+// IssueWrite is the compact result of create_issue and update_issue: the issue
+// shape plus BodySHA256, the hash of the body the server stored. It is set only
+// when the request sent a body, so a write without one stays small.
+type IssueWrite struct {
+	Issue
+	BodySHA256 string `json:"body_sha256,omitempty"`
+}
+
 // PullRequest is the compact result of a pull request write: the shared issue
 // core plus the head and base branch names.
 type PullRequest struct {
@@ -281,6 +289,19 @@ func render[M any, C any](m *M, err error, verbose bool, summarize func(*M) C) (
 // RenderIssue sends the result of an issue write.
 func RenderIssue(iss *model.Issue, err error, verbose bool) (*mcp.CallToolResult, error) {
 	return render(iss, err, verbose, OfIssue)
+}
+
+// RenderIssueWrite sends the result of create_issue or update_issue. bodySent
+// says whether the request carried a body; only then is the stored body hashed.
+// The hash is taken from the server's issue, so it reports what was stored.
+func RenderIssueWrite(iss *model.Issue, err error, verbose, bodySent bool) (*mcp.CallToolResult, error) {
+	return render(iss, err, verbose, func(i *model.Issue) IssueWrite {
+		w := IssueWrite{Issue: OfIssue(i)}
+		if bodySent {
+			w.BodySHA256 = BodySHA256(i.Body)
+		}
+		return w
+	})
 }
 
 // RenderPullRequest sends the result of a pull request write.

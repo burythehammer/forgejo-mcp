@@ -466,7 +466,7 @@ func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 			Owner: a.Owner, Repo: a.Repo, Title: a.Title, Body: a.Body, Ref: a.Ref,
 			Labels: a.Labels, Assignees: a.Assignees, Milestone: a.Milestone,
 		})
-		return compact.RenderIssue(iss, err, a.Verbose)
+		return compact.RenderIssueWrite(iss, err, a.Verbose, a.Body != "")
 	})
 }
 
@@ -484,7 +484,7 @@ func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 			Title:  a.Title, Body: a.Body, Assignee: a.Assignee, Assignees: a.Assignees, Ref: a.Ref,
 			Milestone: a.Milestone, DueDate: a.DueDate, ClearDueDate: a.ClearDueDate, SetLabels: a.SetLabels,
 		})
-		return compact.RenderIssue(iss, err, a.Verbose)
+		return compact.RenderIssueWrite(iss, err, a.Verbose, a.Body != "")
 	})
 }
 
