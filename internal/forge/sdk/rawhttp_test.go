@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -433,6 +435,85 @@ func TestDoRaw_AbsoluteURLPassThrough(t *testing.T) {
 	}
 	if c.path != "/attachments/abs-uuid" {
 		t.Fatalf("path: %s", c.path)
+	}
+}
+
+// TestDoRaw_RefusesForeignOriginWithoutSendingToken: a download URL on another
+// host, port or scheme, or hiding the real host behind userinfo, is refused
+// before any request leaves, so the token never reaches the foreign host.
+func TestDoRaw_RefusesForeignOriginWithoutSendingToken(t *testing.T) {
+	var foreignHits atomic.Int32
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		foreignHits.Add(1)
+		_, _ = w.Write([]byte("leaked"))
+	}))
+	t.Cleanup(foreign.Close)
+	srv, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+		_, _ = w.Write([]byte("ok"))
+	})
+	port := srv.URL[strings.LastIndex(srv.URL, ":")+1:]
+
+	cases := []struct {
+		name string
+		url  string
+	}{
+		{"other host, same port", "http://localhost:" + port + "/attachments/x"},
+		{"same host, other port", foreign.URL + "/attachments/x"},
+		{"other scheme", "https://127.0.0.1:" + port + "/attachments/x"},
+		{"userinfo trick", "http://127.0.0.1:" + port + "@evil.example/attachments/x"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := foreignHits.Load()
+			c.method = ""
+			_, _, err := c.rc.doRaw(context.Background(), tc.url)
+			if !errors.Is(err, forge.ErrForeignOrigin) {
+				t.Fatalf("got %v, want forge.ErrForeignOrigin", err)
+			}
+			if strings.Contains(err.Error(), "/attachments/x") {
+				t.Fatalf("refusal names the full URL: %v", err)
+			}
+			if c.method != "" {
+				t.Fatalf("the configured Forgejo received a request: %s", c.method)
+			}
+			if foreignHits.Load() != before {
+				t.Fatalf("the foreign host received a request")
+			}
+		})
+	}
+}
+
+// TestDoRaw_CrossHostRedirectDropsToken pins the redirect policy: the origin
+// check covers the first request only, and a redirect to another port on the
+// same host (which net/http alone would not treat as cross-host) drops the token.
+func TestDoRaw_CrossHostRedirectDropsToken(t *testing.T) {
+	var mu sync.Mutex
+	var foreignAuth string
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		foreignAuth = r.Header.Get("Authorization")
+		mu.Unlock()
+		_, _ = w.Write([]byte("moved"))
+	}))
+	t.Cleanup(foreign.Close)
+	_, c := newCaptureServer(t, func(w http.ResponseWriter, r *http.Request, _ *capturedReq) {
+		if r.URL.Path == "/attachments/redirect" {
+			http.Redirect(w, r, foreign.URL+"/attachments/elsewhere", http.StatusFound)
+			return
+		}
+		_, _ = w.Write([]byte("local"))
+	})
+	body, _, err := c.rc.doRaw(context.Background(), "/attachments/redirect")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if string(body) != "moved" {
+		t.Fatalf("body: %q", body)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if foreignAuth != "" {
+		t.Fatalf("token reached the redirect target: %q", foreignAuth)
 	}
 }
 

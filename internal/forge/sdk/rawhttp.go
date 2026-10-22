@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"strings"
 	"time"
 
@@ -60,7 +61,24 @@ type rawClient struct {
 const defaultUserAgent = "forgejo-mcp/"
 
 // sharedHTTPClient is shared so keep-alives work across tool calls.
-var sharedHTTPClient = &http.Client{Timeout: 60 * time.Second}
+var sharedHTTPClient = &http.Client{Timeout: 60 * time.Second, CheckRedirect: redirectPolicy}
+
+// maxRedirects is net/http's default redirect limit, kept unchanged.
+const maxRedirects = 10
+
+// redirectPolicy follows redirects as net/http does, but drops the credential
+// on any hop that leaves the first request's origin. net/http only drops
+// Authorization when the host name changes, so without this a redirect to
+// another port or scheme on the same host would still carry the token.
+func redirectPolicy(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return errors.New("stopped after 10 redirects")
+	}
+	if forge.CheckOrigin(via[0].URL.String(), req.URL.String()) != nil {
+		req.Header.Del("Authorization")
+	}
+	return nil
+}
 
 func newRawClient(base, token, ua string) *rawClient {
 	if ua == "" {
@@ -95,15 +113,20 @@ func (r *rawClient) resolveURL(pathOrURL string) (string, error) {
 }
 
 // resolveSameOriginURL is like resolveURL but for asset/download URLs that
-// live outside the /api/v1 prefix (e.g. /attachments/{uuid}). Absolute URLs
-// pass through; relative URLs hang off the Forgejo URL with no /api/v1.
+// live outside the /api/v1 prefix (e.g. /attachments/{uuid}). An absolute URL
+// is returned only when it is on the configured Forgejo origin (forge.CheckOrigin),
+// so the credential is never sent elsewhere; relative URLs hang off the
+// Forgejo URL with no /api/v1.
 func (r *rawClient) resolveSameOriginURL(pathOrURL string) (string, error) {
-	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
-		return pathOrURL, nil
-	}
 	base := strings.TrimRight(r.base, "/")
 	if base == "" {
 		return "", errors.New("the Forgejo URL is empty; the raw-HTTP client needs a configured base URL")
+	}
+	if err := forge.CheckOrigin(base, pathOrURL); err != nil {
+		return "", err
+	}
+	if u, err := url.Parse(pathOrURL); err == nil && u.IsAbs() {
+		return pathOrURL, nil
 	}
 	if !strings.HasPrefix(pathOrURL, "/") {
 		pathOrURL = "/" + pathOrURL
