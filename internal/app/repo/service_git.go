@@ -4,6 +4,7 @@ package repo
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -104,12 +105,49 @@ func (s *GitService) GetTree(ctx context.Context, owner, repo, ref string, q Tre
 	return out, nil
 }
 
-// GetFileMetadata returns a file's entry with its content in Base64.
-func (s *GitService) GetFileMetadata(ctx context.Context, owner, repo, ref, path string) (*model.ContentsResponse, error) {
+// InlineFileBytes is the most text one file read returns. A read whose text
+// would be larger is refused, with a hint to ask for a narrower line range, so
+// no single file read floods the caller's context.
+const InlineFileBytes = 1 << 20
+
+// tooLarge is the refusal for a file read whose text is over InlineFileBytes.
+func tooLarge(size int, ranged bool) error {
+	if ranged {
+		return fmt.Errorf("the requested lines are %d bytes, over the %d-byte inline limit; narrow the range with start_line and end_line", size, InlineFileBytes)
+	}
+	return fmt.Errorf("file is %d bytes, over the %d-byte inline limit; read a line range with start_line and end_line", size, InlineFileBytes)
+}
+
+// GetFileMetadata returns a file's entry with its content in Base64. A line
+// range replaces the content with the Base64 of that slice and keeps the
+// metadata, so a large file's section comes back with its entry.
+func (s *GitService) GetFileMetadata(ctx context.Context, owner, repo, ref, path string, lines LineRange) (*model.ContentsResponse, error) {
 	out, err := s.port.GetContents(ctx, owner, repo, ref, path)
 	if err != nil {
 		return nil, fmt.Errorf("get file err: %w", err)
 	}
+	if out == nil || out.Content == nil {
+		return out, nil
+	}
+	if lines.Start == 0 && lines.End == 0 {
+		if out.Size > InlineFileBytes {
+			return nil, tooLarge(int(out.Size), false)
+		}
+		return out, nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(*out.Content)
+	if err != nil {
+		return nil, fmt.Errorf("decode file content err: %w", err)
+	}
+	part, err := SliceLines(string(raw), lines.Start, lines.End)
+	if err != nil {
+		return nil, err
+	}
+	if len(part) > InlineFileBytes {
+		return nil, tooLarge(len(part), true)
+	}
+	enc := base64.StdEncoding.EncodeToString([]byte(part))
+	out.Content = &enc
 	return out, nil
 }
 
@@ -118,16 +156,26 @@ func (s *GitService) GetFileMetadata(ctx context.Context, owner, repo, ref, path
 type LineRange struct{ Start, End int }
 
 // GetFileText returns a file as plain text, sliced to lines when a range is
-// given.
+// given. A whole file, or a range, whose text is over InlineFileBytes is refused.
 func (s *GitService) GetFileText(ctx context.Context, owner, repo, ref, path string, lines LineRange) (string, error) {
 	raw, err := s.port.GetFile(ctx, owner, repo, ref, path)
 	if err != nil {
 		return "", fmt.Errorf("get file err: %w", err)
 	}
 	if lines.Start == 0 && lines.End == 0 {
+		if len(raw) > InlineFileBytes {
+			return "", tooLarge(len(raw), false)
+		}
 		return string(raw), nil
 	}
-	return SliceLines(string(raw), lines.Start, lines.End)
+	part, err := SliceLines(string(raw), lines.Start, lines.End)
+	if err != nil {
+		return "", err
+	}
+	if len(part) > InlineFileBytes {
+		return "", tooLarge(len(part), true)
+	}
+	return part, nil
 }
 
 // SliceLines returns the 1-indexed inclusive [start, end] line range

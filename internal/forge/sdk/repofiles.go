@@ -4,7 +4,12 @@ package sdk
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 
@@ -13,14 +18,49 @@ import (
 
 var _ forge.RepoFiles = (*Adapter)(nil)
 
+// contentsBodyCap bounds the JSON body of one file's contents response. Its
+// Base64 content is 4/3 of the file, and the rest is a fixed envelope.
+const contentsBodyCap = forge.MaxFileSourceBytes/3*4 + 64<<10
+
+// GetFile reads a file's raw bytes. A file over forge.MaxFileSourceBytes is
+// refused with forge.ErrPayloadTooLarge rather than read whole.
 func (a *Adapter) GetFile(_ context.Context, owner, repo, ref, path string) ([]byte, error) {
-	b, resp, err := a.client.GetFile(owner, repo, ref, path)
-	return b, statusErr(resp, err)
+	rc, resp, err := a.client.GetFileReader(owner, repo, ref, path)
+	if err != nil || rc == nil {
+		// On a server failure the SDK still returns a reader over the error body.
+		if rc != nil {
+			_ = rc.Close()
+		}
+		return nil, statusErr(resp, err)
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(io.LimitReader(rc, forge.MaxFileSourceBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read file body: %w", err)
+	}
+	if int64(len(b)) > forge.MaxFileSourceBytes {
+		return nil, forge.ErrPayloadTooLarge
+	}
+	return b, nil
 }
 
-func (a *Adapter) GetContents(_ context.Context, owner, repo, ref, path string) (*forgejo_sdk.ContentsResponse, error) {
-	c, resp, err := a.client.GetContents(owner, repo, ref, path)
-	return c, statusErr(resp, err)
+// GetContents returns a file's metadata and Base64 content. The body is read
+// through a size cap, and its path is built with forge.APIPath segment by
+// segment, so the slashes of a nested file path are kept.
+func (a *Adapter) GetContents(ctx context.Context, owner, repo, ref, path string) (*forgejo_sdk.ContentsResponse, error) {
+	segs := []any{"repos", owner, repo, "contents"}
+	for _, s := range strings.Split(strings.TrimPrefix(path, "/"), "/") {
+		segs = append(segs, s)
+	}
+	resp, err := a.raw.doAPIRaw(ctx, forge.APIPath(segs...)+"?ref="+url.QueryEscape(ref), "application/json", "", contentsBodyCap)
+	if err != nil {
+		return nil, err
+	}
+	var c forgejo_sdk.ContentsResponse
+	if err := json.Unmarshal(resp.Body, &c); err != nil {
+		return nil, fmt.Errorf("expect file, got directory")
+	}
+	return &c, nil
 }
 
 func (a *Adapter) ListContents(_ context.Context, owner, repo, ref, path string) ([]*forgejo_sdk.ContentsResponse, error) {
