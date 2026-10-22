@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -231,7 +232,7 @@ var goldenCases = []goldenCase{
 	{name: "membership_missing_user", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "octo-org", "user": nil}},
 	{name: "membership_port_error", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "octo-org", "user": "bob"}, fails: map[string]error{"CheckOrgMembership": errBoom}},
 	// A missing org is the shared not-found outcome, not "not a member".
-	{name: "membership_unknown_org", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "nothing", "user": "octo"}, fails: map[string]error{"CheckOrgMembership": &forge.StatusError{StatusCode: 404, Err: errors.New("organisation nothing not found")}}},
+	{name: "membership_unknown_org", tool: CheckOrgMembershipToolName, args: map[string]any{"org": "nothing", "user": "octo"}, fails: map[string]error{"CheckOrgMembership": &forge.StatusError{StatusCode: http.StatusNotFound, Err: errors.New("organisation nothing not found")}}},
 
 	// remove_org_member
 	{name: "remove_member_ok", tool: RemoveOrgMemberToolName, args: map[string]any{"org": "octo-org", "user": "bob"}},
