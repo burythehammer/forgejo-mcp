@@ -126,7 +126,7 @@ func (s *AdminService) GetCommitStatuses(ctx context.Context, owner, repo, sha s
 		return list.Bounded[model.StatusItem]{}, err
 	}
 	c := ceiling(ctx, s.port)
-	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultStatusesLimit, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultStatusesLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[model.StatusItem], error) {
 			res, err := s.port.ListCommitStatuses(ctx, owner, repo, sha, AdminPaging(q))
 			if err != nil {

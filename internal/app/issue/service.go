@@ -99,7 +99,7 @@ func (s *Service) List(ctx context.Context, in ListInput) (list.Bounded[*model.I
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page, err := list.Run(ctx, list.Normalize(list.Paging(in.Paging), list.DefaultLimit(defaultLimit, c)), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(in.Paging), defaultLimit), c,
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
 			issues, err := s.port.ListIssues(ctx, in.Owner, in.Repo, IssueList{
 				State: in.State, Type: in.Type, Sort: in.Sort,
@@ -128,8 +128,7 @@ func runPage[T any](ctx context.Context, src list.CeilingSource, p list.Paging, 
 ) (list.Bounded[T], error) {
 	ceiling, known := src.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	p = list.Normalize(p, list.DefaultLimit(def, c))
-	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[T], error) {
+	return list.Run(ctx, list.NewRequest(p, def), c, func(ctx context.Context, q list.Paging) (list.Batch[T], error) {
 		got, err := fetch(ctx, q)
 		return list.Batch[T]{Items: got}, err
 	})
@@ -174,7 +173,7 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (list.Bounded[*mod
 		state = "open"
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
-	page, err := list.Run(ctx, list.Normalize(list.Paging{Page: in.Page, Limit: in.Limit}, list.DefaultLimit(defaultLimit, list.Ceiling{Max: ceiling, Known: known})),
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit),
 		list.Ceiling{Max: ceiling, Known: known},
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
 			issues, total, err := s.port.SearchIssues(ctx, SearchQuery{

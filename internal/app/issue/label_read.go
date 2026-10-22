@@ -31,7 +31,7 @@ type LabelPage struct {
 // repository's own rows only, because the organization's labels are not paged
 // here. Each label carries its scope.
 func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (list.Bounded[model.ScopedLabel], error) {
-	bounded, err := list.Window(ctx, s.port, list.Paging(in.Paging), labelsDefaultLimit,
+	bounded, err := list.Window(ctx, s.port, list.NewRequest(list.Paging(in.Paging), labelsDefaultLimit),
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Label], error) {
 			got, err := s.port.ListRepoLabelsPage(ctx, in.Owner, in.Repo, Paging(p))
 			if err != nil {
@@ -60,7 +60,7 @@ func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (list.
 // forgejo://org/{org}/labels resource. Each label is tagged with scope "org". A
 // limit below 1 takes the default of 100; the page is passed on as given.
 func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (list.Bounded[model.ScopedLabel], error) {
-	bounded, err := list.Window(ctx, s.port, list.Paging(p), labelsDefaultLimit,
+	bounded, err := list.Window(ctx, s.port, list.NewRequest(list.Paging(p), labelsDefaultLimit),
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Label], error) {
 			got, err := s.port.ListOrgLabelsPage(ctx, org, Paging(q))
 			if err != nil {

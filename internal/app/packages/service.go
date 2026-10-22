@@ -46,8 +46,7 @@ const defaultLimit = 30
 func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.PackageView], error) {
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
-	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageView], error) {
+	return list.Run(ctx, list.Request{Page: r.Page, Limit: r.Limit, Def: defaultLimit}, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageView], error) {
 		got, err := s.port.ListPackages(ctx, r.Owner, ListQuery{Type: r.Type, Query: r.Query, Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[model.PackageView]{}, fmt.Errorf("list packages: %w", err)
@@ -87,8 +86,7 @@ func (s *Service) Delete(ctx context.Context, c Coords) (model.DeletePackageResu
 func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (list.Bounded[model.PackageFileView], error) {
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
-	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageFileView], error) {
+	return list.Run(ctx, list.Request{Page: r.Page, Limit: r.Limit, Def: defaultLimit}, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageFileView], error) {
 		listed, err := s.port.ListPackageFiles(ctx, r.Owner, r.Type, r.Name, r.Version)
 		if err != nil {
 			return list.Batch[model.PackageFileView]{}, fmt.Errorf("list package files: %w", err)

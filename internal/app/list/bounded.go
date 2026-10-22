@@ -12,6 +12,9 @@ type Bounded[T any] struct {
 	// Page and Limit are the paging the rows were read with.
 	Page  int
 	Limit int
+	// LimitRequested is the limit the caller asked for (or the tool's default)
+	// when the applied Limit differs from it; 0 when they agree.
+	LimitRequested int
 	// Count is the number of rows in Items.
 	Count int
 	// HasNext reports that more rows follow this page.
@@ -29,12 +32,13 @@ func Map[T, U any](b Bounded[T], f func(T) U) Bounded[U] {
 		items = append(items, f(it))
 	}
 	return Bounded[U]{
-		Items:   items,
-		Page:    b.Page,
-		Limit:   b.Limit,
-		Count:   len(items),
-		HasNext: b.HasNext,
-		Total:   b.Total,
+		Items:          items,
+		Page:           b.Page,
+		Limit:          b.Limit,
+		LimitRequested: b.LimitRequested,
+		Count:          len(items),
+		HasNext:        b.HasNext,
+		Total:          b.Total,
 	}
 }
 
@@ -53,13 +57,18 @@ func (b Bounded[T]) Extend(more ...T) Bounded[T] {
 
 // newBounded is the only constructor of Bounded. It is unexported so that a
 // use case cannot bypass Run, Window or Cut.
-func newBounded[T any](items []T, p Paging, total *int, hasNext bool) Bounded[T] {
+func newBounded[T any](items []T, p Paging, requested int, total *int, hasNext bool) Bounded[T] {
+	var lr int
+	if requested >= 1 && requested != p.Limit {
+		lr = requested
+	}
 	return Bounded[T]{
-		Items:   items,
-		Page:    p.Page,
-		Limit:   p.Limit,
-		Count:   len(items),
-		HasNext: hasNext,
-		Total:   total,
+		Items:          items,
+		Page:           p.Page,
+		Limit:          p.Limit,
+		LimitRequested: lr,
+		Count:          len(items),
+		HasNext:        hasNext,
+		Total:          total,
 	}
 }

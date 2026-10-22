@@ -65,7 +65,7 @@ func (s *Service) IssueTimes(ctx context.Context, in IssueTimesInput) (model.Tra
 		return model.TrackedTimePage{}, err
 	}
 	c := ceiling(ctx, p)
-	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
 			times, err := p.ListIssueTrackedTimes(ctx, in.Owner, in.Repo, in.Index, TimeQuery{Since: since, Before: before, Page: q.Page, Limit: q.Limit})
 			if err != nil {
@@ -95,7 +95,7 @@ func (s *Service) RepoTimes(ctx context.Context, in RepoTimesInput) (model.Track
 		return model.TrackedTimePage{}, err
 	}
 	c := ceiling(ctx, p)
-	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
 			times, err := p.ListRepoTrackedTimes(ctx, in.Owner, in.Repo, TimeQuery{Since: since, Before: before, User: in.User, Page: q.Page, Limit: q.Limit})
 			if err != nil {
@@ -114,12 +114,6 @@ func (s *Service) RepoTimes(ctx context.Context, in RepoTimesInput) (model.Track
 func ceiling(ctx context.Context, src list.CeilingSource) list.Ceiling {
 	max, known := src.MaxResponseItems(ctx)
 	return list.Ceiling{Max: max, Known: known}
-}
-
-// pageOf is the paging a tracked-time list fetches with: a page below 1 is page
-// 1, and a limit below 1 takes defaultLimit, lowered to a known ceiling.
-func pageOf(p list.Paging, c list.Ceiling) list.Paging {
-	return list.Given(list.Normalize(p, 0), defaultLimit, c)
 }
 
 // timePage renders one fetched page; an empty page is an empty list, not null.
@@ -144,7 +138,7 @@ func (s *Service) MyTimes(ctx context.Context, in MyTimesInput) (model.TrackedTi
 		return model.TrackedTimePage{}, err
 	}
 	c := ceiling(ctx, p)
-	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
 			all, err := p.ListMyTrackedTimes(ctx)
 			if err != nil {
@@ -257,7 +251,7 @@ func (s *Service) MyStopwatches(ctx context.Context, in MyStopwatchesInput) (mod
 		return model.StopWatchPage{}, err
 	}
 	c := ceiling(ctx, p)
-	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.StopWatch], error) {
 			all, err := p.ListMyStopwatches(ctx)
 			if err != nil {

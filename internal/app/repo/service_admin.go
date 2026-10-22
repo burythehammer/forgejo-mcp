@@ -100,7 +100,7 @@ func (s *AdminService) ForkRepo(ctx context.Context, in ForkInput) error {
 // module's probe for the next page.
 func (s *AdminService) ListMyRepos(ctx context.Context, p AdminPaging) (list.Bounded[*model.Repository], error) {
 	c := ceiling(ctx, s.port)
-	return list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
+	return list.Run(ctx, list.NewRequest(list.Paging(p), defaultListLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Repository], error) {
 			repos, err := s.port.ListMyRepos(ctx, AdminPaging(q))
 			if err != nil {
@@ -149,7 +149,7 @@ func (s *AdminService) ListRepoTopics(ctx context.Context, owner, repo string, p
 		return list.Bounded[string]{}, errors.New("owner and repo are required")
 	}
 	c := ceiling(ctx, s.port)
-	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultListLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[string], error) {
 			topics, err := s.port.ListRepoTopics(ctx, owner, repo, AdminPaging(q))
 			if err != nil {

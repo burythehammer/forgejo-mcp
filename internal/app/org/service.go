@@ -84,7 +84,7 @@ func (s *Service) MyOrgs(ctx context.Context, pg Paging) (list.Bounded[*model.Or
 	if err != nil {
 		return list.Bounded[*model.Organization]{}, err
 	}
-	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
+	page, err := list.FetchPage(ctx, p, list.NewRequest(pg, defaultLimit), func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
 		orgs, err := p.ListMyOrgs(ctx, q)
 		if err != nil {
 			return nil, fmt.Errorf("list my orgs err: %w", err)
@@ -103,7 +103,7 @@ func (s *Service) UserOrgs(ctx context.Context, user string, pg Paging) (list.Bo
 	if err != nil {
 		return list.Bounded[*model.Organization]{}, err
 	}
-	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
+	page, err := list.FetchPage(ctx, p, list.NewRequest(pg, defaultLimit), func(ctx context.Context, q list.Paging) ([]*model.Organization, error) {
 		orgs, err := p.ListUserOrgs(ctx, user, q)
 		if err != nil {
 			return nil, fmt.Errorf("list user orgs err: %w", err)
@@ -122,7 +122,7 @@ func (s *Service) Members(ctx context.Context, org string, pg Paging) (list.Boun
 	if err != nil {
 		return list.Bounded[*model.User]{}, err
 	}
-	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.User, error) {
+	page, err := list.FetchPage(ctx, p, list.NewRequest(pg, defaultLimit), func(ctx context.Context, q list.Paging) ([]*model.User, error) {
 		members, err := p.ListOrgMembers(ctx, org, q)
 		if err != nil {
 			return nil, fmt.Errorf("list org members err: %w", err)
@@ -166,7 +166,7 @@ func (s *Service) Teams(ctx context.Context, org string, pg Paging) (list.Bounde
 	if err != nil {
 		return list.Bounded[*model.Team]{}, err
 	}
-	page, err := list.FetchPage(ctx, p, pg, defaultLimit, func(ctx context.Context, q list.Paging) ([]*model.Team, error) {
+	page, err := list.FetchPage(ctx, p, list.NewRequest(pg, defaultLimit), func(ctx context.Context, q list.Paging) ([]*model.Team, error) {
 		teams, err := p.ListOrgTeams(ctx, org, q)
 		if err != nil {
 			return nil, fmt.Errorf("list org teams err: %w", err)

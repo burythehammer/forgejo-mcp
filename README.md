@@ -302,6 +302,8 @@ List all my repositories
 
 ## Available Tools
 
+Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` and, when the server reports one, `total_count`. When the applied `limit` differs from the one asked for or defaulted to (for example a default lowered to the instance maximum), the envelope also carries `limit_requested`.
+
 | Tool | Description |
 |------|-------------|
 | **User** | |

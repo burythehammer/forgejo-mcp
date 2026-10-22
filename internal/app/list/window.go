@@ -14,14 +14,14 @@ type CeilingSource interface {
 // passed on as given, so a caller that needs page 0 to reach the server keeps
 // it; a limit below 1 takes def, lowered to a known ceiling. The fetch's More
 // report becomes HasNext, and no probe is made.
-func Window[T any](ctx context.Context, src CeilingSource, pg Paging, def int,
+func Window[T any](ctx context.Context, src CeilingSource, req Request,
 	fetch Fetch[T],
 ) (Bounded[T], error) {
 	ceiling, known := src.MaxResponseItems(ctx)
 	c := Ceiling{Max: ceiling, Known: known}
-	p := pg
+	p := Paging{Page: req.Page, Limit: req.Limit}
 	if p.Limit < 1 {
-		p.Limit = DefaultLimit(def, c)
+		p.Limit = DefaultLimit(req.Def, c)
 	}
 	if err := check(p, c); err != nil {
 		return Bounded[T]{}, err
@@ -30,7 +30,7 @@ func Window[T any](ctx context.Context, src CeilingSource, pg Paging, def int,
 	if err != nil {
 		return Bounded[T]{}, err
 	}
-	return newBounded(b.Items, p, b.Total, b.More), nil
+	return newBounded(b.Items, p, req.requested(), b.Total, b.More), nil
 }
 
 // Cut returns the rows of all that page p names, with whether rows follow them.
@@ -46,7 +46,7 @@ func Cut[T any](all []T, p Paging) Bounded[T] {
 			end = start + p.Limit
 		}
 	}
-	return newBounded(all[start:end], p, Reported(len(all), true), end < len(all))
+	return newBounded(all[start:end], p, p.Limit, Reported(len(all), true), end < len(all))
 }
 
 // Start is the index of the first row of page p in a list of n rows, clamped

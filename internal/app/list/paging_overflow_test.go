@@ -38,7 +38,7 @@ func TestRun_HugePageDoesNotReportNextFromAWrappedOffset(t *testing.T) {
 	t.Parallel()
 	total := 5
 	c := Ceiling{}
-	page, err := Run(context.Background(), Paging{Page: 1<<61 + 1, Limit: 4}, c,
+	page, err := Run(context.Background(), Request{Page: 1<<61 + 1, Limit: 4}, c,
 		func(context.Context, Paging) (Batch[int], error) {
 			return Batch[int]{Items: nil, Total: &total}, nil
 		})

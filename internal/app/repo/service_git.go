@@ -24,7 +24,7 @@ func NewGitService(p GitPort) *GitService { return &GitService{port: p} }
 // ListBranches returns one page of a repository's branches with its next marker.
 func (s *GitService) ListBranches(ctx context.Context, owner, repo string, p GitPage) (list.Bounded[*model.Branch], error) {
 	c := ceiling(ctx, s.port)
-	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultListLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Branch], error) {
 			out, err := s.port.ListBranches(ctx, owner, repo, GitPage(q))
 			if err != nil {
@@ -72,7 +72,7 @@ func (s *GitService) DeleteBranch(ctx context.Context, owner, repo, branch strin
 // its next marker.
 func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q ListCommitsInput) (list.Bounded[*model.Commit], error) {
 	c := ceiling(ctx, s.port)
-	page, err := list.Run(ctx, list.Given(list.Paging(q.Page), defaultListLimit, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(q.Page), defaultListLimit), c,
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Commit], error) {
 			in := q
 			in.Page = GitPage(p)
@@ -94,7 +94,7 @@ func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q List
 // decides whether to show it, since Forgejo does not report one.
 func (s *GitService) ListContents(ctx context.Context, owner, repo, ref, path string, p GitPage) (list.Bounded[*model.ContentsResponse], error) {
 	c := ceiling(ctx, s.port)
-	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultListLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.ContentsResponse], error) {
 			all, err := s.port.ListContents(ctx, owner, repo, ref, path)
 			if err != nil {
@@ -117,7 +117,7 @@ const defaultTreeLimit = 1000
 // Forgejo reports its own truncation of the tree, so has_next comes from that
 // report and no probe is made; the grand total is the tree's entry count.
 func (s *GitService) GetTree(ctx context.Context, owner, repo, ref string, q TreeInput) (list.Bounded[model.GitEntry], error) {
-	return list.Window(ctx, s.port, list.Paging(q.Page), defaultTreeLimit,
+	return list.Window(ctx, s.port, list.NewRequest(list.Paging(q.Page), defaultTreeLimit),
 		func(ctx context.Context, p list.Paging) (list.Batch[model.GitEntry], error) {
 			out, err := s.port.GetTree(ctx, owner, repo, ref, TreeInput{Recursive: q.Recursive, Page: GitPage(p)})
 			if err != nil {

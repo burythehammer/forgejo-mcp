@@ -32,7 +32,7 @@ type ListQuery struct {
 func (s *Service) ListReleases(ctx context.Context, owner, repo string, q ListQuery) (list.Bounded[*model.Release], error) {
 	ceiling, known := s.p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page, err := list.Run(ctx, list.Normalize(list.Paging(q.Paging), list.DefaultLimit(defaultLimit, c)), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(q.Paging), defaultLimit), c,
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Release], error) {
 			got, err := s.p.ListReleases(ctx, owner, repo, Paging(p))
 			if err != nil {
@@ -154,7 +154,7 @@ func (s *Service) DeleteReleaseByTag(ctx context.Context, owner, repo, tag strin
 func (s *Service) ListAttachments(ctx context.Context, owner, repo string, releaseID int64, p Paging) (list.Bounded[*model.Attachment], error) {
 	ceiling, known := s.p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page, err := list.Run(ctx, list.Normalize(list.Paging(p), list.DefaultLimit(defaultLimit, c)), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Attachment], error) {
 			all, err := s.p.ListAttachments(ctx, owner, repo, releaseID)
 			if err != nil {

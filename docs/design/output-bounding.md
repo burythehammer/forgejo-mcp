@@ -98,6 +98,14 @@ absent is a promise the tool cannot keep, and a mock that injects the header
 proves only the plumbing, not the availability. Check the upstream handler
 (or a live response) before adding the field to a new tool.
 
+**`limit_requested`:** `limit` is the limit actually applied. When that differs
+from what the agent asked for, or from the tool's default (a default lowered to
+the instance's pagination ceiling), the envelope also carries `limit_requested`
+with the asked-for or default value. It is omitted when the two agree, so it
+appears only when the agent would otherwise be surprised by a smaller page.
+`list.Run`, `list.Window` and `list.FetchPage` take a `list.Request` (raw page,
+raw limit, default) so the module sees the request.
+
 Envelope `total_count` always means the same thing: the grand total the server
 reports for the whole query, not the size of the payload in hand. It usually
 arrives in the `X-Total-Count` header and is then a `*int` omitted when the
