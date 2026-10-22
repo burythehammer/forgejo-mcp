@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strconv"
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
@@ -263,25 +262,8 @@ func clampToCeiling(ctx context.Context, src apppissue.Port, limit int) int {
 	return limit
 }
 
-// pageLimit extracts page and limit from resource URI query params with
-// EmbeddedListCap as the ceiling for limit. Malformed or absent values
-// fall back to page=1, limit=EmbeddedListCap.
+// pageLimit extracts page and limit from resource URI query params; see
+// resource.PageLimit.
 func pageLimit(req mcp.ReadResourceRequest) (page, limit int) {
-	page = 1
-	limit = resource.EmbeddedListCap
-	u, err := url.Parse(req.Params.URI)
-	if err != nil {
-		return page, limit
-	}
-	q := u.Query()
-	if v, err := strconv.Atoi(q.Get("page")); err == nil && v >= 1 {
-		page = v
-	}
-	if v, err := strconv.Atoi(q.Get("limit")); err == nil && v >= 1 {
-		limit = v
-		if limit > resource.EmbeddedListCap {
-			limit = resource.EmbeddedListCap
-		}
-	}
-	return page, limit
+	return resource.PageLimit(req)
 }
