@@ -107,12 +107,12 @@ func TestReadCommitStatuses_AggregateState(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			read, err := s.ReadCommitStatuses(context.Background(), readOwner, readRepo, readSHA, 1, 31)
+			sum, err := s.CommitStatusSummary(context.Background(), readOwner, readRepo, readSHA)
 			if err != nil {
-				t.Fatalf("ReadCommitStatuses: %v", err)
+				t.Fatalf("CommitStatusSummary: %v", err)
 			}
-			if read.State != tc.want {
-				t.Fatalf("state = %q, want %q", read.State, tc.want)
+			if sum.State != tc.want {
+				t.Fatalf("state = %q, want %q", sum.State, tc.want)
 			}
 		})
 	}
@@ -140,6 +140,63 @@ func TestReadCommitStatuses_PageAndTotal(t *testing.T) {
 	}
 	if read.SHA != readSHA || read.Page != 1 || read.Limit != 31 {
 		t.Fatalf("envelope = sha %q page %d limit %d", read.SHA, read.Page, read.Limit)
+	}
+}
+
+func TestCommitStatusSummary_FailureBeyondFirstPage(t *testing.T) {
+	t.Parallel()
+	s, f := readFixture(t)
+	seedCommit(t, f, readSHA, "msg")
+	for i := 0; i < 40; i++ {
+		st := "success"
+		if i == 34 { // the 35th status, past the first page of 31
+			st = "failure"
+		}
+		if err := f.AddCommitStatusState(readOwner, readRepo, readSHA, fmt.Sprint("ci/", i), st, "d"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sum, err := s.CommitStatusSummary(context.Background(), readOwner, readRepo, readSHA)
+	if err != nil {
+		t.Fatalf("CommitStatusSummary: %v", err)
+	}
+	if sum.State != "failure" {
+		t.Fatalf("state = %q, want failure (the 35th status)", sum.State)
+	}
+	if sum.TotalCount != 40 || len(sum.Statuses) != 40 {
+		t.Fatalf("total = %d, statuses = %d, want 40 and 40", sum.TotalCount, len(sum.Statuses))
+	}
+	if !sum.Complete {
+		t.Fatal("complete = false, want true when every status was read")
+	}
+}
+
+func TestCommitStatusSummary_TooLargeToReadIsUnknown(t *testing.T) {
+	t.Parallel()
+	s, f := readFixture(t)
+	seedCommit(t, f, readSHA, "msg")
+	// One more than the read ceiling (20 pages of 50): every status is success,
+	// but the read cannot see them all, so no state may be claimed.
+	const total = 1001
+	for i := 0; i < total; i++ {
+		if err := f.AddCommitStatusState(readOwner, readRepo, readSHA, fmt.Sprint("ci/", i), "success", "d"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sum, err := s.CommitStatusSummary(context.Background(), readOwner, readRepo, readSHA)
+	if err != nil {
+		t.Fatalf("CommitStatusSummary: %v", err)
+	}
+	if sum.State != "unknown" {
+		t.Fatalf("state = %q, want unknown when the statuses cannot all be read", sum.State)
+	}
+	if sum.Complete {
+		t.Fatal("complete = true, want false")
+	}
+	if sum.TotalCount != total {
+		t.Fatalf("total = %d, want the real total %d", sum.TotalCount, total)
 	}
 }
 
