@@ -378,6 +378,11 @@ var goldenCases = []goldenCase{
 	{name: "get_issue_fractional_index", tool: GetIssueByIndexToolName, args: map[string]any{"index": 5.5}},
 	{name: "get_issue_missing_required", tool: GetIssueByIndexToolName, args: map[string]any{"owner": nil, "repo": nil}},
 	{name: "get_issue_port_error", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7)}, stub: failing("GetIssue", errBoom)},
+	// The golden stub's index 7 is a pull request, so type=issues refuses it and
+	// type=pulls accepts it.
+	{name: "get_issue_type_issues_refuses_pull", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "type": "issues"}},
+	{name: "get_issue_type_pulls_accepts_pull", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "type": "pulls"}},
+	{name: "get_issue_type_unknown", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "type": "issue"}},
 
 	// list_repo_issues
 	{name: "list_issues_defaults", tool: ListRepoIssuesToolName},

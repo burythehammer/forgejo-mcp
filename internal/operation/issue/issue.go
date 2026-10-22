@@ -4,6 +4,8 @@ package issue
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
@@ -57,6 +59,7 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
+		mcp.WithString("type", mcp.Description("Type (issues|pulls). 'issues' refuses a pull request's index and 'pulls' refuses an issue's index, with an error that names the tool for the other kind. Omit to accept either kind.")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
@@ -279,6 +282,7 @@ type getIssueArgs struct {
 	Owner   string  `json:"owner" required:"true"`
 	Repo    string  `json:"repo" required:"true"`
 	Index   float64 `json:"index" required:"true"`
+	Type    string  `json:"type"`
 	Verbose bool    `json:"verbose"`
 }
 
@@ -420,10 +424,27 @@ func target(a issueRefArgs) apppissue.Target {
 	return apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}
 }
 
+// kindRefusal names the tool for the other kind, so a caller that asked for
+// issues and got a pull request knows where to read it.
+func kindRefusal(e *apppissue.KindError) error {
+	if e.Want == apppissue.KindPulls {
+		return fmt.Errorf("%s; use get_issue_by_index to read it", e.Error())
+	}
+	return fmt.Errorf("%s; use get_pull_request_by_index to read it", e.Error())
+}
+
 func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetIssueByIndexFn", func(ctx context.Context, s *apppissue.Service, a getIssueArgs) (*mcp.CallToolResult, error) {
-		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), apppissue.ReadOptions{})
+		kind, err := apppissue.ParseKind(a.Type)
 		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), apppissue.ReadOptions{Kind: kind})
+		if err != nil {
+			var refused *apppissue.KindError
+			if errors.As(err, &refused) {
+				return mcpresult.Fail(kindRefusal(refused))
+			}
 			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, int64(a.Index)), err)
 		}
 		return compact.RenderIssueRead(read.Issue, a.Verbose)
