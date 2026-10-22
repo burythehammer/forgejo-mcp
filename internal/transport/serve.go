@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
@@ -22,10 +21,6 @@ import (
 // because the transport is mounted on a mux at this path rather than served as
 // the root handler.
 const streamableHTTPEndpointPath = config.MCPEndpointPath
-
-// shutdownGracePeriod bounds how long in-flight HTTP requests may run after a
-// shutdown is requested. It sits under Docker's 10s default stop timeout.
-const shutdownGracePeriod = 8 * time.Second
 
 // requestTokenContextFunc lifts a per-request credential out of the
 // Authorization header and into the context the tool handlers see.
@@ -121,7 +116,7 @@ func Serve(ctx context.Context, cfg config.Config, mcpServer *server.MCPServer, 
 			log.StringField("resource", rs.resource),
 			log.StringField("authorization_server", rs.authServer),
 		)
-		if err := serveMCPOverHTTP(ctx, "http", handler, cfg.Listen.HTTPPort, listener, shutdownGracePeriod); err != nil {
+		if err := serveMCPOverHTTP(ctx, "http", handler, cfg.Listen.HTTPPort, listener, cfg.Listen.ShutdownGrace); err != nil {
 			log.Error("Failed to start streamable HTTP server",
 				log.IntField("port", cfg.Listen.HTTPPort),
 				log.ErrorField(err),
@@ -163,7 +158,7 @@ func Serve(ctx context.Context, cfg config.Config, mcpServer *server.MCPServer, 
 		log.Info("Starting MCP SSE server",
 			log.IntField("port", cfg.Listen.SSEPort),
 		)
-		if err := serveMCPOverHTTP(ctx, "sse", sseServer, cfg.Listen.SSEPort, resolveTransportConfig(cfg), shutdownGracePeriod); err != nil {
+		if err := serveMCPOverHTTP(ctx, "sse", sseServer, cfg.Listen.SSEPort, resolveTransportConfig(cfg), cfg.Listen.ShutdownGrace); err != nil {
 			log.Error("Failed to start SSE server",
 				log.IntField("port", cfg.Listen.SSEPort),
 				log.ErrorField(err),
@@ -176,7 +171,7 @@ func Serve(ctx context.Context, cfg config.Config, mcpServer *server.MCPServer, 
 		log.Info("Starting MCP streamable HTTP server",
 			log.IntField("port", cfg.Listen.HTTPPort),
 		)
-		if err := serveMCPOverHTTP(ctx, "http", httpMux, cfg.Listen.HTTPPort, resolveTransportConfig(cfg), shutdownGracePeriod); err != nil {
+		if err := serveMCPOverHTTP(ctx, "http", httpMux, cfg.Listen.HTTPPort, resolveTransportConfig(cfg), cfg.Listen.ShutdownGrace); err != nil {
 			log.Error("Failed to start streamable HTTP server",
 				log.IntField("port", cfg.Listen.HTTPPort),
 				log.ErrorField(err),

@@ -4,7 +4,10 @@
 // Config: explicit flag, then environment variable, then default.
 package config
 
-import "crypto/x509"
+import (
+	"crypto/x509"
+	"time"
+)
 
 // Mode is how the process runs.
 type Mode string
@@ -77,7 +80,15 @@ type Listen struct {
 	AllowedHosts               []string
 	AllowedOrigins             []string
 	AllowOperatorTokenFallback bool
+	// ShutdownGrace bounds how long in-flight HTTP requests may run after
+	// SIGINT or SIGTERM before open connections are closed.
+	ShutdownGrace time.Duration
 }
+
+// DefaultShutdownGrace is the grace period when none is configured. It sits
+// under Docker's 10s default stop timeout and well under Kubernetes' 30s
+// default termination grace period.
+const DefaultShutdownGrace = 8 * time.Second
 
 // Auth selects how the http transport authenticates callers. Every field but
 // Mode applies to the resource-server mode only.
