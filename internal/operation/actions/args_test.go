@@ -6,6 +6,7 @@ import (
 	"math"
 	"testing"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
 )
 
@@ -30,43 +31,39 @@ func TestArgsMatchSchema(t *testing.T) {
 	mcptest.ArgsMatchSchema(t, DeleteOrgActionSecretTool, orgSecretNameArgs{})
 }
 
-// TestNumberArgs pins how the numeric readers tell an absent value, an empty
-// one, a wrongly typed one and a string holding a number apart. The tools'
-// error texts depend on those cases.
-func TestNumberArgs(t *testing.T) {
+// TestNumberArgWording pins how the numeric readers the tools use tell an
+// absent value, an empty one, a wrongly typed one and a string holding a number
+// apart. The tools' error texts depend on those cases.
+func TestNumberArgWording(t *testing.T) {
 	t.Parallel()
 
-	if n, ok := number("5"); !ok || n != 5 {
-		t.Errorf(`number("5") = %v, %v; want 5, true`, n, ok)
-	}
-	if _, ok := number(true); ok {
-		t.Error("number(true) reported a number")
-	}
-	if _, ok := number(nil); ok {
-		t.Error("number(nil) reported a number")
-	}
-
 	cases := []struct {
-		name     string
-		v        any
-		required bool
-		want     int64
-		wantErr  string
+		name    string
+		read    func(v any) (int64, error)
+		v       any
+		want    int64
+		wantErr string
 	}{
-		{name: "absent required", v: nil, required: true, wantErr: "run_id is required"},
-		{name: "empty required", v: "", required: true, wantErr: "run_id is required"},
-		{name: "absent optional", v: nil, want: 0},
-		{name: "wrong type required", v: true, required: true, wantErr: "run_id must be a positive integer"},
-		{name: "wrong type optional", v: []any{}, wantErr: "run_id must be a positive integer"},
-		{name: "string number", v: "7", required: true, want: 7},
-		{name: "fraction", v: 1.5, required: true, wantErr: "run_id must be a positive integer"},
-		{name: "zero", v: 0.0, required: true, wantErr: "run_id must be a positive integer"},
-		{name: "huge", v: math.MaxInt64 * 2.0, required: true, wantErr: "run_id must be a positive integer"},
+		{name: "absent required", read: required64("run_id"), v: nil, wantErr: "run_id is required"},
+		{name: "empty required", read: required64("run_id"), v: "", wantErr: "run_id is required"},
+		{name: "wrong type required", read: required64("run_id"), v: true, wantErr: "run_id must be a positive integer"},
+		{name: "string number", read: required64("run_id"), v: "7", want: 7},
+		{name: "fraction", read: required64("run_id"), v: 1.5, wantErr: "run_id must be a positive integer"},
+		{name: "zero", read: required64("run_id"), v: 0.0, wantErr: "run_id must be a positive integer"},
+		{name: "huge", read: required64("run_id"), v: math.MaxInt64 * 2.0, wantErr: "run_id must be a positive integer"},
+		{name: "negative offset", read: nonNegative64("offset"), v: -1.0, wantErr: "offset must be a non-negative integer"},
+		{name: "absent offset", read: nonNegative64("offset"), v: nil, want: 0},
+		{name: "bounded absent takes default", read: bounded64("limit"), v: nil, want: 30},
+		{name: "bounded empty takes default", read: bounded64("limit"), v: "", want: 30},
+		{name: "bounded string number", read: bounded64("limit"), v: "42", want: 42},
+		{name: "bounded above range", read: bounded64("limit"), v: 101.0, wantErr: "limit must be an integer between 1 and 100"},
+		{name: "bounded fraction", read: bounded64("limit"), v: 2.5, wantErr: "limit must be an integer between 1 and 100"},
+		{name: "bounded text", read: bounded64("limit"), v: "x", wantErr: "limit must be an integer between 1 and 100"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := positiveIntegerArg(c.v, "run_id", c.required)
+			got, err := c.read(c.v)
 			if c.wantErr != "" {
 				if err == nil || err.Error() != c.wantErr {
 					t.Fatalf("error = %v; want %q", err, c.wantErr)
@@ -80,23 +77,20 @@ func TestNumberArgs(t *testing.T) {
 	}
 }
 
-// TestBoundedIntArg pins the default, the range and the error of a bounded
-// number. A wrongly typed value is an error, not the default.
-func TestBoundedIntArg(t *testing.T) {
-	t.Parallel()
-	if got, err := boundedIntArg(nil, "limit", 30, 1, 100); err != nil || got != 30 {
-		t.Errorf("absent: got %d, %v; want 30", got, err)
+func required64(name string) func(any) (int64, error) {
+	return func(v any) (int64, error) { return numarg.RequiredPositiveInt(name, v) }
+}
+
+func nonNegative64(name string) func(any) (int64, error) {
+	return func(v any) (int64, error) {
+		n, _, err := numarg.NonNegativeInt(name, v)
+		return n, err
 	}
-	if got, err := boundedIntArg("", "limit", 30, 1, 100); err != nil || got != 30 {
-		t.Errorf(`empty: got %d, %v; want 30`, got, err)
-	}
-	if got, err := boundedIntArg("42", "limit", 30, 1, 100); err != nil || got != 42 {
-		t.Errorf(`"42": got %d, %v; want 42`, got, err)
-	}
-	const want = "limit must be an integer between 1 and 100"
-	for _, v := range []any{101.0, 0.0, 2.5, "x", false} {
-		if _, err := boundedIntArg(v, "limit", 30, 1, 100); err == nil || err.Error() != want {
-			t.Errorf("boundedIntArg(%v): error = %v; want %q", v, err, want)
-		}
+}
+
+func bounded64(name string) func(any) (int64, error) {
+	return func(v any) (int64, error) {
+		n, err := numarg.IntDefault(name, v, 30, numarg.Bounds{Min: 1, Max: 100})
+		return int64(n), err
 	}
 }

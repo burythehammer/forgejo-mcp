@@ -4,6 +4,7 @@ package actions
 
 import (
 	"context"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"math"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
@@ -77,15 +78,15 @@ func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolReque
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
+	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntArg(a.Page, "page", 1, 1, math.MaxInt32)
+	page, err := numarg.IntDefault("page", a.Page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntArg(a.Limit, "limit", 0, 1, maxActionJobsLimit)
+	limit, err := numarg.IntDefault("limit", a.Limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionJobsLimit)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -111,19 +112,19 @@ func (h handlers) GetActionJobLogsFn(ctx context.Context, req mcp.CallToolReques
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	jobID, err := positiveIntegerArg(a.JobID, "job_id", true)
+	jobID, err := numarg.RequiredPositiveInt("job_id", a.JobID)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	attempt, err := positiveIntegerArg(a.Attempt, "attempt", false)
+	attempt, _, err := numarg.PositiveInt("attempt", a.Attempt)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	maxBytes, err := boundedIntArg(a.MaxBytes, "max_bytes", defaultActionLogBytes, 1, maxActionLogBytes)
+	maxBytes, err := numarg.IntDefault("max_bytes", a.MaxBytes, defaultActionLogBytes, numarg.Bounds{Min: int64(1), Max: int64(maxActionLogBytes)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	offset, hasOffset, err := optionalNonNegativeIntegerArg(a.Offset, "offset")
+	offset, hasOffset, err := numarg.NonNegativeInt("offset", a.Offset)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

@@ -4,6 +4,7 @@ package actions
 
 import (
 	"context"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"math"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
@@ -133,11 +134,11 @@ func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolR
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntArg(a.Page, "page", 1, 1, math.MaxInt32)
+	page, err := numarg.IntDefault("page", a.Page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntArg(a.Limit, "limit", 0, 1, maxActionSecretsLimit)
+	limit, err := numarg.IntDefault("limit", a.Limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionSecretsLimit)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -224,11 +225,11 @@ func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRe
 	if err := required("org", a.Org); err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntArg(a.Page, "page", 1, 1, math.MaxInt32)
+	page, err := numarg.IntDefault("page", a.Page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntArg(a.Limit, "limit", 0, 1, maxActionSecretsLimit)
+	limit, err := numarg.IntDefault("limit", a.Limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionSecretsLimit)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}

@@ -35,3 +35,29 @@ func RequiredPositiveInt(name string, raw any) (int64, error) {
 	}
 	return value, nil
 }
+
+// NonNegativeInt reads a whole number from zero up to the largest int64, for an
+// argument where zero means "none" (a byte offset, a run number to match). It
+// reports whether one was given. Any other value that is not a non-negative
+// whole number is an error worded "<name> must be a non-negative integer".
+func NonNegativeInt(name string, raw any) (value int64, given bool, err error) {
+	value, given, err = Int(name, raw, Bounds{Min: 0, Max: math.MaxInt64})
+	if err != nil {
+		return 0, false, fmt.Errorf("%s must be a non-negative integer", name)
+	}
+	return value, given, nil
+}
+
+// IntDefault reads a whole number within b, and returns def when the argument
+// is not given. A wrongly typed or out-of-range value is an error, never the
+// default.
+func IntDefault(name string, raw any, def int, b Bounds) (int, error) {
+	value, given, err := Int(name, raw, b)
+	if err != nil {
+		return 0, err
+	}
+	if !given {
+		return def, nil
+	}
+	return int(value), nil
+}

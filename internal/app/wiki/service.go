@@ -35,7 +35,7 @@ type ListRequest struct {
 // nil one means it was not given.
 type GetRequest struct {
 	Owner, Repo, PageName string
-	StartLine, EndLine    *float64
+	StartLine, EndLine    *int
 }
 
 // RevisionsRequest lists a page's history, paged as ListRequest is.
@@ -115,14 +115,12 @@ func (s *Service) Get(ctx context.Context, r GetRequest) (model.WikiPageView, er
 	total := len(strings.Split(content, "\n"))
 	start, end := 0, 0
 	if r.StartLine != nil || r.EndLine != nil {
-		var from, to float64
 		if r.StartLine != nil {
-			from = *r.StartLine
+			start = *r.StartLine
 		}
 		if r.EndLine != nil {
-			to = *r.EndLine
+			end = *r.EndLine
 		}
-		start, end = int(from), int(to)
 		content, err = apprepo.SliceLines(content, start, end)
 		if err != nil {
 			return model.WikiPageView{}, err

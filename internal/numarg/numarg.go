@@ -83,14 +83,6 @@ func Truncate(v float64) int64 {
 	return int64(v)
 }
 
-// Lenient truncates v to a whole number without checking it. It is the legacy
-// path that the page and limit helpers in the decode package keep, because
-// their pinned behaviour is to pass a fractional page on as its truncation.
-// New code uses Int.
-func Lenient(v float64) int {
-	return int(v)
-}
-
 func inRange(name string, n int64, b Bounds) (int64, bool, error) {
 	if n < b.Min || n > b.Max {
 		return 0, false, rangeError(name, b)

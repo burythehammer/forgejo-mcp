@@ -4,6 +4,7 @@ package wiki
 
 import (
 	"context"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -179,7 +180,7 @@ func (h handlers) ListWikiPagesFn(ctx context.Context, req mcp.CallToolRequest) 
 
 func (h handlers) GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetWikiPageFn", func(ctx context.Context, s *appwiki.Service, a getArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Get(ctx, appwiki.GetRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, StartLine: a.StartLine, EndLine: a.EndLine}))
+		return mcpresult.Render(s.Get(ctx, appwiki.GetRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, StartLine: lineArg(a.StartLine), EndLine: lineArg(a.EndLine)}))
 	})
 }
 
@@ -231,4 +232,14 @@ func wikiRevisionsResult(b list.Bounded[model.WikiRevisionSummary], err error) (
 		total = *b.Total
 	}
 	return mcpresult.Render(model.WikiRevisionsResult{Revisions: b.Items, Page: b.Page, HasNext: b.HasNext, TotalCount: total}, nil)
+}
+
+// lineArg reads an optional line number. A fraction is truncated, as these
+// tools have always done, so the use case receives a whole number.
+func lineArg(v *float64) *int {
+	if v == nil {
+		return nil
+	}
+	n := int(numarg.Truncate(*v))
+	return &n
 }

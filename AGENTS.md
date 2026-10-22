@@ -20,6 +20,10 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 
 Before adding or changing a tool, read [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md): use case, MCP adapter, port, tests, output bound, README row.
 
+## Numeric arguments
+
+One rule: a number argument is read through `internal/numarg` in the MCP adapter, and the use case gets a validated `int` or `int64`. Never convert a `float64` argument with a bare `int(...)` or `int64(...)`, and never add a float64 to `internal/app/`. `make check` runs `scripts/ci/check-number-casts.sh`, which enforces this. The one exception (a tool whose error text depends on how the number was given is typed `any`) and the helper list are in [DEVELOPER.md](DEVELOPER.md#numeric-arguments).
+
 ## Resources
 
 Prefer a `forgejo://` resource read over the equivalent tool call: one read returns the whole entity (`pr/{index}` replaces `get_pull_request_by_index` + `list_issue_comments`).

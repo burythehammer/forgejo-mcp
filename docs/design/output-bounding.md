@@ -139,10 +139,10 @@ are enforced in these places:
   unknown. The page/limit defaults come from `list.Normalize`,
   `list.Given` and `list.DefaultLimit`. A new list tool calls the module and
   adds no defaults or ceiling check of its own.
-- **Argument reading** (`internal/operation/<domain>/handlers.go`) uses
-  `decode.PageOr` (an absent or zero number takes the default) and
-  `decode.IntOr` (the default applies to the truncated number). These are the
-  only copies of that rule; do not add a local `pageOr`.
+- **Argument reading** (`internal/operation/<domain>/handlers.go`) reads a page and limit with
+  `decode.PagingArgs`, which wraps `numarg.Paging`: an absent or zero number is
+  0 and the caller applies its default. That is the only copy of the rule;
+  do not add a local `pageOr`.
 - **Embedded lists in resources** use `internal/operation/resource.Bounded`, which
   applies the `EmbeddedListCap` ceiling and writes the truncation sentinel.
 

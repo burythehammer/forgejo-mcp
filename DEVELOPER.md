@@ -176,8 +176,9 @@ in `internal/app/issue`. Per domain:
    tool (`json:"name"`, `required:"true"` so `ArgsMatchSchema` checks them against the
    schema). Decode with `decode.Lax`, not `decode.Args`, while the wire contract
    is frozen: the pre-split tools never rejected a missing or mistyped argument,
-   and truncated numbers, so declare numeric fields `float64` and convert with
-   `int64(...)` in the MCP adapter. Both accept string-encoded numbers. Then each
+   and truncated numbers, so declare numeric fields `float64` and read them with
+   the numeric-argument module in the MCP adapter (see **Numeric arguments**
+   below). Both accept string-encoded numbers. Then each
    MCP adapter method is a few lines through the generic `run` helper: decode, build
    `apppull.New(pulladapter.New(port))`, call the use case, render with
    `mcpresult.Render` / plain text. Use-case errors become MCP errors in one
@@ -188,7 +189,8 @@ in `internal/app/issue`. Per domain:
    Three refinements came with `issue` (`internal/operation/issue/`, 28 tools):
    - **Defaults that test for zero live in the adapter, before truncation.**
      The pre-split tools defaulted `page == 0` on the float, so `0.5` was passed
-     on as `0`. `decode.PageOr` keeps that (in `internal/operation/decode/page.go`); the
+     on as `0`. `decode.PagingArgs` reads both through `numarg.Paging` (a fraction
+     truncates, zero or below is 0, and the caller's default applies); the
      use case does not default a page or limit it is handed. A list use case
      then bounds the page through the list module (`internal/app/list`).
    - **Pointer fields where presence matters.** An argument whose "given but
@@ -301,8 +303,9 @@ Argument struct rules:
 
 - `json:"name"` is the MCP argument name. The tag, not the field name, is what
   the decoder reads.
-- Numbers are `float64`. A JSON number arrives as a float64, and converting
-  with `int(...)` or `int64(...)` in the closure keeps the old truncation.
+- Numbers are `float64` in the argument struct (the decode boundary). Never
+  convert them with a bare `int(...)` or `int64(...)`: read them through
+  `internal/numarg` (see **Numeric arguments** below).
 - `required:"true"` marks a required argument. `decode.Lax` never rejects a
   request: a missing or wrongly typed argument leaves its field at the zero
   value, which is what the hand-written tools saw. `mcptest.ArgsMatchSchema`
@@ -315,6 +318,34 @@ Argument struct rules:
 - For a new tool with no legacy behaviour to keep, use `decode.Args` instead of
   `decode.Lax`: it rejects a missing required argument or a wrong type in one
   error.
+
+### Numeric arguments
+
+One rule, one module: `internal/numarg` turns a raw JSON number into a validated
+whole number. It is MCP-free and SDK-free, so a use case may import it, though
+the adapter does the conversion and the use case receives `int` or `int64`.
+
+- An ID, index or count that must name something: `numarg.RequiredPositiveInt`
+  (wording "<name> is required" / "<name> must be a positive integer"), or
+  `numarg.PositiveID` where the optional form is needed.
+- A bounded value (a page size, a byte count): `numarg.IntDefault(name, raw, def,
+  numarg.Bounds{Min, Max})`, wording "<name> must be an integer between <min> and <max>".
+- A non-negative value where zero means "none": `numarg.NonNegativeInt`.
+- A page or limit of a list tool: `decode.PagingArgs` (wraps `numarg.Paging`,
+  which clamps and truncates, so a fraction is passed on as its truncation).
+- A seconds value that is truncated but must stay in range: `numarg.Whole`.
+- A value whose pinned wire behaviour truncates a fraction without a range
+  check (`required_approvals` 2.7 is 2): `numarg.Truncate`. Use it only where a
+  golden pins that behaviour; new code uses `Int` or a helper above.
+- A tool whose error text depends on how a number was given keeps the argument
+  typed `any` and passes it to the module. This is the one documented exception
+  to `float64` in an argument struct; the module offers that path instead of a
+  second one.
+
+`internal/app/` takes no `float64`. `scripts/ci/check-number-casts.sh` (run by
+`make check`) fails on any `float64` under `internal/app/`, and it ratchets the
+count of `float64` mentions per file under `internal/operation/` against
+`scripts/ci/number-float64-baseline.txt`, which may only fall.
 
 ### Step 3: Register the tool
 

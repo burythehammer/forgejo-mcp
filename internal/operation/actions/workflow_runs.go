@@ -5,6 +5,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -73,19 +74,20 @@ func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolReques
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	runNumber, _, err := optionalNonNegativeIntegerArg(a.RunNumber, "run_number")
+	runNumber, _, err := numarg.NonNegativeInt("run_number", a.RunNumber)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	// page and limit are still read here, silently defaulted, until the
-	// page/limit migration (#244) moves them to the module.
-	page := 1
-	if p, ok := number(a.Page); ok {
-		page = int(p)
+	page, err := numarg.Paging("page", a.Page)
+	if err != nil {
+		return to.ErrorResult(err)
 	}
-	limit := 0
-	if l, ok := number(a.Limit); ok {
-		limit = int(l)
+	if page == 0 {
+		page = 1
+	}
+	limit, err := numarg.Paging("limit", a.Limit)
+	if err != nil {
+		return to.ErrorResult(err)
 	}
 
 	svc, err := useCases(ctx, h)
@@ -112,7 +114,7 @@ func (h handlers) GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest)
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
+	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

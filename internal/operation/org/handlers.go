@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -311,7 +312,7 @@ func (h handlers) AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) 
 		if a.User == nil {
 			return mcpresult.Fail(errUserName)
 		}
-		teamID := int64(*a.TeamID)
+		teamID := numarg.Truncate(*a.TeamID)
 		err := s.AddTeamMember(ctx, teamID, *a.User)
 		return message(fmt.Sprintf("User '%s' added to team %d", *a.User, teamID), err)
 	})
@@ -325,7 +326,7 @@ func (h handlers) RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolReques
 		if a.User == nil {
 			return mcpresult.Fail(errUserName)
 		}
-		teamID := int64(*a.TeamID)
+		teamID := numarg.Truncate(*a.TeamID)
 		err := s.RemoveTeamMember(ctx, teamID, *a.User)
 		return message(fmt.Sprintf("User '%s' removed from team %d", *a.User, teamID), err)
 	})
@@ -342,7 +343,7 @@ func (h handlers) AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*
 		if a.Repo == nil {
 			return mcpresult.Fail(errRepoName)
 		}
-		teamID := int64(*a.TeamID)
+		teamID := numarg.Truncate(*a.TeamID)
 		err := s.AddTeamRepo(ctx, teamID, *a.Org, *a.Repo)
 		return message(fmt.Sprintf("Repository '%s/%s' added to team %d", *a.Org, *a.Repo, teamID), err)
 	})
@@ -359,7 +360,7 @@ func (h handlers) RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.Repo == nil {
 			return mcpresult.Fail(errRepoName)
 		}
-		teamID := int64(*a.TeamID)
+		teamID := numarg.Truncate(*a.TeamID)
 		err := s.RemoveTeamRepo(ctx, teamID, *a.Org, *a.Repo)
 		return message(fmt.Sprintf("Repository '%s/%s' removed from team %d", *a.Org, *a.Repo, teamID), err)
 	})
