@@ -27,6 +27,13 @@ type Bounds struct {
 // nil, a null, or an empty string: the caller applies its default. Any other
 // value that is not a whole number in range is an error naming name and the
 // range, for example "limit must be an integer between 1 and 50".
+//
+// A numeric string is parsed as an integer first, so every digit of an int64
+// survives ("9007199254740993" stays exact). Only a form ParseInt rejects, such
+// as "2.0" or "1e3", goes through float64. A JSON number is already a float64
+// when it reaches this function, so a JSON number above 2^53 is limited to the
+// nearest float64; a caller that needs the exact value above 2^53 sends it as a
+// string.
 func Int(name string, raw any, b Bounds) (value int64, given bool, err error) {
 	var f float64
 	switch x := raw.(type) {
@@ -41,6 +48,9 @@ func Int(name string, raw any, b Bounds) (value int64, given bool, err error) {
 	case string:
 		if x == "" {
 			return 0, false, nil
+		}
+		if n, nerr := strconv.ParseInt(x, 10, 64); nerr == nil {
+			return inRange(name, n, b)
 		}
 		p, perr := strconv.ParseFloat(x, 64)
 		if perr != nil {

@@ -60,6 +60,14 @@ func TestIntAcceptsOnlyWholeNumbersInRange(t *testing.T) {
 		{"numeric string", `"12"`, page, 12, true, ""},
 		{"numeric string fraction", `"1.5"`, page, 0, false, msg},
 		{"numeric string out of range", `"51"`, page, 0, false, msg},
+		{"numeric string keeps every digit past 2^53", `"9007199254740993"`, id, 9007199254740993, true, ""},
+		{"numeric string at the largest int64", `"9223372036854775807"`, id, math.MaxInt64, true, ""},
+		{"numeric string one past the largest int64", `"9223372036854775808"`, id, 0, false, idMsg},
+		{"numeric string with a zero fraction", `"2.0"`, page, 2, true, ""},
+		{"numeric string exponent form", `"1e3"`, id, 1000, true, ""},
+		// a JSON number is a float64 before this module sees it, so the
+		// exact value above 2^53 is lost at the decode boundary
+		{"JSON number above 2^53 is float64", "9007199254740993", id, 9007199254740992, true, ""},
 		{"empty string takes the default", `""`, page, 0, false, ""},
 		{"non-numeric string", `"abc"`, page, 0, false, msg},
 		{"NaN string", `"NaN"`, page, 0, false, msg},
