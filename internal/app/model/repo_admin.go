@@ -16,6 +16,13 @@ type TopicPage struct {
 	PageMeta
 }
 
+// RepoPage is one page of the repositories the caller owns, as list_my_repos
+// renders it.
+type RepoPage struct {
+	Repositories []*Repository `json:"repositories"`
+	PageMeta
+}
+
 // StatusItem is one per-context commit status. The commit status resource
 // shares this shape.
 type StatusItem struct {

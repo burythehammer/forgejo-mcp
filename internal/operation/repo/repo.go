@@ -52,7 +52,7 @@ var (
 
 	ListMyReposTool = mcp.NewTool(
 		ListMyReposToolName,
-		mcp.WithDescription("List my repos, one page at a time: page (default 1) and limit (default 100, capped at the instance maximum) select the page. A full page may be followed by more; a short page is the last."),
+		mcp.WithDescription("List my repos, one page at a time: page (default 1) and limit (default 100, capped at the instance maximum) select the page. Returns {repositories, page, limit, count, has_next}; has_next true means a further page exists."),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
 		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
 	)
@@ -142,7 +142,7 @@ func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*
 	return runAdmin(ctx, h, req, "ListMyReposFn", func(ctx context.Context, s *apprepo.AdminService, a listMyReposArgs) (*mcp.CallToolResult, error) {
 		// An absent limit takes the use case's default, which the instance ceiling
 		// lowers; passing 100 here would make the default a refused explicit limit.
-		repos, err := repoRows(s.ListMyRepos(ctx, apprepo.AdminPaging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 0)}))
-		return mcpresult.Render(repos, err)
+		page, err := repoPage(s.ListMyRepos(ctx, apprepo.AdminPaging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 0)}))
+		return mcpresult.Render(page, err)
 	})
 }

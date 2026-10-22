@@ -314,7 +314,7 @@ List all my repositories
 | `mark_repo_notifications_read` | Mark all notifications in a specific repo as read |
 | `search_users` | Search for users (page/limit); returns `{users,page,limit,count,has_next}` |
 | **Repositories** | |
-| `list_my_repos` | List repositories you own, one page at a time (`page`/`limit`, default 100, capped at the instance maximum). Returns a bare array: a full page may be followed by more, a short page is the last. |
+| `list_my_repos` | List repositories you own, one page at a time (`page`/`limit`, default 100, capped at the instance maximum). Returns `{repositories,page,limit,count,has_next}`; `has_next` true means a further page exists. |
 | `get_repo` | Get a single repository by owner and name |
 | `create_repo` | Create a new repository |
 | `fork_repo` | Fork a repository |

@@ -94,27 +94,20 @@ func (s *AdminService) ForkRepo(ctx context.Context, in ForkInput) error {
 	return nil
 }
 
-// ListMyRepos lists the repositories the credential's user owns, one page. The
+// ListMyRepos lists one page of the repositories the credential's user owns. The
 // page is read through the list module, so a limit above the instance ceiling
-// is refused and a missing limit takes the default.
+// is refused, a missing limit takes the default, and has_next comes from the
+// module's probe for the next page.
 func (s *AdminService) ListMyRepos(ctx context.Context, p AdminPaging) (list.Bounded[*model.Repository], error) {
 	c := ceiling(ctx, s.port)
-	pg := list.Given(list.Paging(p), defaultListLimit, c)
-	// The listing reports neither a total nor a more-flag, and it has never
-	// probed for the next page, so the page is read once: a full page is taken
-	// to mean rows may follow.
-	page, err := list.Window(ctx, s.port, pg, defaultListLimit,
+	return list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Repository], error) {
 			repos, err := s.port.ListMyRepos(ctx, AdminPaging(q))
 			if err != nil {
 				return list.Batch[*model.Repository]{}, fmt.Errorf("list my repositories error: %w", err)
 			}
-			return list.Batch[*model.Repository]{Items: repos, More: len(repos) >= q.Limit}, nil
+			return list.Batch[*model.Repository]{Items: repos}, nil
 		})
-	if err != nil {
-		return list.Bounded[*model.Repository]{}, err
-	}
-	return page, nil
 }
 
 // GetRepo returns a repository with its topics. A repository with no topics

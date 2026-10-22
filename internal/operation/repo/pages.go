@@ -53,10 +53,11 @@ func topicPage(b list.Bounded[string], err error) (model.TopicPage, error) {
 	return model.TopicPage{Topics: topics, PageMeta: model.PageMetaOf(b)}, nil
 }
 
-// repoRows is the bare array list_my_repos has always returned.
-func repoRows(b list.Bounded[*model.Repository], err error) ([]*model.Repository, error) {
+// repoPage renders one page of the caller's repositories as list_my_repos
+// returns it.
+func repoPage(b list.Bounded[*model.Repository], err error) (model.RepoPage, error) {
 	if err != nil {
-		return nil, err
+		return model.RepoPage{}, err
 	}
-	return b.Items, nil
+	return model.RepoPage{Repositories: b.Items, PageMeta: model.PageMetaOf(b)}, nil
 }

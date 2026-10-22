@@ -28,3 +28,5 @@ Tool functions in `operation/*` read MCP arguments, call Forgejo, and format MCP
 - The migration proceeds domain by domain; `version` is the first, proving the decoder, test helpers and CI check.
 
 Note (issue #12): `app/` and `operation/` now live under `internal/`, and the depguard rules in `.golangci.yml` replace `scripts/ci/check-app-boundary.sh`.
+
+Amendment (2026-10-22, issue #294): the "wire contract is frozen" rule no longer holds for `list_my_repos`. Its output was a bare array, which left a caller unable to tell whether rows followed a full page. It now returns the list envelope `{repositories, page, limit, count, has_next}` through `list.Run`, and the instance ceiling applies to it. That is a deliberate output-shape change, called out in the PR that made it; every other tool's bytes stay frozen by this ADR.
