@@ -2,13 +2,14 @@
 
 // Package owneradapter implements the owner use case's port (internal/app/owner.Port)
 // over the Forgejo port (forge.Users and forge.Orgs). It translates SDK results
-// into internal/app/model values and passes a Forgejo not-found on as forge.ErrNotFound,
-// so the use case never sees an SDK type or a status code.
+// into internal/app/model values and passes a Forgejo not-found on as a 404
+// *forge.StatusError, so the use case never sees an SDK type.
 package owneradapter
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	appowner "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/owner"
@@ -30,7 +31,7 @@ func (a adapter) GetUser(ctx context.Context, login string) (*model.User, error)
 	u, err := a.u.GetUserInfo(ctx, login)
 	if err != nil {
 		if forge.IsNotFound(err) {
-			return nil, fmt.Errorf("%w: user %s", forge.ErrNotFound, login)
+			return nil, &forge.StatusError{StatusCode: http.StatusNotFound, Err: fmt.Errorf("not found: user %s", login)}
 		}
 		return nil, err
 	}
@@ -41,7 +42,7 @@ func (a adapter) GetOrg(ctx context.Context, name string) (*model.Organization, 
 	org, err := a.o.GetOrg(ctx, name)
 	if err != nil {
 		if forge.IsNotFound(err) {
-			return nil, fmt.Errorf("%w: org %s", forge.ErrNotFound, name)
+			return nil, &forge.StatusError{StatusCode: http.StatusNotFound, Err: fmt.Errorf("not found: org %s", name)}
 		}
 		return nil, err
 	}
