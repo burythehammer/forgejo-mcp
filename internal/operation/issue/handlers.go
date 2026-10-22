@@ -34,9 +34,18 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	if err := decode.Lax(req, &args); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	if v, ok := any(&args).(validator); ok {
+		if err := v.validate(); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+	}
 	port, err := h.forge.For(ctx)
 	if err != nil {
 		return mcpresult.Fail(err)
 	}
 	return do(ctx, apppissue.New(issueadapter.New(port)), args)
 }
+
+// validator is implemented by an argument struct whose numbers are checked by
+// the numeric-argument module before its handler runs.
+type validator interface{ validate() error }

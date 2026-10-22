@@ -111,7 +111,7 @@ func TestCreateRoundTripsStatusChecks(t *testing.T) {
 	s := newService(t)
 	bp, err := s.Create(context.Background(), appbp.CreateRequest{
 		Owner: owner, Repo: repo, BranchName: "main", EnableStatusCheck: true,
-		StatusCheckContexts: str("ci/build, lint,,"), RequiredApprovals: 2.7,
+		StatusCheckContexts: str("ci/build, lint,,"), RequiredApprovals: 2,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -373,9 +373,9 @@ var goldenCases = []goldenCase{
 	// verbose=true restores the full entity; this golden is the pre-compact output.
 	{name: "get_issue_verbose", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "verbose": true}},
 	{name: "get_issue_string_index", tool: GetIssueByIndexToolName, args: map[string]any{"index": "7"}},
-	// Forgiving argument handling of the original handlers, kept: a missing
-	// required argument is forwarded as its zero value, and a fractional
-	// number is truncated.
+	// An invalid index is refused with the numeric-argument module's message
+	// (#246): a missing one, or a fractional one that the handlers used to
+	// truncate into a different issue.
 	{name: "get_issue_fractional_index", tool: GetIssueByIndexToolName, args: map[string]any{"index": 5.5}},
 	{name: "get_issue_missing_required", tool: GetIssueByIndexToolName, args: map[string]any{"owner": nil, "repo": nil}},
 	{name: "get_issue_port_error", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7)}, stub: failing("GetIssue", errBoom)},

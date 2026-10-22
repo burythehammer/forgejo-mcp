@@ -286,17 +286,18 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 // type), set when it was given, even as "".
 
 type issueRefArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
+	Owner string
+	Repo  string
+	Index int64 // validated by numarg before the use case sees it
 }
 
 type getIssueArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	Type    string  `json:"type"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	Type    string `json:"type"`
+	Verbose bool   `json:"verbose"`
 }
 
 type listIssuesArgs struct {
@@ -325,17 +326,19 @@ type createIssueArgs struct {
 }
 
 type createCommentArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	Body    string  `json:"body" required:"true"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	Body    string `json:"body" required:"true"`
+	Verbose bool   `json:"verbose"`
 }
 
 type updateIssueArgs struct {
-	Owner        string  `json:"owner" required:"true"`
-	Repo         string  `json:"repo" required:"true"`
-	Index        float64 `json:"index" required:"true"`
+	Owner        string `json:"owner" required:"true"`
+	Repo         string `json:"repo" required:"true"`
+	Index        any    `json:"index" required:"true" schema:"number"`
+	idx          int64
 	Title        string  `json:"title"`
 	Body         string  `json:"body"`
 	Assignee     string  `json:"assignee"`
@@ -349,11 +352,12 @@ type updateIssueArgs struct {
 }
 
 type replaceBodyLineArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
-	Old   string  `json:"old" required:"true"`
-	New   string  `json:"new" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Index any    `json:"index" required:"true" schema:"number"`
+	idx   int64
+	Old   string `json:"old" required:"true"`
+	New   string `json:"new" required:"true"`
 }
 
 // replacedBodyLine is the result of replace_issue_body_line: the compact issue
@@ -366,25 +370,28 @@ type replacedBodyLine struct {
 }
 
 type labelsArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	Labels  string  `json:"labels" required:"true"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	Labels  string `json:"labels" required:"true"`
+	Verbose bool   `json:"verbose"`
 }
 
 type stateArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	State   string  `json:"state" required:"true"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	State   string `json:"state" required:"true"`
+	Verbose bool   `json:"verbose"`
 }
 
 type listCommentsArgs struct {
-	Owner  string  `json:"owner" required:"true"`
-	Repo   string  `json:"repo" required:"true"`
-	Index  float64 `json:"index" required:"true"`
+	Owner  string `json:"owner" required:"true"`
+	Repo   string `json:"repo" required:"true"`
+	Index  any    `json:"index" required:"true" schema:"number"`
+	idx    int64
 	Since  string  `json:"since"`
 	Before string  `json:"before"`
 	Page   float64 `json:"page"`
@@ -392,24 +399,27 @@ type listCommentsArgs struct {
 }
 
 type commentArgs struct {
-	Owner     string  `json:"owner" required:"true"`
-	Repo      string  `json:"repo" required:"true"`
-	CommentID float64 `json:"comment_id" required:"true"`
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	CommentID any    `json:"comment_id" required:"true" schema:"number"`
+	commentID int64
 }
 
 type getCommentArgs struct {
-	Owner     string  `json:"owner" required:"true"`
-	Repo      string  `json:"repo" required:"true"`
-	CommentID float64 `json:"comment_id" required:"true"`
-	Verbose   bool    `json:"verbose"`
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	CommentID any    `json:"comment_id" required:"true" schema:"number"`
+	commentID int64
+	Verbose   bool `json:"verbose"`
 }
 
 type editCommentArgs struct {
-	Owner     string  `json:"owner" required:"true"`
-	Repo      string  `json:"repo" required:"true"`
-	CommentID float64 `json:"comment_id" required:"true"`
-	Body      string  `json:"body" required:"true"`
-	Verbose   bool    `json:"verbose"`
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	CommentID any    `json:"comment_id" required:"true" schema:"number"`
+	commentID int64
+	Body      string `json:"body" required:"true"`
+	Verbose   bool   `json:"verbose"`
 }
 
 type milestonesArgs struct {
@@ -451,7 +461,7 @@ type searchArgs struct {
 
 // target is the issue a call names.
 func target(a issueRefArgs) apppissue.Target {
-	return apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}
+	return apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: a.Index}
 }
 
 // kindRefusal names the tool for the other kind, so a caller that asked for
@@ -469,13 +479,13 @@ func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest
 		if err != nil {
 			return mcpresult.Fail(err)
 		}
-		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), apppissue.ReadOptions{Kind: kind})
+		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}), apppissue.ReadOptions{Kind: kind})
 		if err != nil {
 			var refused *apppissue.KindError
 			if errors.As(err, &refused) {
 				return mcpresult.Fail(kindRefusal(refused))
 			}
-			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, int64(a.Index)), err)
+			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, a.idx), err)
 		}
 		return compact.RenderIssueRead(read.Issue, a.Verbose)
 	})
@@ -530,7 +540,7 @@ func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 func (h handlers) CreateIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a createCommentArgs) (*mcp.CallToolResult, error) {
-		c, err := s.CreateComment(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.Body)
+		c, err := s.CreateComment(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, a.Body)
 		return compact.RenderComment(c, err, a.Verbose)
 	})
 }
@@ -538,7 +548,7 @@ func (h handlers) CreateIssueCommentFn(ctx context.Context, req mcp.CallToolRequ
 func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdateIssueFn", func(ctx context.Context, s *apppissue.Service, a updateIssueArgs) (*mcp.CallToolResult, error) {
 		iss, err := s.Update(ctx, apppissue.UpdateInput{
-			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
 			Title:  a.Title, Body: a.Body, Assignee: a.Assignee, Assignees: a.Assignees, Ref: a.Ref,
 			Milestone: a.Milestone, DueDate: a.DueDate, ClearDueDate: a.ClearDueDate, SetLabels: a.SetLabels,
 		})
@@ -549,7 +559,7 @@ func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 func (h handlers) ReplaceIssueBodyLineFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ReplaceIssueBodyLineFn", func(ctx context.Context, s *apppissue.Service, a replaceBodyLineArgs) (*mcp.CallToolResult, error) {
 		iss, err := s.ReplaceBodyLine(ctx, apppissue.ReplaceBodyLineInput{
-			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
 			Old:    a.Old, New: a.New,
 		})
 		if err != nil {
@@ -565,21 +575,21 @@ func (h handlers) ReplaceIssueBodyLineFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) AddIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "AddIssueLabelsFn", func(ctx context.Context, s *apppissue.Service, a labelsArgs) (*mcp.CallToolResult, error) {
-		iss, err := s.AddLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels)
+		iss, err := s.AddLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}), a.Labels)
 		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
 func (h handlers) RemoveIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "RemoveIssueLabelsFn", func(ctx context.Context, s *apppissue.Service, a labelsArgs) (*mcp.CallToolResult, error) {
-		iss, err := s.RemoveLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels)
+		iss, err := s.RemoveLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}), a.Labels)
 		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
 func (h handlers) IssueStateChangeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "IssueStateChangeFn", func(ctx context.Context, s *apppissue.Service, a stateArgs) (*mcp.CallToolResult, error) {
-		iss, err := s.ChangeState(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.State)
+		iss, err := s.ChangeState(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, a.State)
 		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
@@ -591,7 +601,7 @@ func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolReque
 			return to.ErrorResult(perr)
 		}
 		return mcpresult.Render(commentPage(s.Comments(ctx, apppissue.CommentsInput{
-			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
 			Since:  a.Since, Before: a.Before,
 			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})))
@@ -600,21 +610,21 @@ func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolReque
 
 func (h handlers) GetIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a getCommentArgs) (*mcp.CallToolResult, error) {
-		c, err := s.Comment(ctx, a.Owner, a.Repo, int64(a.CommentID))
+		c, err := s.Comment(ctx, a.Owner, a.Repo, a.commentID)
 		return compact.RenderCommentRead(c, err, a.Verbose)
 	})
 }
 
 func (h handlers) EditIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a editCommentArgs) (*mcp.CallToolResult, error) {
-		c, err := s.EditComment(ctx, a.Owner, a.Repo, int64(a.CommentID), a.Body)
+		c, err := s.EditComment(ctx, a.Owner, a.Repo, a.commentID, a.Body)
 		return compact.RenderComment(c, err, a.Verbose)
 	})
 }
 
 func (h handlers) DeleteIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a commentArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render("Delete comment success", s.DeleteComment(ctx, a.Owner, a.Repo, int64(a.CommentID)))
+		return mcpresult.Render("Delete comment success", s.DeleteComment(ctx, a.Owner, a.Repo, a.commentID))
 	})
 }
 

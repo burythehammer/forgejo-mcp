@@ -29,10 +29,11 @@ type handlers struct{ forge forge.Factory }
 // them in agreement with the tool definitions.
 
 type getArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	Verbose bool `json:"verbose"`
 }
 
 type listArgs struct {
@@ -57,39 +58,45 @@ type createArgs struct {
 }
 
 type updateArgs struct {
-	Owner     string  `json:"owner" required:"true"`
-	Repo      string  `json:"repo" required:"true"`
-	Index     float64 `json:"index" required:"true"`
-	Title     string  `json:"title"`
-	Body      string  `json:"body"`
-	Base      string  `json:"base"`
-	Assignee  string  `json:"assignee"`
-	Milestone string  `json:"milestone"`
-	Verbose   bool    `json:"verbose"`
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	Index     any    `json:"index" required:"true" schema:"number"`
+	idx       int64
+	Title     string `json:"title"`
+	Body      string `json:"body"`
+	Base      string `json:"base"`
+	Assignee  string `json:"assignee"`
+	Milestone string `json:"milestone"`
+	Verbose   bool   `json:"verbose"`
 }
 
 type pagedArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Index any    `json:"index" required:"true" schema:"number"`
+	idx   int64
 	Page  float64 `json:"page"`
 	Limit float64 `json:"limit"`
 }
 
 type reviewArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
-	ID    float64 `json:"id" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Index any    `json:"index" required:"true" schema:"number"`
+	idx   int64
+	ID    any `json:"id" required:"true" schema:"number"`
+	id    int64
 }
 
 // reviewCommentsArgs is list_pull_review_comments' argument struct: a review
 // reference and the page to read.
 type reviewCommentsArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
-	ID    float64 `json:"id" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Index any    `json:"index" required:"true" schema:"number"`
+	idx   int64
+	ID    any `json:"id" required:"true" schema:"number"`
+	id    int64
 	Page  float64 `json:"page"`
 	Limit float64 `json:"limit"`
 }
@@ -97,66 +104,76 @@ type reviewCommentsArgs struct {
 // getReviewArgs is get_pull_review's own argument struct, so its verbose flag
 // does not reach the review tools that share reviewArgs.
 type getReviewArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	ID      float64 `json:"id" required:"true"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	ID      any `json:"id" required:"true" schema:"number"`
+	id      int64
+	Verbose bool `json:"verbose"`
 }
 
 type mergeArgs struct {
-	Owner             string  `json:"owner" required:"true"`
-	Repo              string  `json:"repo" required:"true"`
-	Index             float64 `json:"index" required:"true"`
-	Style             string  `json:"style" required:"true"`
-	Title             string  `json:"title"`
-	Message           string  `json:"message"`
-	DeleteBranch      bool    `json:"delete_branch_after_merge"`
-	ForceMerge        bool    `json:"force_merge"`
-	MergeWhenChecksOK bool    `json:"merge_when_checks_succeed"`
+	Owner             string `json:"owner" required:"true"`
+	Repo              string `json:"repo" required:"true"`
+	Index             any    `json:"index" required:"true" schema:"number"`
+	idx               int64
+	Style             string `json:"style" required:"true"`
+	Title             string `json:"title"`
+	Message           string `json:"message"`
+	DeleteBranch      bool   `json:"delete_branch_after_merge"`
+	ForceMerge        bool   `json:"force_merge"`
+	MergeWhenChecksOK bool   `json:"merge_when_checks_succeed"`
 }
 
 type diffArgs struct {
-	Owner    string  `json:"owner" required:"true"`
-	Repo     string  `json:"repo" required:"true"`
-	Index    float64 `json:"index" required:"true"`
+	Owner    string `json:"owner" required:"true"`
+	Repo     string `json:"repo" required:"true"`
+	Index    any    `json:"index" required:"true" schema:"number"`
+	idx      int64
 	FilePath string  `json:"file_path"`
 	Page     float64 `json:"page"`
 	Limit    float64 `json:"limit"`
 }
 
 type createReviewArgs struct {
-	Owner    string  `json:"owner" required:"true"`
-	Repo     string  `json:"repo" required:"true"`
-	Index    float64 `json:"index" required:"true"`
-	Body     string  `json:"body"`
-	State    string  `json:"state" required:"true"`
-	Comments string  `json:"comments"`
+	Owner    string `json:"owner" required:"true"`
+	Repo     string `json:"repo" required:"true"`
+	Index    any    `json:"index" required:"true" schema:"number"`
+	idx      int64
+	Body     string `json:"body"`
+	State    string `json:"state" required:"true"`
+	Comments string `json:"comments"`
 }
 
 type submitReviewArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
-	ID    float64 `json:"id" required:"true"`
-	Body  string  `json:"body"`
-	State string  `json:"state" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Index any    `json:"index" required:"true" schema:"number"`
+	idx   int64
+	ID    any `json:"id" required:"true" schema:"number"`
+	id    int64
+	Body  string `json:"body"`
+	State string `json:"state" required:"true"`
 }
 
 type dismissArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	ID      float64 `json:"id" required:"true"`
-	Message string  `json:"message" required:"true"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	ID      any `json:"id" required:"true" schema:"number"`
+	id      int64
+	Message string `json:"message" required:"true"`
 }
 
 type reviewersArgs struct {
-	Owner         string  `json:"owner" required:"true"`
-	Repo          string  `json:"repo" required:"true"`
-	Index         float64 `json:"index" required:"true"`
-	Reviewers     string  `json:"reviewers"`
-	TeamReviewers string  `json:"team_reviewers"`
+	Owner         string `json:"owner" required:"true"`
+	Repo          string `json:"repo" required:"true"`
+	Index         any    `json:"index" required:"true" schema:"number"`
+	idx           int64
+	Reviewers     string `json:"reviewers"`
+	TeamReviewers string `json:"team_reviewers"`
 }
 
 // run is the shared shape of a tool call: decode the arguments into A, take
@@ -169,6 +186,11 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 	var args A
 	if err := decode.Lax(req, &args); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if v, ok := any(&args).(validator); ok {
+		if err := v.validate(); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
 	}
 	port, err := h.forge.For(ctx)
 	if err != nil {
@@ -187,7 +209,7 @@ func message(text string, err error) (*mcp.CallToolResult, error) {
 
 func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetPullRequestByIndexFn", func(ctx context.Context, s *apppull.Service, a getArgs) (*mcp.CallToolResult, error) {
-		in := apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}
+		in := apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx}
 		read, err := s.Read(ctx, in, apppull.ReadOptions{})
 		if err != nil {
 			return nil, mapErr(pullResourceURI(a.Owner, a.Repo, in.Index), err)
@@ -220,7 +242,7 @@ func (h handlers) CreatePullRequestFn(ctx context.Context, req mcp.CallToolReque
 func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdatePullRequestFn", func(ctx context.Context, s *apppull.Service, a updateArgs) (*mcp.CallToolResult, error) {
 		pr, err := s.Update(ctx, apppull.UpdateInput{
-			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
+			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx},
 			Title: a.Title, Body: a.Body, Base: a.Base, Assignee: a.Assignee, Milestone: a.Milestone,
 		})
 		return compact.RenderPullRequest(pr, err, a.Verbose)
@@ -233,20 +255,20 @@ func (h handlers) ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest
 		if perr != nil {
 			return mcpresult.Fail(perr)
 		}
-		return mcpresult.Render(reviewPage(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: pg, Limit: lim})))
+		return mcpresult.Render(reviewPage(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, Page: pg, Limit: lim})))
 	})
 }
 
 func (h handlers) GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetPullReviewFn", func(ctx context.Context, s *apppull.Service, a getReviewArgs) (*mcp.CallToolResult, error) {
-		review, err := s.Review(ctx, reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID}))
+		review, err := s.Review(ctx, reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, idx: a.idx, id: a.id}))
 		return compact.RenderReviewRead(review, err, a.Verbose)
 	})
 }
 
 func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullReviewCommentsFn", func(ctx context.Context, s *apppull.Service, a reviewCommentsArgs) (*mcp.CallToolResult, error) {
-		ref := reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID})
+		ref := reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, idx: a.idx, id: a.id})
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return mcpresult.Fail(perr)
@@ -261,7 +283,7 @@ func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallTool
 func (h handlers) MergePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "MergePullRequestFn", func(ctx context.Context, s *apppull.Service, a mergeArgs) (*mcp.CallToolResult, error) {
 		res, err := s.Merge(ctx, apppull.MergeRequest{
-			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
+			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx},
 			Style: a.Style, Title: a.Title, Message: a.Message,
 			DeleteBranch: a.DeleteBranch, Force: a.ForceMerge, WhenChecksSucceed: a.MergeWhenChecksOK,
 		})
@@ -279,7 +301,7 @@ func (h handlers) ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRe
 		if perr != nil {
 			return mcpresult.Fail(perr)
 		}
-		return mcpresult.Render(filesPage(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: pg, Limit: lim})))
+		return mcpresult.Render(filesPage(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, Page: pg, Limit: lim})))
 	})
 }
 
@@ -290,7 +312,7 @@ func (h handlers) GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequ
 			return message("", perr)
 		}
 		page, err := s.Diff(ctx, apppull.DiffInput{
-			PR:       apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
+			PR:       apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx},
 			FilePath: a.FilePath,
 			Page:     pg,
 			Limit:    lim,
@@ -331,7 +353,7 @@ func withMarker(text, marker string) string {
 func (h handlers) CreatePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreatePullReviewFn", func(ctx context.Context, s *apppull.Service, a createReviewArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.CreateReview(ctx, apppull.CreateReviewRequest{
-			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
+			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx},
 			State: a.State, Body: a.Body, Comments: a.Comments,
 		}))
 	})
@@ -340,7 +362,7 @@ func (h handlers) CreatePullReviewFn(ctx context.Context, req mcp.CallToolReques
 func (h handlers) SubmitPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SubmitPullReviewFn", func(ctx context.Context, s *apppull.Service, a submitReviewArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.SubmitReview(ctx, apppull.SubmitReviewRequest{
-			ReviewRef: reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID}),
+			ReviewRef: reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, idx: a.idx, id: a.id}),
 			State:     a.State, Body: a.Body,
 		}))
 	})
@@ -349,7 +371,7 @@ func (h handlers) SubmitPullReviewFn(ctx context.Context, req mcp.CallToolReques
 func (h handlers) DismissPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DismissPullReviewFn", func(ctx context.Context, s *apppull.Service, a dismissArgs) (*mcp.CallToolResult, error) {
 		err := s.DismissReview(ctx, apppull.DismissRequest{
-			ReviewRef: reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID}),
+			ReviewRef: reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, idx: a.idx, id: a.id}),
 			Message:   a.Message,
 		})
 		return message(`{"Result":"review dismissed successfully"}`, err)
@@ -375,12 +397,16 @@ func (h handlers) DeleteReviewRequestsFn(ctx context.Context, req mcp.CallToolRe
 }
 
 func reviewRef(a reviewArgs) apppull.ReviewRef {
-	return apppull.ReviewRef{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, ID: int64(a.ID)}
+	return apppull.ReviewRef{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, ID: a.id}
 }
 
 func reviewers(a reviewersArgs) apppull.ReviewersInput {
 	return apppull.ReviewersInput{
-		PR:        apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
+		PR:        apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx},
 		Reviewers: a.Reviewers, TeamReviewers: a.TeamReviewers,
 	}
 }
+
+// validator is implemented by an argument struct whose numbers are checked by
+// the numeric-argument module before its handler runs.
+type validator interface{ validate() error }

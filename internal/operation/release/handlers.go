@@ -12,6 +12,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/releaseadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/upload"
@@ -157,7 +158,7 @@ func number(v any, name string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", name, err)
 	}
-	return int64(f), nil
+	return numarg.PositiveID(name, f)
 }
 
 // --- Release tools ----------------------------------------------------------

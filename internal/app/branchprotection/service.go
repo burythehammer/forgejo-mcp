@@ -36,7 +36,7 @@ type CreateRequest struct {
 	Owner, Repo, BranchName, RuleName string
 	EnablePush, EnableStatusCheck     bool
 	StatusCheckContexts               *string
-	RequiredApprovals                 float64
+	RequiredApprovals                 int64
 	BlockOnOutdatedBranch             bool
 	RequireSignedCommits              bool
 	DismissStaleApprovals             bool
@@ -53,7 +53,7 @@ type EditRequest struct {
 	MergeWhitelistUsernames     *string
 	EnableStatusCheck           *bool
 	StatusCheckContexts         *string
-	RequiredApprovals           *float64
+	RequiredApprovals           *int64
 	EnableApprovalsWhitelist    *bool
 	ApprovalsWhitelistUsernames *string
 	BlockOnOutdatedBranch       *bool
@@ -102,7 +102,7 @@ func (s *Service) Create(ctx context.Context, r CreateRequest) (*model.BranchPro
 		RuleName:              r.RuleName,
 		EnablePush:            r.EnablePush,
 		EnableStatusCheck:     r.EnableStatusCheck,
-		RequiredApprovals:     int64(r.RequiredApprovals),
+		RequiredApprovals:     r.RequiredApprovals,
 		BlockOnOutdatedBranch: r.BlockOnOutdatedBranch,
 		RequireSignedCommits:  r.RequireSignedCommits,
 		DismissStaleApprovals: r.DismissStaleApprovals,
@@ -136,10 +136,7 @@ func (s *Service) Edit(ctx context.Context, r EditRequest) (*model.BranchProtect
 		StatusCheckContexts:         splitPtr(r.StatusCheckContexts),
 		ApprovalsWhitelistUsernames: splitPtr(r.ApprovalsWhitelistUsernames),
 	}
-	if r.RequiredApprovals != nil {
-		v := int64(*r.RequiredApprovals)
-		in.RequiredApprovals = &v
-	}
+	in.RequiredApprovals = r.RequiredApprovals
 	bp, err := s.port.EditBranchProtection(ctx, r.Owner, r.Repo, r.Rule, in)
 	if err != nil {
 		return nil, fmt.Errorf("edit branch protection err: %w", err)

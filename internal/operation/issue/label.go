@@ -134,9 +134,10 @@ type createRepoLabelArgs struct {
 }
 
 type editRepoLabelArgs struct {
-	Owner       string  `json:"owner" required:"true"`
-	Repo        string  `json:"repo" required:"true"`
-	ID          float64 `json:"id" required:"true"`
+	Owner       string `json:"owner" required:"true"`
+	Repo        string `json:"repo" required:"true"`
+	ID          any    `json:"id" required:"true" schema:"number"`
+	id          int64
 	Name        *string `json:"name"`
 	Color       *string `json:"color"`
 	Description *string `json:"description"`
@@ -144,16 +145,18 @@ type editRepoLabelArgs struct {
 }
 
 type deleteRepoLabelArgs struct {
-	Owner      string  `json:"owner" required:"true"`
-	Repo       string  `json:"repo" required:"true"`
-	ID         float64 `json:"id" required:"true"`
-	DeleteMode string  `json:"delete_mode"`
+	Owner      string `json:"owner" required:"true"`
+	Repo       string `json:"repo" required:"true"`
+	ID         any    `json:"id" required:"true" schema:"number"`
+	id         int64
+	DeleteMode string `json:"delete_mode"`
 }
 
 type getRepoLabelArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	ID    float64 `json:"id" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	ID    any    `json:"id" required:"true" schema:"number"`
+	id    int64
 }
 
 type createOrgLabelArgs struct {
@@ -165,8 +168,9 @@ type createOrgLabelArgs struct {
 }
 
 type editOrgLabelArgs struct {
-	Org         string  `json:"org" required:"true"`
-	ID          float64 `json:"id" required:"true"`
+	Org         string `json:"org" required:"true"`
+	ID          any    `json:"id" required:"true" schema:"number"`
+	id          int64
 	Name        *string `json:"name"`
 	Color       *string `json:"color"`
 	Description *string `json:"description"`
@@ -174,14 +178,16 @@ type editOrgLabelArgs struct {
 }
 
 type deleteOrgLabelArgs struct {
-	Org        string  `json:"org" required:"true"`
-	ID         float64 `json:"id" required:"true"`
-	DeleteMode string  `json:"delete_mode"`
+	Org        string `json:"org" required:"true"`
+	ID         any    `json:"id" required:"true" schema:"number"`
+	id         int64
+	DeleteMode string `json:"delete_mode"`
 }
 
 type getOrgLabelArgs struct {
-	Org string  `json:"org" required:"true"`
-	ID  float64 `json:"id" required:"true"`
+	Org string `json:"org" required:"true"`
+	ID  any    `json:"id" required:"true" schema:"number"`
+	id  int64
 }
 
 // labelNew is the label a create call names.
@@ -203,13 +209,13 @@ func (h handlers) CreateRepoLabelFn(ctx context.Context, req mcp.CallToolRequest
 
 func (h handlers) EditRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a editRepoLabelArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.EditRepoLabel(ctx, a.Owner, a.Repo, int64(a.ID), labelEdit("edit_repo_label", a.Name, a.Color, a.Description, a.Exclusive)))
+		return mcpresult.Render(s.EditRepoLabel(ctx, a.Owner, a.Repo, a.id, labelEdit("edit_repo_label", a.Name, a.Color, a.Description, a.Exclusive)))
 	})
 }
 
 func (h handlers) DeleteRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a deleteRepoLabelArgs) (*mcp.CallToolResult, error) {
-		id := int64(a.ID)
+		id := a.id
 		if err := s.DeleteRepoLabel(ctx, a.Owner, a.Repo, id, a.DeleteMode == "force"); err != nil {
 			return mcpresult.Fail(err)
 		}
@@ -234,9 +240,9 @@ func orgLabelsURI(org string) string {
 
 func (h handlers) GetRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a getRepoLabelArgs) (*mcp.CallToolResult, error) {
-		label, err := s.GetRepoLabel(ctx, a.Owner, a.Repo, int64(a.ID))
+		label, err := s.GetRepoLabel(ctx, a.Owner, a.Repo, a.id)
 		if err != nil {
-			return nil, mapErr(repoLabelURI(a.Owner, a.Repo, int64(a.ID)), err)
+			return nil, mapErr(repoLabelURI(a.Owner, a.Repo, a.id), err)
 		}
 		return mcpresult.Render(label, nil)
 	})
@@ -250,13 +256,13 @@ func (h handlers) CreateOrgLabelFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) EditOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a editOrgLabelArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.EditOrgLabel(ctx, a.Org, int64(a.ID), labelEdit("edit_org_label", a.Name, a.Color, a.Description, a.Exclusive)))
+		return mcpresult.Render(s.EditOrgLabel(ctx, a.Org, a.id, labelEdit("edit_org_label", a.Name, a.Color, a.Description, a.Exclusive)))
 	})
 }
 
 func (h handlers) DeleteOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a deleteOrgLabelArgs) (*mcp.CallToolResult, error) {
-		id := int64(a.ID)
+		id := a.id
 		if err := s.DeleteOrgLabel(ctx, a.Org, id, a.DeleteMode == "force"); err != nil {
 			return mcpresult.Fail(err)
 		}
@@ -266,6 +272,6 @@ func (h handlers) DeleteOrgLabelFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) GetOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a getOrgLabelArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.GetOrgLabel(ctx, a.Org, int64(a.ID)))
+		return mcpresult.Render(s.GetOrgLabel(ctx, a.Org, a.id))
 	})
 }
