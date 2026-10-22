@@ -52,7 +52,11 @@ func (a *Adapter) ListOrgMembers(_ context.Context, org string, opt forgejo_sdk.
 // "not a member" when the org exists and not found when it does not (see
 // notFoundOr), and any other status that is not 204 is a failure.
 func (a *Adapter) CheckOrgMembership(ctx context.Context, org, user string) (bool, error) {
-	status, body, err := a.raw.doStatus(ctx, http.MethodGet, forge.APIPath("orgs", org, "members", user), nil)
+	path, err := forge.APIPath("orgs", org, "members", user)
+	if err != nil {
+		return false, err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return false, err
 	}

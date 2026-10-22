@@ -49,7 +49,11 @@ func (a *Adapter) ListPackages(ctx context.Context, owner string, opt forge.List
 	if opt.Query != "" {
 		query.Set("q", opt.Query)
 	}
-	path := forge.APIPath("packages", owner) + "?" + query.Encode()
+	base, err := forge.APIPath("packages", owner)
+	if err != nil {
+		return forge.PackageList{}, err
+	}
+	path := base + "?" + query.Encode()
 
 	var rows []packageVersionJSON
 	header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &rows)
@@ -69,7 +73,11 @@ func (a *Adapter) ListPackages(ctx context.Context, owner string, opt forge.List
 
 func (a *Adapter) GetPackage(ctx context.Context, owner, packageType, name, version string) (*forge.PackageVersion, error) {
 	var src packageVersionJSON
-	if _, err := a.rawJSON(ctx, http.MethodGet, forge.APIPath("packages", owner, packageType, name, version), nil, &src); err != nil {
+	path, err := forge.APIPath("packages", owner, packageType, name, version)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := a.rawJSON(ctx, http.MethodGet, path, nil, &src); err != nil {
 		return nil, err
 	}
 	v := src.port()
@@ -77,7 +85,11 @@ func (a *Adapter) GetPackage(ctx context.Context, owner, packageType, name, vers
 }
 
 func (a *Adapter) DeletePackage(ctx context.Context, owner, packageType, name, version string) error {
-	_, err := a.rawJSON(ctx, http.MethodDelete, forge.APIPath("packages", owner, packageType, name, version), nil, nil)
+	path, err := forge.APIPath("packages", owner, packageType, name, version)
+	if err != nil {
+		return err
+	}
+	_, err = a.rawJSON(ctx, http.MethodDelete, path, nil, nil)
 	return err
 }
 
@@ -88,7 +100,11 @@ func (a *Adapter) ListPackageFiles(ctx context.Context, owner, packageType, name
 		Size   int64  `json:"size"`
 		SHA256 string `json:"sha256"`
 	}
-	if _, err := a.rawJSON(ctx, http.MethodGet, forge.APIPath("packages", owner, packageType, name, version, "files"), nil, &rows); err != nil {
+	path, err := forge.APIPath("packages", owner, packageType, name, version, "files")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := a.rawJSON(ctx, http.MethodGet, path, nil, &rows); err != nil {
 		return nil, err
 	}
 	files := make([]forge.PackageFile, 0, len(rows))
