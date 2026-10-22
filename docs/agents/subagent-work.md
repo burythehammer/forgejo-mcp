@@ -14,6 +14,7 @@ Read this when you implement a ticket in a worktree, merge subagent branches int
 
 - Run `make check` on the integration branch after every merge. An implementer's "all green" is a claim; the merged tip is the evidence. A merge of two green branches has failed before (the since-retired `check-app-boundary.sh`).
 - Put the trailer text and the `make check` instruction in each implementer's prompt, since subagents cannot see memory.
+- After a branch merges, prune its agent worktree: `git worktree remove .claude/worktrees/<dir>`, then `git branch -d <branch>` once `git merge-base --is-ancestor <branch> origin/main` holds. Unpruned worktrees pile up under `.claude/worktrees/` and bury the live ones in `git worktree list`.
 
 ## Reviewer
 
