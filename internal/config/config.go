@@ -80,6 +80,12 @@ type TLS struct {
 	SkipVerify bool
 }
 
+// DefaultMaxRequestBodyBytes is the largest request body the sse and http
+// transports read. It is the one place the ceiling's default lives. It must
+// clear the largest legitimate request, an attachment upload at the upload cap
+// (90 MiB of base64) plus its JSON-RPC envelope; the transport's test pins that.
+const DefaultMaxRequestBodyBytes int64 = 96 << 20
+
 // Listen holds the network transport settings.
 type Listen struct {
 	SSEPort                    int
@@ -88,6 +94,9 @@ type Listen struct {
 	AllowedHosts               []string
 	AllowedOrigins             []string
 	AllowOperatorTokenFallback bool
+	// MaxRequestBodyBytes is the request body ceiling for the sse and http
+	// transports. A request over it is refused with 413. Must be positive.
+	MaxRequestBodyBytes int64
 }
 
 // Auth selects how the http transport authenticates callers. Every field but

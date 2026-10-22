@@ -39,7 +39,7 @@ func TestLoadDefaults(t *testing.T) {
 		Mode:      ModeServe,
 		Transport: "stdio",
 		Forgejo:   Forgejo{URL: "https://f.example.org", UserAgent: "forgejo-mcp/9.9.9", RequestTimeout: DefaultRequestTimeout},
-		Listen:    Listen{SSEPort: 8080, HTTPPort: 8080, Host: "localhost"},
+		Listen:    Listen{SSEPort: 8080, HTTPPort: 8080, Host: "localhost", MaxRequestBodyBytes: DefaultMaxRequestBodyBytes},
 		Auth: Auth{
 			Mode:                 "passthrough",
 			ScopesSupported:      []string{},
@@ -80,6 +80,9 @@ func TestLoadPrecedencePerSetting(t *testing.T) {
 		{"fallback env on", nil, append([]string{"FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK", "YES"}, base...), func(c Config) any { return c.Listen.AllowOperatorTokenFallback }, true},
 		{"fallback env garbage off", nil, append([]string{"FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK", "maybe"}, base...), func(c Config) any { return c.Listen.AllowOperatorTokenFallback }, false},
 		{"fallback explicit flag false beats env", []string{"-allow-operator-token-fallback=false"}, append([]string{"FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK", "true"}, base...), func(c Config) any { return c.Listen.AllowOperatorTokenFallback }, false},
+		{"body limit default", nil, base, func(c Config) any { return c.Listen.MaxRequestBodyBytes }, DefaultMaxRequestBodyBytes},
+		{"body limit flag", []string{"-max-request-body-bytes", "2048"}, append([]string{"FORGEJO_MCP_MAX_REQUEST_BODY_BYTES", "4096"}, base...), func(c Config) any { return c.Listen.MaxRequestBodyBytes }, int64(2048)},
+		{"body limit env", nil, append([]string{"FORGEJO_MCP_MAX_REQUEST_BODY_BYTES", "4096"}, base...), func(c Config) any { return c.Listen.MaxRequestBodyBytes }, int64(4096)},
 		{"fallback flag", []string{"-allow-operator-token-fallback"}, base, func(c Config) any { return c.Listen.AllowOperatorTokenFallback }, true},
 		{"transport short flag", []string{"-t", "http"}, base, func(c Config) any { return c.Transport }, "http"},
 		{"transport long flag", []string{"-transport", "sse"}, base, func(c Config) any { return c.Transport }, "sse"},
