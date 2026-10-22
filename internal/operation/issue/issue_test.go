@@ -80,7 +80,7 @@ func TestGetIssueByIndex_CompactByDefault(t *testing.T) {
 	idx := openIssue(t, f, "hello")
 	args := map[string]any{"index": float64(idx)}
 
-	want := []string{"assignees", "body", "closed_at", "comments", "labels", "number", "ref", "state", "title", "updated_at", "url"}
+	want := []string{"assignees", "body", "closed_at", "comments", "is_pull_request", "labels", "milestone", "number", "ref", "state", "title", "updated_at", "url"}
 	if got := resultKeys(t, call(t, h.GetIssueByIndexFn, args)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("default keys = %v, want %v", got, want)
 	}
@@ -429,7 +429,7 @@ func TestListRepoMilestones(t *testing.T) {
 	}
 }
 
-var compactIssueKeys = []string{"number", "url", "title", "state", "labels", "assignees", "updated_at"}
+var compactIssueKeys = []string{"number", "url", "title", "state", "labels", "assignees", "updated_at", "milestone", "is_pull_request"}
 
 // assertCompactIssue checks the default write result: exactly the compact keys,
 // and none of the body or the user object.

@@ -151,6 +151,24 @@ func (f *Forgejo) SeedMilestone(owner, repo, title string) int64 {
 	return r.nextMS
 }
 
+// MarkPullRequest makes the issue at index report a pull-request link, as
+// Forgejo does for a pull request's index on the issue endpoints. The fake keeps
+// pull requests in their own store, so a test marks one here to read it as an
+// issue. It panics if the index is not an issue.
+func (f *Forgejo) MarkPullRequest(owner, repo string, index int64) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		panic(fmt.Sprintf("fake: MarkPullRequest in unknown repository %s/%s", owner, repo))
+	}
+	rec, err := r.issue(index)
+	if err != nil {
+		panic(fmt.Sprintf("fake: MarkPullRequest of unknown issue %d", index))
+	}
+	rec.issue.PullRequest = &forgejo_sdk.PullRequestMeta{}
+}
+
 // CloseMilestone marks a seeded milestone closed.
 func (f *Forgejo) CloseMilestone(owner, repo string, id int64) {
 	f.issues.mu.Lock()
