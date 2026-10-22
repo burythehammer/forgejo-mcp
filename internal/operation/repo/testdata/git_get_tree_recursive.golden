@@ -1,3 +1,3 @@
-{"Result":{"sha":"0123456789abcdef0123456789abcdef01234567","url":"https://f.example/tree/0123456789abcdef0123456789abcdef01234567","tree":[{"path":"a.go","mode":"100644","type":"blob","size":12,"sha":"89abcdef0123456789abcdef0123456789abcdef","url":"https://f.example/b/a.go"},{"path":"cmd","mode":"040000","type":"tree","size":0,"sha":"0123456789abcdef0123456789abcdef01234567","url":"https://f.example/t/cmd"}],"truncated":false,"page":1,"total_count":2}}
+{"Result":{"tree":[{"path":"a.go","mode":"100644","type":"blob","size":12,"sha":"89abcdef0123456789abcdef0123456789abcdef","url":"https://f.example/b/a.go"},{"path":"cmd","mode":"040000","type":"tree","size":0,"sha":"0123456789abcdef0123456789abcdef01234567","url":"https://f.example/t/cmd"}],"page":1,"limit":10,"count":2,"has_next":false,"total_count":2}}
 -- port calls --
 GetTree ["octo","hello","main",{"Recursive":true,"Page":1,"PageSize":10}]

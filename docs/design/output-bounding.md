@@ -190,5 +190,5 @@ says so.
 Gaps the registry test records as exemptions, not failures: `list_my_stopwatches`
 has no `page`/`limit` (shape 1 above). `list_my_repos` renders a bare array with
 no `has_next`, a rendering ADR 0003 freezes, so a full page means more. The
-instance ceiling does not reach `get_commit_statuses`, `get_repo_tree` or
-`get_wiki_revisions` (`ceilingExempt` in `pagination_ceiling_test.go`).
+instance ceiling does not reach `get_commit_statuses` or `get_wiki_revisions`
+(`ceilingExempt` in `pagination_ceiling_test.go`).

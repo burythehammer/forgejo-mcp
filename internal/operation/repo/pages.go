@@ -40,6 +40,19 @@ func contentsPage(b list.Bounded[*model.ContentsResponse], err error) (model.Con
 	return model.ContentsPage{Contents: rows, PageMeta: meta}, nil
 }
 
+// treePage renders one page of a Git tree's entries; an empty page is an empty
+// list.
+func treePage(b list.Bounded[model.GitEntry], err error) (model.TreePage, error) {
+	if err != nil {
+		return model.TreePage{}, err
+	}
+	tree := b.Items
+	if tree == nil {
+		tree = []model.GitEntry{}
+	}
+	return model.TreePage{Tree: tree, PageMeta: model.PageMetaOf(b)}, nil
+}
+
 // topicPage renders one page of a repository's topics; an empty page is an
 // empty list.
 func topicPage(b list.Bounded[string], err error) (model.TopicPage, error) {

@@ -33,13 +33,13 @@ var (
 
 	GetRepoTreeTool = mcp.NewTool(
 		GetRepoTreeToolName,
-		mcp.WithDescription("Get the Git tree of a repository. With recursive=true, returns the complete file tree in a single response (subject to the server's tree-endpoint size cap); use this when you need all paths at once. With recursive=false (default), returns only the top-level entries of the tree. page and limit (default 1000) select one page of those entries."),
+		mcp.WithDescription("Get the Git tree of a repository. With recursive=true, returns the complete file tree in a single response (subject to the server's tree-endpoint size cap); use this when you need all paths at once. With recursive=false (default), returns only the top-level entries of the tree. page and limit (default 1000) select one page of those entries, and the response carries has_next to say whether more entries follow."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("ref", mcp.Required(), mcp.Description(params.Ref)),
 		mcp.WithBoolean("recursive", mcp.Description("Return the complete file tree in one response (subject to server cap); default false returns top-level entries only")),
-		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
-		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(1000), mcp.Min(1)),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(1000), mcp.Min(1)),
 	)
 )
 
@@ -60,8 +60,8 @@ type getRepoTreeArgs struct {
 	Repo      *string `json:"repo" required:"true"`
 	Ref       *string `json:"ref" required:"true"`
 	Recursive bool    `json:"recursive"`
-	Page      float64 `json:"page" required:"true"`
-	Limit     float64 `json:"limit" required:"true"`
+	Page      float64 `json:"page"`
+	Limit     float64 `json:"limit"`
 }
 
 func (h handlers) ListRepoContentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -110,8 +110,8 @@ func (h handlers) GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return gitText(svc.GetTree(ctx, owner, repo, ref, apprepo.TreeInput{
+	return gitText(treePage(svc.GetTree(ctx, owner, repo, ref, apprepo.TreeInput{
 		Recursive: a.Recursive,
-		Page:      apprepo.GitPage{Page: int(orDefault(a.Page, 1)), Limit: int(orDefault(a.Limit, 1000))},
-	}))
+		Page:      apprepo.GitPage{Page: decode.PageOr(a.Page, 1), Limit: decode.IntOr(a.Limit, 0)},
+	})))
 }
