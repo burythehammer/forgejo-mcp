@@ -11,6 +11,7 @@ package issueadapter
 
 import (
 	"context"
+	"errors"
 
 	appissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
@@ -251,6 +252,9 @@ func (a adapter) CountIssuesLabelled(ctx context.Context, owner, repo, label str
 		Labels:      []string{label},
 		ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: 1},
 	}})
+	if forge.IsNotFound(err) || errors.Is(err, forge.ErrUnauthorized) {
+		return nil, &appissue.InaccessibleError{Err: err}
+	}
 	if err != nil {
 		return nil, err
 	}

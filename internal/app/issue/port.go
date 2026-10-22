@@ -61,7 +61,8 @@ type Port interface {
 	ListOrgRepoNames(ctx context.Context, org string, p Paging) ([]string, error)
 	// CountIssuesLabelled counts the issues and pull requests of a repository
 	// that carry the named label. The total is nil when Forgejo does not report
-	// one.
+	// one. A repository the token cannot see comes back as an
+	// *InaccessibleError.
 	CountIssuesLabelled(ctx context.Context, owner, repo, label string) (*int, error)
 
 	ListIssueDependencies(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.Issue, error)

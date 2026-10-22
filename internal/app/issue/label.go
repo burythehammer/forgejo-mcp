@@ -151,7 +151,8 @@ func (s *Service) EditOrgLabel(ctx context.Context, org string, id int64, in Lab
 
 // DeleteOrgLabel deletes an organization label. Unless force is set, a label
 // that is in use in the organization's visible repositories is kept. That
-// count is best-effort and may under-count repositories the token cannot read.
+// count skips repositories the token cannot read; any other failed count
+// refuses the delete, since an unknown usage must not read as unused.
 func (s *Service) DeleteOrgLabel(ctx context.Context, org string, id int64, force bool) error {
 	if !force {
 		label, err := s.port.GetOrgLabel(ctx, org, id)
@@ -219,9 +220,9 @@ func (s *Service) labelUsage(ctx context.Context, owner, repo, label string) (in
 }
 
 // orgLabelUsage counts, best-effort, the issues and pull requests in an
-// organization's visible repositories that carry the label. A repository whose
-// count fails adds nothing; a failure to list the repositories is returned with
-// the count so far.
+// organization's visible repositories that carry the label. A repository the
+// token cannot see adds nothing; any other count failure, or a failure to list
+// the repositories, is returned with the count so far.
 func (s *Service) orgLabelUsage(ctx context.Context, org, label string) (int, error) {
 	total := 0
 	for page := 1; ; page++ {
@@ -233,7 +234,14 @@ func (s *Service) orgLabelUsage(ctx context.Context, org, label string) (int, er
 			break
 		}
 		for _, name := range names {
-			n, _ := s.labelUsage(ctx, org, name, label)
+			n, err := s.labelUsage(ctx, org, name, label)
+			var inaccessible *InaccessibleError
+			if errors.As(err, &inaccessible) {
+				continue
+			}
+			if err != nil {
+				return total, fmt.Errorf("repo %s/%s: label may be in use: %w", org, name, err)
+			}
 			total += n
 		}
 	}
