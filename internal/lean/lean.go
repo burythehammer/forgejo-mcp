@@ -13,48 +13,76 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// kept names the arguments whose property description stays under lean mode:
-// an argument with a format (RFC3339 time, hex SHA, JSON, comma-separated list),
-// an allowed-value list (state, sort, type), or a rule its name and type do not
-// show (exactly one of two arguments, a required pairing). The set is by name,
-// because a name carries the same meaning in every tool that takes it. owner,
-// repo, index, page, limit and verbose are never kept.
-var kept = map[string]bool{
-	// RFC3339 times and durations
-	"since": true, "before": true, "due_date": true, "created_at": true,
-	"last_read_at": true, "seconds": true, "duration": true, "clear_due_date": true,
-	// comma-separated lists
-	"labels": true, "set_labels": true, "assignees": true, "reviewers": true,
-	"team_reviewers": true, "events": true, "milestones": true, "topics": true,
-	"status_check_contexts": true, "push_whitelist_usernames": true,
-	"merge_whitelist_usernames": true, "approvals_whitelist_usernames": true,
-	// allowed values
-	"state": true, "sort": true, "order": true, "type": true, "event": true,
-	"status": true, "style": true, "permission": true, "visibility": true,
-	"content_type": true, "http_method": true, "delete_mode": true, "color": true,
-	// formats and rules
-	"sha": true, "secret_name": true, "inputs": true, "comments": true, "path": true,
-	"offset": true, "start_line": true, "end_line": true, "max_bytes": true,
-	"content": true, "content_base64": true, "file_path": true, "files": true,
-	"filename": true, "old": true, "new": true, "exclusive": true,
-}
+// markerKey is the property key that Keep writes into a tool's schema. Finish
+// removes it from every tool in both modes, so it is never served.
+const markerKey = "x-lean-keep"
 
-// Keeps reports whether an argument of the given name keeps its description.
-func Keeps(arg string) bool {
-	return kept[arg]
-}
-
-// Apply rewrites every tool registered on s into its lean form, in place. Call
-// it after registration and selection, before the server serves anything.
-func Apply(s *server.MCPServer) {
-	for _, st := range s.ListTools() {
-		s.AddTool(Tool(st.Tool), st.Handler)
+// Keep marks an argument whose description stays under --lean, and gives the
+// one short clause served in its place. Mark an argument with a format (a
+// comma-separated list, an RFC3339 time), an allowed-value list, or a rule that
+// its name and type do not show. Never mark owner, repo, index, page, limit or
+// verbose. Place it in the argument's option list next to its Description.
+func Keep(clause string) mcp.PropertyOption {
+	return func(schema map[string]any) {
+		schema[markerKey] = clause
 	}
 }
 
+// Marked returns the arguments of t that carry a keep marker, each with its
+// clause.
+func Marked(t mcp.Tool) map[string]string {
+	out := map[string]string{}
+	for name, v := range t.InputSchema.Properties {
+		prop, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		if clause, marked := prop[markerKey].(string); marked {
+			out[name] = clause
+		}
+	}
+	return out
+}
+
+// Finish sets the tool definitions on s for the mode: the lean form when on is
+// true, the full form otherwise. Either way the keep markers are removed. Call
+// it after registration and selection, before the server serves anything.
+func Finish(s *server.MCPServer, on bool) {
+	for _, st := range s.ListTools() {
+		t := Strip(st.Tool)
+		if on {
+			t = Tool(st.Tool)
+		}
+		s.AddTool(t, st.Handler)
+	}
+}
+
+// Strip returns t with its keep markers removed and every description left as
+// it was.
+func Strip(t mcp.Tool) mcp.Tool {
+	props := make(map[string]any, len(t.InputSchema.Properties))
+	for name, v := range t.InputSchema.Properties {
+		prop, ok := v.(map[string]any)
+		if !ok {
+			props[name] = v
+			continue
+		}
+		out := make(map[string]any, len(prop))
+		for k, val := range prop {
+			if k != markerKey {
+				out[k] = val
+			}
+		}
+		props[name] = out
+	}
+	t.InputSchema.Properties = props
+	return t
+}
+
 // Tool returns the lean form of t: the description cut to its first sentence,
-// property descriptions removed except for kept arguments, and empty
-// annotations. The schema's other keys, and every name, are kept as they are.
+// a property description only for each marked argument (the marker's clause),
+// and empty annotations. The schema's other keys, and every name, are kept as
+// they are.
 func Tool(t mcp.Tool) mcp.Tool {
 	t.Description = FirstSentence(t.Description)
 	t.Annotations = mcp.ToolAnnotation{}
@@ -66,10 +94,8 @@ func Tool(t mcp.Tool) mcp.Tool {
 			continue
 		}
 		out := stripSchema(prop)
-		if kept[name] {
-			if d, has := prop["description"]; has {
-				out["description"] = d
-			}
+		if clause, marked := prop[markerKey].(string); marked {
+			out["description"] = clause
 		}
 		props[name] = out
 	}
@@ -77,14 +103,15 @@ func Tool(t mcp.Tool) mcp.Tool {
 	return t
 }
 
-// stripSchema returns a copy of schema with its description removed, and with
-// the same removal applied to its nested properties and items.
+// stripSchema returns a copy of schema with its description and keep marker
+// removed, and with the same removal applied to its nested properties and items.
 func stripSchema(schema map[string]any) map[string]any {
 	out := make(map[string]any, len(schema))
 	for k, v := range schema {
 		out[k] = v
 	}
 	delete(out, "description")
+	delete(out, markerKey)
 	if nested, ok := out["properties"].(map[string]any); ok {
 		inner := make(map[string]any, len(nested))
 		for name, v := range nested {

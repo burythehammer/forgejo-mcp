@@ -14,9 +14,9 @@ func demoTool() mcp.Tool {
 	return mcp.NewTool("demo_tool",
 		mcp.WithDescription("Lists things. Pages through the result."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description("Repository owner")),
-		mcp.WithString("state", mcp.Description("Filter by state: open|closed")),
+		mcp.WithString("state", mcp.Description("Filter by state: open|closed"), Keep("open or closed")),
 		mcp.WithString("verbose", mcp.Description("Return the full entity instead of the compact summary.")),
-		mcp.WithArray("files", mcp.Description("File operations applied atomically"),
+		mcp.WithArray("files", mcp.Description("File operations applied atomically"), Keep("file operations, applied atomically"),
 			mcp.Items(map[string]any{
 				"type":        "object",
 				"description": "one operation",
@@ -62,11 +62,14 @@ func TestToolDropsPropertyDescriptionsExceptKeptArguments(t *testing.T) {
 	if _, ok := props["verbose"].(map[string]any)["description"]; ok {
 		t.Error("verbose kept a description; verbose is never kept")
 	}
-	if got := props["state"].(map[string]any)["description"]; got != "Filter by state: open|closed" {
-		t.Errorf("state description = %v, want it kept", got)
+	if got := props["state"].(map[string]any)["description"]; got != "open or closed" {
+		t.Errorf("state description = %v, want the marker's clause", got)
 	}
-	if _, ok := props["files"].(map[string]any)["description"]; !ok {
-		t.Error("files lost its description; files is a kept argument")
+	if got := props["files"].(map[string]any)["description"]; got != "file operations, applied atomically" {
+		t.Errorf("files description = %v, want the marker's clause", got)
+	}
+	if _, ok := props["files"].(map[string]any)[markerKey]; ok {
+		t.Error("the keep marker was served")
 	}
 	items := props["files"].(map[string]any)["items"].(map[string]any)
 	if _, ok := items["description"]; ok {
@@ -94,16 +97,24 @@ func TestToolAnnotationsAreEmptyObject(t *testing.T) {
 	}
 }
 
-func TestKeepsMarksFormatAndEnumArgumentsOnly(t *testing.T) {
-	for _, name := range []string{"state", "sort", "since", "labels", "sha", "content"} {
-		if !Keeps(name) {
-			t.Errorf("Keeps(%q) = false, want true", name)
-		}
+func TestMarkedReportsTheMarkedArgumentsAndTheirClauses(t *testing.T) {
+	got := Marked(demoTool())
+	want := map[string]string{"state": "open or closed", "files": "file operations, applied atomically"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Marked = %v, want %v", got, want)
 	}
-	for _, name := range []string{"owner", "repo", "index", "page", "limit", "verbose", "title", "body"} {
-		if Keeps(name) {
-			t.Errorf("Keeps(%q) = true, want false", name)
-		}
+}
+
+func TestStripRemovesTheMarkerAndKeepsEveryDescription(t *testing.T) {
+	got := Strip(demoTool())
+	if _, ok := got.InputSchema.Properties["state"].(map[string]any)[markerKey]; ok {
+		t.Error("Strip kept the keep marker")
+	}
+	if d := got.InputSchema.Properties["state"].(map[string]any)["description"]; d != "Filter by state: open|closed" {
+		t.Errorf("Strip changed the full description to %v", d)
+	}
+	if d := got.InputSchema.Properties["owner"].(map[string]any)["description"]; d != "Repository owner" {
+		t.Errorf("Strip dropped owner's description: %v", d)
 	}
 }
 

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
+
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -45,7 +47,8 @@ func Golden(t *testing.T, name string, got []byte) {
 // input schema) in testdata/<tool>.schema.json.
 func SchemaSnapshot(t *testing.T, tool mcp.Tool) {
 	t.Helper()
-	b, err := json.MarshalIndent(tool, "", "  ")
+	// The keep marker that lean reads is not part of the served definition.
+	b, err := json.MarshalIndent(lean.Strip(tool), "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}

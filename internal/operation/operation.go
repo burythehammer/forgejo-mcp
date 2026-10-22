@@ -183,9 +183,7 @@ func Run(ctx context.Context, cfg config.Config, version string) error {
 	mcpServer := newMCPServer(version)
 	factory := newFactory(cfg, version)
 	RegisterSelectedTool(mcpServer, version, factory, sel)
-	if cfg.Lean {
-		lean.Apply(mcpServer)
-	}
+	lean.Finish(mcpServer, cfg.Lean)
 	RegisterSelectedResources(mcpServer, factory, sel)
 	return transport.Serve(ctx, cfg, mcpServer, factory)
 }

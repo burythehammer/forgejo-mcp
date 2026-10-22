@@ -16,15 +16,30 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// leanServer builds the server Run builds, applying lean mode when asked.
+// leanServer builds the server Run builds, in the mode asked for.
 func leanServer(t *testing.T, leanOn bool) *server.MCPServer {
 	t.Helper()
 	s := selectedServer(t, toolset.Everything())
-	if leanOn {
-		lean.Apply(s)
-	}
+	lean.Finish(s, leanOn)
 	return s
 }
+
+// markedArgs returns, for each registered tool, its marked arguments and their
+// clauses, read from the definitions before lean.Finish strips the markers.
+func markedArgs(t *testing.T, sel toolset.Selection) map[string]map[string]string {
+	t.Helper()
+	out := map[string]map[string]string{}
+	for name, st := range selectedServer(t, sel).ListTools() {
+		out[name] = lean.Marked(st.Tool)
+	}
+	return out
+}
+
+// maxClauseLen bounds a keep clause to one short clause.
+const maxClauseLen = 120
+
+// neverMarked are the arguments whose descriptions are never kept under lean.
+var neverMarked = []string{"owner", "repo", "index", "page", "limit", "verbose"}
 
 // toolsListed returns the tools/list entries as the wire carries them.
 func toolsListed(t *testing.T, s *server.MCPServer) []map[string]any {
@@ -123,32 +138,104 @@ func TestLeanDescriptionIsTheFirstSentenceOfTheFullOne(t *testing.T) {
 }
 
 func TestLeanPropertyDescriptionsOnlyForKeptArguments(t *testing.T) {
-	full := byName(toolsListed(t, leanServer(t, false)))
+	marked := markedArgs(t, toolset.Everything())
 	leanTools := byName(toolsListed(t, leanServer(t, true)))
 
-	for name := range full {
-		fProps := full[name]["inputSchema"].(map[string]any)["properties"].(map[string]any)
-		lProps := leanTools[name]["inputSchema"].(map[string]any)["properties"].(map[string]any)
-		for arg := range fProps {
-			if !lean.Keeps(arg) {
+	for name, lt := range leanTools {
+		lProps := lt["inputSchema"].(map[string]any)["properties"].(map[string]any)
+		for arg, lv := range lProps {
+			clause, isMarked := marked[name][arg]
+			ld, hasL := lv.(map[string]any)["description"]
+			if hasL != isMarked {
+				t.Errorf("%s.%s: lean has a description %v, marked %v", name, arg, hasL, isMarked)
 				continue
 			}
-			if _, ok := fProps[arg].(map[string]any)["description"]; !ok {
-				t.Errorf("%s.%s is a marked argument with no description", name, arg)
+			if hasL && ld != clause {
+				t.Errorf("%s.%s: lean description %v, want the marker's clause %q", name, arg, ld, clause)
 			}
 		}
-		for arg, lv := range lProps {
-			lp := lv.(map[string]any)
-			fp := fProps[arg].(map[string]any)
-			ld, hasL := lp["description"]
-			if !hasL {
+	}
+}
+
+func TestEveryMarkedArgumentHasAFullDescriptionAndAShortClause(t *testing.T) {
+	for _, st := range selectedServer(t, toolset.Everything()).ListTools() {
+		props := st.Tool.InputSchema.Properties
+		for arg, clause := range lean.Marked(st.Tool) {
+			full, _ := props[arg].(map[string]any)["description"].(string)
+			if full == "" {
+				t.Errorf("%s.%s is marked but has no description", st.Tool.Name, arg)
+			}
+			if clause == "" || len(clause) > maxClauseLen {
+				t.Errorf("%s.%s clause %q is empty or longer than %d bytes", st.Tool.Name, arg, clause, maxClauseLen)
+			}
+		}
+	}
+}
+
+func TestNeverMarkedArgumentsStayOut(t *testing.T) {
+	for name, args := range markedArgs(t, toolset.Everything()) {
+		for _, never := range neverMarked {
+			if _, ok := args[never]; ok {
+				t.Errorf("%s.%s is marked; %s is never marked", name, never, never)
+			}
+		}
+	}
+}
+
+func TestDefaultOutputCarriesNoKeepMarker(t *testing.T) {
+	raw, err := json.Marshal(toolsListed(t, leanServer(t, false)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "x-lean-keep") {
+		t.Error("the default tools/list carries a keep marker")
+	}
+}
+
+func TestTrackerCoreLeanDescribesOnlyMarkedArguments(t *testing.T) {
+	sel, err := toolset.ParseWithPreset("tracker-core", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := selectedServer(t, sel)
+	lean.Finish(s, true)
+	marked := markedArgs(t, sel)
+	for _, tool := range toolsListed(t, s) {
+		name := tool["name"].(string)
+		props := tool["inputSchema"].(map[string]any)["properties"].(map[string]any)
+		for arg, v := range props {
+			_, hasL := v.(map[string]any)["description"]
+			_, isMarked := marked[name][arg]
+			if hasL != isMarked {
+				t.Errorf("%s.%s: lean has a description %v, marked %v", name, arg, hasL, isMarked)
+			}
+		}
+	}
+}
+
+// formatArgNames are the argument names that carry a format, an allowed-value
+// list or a rule (comma-separated lists, RFC3339 times, state, sort, type). On
+// every tracker-core tool that takes one, the argument must be marked.
+var formatArgNames = []string{
+	"state", "type", "sort", "labels", "set_labels", "assignees", "milestones",
+	"due_date", "clear_due_date", "since", "before", "color", "exclusive", "ref",
+	"old", "new", "depends_on_owner", "depends_on_repo", "dependency_owner", "dependency_repo",
+}
+
+func TestTrackerCoreMarksEveryFormatArgument(t *testing.T) {
+	sel, err := toolset.ParseWithPreset("tracker-core", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked := markedArgs(t, sel)
+	for _, st := range selectedServer(t, sel).ListTools() {
+		props := st.Tool.InputSchema.Properties
+		for _, arg := range formatArgNames {
+			if _, has := props[arg]; !has {
 				continue
 			}
-			if !lean.Keeps(arg) {
-				t.Errorf("%s.%s kept a description but is not a marked argument", name, arg)
-			}
-			if ld != fp["description"] {
-				t.Errorf("%s.%s description changed: %v, want %v", name, arg, ld, fp["description"])
+			if _, ok := marked[st.Tool.Name][arg]; !ok {
+				t.Errorf("%s.%s carries a format or enum but is not marked with lean.Keep", st.Tool.Name, arg)
 			}
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
@@ -56,8 +57,8 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
 		mcp.WithNumber("depends_on_index", mcp.Required(), mcp.Description("Issue index that the given issue should depend on")),
-		mcp.WithString("depends_on_owner", mcp.Description("Owner of the repository the dependency issue lives in (defaults to owner)")),
-		mcp.WithString("depends_on_repo", mcp.Description("Repository the dependency issue lives in (defaults to repo)")),
+		mcp.WithString("depends_on_owner", mcp.Description("Owner of the repository the dependency issue lives in (defaults to owner)"), lean.Keep("defaults to owner")),
+		mcp.WithString("depends_on_repo", mcp.Description("Repository the dependency issue lives in (defaults to repo)"), lean.Keep("defaults to repo")),
 	)
 
 	RemoveIssueDependencyTool = mcp.NewTool(
@@ -68,8 +69,8 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
 		mcp.WithNumber("dependency_index", mcp.Required(), mcp.Description("Issue index to remove as a dependency")),
-		mcp.WithString("dependency_owner", mcp.Description("Owner of the repository the dependency issue lives in (defaults to owner)")),
-		mcp.WithString("dependency_repo", mcp.Description("Repository the dependency issue lives in (defaults to repo)")),
+		mcp.WithString("dependency_owner", mcp.Description("Owner of the repository the dependency issue lives in (defaults to owner)"), lean.Keep("defaults to owner")),
+		mcp.WithString("dependency_repo", mcp.Description("Repository the dependency issue lives in (defaults to repo)"), lean.Keep("defaults to repo")),
 	)
 )
 

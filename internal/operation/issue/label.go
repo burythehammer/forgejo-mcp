@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -44,9 +45,9 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Label name")),
-		mcp.WithString("color", mcp.Required(), mcp.Description("Label color as 6-digit hex (e.g. #0088ff or 0088ff)")),
+		mcp.WithString("color", mcp.Required(), mcp.Description("Label color as 6-digit hex (e.g. #0088ff or 0088ff)"), lean.Keep("6-digit hex color, with or without #")),
 		mcp.WithString("description", mcp.Description("Label description")),
-		mcp.WithBoolean("exclusive", mcp.Description(exclusiveCreateDescription)),
+		mcp.WithBoolean("exclusive", mcp.Description(exclusiveCreateDescription), lean.Keep("true makes the scope before the last / exclusive")),
 	)
 
 	EditRepoLabelTool = mcp.NewTool(
@@ -57,9 +58,9 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("id", mcp.Required(), mcp.Description("Label ID")),
 		mcp.WithString("name", mcp.Description("New label name")),
-		mcp.WithString("color", mcp.Description("New label color as 6-digit hex (e.g. #0088ff or 0088ff)")),
+		mcp.WithString("color", mcp.Description("New label color as 6-digit hex (e.g. #0088ff or 0088ff)"), lean.Keep("6-digit hex color, with or without #")),
 		mcp.WithString("description", mcp.Description("New label description")),
-		mcp.WithBoolean("exclusive", mcp.Description(exclusiveEditDescription)),
+		mcp.WithBoolean("exclusive", mcp.Description(exclusiveEditDescription), lean.Keep("true or false, omitted keeps the stored value")),
 	)
 
 	DeleteRepoLabelTool = mcp.NewTool(
