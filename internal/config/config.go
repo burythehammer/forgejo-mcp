@@ -91,6 +91,10 @@ type Auth struct {
 	ForgejoJWTIssuer            string
 	ForgejoJWTSigningKeyFile    string
 	ForgejoJWTPublishedKeyFiles []string
+	// AuthorizationServerCAs holds the system roots with the provider's CA
+	// bundle appended. Nil when no bundle was given. It is separate from the
+	// Forgejo TLS settings and has no skip-verify counterpart.
+	AuthorizationServerCAs *x509.CertPool
 }
 
 // ResourceServerMode reports whether Auth selects the resource-server mode.

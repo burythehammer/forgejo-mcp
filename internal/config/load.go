@@ -52,6 +52,7 @@ type resourceSetting struct {
 
 var resourceSettings = []resourceSetting{
 	{"authorization-server", "FORGEJO_MCP_AUTHORIZATION_SERVER", "resource-server mode: issuer URL of the identity provider callers obtain tokens from"},
+	{"authorization-server-tls-ca", "FORGEJO_MCP_AUTHORIZATION_SERVER_TLS_CA", "resource-server mode: PEM file of CA certificates trusted for the identity provider's discovery and key lookups, added to the system roots"},
 	{"resource", "FORGEJO_MCP_RESOURCE", "resource-server mode: canonical URI of this server's MCP endpoint, e.g. https://mcp.example.org/mcp"},
 	{"resource-audience", "FORGEJO_MCP_RESOURCE_AUDIENCE", "resource-server mode: value an inbound token's aud must contain (default: the value of -resource)"},
 	{"scopes-supported", "FORGEJO_MCP_SCOPES_SUPPORTED", "resource-server mode: space-separated scopes advertised to clients"},
@@ -259,6 +260,13 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	cfg.Auth.ForgejoJWTIssuer = values["forgejo-jwt-issuer"]
 	cfg.Auth.ForgejoJWTSigningKeyFile = values["forgejo-jwt-signing-key-file"]
 	cfg.Auth.ForgejoJWTPublishedKeyFiles = splitList(values["forgejo-jwt-published-key-files"])
+	if caFile := values["authorization-server-tls-ca"]; caFile != "" {
+		pool, err := loadCAPool("-authorization-server-tls-ca", caFile)
+		if err != nil {
+			return Config{}, warns, err
+		}
+		cfg.Auth.AuthorizationServerCAs = pool
+	}
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, warns, &ValidationError{Err: err}
