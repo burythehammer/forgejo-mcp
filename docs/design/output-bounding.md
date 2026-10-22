@@ -84,7 +84,7 @@ also surface this as a `total_count` field, parsed with the shared
 the adapter's X-Total-Count helper (`internal/forge/sdk/pagination.go`) rather than
 a bespoke per-tool copy; the port hands the tool a `TotalCount *int`. When the header is absent or unparsable, OMIT the key — never
 emit `total_count: 0`, which reads as "confirmed zero rows" rather than
-"unknown." Today this covers `search_issues`, `list_repo_hooks`, and `get_wiki_revisions`.
+"unknown." Today this covers `search_issues`, `list_repo_hooks`, `get_wiki_revisions`, and `get_commit_statuses`.
 `list_wiki_pages` does not: its `X-Total-Count` counts raw wiki tree entries rather than
 pages, so the total is not exact and the key is omitted.
 
@@ -174,7 +174,7 @@ payload says whether rows follow, paging reads every row once, and `page` and
       `X-Total-Count`? The fake cannot show that; check the handler or a live
       response.
 - [ ] If the change adds an entry to a test exemption map (`skippedListTools`,
-      `ceilingExempt`, `fullPageContinuation`), is its reason true?
+      `ceilingExempt`), is its reason true?
 
 If any answer is "none" or "unclear", the tool is not ready to merge.
 
@@ -195,9 +195,26 @@ says so.
    is the worked example: `list_repo_pull_requests` still embeds a complete
    `Repository` twice per row through `PRBranchInfo` (`internal/app/model/model.go`).
 
-Gaps the registry test records as exemptions, not failures: `list_my_stopwatches`
-has no `page`/`limit` (shape 1 above). The instance ceiling does not reach
-`get_wiki_revisions` (`ceilingExempt` in
-`pagination_ceiling_test.go`). `list_my_repos` was once a bare array that ADR 0003
-froze; it now returns the `has_next` envelope through `list.Run` (issue #294, a
-dated amendment to ADR 0003), so it has no exemption.
+Retrofit status as of the #141 close-out. The shape 1 gap is closed for every list
+tool that had it: `list_my_stopwatches` takes `page`/`limit` and returns the
+`has_next` envelope (#296), `get_repo_tree` takes `page`/`limit` over its entries
+(#293), and `get_commit_statuses` returns the bounded envelope under the instance
+ceiling (#295). `list_my_repos` was once a bare array that ADR 0003 froze; it now
+returns the `has_next` envelope through `list.Run` (issue #294, a dated amendment to
+ADR 0003).
+
+The exemption maps as they stand:
+
+- `skippedListTools` (`registry_bound_test.go`) is empty. No list tool is skipped.
+- `ceilingExempt` (`pagination_ceiling_test.go`) holds one entry,
+  `get_wiki_revisions`, with the reason that the revision history is deliberately not
+  held to the instance ceiling (see `wiki.Service.Revisions`, which reads through a
+  source that reports no ceiling).
+- `unpagedListTools` does not exist in the tree; nothing is exempt on that basis.
+
+**Wiki revisions decision.** The revision history stays a documented entity-read cap
+with a truncation marker, not a ceiling-bound list. `get_wiki_revisions` pages with
+`page`/`limit` and returns `has_next` and `total_count` (the body's grand total) with
+no instance ceiling. The revisions embedded in the `forgejo://repo/{owner}/{repo}/wiki/{pageName}` resource
+are cut at `resource.EmbeddedListCap`, and the truncation sentinel names
+`get_wiki_revisions` as the remainder tool.
