@@ -109,13 +109,22 @@ func (s *GitService) ListContents(ctx context.Context, owner, repo, ref, path st
 	return page, nil
 }
 
-// GetTree returns the Git tree of a repository at a ref.
-func (s *GitService) GetTree(ctx context.Context, owner, repo, ref string, q TreeInput) (*model.GitTreeResponse, error) {
-	out, err := s.port.GetTree(ctx, owner, repo, ref, q)
-	if err != nil {
-		return nil, fmt.Errorf("get repo tree err: %w", err)
-	}
-	return out, nil
+// defaultTreeLimit is the number of tree entries a page holds when the caller
+// names no limit.
+const defaultTreeLimit = 1000
+
+// GetTree returns one page of the entries of a repository's Git tree at a ref.
+// Forgejo reports its own truncation of the tree, so has_next comes from that
+// report and no probe is made; the grand total is the tree's entry count.
+func (s *GitService) GetTree(ctx context.Context, owner, repo, ref string, q TreeInput) (list.Bounded[model.GitEntry], error) {
+	return list.Window(ctx, s.port, list.Paging(q.Page), defaultTreeLimit,
+		func(ctx context.Context, p list.Paging) (list.Batch[model.GitEntry], error) {
+			out, err := s.port.GetTree(ctx, owner, repo, ref, TreeInput{Recursive: q.Recursive, Page: GitPage(p)})
+			if err != nil {
+				return list.Batch[model.GitEntry]{}, fmt.Errorf("get repo tree err: %w", err)
+			}
+			return list.Batch[model.GitEntry]{Items: out.Entries, Total: ptr.To(out.TotalCount), More: out.Truncated}, nil
+		})
 }
 
 // InlineFileBytes is the most text one file read returns. A read whose text

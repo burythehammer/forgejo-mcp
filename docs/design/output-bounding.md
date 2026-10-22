@@ -189,7 +189,7 @@ says so.
 
 Gaps the registry test records as exemptions, not failures: `list_my_stopwatches`
 has no `page`/`limit` (shape 1 above). The instance ceiling does not reach
-`get_commit_statuses`, `get_repo_tree` or `get_wiki_revisions` (`ceilingExempt` in
+`get_commit_statuses` or `get_wiki_revisions` (`ceilingExempt` in
 `pagination_ceiling_test.go`). `list_my_repos` was once a bare array that ADR 0003
 froze; it now returns the `has_next` envelope through `list.Run` (issue #294, a
 dated amendment to ADR 0003), so it has no exemption.

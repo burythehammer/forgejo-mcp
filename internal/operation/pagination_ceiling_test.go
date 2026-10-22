@@ -24,7 +24,6 @@ const ceilingItems = 2
 var ceilingExempt = map[string]string{
 	wiki.GetWikiRevisionsToolName:  "the revision history is deliberately not held to the ceiling (see wiki.Service.Revisions)",
 	repo.GetCommitStatusesToolName: "clamps its own limit to 50 rather than calling the list module, so the ceiling is never read",
-	repo.GetRepoTreeToolName:       "passes page and limit to the tree endpoint and does not call the list module, so the ceiling is never read",
 }
 
 // TestCeilingListTools pins the instance ceiling on every paged list tool: a

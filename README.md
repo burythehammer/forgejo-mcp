@@ -345,7 +345,7 @@ List all my repositories
 | **Files** | |
 | `get_file_content` | Get the content of a file. Optional `start_line`/`end_line` request a 1-indexed inclusive line range (clamps to file extent; with `with_metadata=true` the range replaces the content and keeps the metadata). A whole file or range over 1 MiB of text is refused with a message asking for a narrower range. |
 | `list_repo_contents` | List files and directories at a path. `path=""` lists the repository root. Returns one level, one page at a time (`page`/`limit`, default 100 entries) with `has_next`; for a full tree use `get_repo_tree` with `recursive=true`. |
-| `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. `page`/`limit` (default 1000) select one page of the entries. |
+| `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. `page`/`limit` (default 1000) select one page of the entries, under `tree`, with `has_next` saying whether more follow. |
 | `create_file` | Create a new file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `update_file` | Update an existing file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `delete_file` | Delete a file |
