@@ -3,6 +3,8 @@
 package operation
 
 import (
+	"context"
+
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
@@ -147,12 +149,12 @@ func RegisterWikiTool(s *server.MCPServer, f forge.Factory) {
 // Run builds the MCP server with every tool and resource registered, then hands
 // it to the transport package to serve on cfg.Transport. version is the build
 // version, which is build information and so not part of cfg.
-func Run(cfg config.Config, version string) error {
+func Run(ctx context.Context, cfg config.Config, version string) error {
 	mcpServer := newMCPServer(version)
 	factory := newFactory(cfg, version)
 	RegisterTool(mcpServer, version, factory)
 	RegisterCoreResources(mcpServer, factory)
-	return transport.Serve(cfg, mcpServer, factory)
+	return transport.Serve(ctx, cfg, mcpServer, factory)
 }
 
 // newFactory builds the Forgejo factory from cfg. The factory holds no credential

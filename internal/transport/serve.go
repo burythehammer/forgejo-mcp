@@ -4,8 +4,12 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
@@ -18,6 +22,10 @@ import (
 // because the transport is mounted on a mux at this path rather than served as
 // the root handler.
 const streamableHTTPEndpointPath = config.MCPEndpointPath
+
+// shutdownGracePeriod bounds how long in-flight HTTP requests may run after a
+// shutdown is requested. It sits under Docker's 10s default stop timeout.
+const shutdownGracePeriod = 8 * time.Second
 
 // requestTokenContextFunc lifts a per-request credential out of the
 // Authorization header and into the context the tool handlers see.
@@ -90,11 +98,14 @@ func newStreamableHTTPHandler(s *server.MCPServer, cfg config.Config) http.Handl
 // Serve serves mcpServer on cfg.Transport: resource-server mode when configured,
 // otherwise the Forgejo connection gate and then the transport cfg names. Every
 // policy it applies is read from cfg.
-func Serve(cfg config.Config, mcpServer *server.MCPServer, factory forge.Factory) error {
+//
+// ctx is cancelled on SIGINT or SIGTERM. A cancelled ctx is a requested
+// shutdown, and Serve returns nil once it has drained.
+func Serve(ctx context.Context, cfg config.Config, mcpServer *server.MCPServer, factory forge.Factory) error {
 	transport := cfg.Transport
 	if cfg.ResourceServerMode() {
 		// config.Load has already refused every transport but http.
-		rs, err := prepareResourceServer(context.Background(), cfg, factory)
+		rs, err := prepareResourceServer(ctx, cfg, factory)
 		if err != nil {
 			return err
 		}
@@ -110,7 +121,7 @@ func Serve(cfg config.Config, mcpServer *server.MCPServer, factory forge.Factory
 			log.StringField("resource", rs.resource),
 			log.StringField("authorization_server", rs.authServer),
 		)
-		if err := serveMCPOverHTTP("http", handler, cfg.Listen.HTTPPort, listener); err != nil {
+		if err := serveMCPOverHTTP(ctx, "http", handler, cfg.Listen.HTTPPort, listener, shutdownGracePeriod); err != nil {
 			log.Error("Failed to start streamable HTTP server",
 				log.IntField("port", cfg.Listen.HTTPPort),
 				log.ErrorField(err),
@@ -125,7 +136,7 @@ func Serve(cfg config.Config, mcpServer *server.MCPServer, factory forge.Factory
 	log.Info("Testing connection to Forgejo instance",
 		log.SanitizedURLField("url", cfg.Forgejo.URL),
 	)
-	if err := factory.VerifyConnection(context.Background()); err != nil {
+	if err := factory.VerifyConnection(ctx); err != nil {
 		log.Error("Failed to connect to Forgejo instance",
 			log.SanitizedURLField("url", cfg.Forgejo.URL),
 			log.ErrorField(err),
@@ -140,7 +151,7 @@ func Serve(cfg config.Config, mcpServer *server.MCPServer, factory forge.Factory
 	case "stdio":
 		log.Info("Starting MCP server with stdio transport")
 		log.Info("MCP server ready for stdio communication")
-		if err := server.ServeStdio(mcpServer, server.WithStdioContextFunc(attachStdioCredential)); err != nil {
+		if err := serveStdio(ctx, mcpServer, os.Stdin, os.Stdout); err != nil {
 			log.Error("MCP stdio server failed",
 				log.ErrorField(err),
 			)
@@ -152,7 +163,7 @@ func Serve(cfg config.Config, mcpServer *server.MCPServer, factory forge.Factory
 		log.Info("Starting MCP SSE server",
 			log.IntField("port", cfg.Listen.SSEPort),
 		)
-		if err := serveMCPOverHTTP("sse", sseServer, cfg.Listen.SSEPort, resolveTransportConfig(cfg)); err != nil {
+		if err := serveMCPOverHTTP(ctx, "sse", sseServer, cfg.Listen.SSEPort, resolveTransportConfig(cfg), shutdownGracePeriod); err != nil {
 			log.Error("Failed to start SSE server",
 				log.IntField("port", cfg.Listen.SSEPort),
 				log.ErrorField(err),
@@ -165,7 +176,7 @@ func Serve(cfg config.Config, mcpServer *server.MCPServer, factory forge.Factory
 		log.Info("Starting MCP streamable HTTP server",
 			log.IntField("port", cfg.Listen.HTTPPort),
 		)
-		if err := serveMCPOverHTTP("http", httpMux, cfg.Listen.HTTPPort, resolveTransportConfig(cfg)); err != nil {
+		if err := serveMCPOverHTTP(ctx, "http", httpMux, cfg.Listen.HTTPPort, resolveTransportConfig(cfg), shutdownGracePeriod); err != nil {
 			log.Error("Failed to start streamable HTTP server",
 				log.IntField("port", cfg.Listen.HTTPPort),
 				log.ErrorField(err),
@@ -181,4 +192,18 @@ func Serve(cfg config.Config, mcpServer *server.MCPServer, factory forge.Factory
 		return fmt.Errorf("invalid transport type: %s. Must be 'stdio', 'sse', or 'http'", transport)
 	}
 	return nil
+}
+
+// serveStdio serves mcpServer over stdin and stdout until input ends or ctx is
+// cancelled. It does not call the library's ServeStdio, which installs its own
+// signal handler and ignores the caller's context. A cancelled ctx is a
+// requested shutdown and returns nil.
+func serveStdio(ctx context.Context, mcpServer *server.MCPServer, stdin io.Reader, stdout io.Writer) error {
+	s := server.NewStdioServer(mcpServer)
+	server.WithStdioContextFunc(attachStdioCredential)(s)
+	err := s.Listen(ctx, stdin, stdout)
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }

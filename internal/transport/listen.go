@@ -3,6 +3,7 @@
 package transport
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -438,7 +439,7 @@ func oneFamilyHint(cfg transportConfig) string {
 // Start method, so that the listen address, the header checks and the
 // credential policy are decided in exactly one place. A transport that bound
 // its own listener would silently miss all three.
-func serveMCPOverHTTP(transportName string, handler http.Handler, port int, cfg transportConfig) error {
+func serveMCPOverHTTP(ctx context.Context, transportName string, handler http.Handler, port int, cfg transportConfig, grace time.Duration) error {
 	listeners, err := bindListeners(transportName, cfg, port, net.Listen)
 	if err != nil {
 		return err
@@ -456,7 +457,42 @@ func serveMCPOverHTTP(transportName string, handler http.Handler, port int, cfg 
 	logListening(transportName, bound, cfg)
 
 	srv := newMCPHTTPServer(handler, cfg)
-	return serveAll(srv, listeners)
+	return serveUntilDone(ctx, srv, listeners, grace)
+}
+
+// serveUntilDone serves srv on listeners until either serving fails or ctx is
+// cancelled. On cancellation it stops accepting connections and gives in-flight
+// requests up to grace to finish. Anything still open at the deadline is closed
+// forcibly and logged as a warning. A cancelled context is a requested shutdown,
+// so it returns nil.
+func serveUntilDone(ctx context.Context, srv *http.Server, listeners []net.Listener, grace time.Duration) error {
+	errc := make(chan error, 1)
+	go func() { errc <- serveAll(srv, listeners) }()
+
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
+
+	log.Info("Shutdown requested; draining in-flight requests",
+		log.StringField("grace_period", grace.String()),
+	)
+	drainCtx, cancel := context.WithTimeout(context.Background(), grace)
+	defer cancel()
+	if err := srv.Shutdown(drainCtx); err != nil {
+		log.Warn("Grace period elapsed; closing remaining connections, including any open event streams",
+			log.StringField("grace_period", grace.String()),
+			log.ErrorField(err),
+		)
+		_ = srv.Close()
+	}
+	// serveAll returns once every Serve call has observed the close.
+	if err := <-errc; err != nil {
+		return err
+	}
+	log.Info("Shutdown complete")
+	return nil
 }
 
 // serveAll runs srv on every listener and returns the first error.

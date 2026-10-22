@@ -8,6 +8,8 @@ import (
 	stdflag "flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
@@ -67,11 +69,11 @@ func Execute(version string) {
 		log.StringField("user_agent", cfg.Forgejo.UserAgent),
 	)
 
-	if err := operation.Run(cfg, version); err != nil {
-		if errors.Is(err, context.Canceled) {
-			log.Info("Server shutdown due to context cancellation")
-			return
-		}
+	// SIGINT and SIGTERM cancel ctx; Run drains and returns nil, so the process
+	// exits 0 after a requested shutdown.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := operation.Run(ctx, cfg, version); err != nil {
 		log.Fatalf("Run Forgejo MCP Server Error: %v", err)
 	}
 }
