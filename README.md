@@ -519,10 +519,10 @@ forgejo-mcp --toolsets issues,labels,milestones,dependencies,user
 
 | Selection | Tools | Bytes | ~Tokens | Resource templates, ~tokens |
 |---|---:|---:|---:|---:|
-| Default (no selection) | 163 | 122,062 | 30,515 | 1,896 |
-| `issues,labels,milestones,dependencies,user` | 35 | 27,242 | 6,810 | 813 |
+| Default (no selection) | 167 | 126,572 | 31,643 | 1,896 |
+| `issues,labels,milestones,dependencies,user` | 39 | 31,752 | 7,938 | 813 |
 
-The selection above costs about 22% of the default. It misses the ticket target of well under 5,000 tokens. Most of the cost is tool descriptions and input schemas, about 750 to 780 bytes per tool, so shortening them is the next lever. That is a follow-up, not part of toolset selection.
+The selection above costs about 25% of the default. It misses the ticket target of well under 5,000 tokens. Most of the cost is tool descriptions and input schemas, about 760 to 820 bytes per tool, so shortening them is the next lever. That is a follow-up, not part of toolset selection.
 
 Per-toolset figures below are the same measure for a selection of that one toolset. They do not sum to the totals, because each response carries its own envelope.
 
@@ -532,9 +532,9 @@ Per-toolset figures below are the same measure for a selection of that one tools
 |---|---:|---:|---|
 | `user` | 7 | 857 | `check_notifications`, `get_my_user_info`, `get_notification_thread`, `list_repo_notifications`, `mark_all_notifications_read`, `mark_notification_read`, `mark_repo_notifications_read` |
 | `repos` | 21 | 4522 | `add_repo_topic`, `change_files`, `create_branch`, `create_file`, `create_repo`, `delete_branch`, `delete_file`, `delete_repo_topic`, `edit_repo`, `fork_repo`, `get_commit_statuses`, `get_file_content`, `get_repo`, `get_repo_tree`, `list_branches`, `list_my_repos`, `list_repo_commits`, `list_repo_contents`, `list_repo_topics`, `set_repo_topics`, `update_file` |
-| `issues` | 12 | 2721 | `create_issue`, `create_issue_comment`, `delete_issue_comment`, `edit_issue_comment`, `get_issue_by_index`, `get_issue_comment`, `issue_state_change`, `list_issue_comments`, `list_repo_issues`, `replace_issue_body_line`, `search_issues`, `update_issue` |
-| `labels` | 12 | 2089 | `add_issue_labels`, `create_org_label`, `create_repo_label`, `delete_org_label`, `delete_repo_label`, `edit_org_label`, `edit_repo_label`, `get_org_label`, `get_repo_label`, `list_org_labels`, `list_repo_labels`, `remove_issue_labels` |
-| `milestones` | 4 | 205 | `create_milestone`, `edit_milestone`, `get_milestone`, `list_repo_milestones` |
+| `issues` | 12 | 3066 | `create_issue`, `create_issue_comment`, `delete_issue_comment`, `edit_issue_comment`, `get_issue_by_index`, `get_issue_comment`, `issue_state_change`, `list_issue_comments`, `list_repo_issues`, `replace_issue_body_line`, `search_issues`, `update_issue` |
+| `labels` | 12 | 2336 | `add_issue_labels`, `create_org_label`, `create_repo_label`, `delete_org_label`, `delete_repo_label`, `edit_org_label`, `edit_repo_label`, `get_org_label`, `get_repo_label`, `list_org_labels`, `list_repo_labels`, `remove_issue_labels` |
+| `milestones` | 4 | 742 | `create_milestone`, `edit_milestone`, `get_milestone`, `list_repo_milestones` |
 | `dependencies` | 4 | 982 | `add_issue_dependency`, `list_issue_dependencies`, `list_issue_dependents`, `remove_issue_dependency` |
 | `pulls` | 16 | 2967 | `create_pull_request`, `create_pull_review`, `create_review_requests`, `delete_pull_review`, `delete_review_requests`, `dismiss_pull_review`, `get_pull_request_by_index`, `get_pull_request_diff`, `get_pull_review`, `list_pull_request_files`, `list_pull_review_comments`, `list_pull_reviews`, `list_repo_pull_requests`, `merge_pull_request`, `submit_pull_review`, `update_pull_request` |
 | `search` | 3 | 506 | `search_org_teams`, `search_repos`, `search_users` |
