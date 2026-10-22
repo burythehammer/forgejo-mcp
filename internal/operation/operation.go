@@ -25,6 +25,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/user"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/version"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/wiki"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/transport"
 
 	"github.com/mark3labs/mcp-go/server"
@@ -34,6 +35,18 @@ import (
 // The Forgejo factory is built once by the composition root; a domain takes it
 // when it migrates to the Forgejo port.
 func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
+	RegisterSelectedTool(s, version, f, toolset.Everything())
+}
+
+// RegisterSelectedTool registers every tool, then removes the ones sel does not
+// hold, so tools/list carries only the operator's selection. Each domain's
+// register function adds its tools to the server directly and gives no
+// per-tool hook, so the removal happens here, before the server serves
+// anything. The result is the same as never registering them.
+//
+// To put a tool in a toolset, add its name to internal/toolset; the registry
+// test fails for a tool in no toolset.
+func RegisterSelectedTool(s *server.MCPServer, version string, f forge.Factory, sel toolset.Selection) {
 	log.Info("Registering MCP tools")
 
 	RegisterUserTool(s, f)
@@ -52,6 +65,18 @@ func RegisterTool(s *server.MCPServer, version string, f forge.Factory) {
 	RegisterBranchProtectionTool(s, f)
 	RegisterHookTool(s, f)
 	RegisterWikiTool(s, f)
+
+	if !sel.Full() {
+		var drop []string
+		for name := range s.ListTools() {
+			if !sel.HasTool(name) {
+				drop = append(drop, name)
+			}
+		}
+		if len(drop) > 0 {
+			s.DeleteTools(drop...)
+		}
+	}
 
 	// Truncation notes may name only tools in this registry (resource.ToolRef).
 	tools := s.ListTools()
@@ -150,10 +175,14 @@ func RegisterWikiTool(s *server.MCPServer, f forge.Factory) {
 // it to the transport package to serve on cfg.Transport. version is the build
 // version, which is build information and so not part of cfg.
 func Run(ctx context.Context, cfg config.Config, version string) error {
+	sel, err := toolset.Parse(cfg.Toolsets, cfg.Tools)
+	if err != nil {
+		return err
+	}
 	mcpServer := newMCPServer(version)
 	factory := newFactory(cfg, version)
-	RegisterTool(mcpServer, version, factory)
-	RegisterCoreResources(mcpServer, factory)
+	RegisterSelectedTool(mcpServer, version, factory, sel)
+	RegisterSelectedResources(mcpServer, factory, sel)
 	return transport.Serve(ctx, cfg, mcpServer, factory)
 }
 
@@ -169,16 +198,39 @@ func newFactory(cfg config.Config, version string) *sdk.Factory {
 }
 
 func RegisterCoreResources(s *server.MCPServer, f forge.Factory) {
-	RegisterCommitResource(s, f)
-	RegisterIssueResources(s, f)
-	RegisterLabelResources(s, f)
-	RegisterOwnerResource(s, f)
-	RegisterPullResources(s, f)
-	RegisterRepoResource(s, f)
-	RegisterStatusResource(s, f)
-	RegisterBranchProtectionResources(s, f)
-	RegisterHookResources(s, f)
-	RegisterWikiResource(s, f)
+	RegisterSelectedResources(s, f, toolset.Everything())
+}
+
+// RegisterSelectedResources registers the resource templates whose domain
+// toolset sel holds. A template follows its domain's toolset: the repository,
+// commit and status templates follow repos, the owner template follows user.
+func RegisterSelectedResources(s *server.MCPServer, f forge.Factory, sel toolset.Selection) {
+	if sel.HasToolset("repos") {
+		RegisterCommitResource(s, f)
+		RegisterRepoResource(s, f)
+		RegisterStatusResource(s, f)
+	}
+	if sel.HasToolset("user") {
+		RegisterOwnerResource(s, f)
+	}
+	if sel.HasToolset("issues") {
+		RegisterIssueResources(s, f)
+	}
+	if sel.HasToolset("labels") {
+		RegisterLabelResources(s, f)
+	}
+	if sel.HasToolset("pulls") {
+		RegisterPullResources(s, f)
+	}
+	if sel.HasToolset("branch-protection") {
+		RegisterBranchProtectionResources(s, f)
+	}
+	if sel.HasToolset("webhooks") {
+		RegisterHookResources(s, f)
+	}
+	if sel.HasToolset("wiki") {
+		RegisterWikiResource(s, f)
+	}
 	log.Debug("Registered core resource templates")
 }
 

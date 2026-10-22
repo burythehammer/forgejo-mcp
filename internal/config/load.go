@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
 )
 
 const defaultAudienceClaim = "forgejo_aud"
@@ -83,6 +85,7 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		authMode                             string
 		tlsCA                                string
 		tlsSkipVerify                        bool
+		toolsets, tools                      string
 	)
 	resource := make(map[string]*string, len(resourceSettings))
 
@@ -134,6 +137,10 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		"How the http transport authenticates callers: passthrough forwards the caller's Authorization header to "+
 			"Forgejo; resource-server validates an identity provider's JWT access token and signs a Forgejo "+
 			"Authorized Integration token (Forgejo 16 or newer)")
+	fs.StringVar(&toolsets, "toolsets", "", "(env: FORGEJO_MCP_TOOLSETS) "+toolset.FlagHelp())
+	fs.StringVar(&tools, "tools", "",
+		"Comma-separated names of individual tools to load, in addition to any -toolsets "+
+			"(env: FORGEJO_MCP_TOOLS)")
 	for _, s := range resourceSettings {
 		p := new(string)
 		resource[s.flagName] = p
@@ -235,6 +242,12 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		return Config{}, warns, err
 	}
 	cfg.Forgejo.TLS = tlsCfg
+
+	cfg.Toolsets = splitList(resolve(toolsets, "FORGEJO_MCP_TOOLSETS", "toolsets"))
+	cfg.Tools = splitList(resolve(tools, "FORGEJO_MCP_TOOLS", "tools"))
+	if _, err := toolset.Parse(cfg.Toolsets, cfg.Tools); err != nil {
+		return Config{}, warns, fmt.Errorf("refusing to start: %w", err)
+	}
 
 	cfg.Listen.Host = resolve(host, "FORGEJO_MCP_HOST", "host")
 	cfg.Listen.AllowedHosts = splitList(resolve(allowedHosts, "FORGEJO_MCP_ALLOWED_HOSTS", "allowed-hosts"))

@@ -487,6 +487,65 @@ List all my repositories
 | **Server** | |
 | `get_forgejo_mcp_server_version` | Get the MCP server version |
 
+### Toolsets: choosing which tools load
+
+Every tool a client sees costs context on every request. By default the server offers all of them. To offer fewer, name toolsets (groups of related tools), individual tools, or both:
+
+| Setting | Flag | Environment variable |
+|---|---|---|
+| Toolsets to load | `--toolsets` | `FORGEJO_MCP_TOOLSETS` |
+| Individual tools to load | `--tools` | `FORGEJO_MCP_TOOLS` |
+
+- With neither set, every tool and resource template registers (the default, unchanged).
+- With toolsets only, the tools of those toolsets register, and their resource templates too.
+- With tools only, just the named tools register. No resource templates register.
+- With both, the result is the union. The flag wins over the environment variable.
+- An unknown toolset or tool name stops the server at startup, and the error lists the valid names.
+- An unselected tool is absent from `tools/list`, not disabled. Selection applies to the server, not to `--cli` mode.
+
+`--help` prints every toolset with the tools it holds. The table below is the same catalogue, with the standing cost of each toolset. Tools are assigned to toolsets in `internal/toolset/toolset.go`.
+
+Example, the issue-tracking selection:
+
+```bash
+forgejo-mcp --toolsets issues,labels,milestones,dependencies,user
+```
+
+**Standing cost.** Estimated as bytes of the `tools/list` JSON-RPC response divided by 4, measured on this build with the fake forge. It is an estimate, not a model tokenizer count, and it is not the `/context` figure from a fresh session.
+
+| Selection | Tools | Bytes | ~Tokens | Resource templates, ~tokens |
+|---|---:|---:|---:|---:|
+| Default (no selection) | 163 | 122,062 | 30,515 | 1,896 |
+| `issues,labels,milestones,dependencies,user` | 35 | 27,242 | 6,810 | 813 |
+
+The selection above costs about 22% of the default. It misses the ticket target of well under 5,000 tokens. Most of the cost is tool descriptions and input schemas, about 750 to 780 bytes per tool, so shortening them is the next lever. That is a follow-up, not part of toolset selection.
+
+Per-toolset figures below are the same measure for a selection of that one toolset. They do not sum to the totals, because each response carries its own envelope.
+
+#### Toolsets and their tools
+
+| Toolset | Tools | ~Tokens | Tool names |
+|---|---:|---:|---|
+| `user` | 7 | 857 | `check_notifications`, `get_my_user_info`, `get_notification_thread`, `list_repo_notifications`, `mark_all_notifications_read`, `mark_notification_read`, `mark_repo_notifications_read` |
+| `repos` | 21 | 4522 | `add_repo_topic`, `change_files`, `create_branch`, `create_file`, `create_repo`, `delete_branch`, `delete_file`, `delete_repo_topic`, `edit_repo`, `fork_repo`, `get_commit_statuses`, `get_file_content`, `get_repo`, `get_repo_tree`, `list_branches`, `list_my_repos`, `list_repo_commits`, `list_repo_contents`, `list_repo_topics`, `set_repo_topics`, `update_file` |
+| `issues` | 11 | 2721 | `create_issue`, `create_issue_comment`, `delete_issue_comment`, `edit_issue_comment`, `get_issue_by_index`, `get_issue_comment`, `issue_state_change`, `list_issue_comments`, `list_repo_issues`, `search_issues`, `update_issue` |
+| `labels` | 12 | 2089 | `add_issue_labels`, `create_org_label`, `create_repo_label`, `delete_org_label`, `delete_repo_label`, `edit_org_label`, `edit_repo_label`, `get_org_label`, `get_repo_label`, `list_org_labels`, `list_repo_labels`, `remove_issue_labels` |
+| `milestones` | 1 | 205 | `list_repo_milestones` |
+| `dependencies` | 4 | 982 | `add_issue_dependency`, `list_issue_dependencies`, `list_issue_dependents`, `remove_issue_dependency` |
+| `pulls` | 16 | 2967 | `create_pull_request`, `create_pull_review`, `create_review_requests`, `delete_pull_review`, `delete_review_requests`, `dismiss_pull_review`, `get_pull_request_by_index`, `get_pull_request_diff`, `get_pull_review`, `list_pull_request_files`, `list_pull_review_comments`, `list_pull_reviews`, `list_repo_pull_requests`, `merge_pull_request`, `submit_pull_review`, `update_pull_request` |
+| `search` | 3 | 506 | `search_org_teams`, `search_repos`, `search_users` |
+| `orgs` | 15 | 1875 | `add_team_member`, `add_team_repo`, `check_org_membership`, `create_org`, `create_org_team`, `delete_org`, `edit_org`, `get_org`, `list_my_orgs`, `list_org_members`, `list_org_teams`, `list_user_orgs`, `remove_org_member`, `remove_team_member`, `remove_team_repo` |
+| `packages` | 4 | 994 | `delete_package`, `get_package`, `list_package_files`, `list_packages` |
+| `releases` | 14 | 2491 | `create_release`, `create_release_attachment`, `delete_release`, `delete_release_attachment`, `delete_release_by_tag`, `download_release_attachment`, `edit_release`, `edit_release_attachment`, `get_latest_release`, `get_release_attachment`, `get_release_by_id`, `get_release_by_tag`, `list_release_attachments`, `list_releases` |
+| `actions` | 15 | 2813 | `cancel_workflow_run`, `create_or_update_org_action_secret`, `create_or_update_repo_action_secret`, `delete_org_action_secret`, `delete_repo_action_secret`, `delete_workflow_run`, `dispatch_workflow`, `get_action_artifact`, `get_action_job_logs`, `get_workflow_run`, `list_action_run_artifacts`, `list_action_run_jobs`, `list_org_action_secrets`, `list_repo_action_secrets`, `list_workflow_runs` |
+| `attachments` | 12 | 2253 | `create_comment_attachment`, `create_issue_attachment`, `delete_comment_attachment`, `delete_issue_attachment`, `download_comment_attachment`, `download_issue_attachment`, `edit_comment_attachment`, `edit_issue_attachment`, `get_comment_attachment`, `get_issue_attachment`, `list_comment_attachments`, `list_issue_attachments` |
+| `tracking` | 10 | 1694 | `add_issue_time`, `cancel_issue_stopwatch`, `delete_issue_time_entry`, `list_issue_tracked_times`, `list_my_stopwatches`, `list_my_tracked_times`, `list_repo_tracked_times`, `reset_issue_time`, `start_issue_stopwatch`, `stop_issue_stopwatch` |
+| `branch-protection` | 5 | 1383 | `create_branch_protection`, `delete_branch_protection`, `edit_branch_protection`, `get_branch_protection`, `list_branch_protections` |
+| `webhooks` | 6 | 1218 | `create_repo_hook`, `delete_repo_hook`, `edit_repo_hook`, `get_repo_hook`, `list_repo_hooks`, `test_repo_hook` |
+| `wiki` | 6 | 1058 | `create_wiki_page`, `delete_wiki_page`, `get_wiki_page`, `get_wiki_revisions`, `list_wiki_pages`, `update_wiki_page` |
+| `version` | 1 | 73 | `get_forgejo_mcp_server_version` |
+
+
 ## Resources
 
 MCP resource templates expose Forgejo entities as URI-addressable resources using the `forgejo://` scheme. The URI scheme is instance-portable — the same URI form works against any Forgejo instance — and does not collide with Forgejo web links. Clients that support `resources/templates/list` and `resources/read` (Claude Code, Claude Desktop, Codex, Cursor) can resolve these URIs directly. Clients without resource-template support continue to use the tools above — no functionality is removed.
@@ -628,6 +687,8 @@ You can configure the server using command-line arguments or environment variabl
 | `--shutdown-grace` | `FORGEJO_MCP_SHUTDOWN_GRACE` | On SIGINT or SIGTERM, how long in-flight `sse`/`http` requests may run before open connections are closed (default: `8s`; any positive Go duration such as `30s` or `2m`, validated at startup). At the deadline, open event streams are closed, so clients see the stream end and should reconnect; the server then exits with status 0 and logs a warning. Set it below your orchestrator's termination timeout |
 | `--host` | `FORGEJO_MCP_HOST` | Address the `sse` and `http` transports bind to (default: `localhost`, reachable from this machine only, binding both `127.0.0.1` and `::1`; pass one of those addresses to bind that family alone) |
 | `--allowed-hosts` | `FORGEJO_MCP_ALLOWED_HOSTS` | Comma-separated `Host` names this server answers to; required when `--host` is not loopback |
+| `--toolsets` | `FORGEJO_MCP_TOOLSETS` | Comma-separated toolsets to load; unset loads every tool. See [Toolsets](#toolsets-choosing-which-tools-load) |
+| `--tools` | `FORGEJO_MCP_TOOLS` | Comma-separated individual tool names to load, added to any `--toolsets` |
 | `--allowed-origins` | `FORGEJO_MCP_ALLOWED_ORIGINS` | Comma-separated web origins allowed to send an `Origin` header, as full origins (`https://console.example.org`). Empty by default |
 | `--allow-operator-token-fallback` | `FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK` | On `sse`/`http`, serve requests with no `Authorization` header using this server's own token. Off by default |
 | `--max-request-body-bytes` | `FORGEJO_MCP_MAX_REQUEST_BODY_BYTES` | On `sse`/`http`, the largest request body read, in bytes; a larger one gets `413`. Must be positive. Default `100663296` (96 MiB), which clears the largest attachment upload (90 MiB of base64) plus its envelope |
