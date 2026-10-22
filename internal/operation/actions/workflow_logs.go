@@ -98,7 +98,7 @@ func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolReque
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.SafeTextResult(jobs)
+	return to.SafeTextResult(jobPage(runID, jobs))
 }
 
 func (h handlers) GetActionJobLogsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

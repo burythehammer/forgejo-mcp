@@ -56,7 +56,7 @@ func TestUsersPassThroughTheQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Users) != 1 || got.Users[0].UserName != "alice" {
+	if len(got.Items) != 1 || got.Items[0].UserName != "alice" {
 		t.Fatalf("got %+v", got)
 	}
 	if q := p.queries[0].(appsearch.UserQuery); q.Keyword != "al" || q.Page != 1 || q.Limit != 100 {
@@ -80,7 +80,7 @@ func TestOrgTeamsAreAskedForTheNamedOrg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Teams) != 1 || got.Teams[0].Name != "devs" {
+	if len(got.Items) != 1 || got.Items[0].Name != "devs" {
 		t.Fatalf("got %+v", got)
 	}
 }
@@ -101,7 +101,7 @@ func TestReposPassThroughSortAndOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Repositories) != 2 || got.Repositories[0].Name != "tool-b" {
+	if len(got.Items) != 2 || got.Items[0].Name != "tool-b" {
 		t.Fatalf("got %+v", got)
 	}
 	if q := p.queries[0].(appsearch.RepoQuery); q.Sort != "alpha" || q.Order != "desc" {
@@ -141,7 +141,7 @@ func TestUsersEnvelopeNamesTheNextPage(t *testing.T) {
 	ctx := context.Background()
 	p := &stubPort{users: numberedUsers(5)}
 	first, err := appsearch.New(p).Users(ctx, appsearch.UserQuery{Paging: appsearch.Paging{Page: 1, Limit: 2}})
-	if err != nil || len(first.Users) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
+	if err != nil || len(first.Items) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
 		t.Fatalf("page 1 of five: %+v, %v", first, err)
 	}
 	last, err := appsearch.New(p).Users(ctx, appsearch.UserQuery{Paging: appsearch.Paging{Page: 3, Limit: 2}})
@@ -182,7 +182,7 @@ func TestOrgTeamsEnvelopeNamesTheNextPage(t *testing.T) {
 	teams := []*model.Team{{Name: "a"}, {Name: "b"}, {Name: "c"}}
 	p := &stubPort{teams: map[string][]*model.Team{"acme": teams}}
 	got, err := appsearch.New(p).OrgTeams(context.Background(), "acme", appsearch.TeamQuery{Paging: appsearch.Paging{Page: 1, Limit: 2}})
-	if err != nil || len(got.Teams) != 2 || got.Count != 2 || !got.HasNext {
+	if err != nil || len(got.Items) != 2 || got.Count != 2 || !got.HasNext {
 		t.Fatalf("page 1 of three: %+v, %v", got, err)
 	}
 }

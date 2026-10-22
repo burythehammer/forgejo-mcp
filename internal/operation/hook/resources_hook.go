@@ -96,11 +96,11 @@ func (h handlers) hooksResourceHandler(ctx context.Context, req mcp.ReadResource
 	payload := hooksCollectionPayload{
 		Owner:     p.Owner,
 		Repo:      p.Repo,
-		Count:     len(col.Hooks),
-		Hooks:     col.Hooks,
-		Truncated: col.Truncated,
+		Count:     col.Count,
+		Hooks:     col.Items,
+		Truncated: col.HasNext,
 	}
-	if col.Truncated {
+	if col.HasNext {
 		// The note names the list tool only when the registry has it.
 		bounded := resource.BoundedResult{Cap: resource.EmbeddedListCap, ListTool: ListRepoHooksToolName, Truncated: true}
 		payload.Sentinel = bounded.Sentinel()

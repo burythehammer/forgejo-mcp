@@ -37,7 +37,7 @@ const defaultLimit = 20
 // Forgejo does not page this listing, so the whole list is read and cut here.
 // A parent Forgejo does not know is an empty list. The page's attachments are
 // never nil.
-func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent int64, p Paging) (model.AttachmentPage, error) {
+func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent int64, p Paging) (list.Bounded[*model.Attachment], error) {
 	max, known := s.p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: max, Known: known}
 	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultLimit, c), c,
@@ -50,16 +50,12 @@ func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent
 			return list.Batch[*model.Attachment]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {
-		return model.AttachmentPage{}, err
+		return list.Bounded[*model.Attachment]{}, err
 	}
-	rows := page.Items
-	if rows == nil {
-		rows = []*model.Attachment{}
+	if page.Items == nil {
+		page.Items = []*model.Attachment{}
 	}
-	meta := model.PageMetaOf(page)
-	// Forgejo reports no total for this listing, so none is reported.
-	meta.TotalCount = nil
-	return model.AttachmentPage{Attachments: rows, PageMeta: meta}, nil
+	return page, nil
 }
 
 // Get returns one attachment's metadata.

@@ -83,7 +83,7 @@ func TestListFiltersByStateAndNeverReturnsNil(t *testing.T) {
 			t.Fatal(err)
 		}
 		var tags []string
-		for _, r := range got.Releases {
+		for _, r := range got.Items {
 			if r != nil {
 				tags = append(tags, r.TagName)
 			}
@@ -93,7 +93,7 @@ func TestListFiltersByStateAndNeverReturnsNil(t *testing.T) {
 		}
 	}
 	empty, _ := apprelease.New(&stubPort{}).ListReleases(context.Background(), "o", "r", apprelease.ListQuery{State: "draft"})
-	if empty.Releases == nil {
+	if empty.Items == nil {
 		t.Fatal("an empty list must be [] not nil")
 	}
 }
@@ -198,11 +198,11 @@ func TestListAttachmentsPagesAndPastTheEnd(t *testing.T) {
 	p := &stubPort{atts: []*model.Attachment{{ID: 1}, {ID: 2}, {ID: 3}}}
 	svc := apprelease.New(p)
 	page, _ := svc.ListAttachments(context.Background(), "o", "r", 1, apprelease.Paging{Page: 2, Limit: 2})
-	if len(page.Attachments) != 1 || page.Attachments[0].ID != 3 {
+	if len(page.Items) != 1 || page.Items[0].ID != 3 {
 		t.Fatalf("page 2: %+v", page)
 	}
 	beyond, _ := svc.ListAttachments(context.Background(), "o", "r", 1, apprelease.Paging{Page: 9, Limit: 2})
-	if beyond.Attachments == nil || len(beyond.Attachments) != 0 {
+	if beyond.Items == nil || len(beyond.Items) != 0 {
 		t.Fatalf("past the end: %+v", beyond)
 	}
 }

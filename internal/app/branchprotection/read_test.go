@@ -25,8 +25,11 @@ func TestReadCollection_CapsAndFlagsMore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Rules) != 2 || !got.Truncated {
-		t.Errorf("shown=%d truncated=%v, want 2 and true", len(got.Rules), got.Truncated)
+	if len(got.Items) != 2 || !got.HasNext {
+		t.Errorf("shown=%d has_next=%v, want 2 and true", len(got.Items), got.HasNext)
+	}
+	if got.Total != nil {
+		t.Errorf("total = %d, want unknown: the listing reports no repository total", *got.Total)
 	}
 }
 
@@ -40,8 +43,8 @@ func TestReadCollection_ExactlyTheCapIsNotTruncated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Rules) != 2 || got.Truncated {
-		t.Errorf("shown=%d truncated=%v, want 2 and false", len(got.Rules), got.Truncated)
+	if len(got.Items) != 2 || got.HasNext {
+		t.Errorf("shown=%d has_next=%v, want 2 and false", len(got.Items), got.HasNext)
 	}
 }
 

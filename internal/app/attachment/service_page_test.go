@@ -37,14 +37,14 @@ func TestListReturnsOnePageWithItsNextMarker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Attachments) != 2 || page.Attachments[0].Name != "a1.txt" || page.Count != 2 || !page.HasNext || page.TotalCount != nil {
+	if len(page.Items) != 2 || page.Items[0].Name != "a1.txt" || page.Count != 2 || !page.HasNext || page.Total == nil || *page.Total != 5 {
 		t.Fatalf("page 1: %+v", page)
 	}
 	last, err := svc.List(context.Background(), "o", "r", attachment.ScopeIssue, 4, attachment.Paging{Page: 3, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(last.Attachments) != 1 || last.Attachments[0].Name != "a5.txt" || last.HasNext {
+	if len(last.Items) != 1 || last.Items[0].Name != "a5.txt" || last.HasNext {
 		t.Fatalf("last page: %+v", last)
 	}
 }
@@ -53,11 +53,11 @@ func TestListDefaultLimitIsTwentyAndPastTheEndIsEmpty(t *testing.T) {
 	t.Parallel()
 	svc := attachment.New(listedPort{stubPort: &stubPort{}, atts: attachments(21)}, time.Minute)
 	first, err := svc.List(context.Background(), "o", "r", attachment.ScopeComment, 4, attachment.Paging{})
-	if err != nil || first.Limit != 20 || len(first.Attachments) != 20 || !first.HasNext {
+	if err != nil || first.Limit != 20 || len(first.Items) != 20 || !first.HasNext {
 		t.Fatalf("default page: %+v, %v", first, err)
 	}
 	past, err := svc.List(context.Background(), "o", "r", attachment.ScopeComment, 4, attachment.Paging{Page: 9, Limit: 20})
-	if err != nil || past.Attachments == nil || len(past.Attachments) != 0 || past.HasNext {
+	if err != nil || past.Items == nil || len(past.Items) != 0 || past.HasNext {
 		t.Fatalf("past the end: %+v, %v", past, err)
 	}
 }
@@ -66,7 +66,7 @@ func TestListNotFoundPagesAsAnEmptyList(t *testing.T) {
 	t.Parallel()
 	svc := attachment.New(listedPort{stubPort: &stubPort{listErr: attachment.ErrNotFound}}, time.Minute)
 	page, err := svc.List(context.Background(), "o", "r", attachment.ScopeIssue, 4, attachment.Paging{Page: 1, Limit: 5})
-	if err != nil || page.Attachments == nil || len(page.Attachments) != 0 || page.HasNext {
+	if err != nil || page.Items == nil || len(page.Items) != 0 || page.HasNext {
 		t.Fatalf("got %+v, %v", page, err)
 	}
 }

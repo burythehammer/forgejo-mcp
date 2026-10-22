@@ -100,11 +100,11 @@ func (h handlers) branchProtectionsResourceHandler(ctx context.Context, req mcp.
 	payload := bpCollectionPayload{
 		Owner:             p.Owner,
 		Repo:              p.Repo,
-		TotalCount:        len(col.Rules),
-		BranchProtections: col.Rules,
-		Truncated:         col.Truncated,
+		TotalCount:        col.Count,
+		BranchProtections: col.Items,
+		Truncated:         col.HasNext,
 	}
-	if col.Truncated {
+	if col.HasNext {
 		// The note names the list tool only when the registry has it.
 		bounded := resource.BoundedResult{Cap: resource.EmbeddedListCap, ListTool: ListBranchProtectionsToolName, Truncated: true}
 		payload.Sentinel = bounded.Sentinel()

@@ -226,7 +226,7 @@ func TestRepoNotificationsEnvelopeNamesTheNextPage(t *testing.T) {
 				Owner: "octo", Repo: "hello",
 				NotificationsInput: appuser.NotificationsInput{Page: c.page, Limit: 2},
 			})
-			if err != nil || len(got.Notifications) != c.want || got.Count != c.want || got.HasNext != c.hasNext || got.Page != c.page || got.Limit != 2 {
+			if err != nil || len(got.Items) != c.want || got.Count != c.want || got.HasNext != c.hasNext || got.Page != c.page || got.Limit != 2 {
 				t.Fatalf("got %+v, %v", got, err)
 			}
 		})
@@ -267,7 +267,7 @@ func TestNotificationsEnvelopeNamesTheNextPage(t *testing.T) {
 				return &pagedNotificationsPort{n: c.n}, nil
 			})
 			got, err := s.Notifications(context.Background(), appuser.NotificationsInput{Page: c.page, Limit: 2})
-			if err != nil || len(got.Notifications) != c.want || got.Count != c.want || got.HasNext != c.hasNext || got.Page != c.page || got.Limit != 2 {
+			if err != nil || len(got.Items) != c.want || got.Count != c.want || got.HasNext != c.hasNext || got.Page != c.page || got.Limit != 2 {
 				t.Fatalf("got %+v, %v", got, err)
 			}
 		})

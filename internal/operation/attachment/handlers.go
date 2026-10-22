@@ -9,6 +9,7 @@ import (
 	"time"
 
 	appattachment "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/attachment"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/attachmentadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
@@ -288,7 +289,7 @@ func (h handlers) list(ctx context.Context, owner, repo string, sc appattachment
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.TextResult(out)
+	return to.TextResult(model.AttachmentPageOf(out))
 }
 
 func (h handlers) get(ctx context.Context, owner, repo string, sc appattachment.Scope, parent, attachmentID any) (*mcp.CallToolResult, error) {

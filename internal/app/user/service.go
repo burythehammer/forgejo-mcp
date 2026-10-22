@@ -47,14 +47,14 @@ func (s *Service) MyInfo(ctx context.Context) (*model.User, error) {
 
 // Notifications returns one page of the credential's user's notifications,
 // with its next marker.
-func (s *Service) Notifications(ctx context.Context, in NotificationsInput) (model.NotificationPage, error) {
+func (s *Service) Notifications(ctx context.Context, in NotificationsInput) (list.Bounded[*model.NotificationThread], error) {
 	q, err := notificationQuery(in)
 	if err != nil {
-		return model.NotificationPage{}, err
+		return list.Bounded[*model.NotificationThread]{}, err
 	}
 	p, err := s.port(ctx)
 	if err != nil {
-		return model.NotificationPage{}, err
+		return list.Bounded[*model.NotificationThread]{}, err
 	}
 	ceiling, known := p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
@@ -69,23 +69,21 @@ func (s *Service) Notifications(ctx context.Context, in NotificationsInput) (mod
 			return list.Batch[*model.NotificationThread]{Items: threads}, nil
 		})
 	if err != nil {
-		return model.NotificationPage{}, err
+		return list.Bounded[*model.NotificationThread]{}, err
 	}
-	return model.NotificationPage{
-		Notifications: page.Items, PageMeta: model.PageMetaOf(page),
-	}, nil
+	return page, nil
 }
 
 // RepoNotifications returns one page of the notifications of one repository,
 // with its next marker.
-func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInput) (model.NotificationPage, error) {
+func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInput) (list.Bounded[*model.NotificationThread], error) {
 	q, err := notificationQuery(in.NotificationsInput)
 	if err != nil {
-		return model.NotificationPage{}, err
+		return list.Bounded[*model.NotificationThread]{}, err
 	}
 	p, err := s.port(ctx)
 	if err != nil {
-		return model.NotificationPage{}, err
+		return list.Bounded[*model.NotificationThread]{}, err
 	}
 	ceiling, known := p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
@@ -100,11 +98,9 @@ func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInp
 			return list.Batch[*model.NotificationThread]{Items: threads}, nil
 		})
 	if err != nil {
-		return model.NotificationPage{}, err
+		return list.Bounded[*model.NotificationThread]{}, err
 	}
-	return model.NotificationPage{
-		Notifications: page.Items, PageMeta: model.PageMetaOf(page),
-	}, nil
+	return page, nil
 }
 
 // Thread returns one notification thread.

@@ -43,25 +43,26 @@ const defaultLimit = 30
 // List returns one page of an owner's package versions. The page goes through
 // the list module, so the instance ceiling applies and a default limit is
 // lowered to it.
-func (s *Service) List(ctx context.Context, r ListRequest) (model.ListPackagesResult, error) {
+func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.PackageView], error) {
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
 	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
-	page, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageVersion], error) {
+	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageView], error) {
 		got, err := s.port.ListPackages(ctx, r.Owner, ListQuery{Type: r.Type, Query: r.Query, Page: q.Page, Limit: q.Limit})
 		if err != nil {
-			return list.Batch[model.PackageVersion]{}, fmt.Errorf("list packages: %w", err)
+			return list.Batch[model.PackageView]{}, fmt.Errorf("list packages: %w", err)
 		}
-		return list.Batch[model.PackageVersion]{Items: got.Packages, Total: got.TotalCount}, nil
+		return list.Batch[model.PackageView]{Items: views(got.Packages), Total: got.TotalCount}, nil
 	})
-	if err != nil {
-		return model.ListPackagesResult{}, err
+}
+
+// views is each package version in its view form.
+func views(rows []model.PackageVersion) []model.PackageView {
+	out := make([]model.PackageView, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, view(row))
 	}
-	packages := make([]model.PackageView, 0, len(page.Items))
-	for _, row := range page.Items {
-		packages = append(packages, view(row))
-	}
-	return model.ListPackagesResult{Packages: packages, PageMeta: model.PageMetaOf(page)}, nil
+	return out
 }
 
 // Get returns one package version.
@@ -83,11 +84,11 @@ func (s *Service) Delete(ctx context.Context, c Coords) (model.DeletePackageResu
 
 // ListFiles returns one page of a package version's files. Forgejo does not
 // page the listing, so the page is cut here.
-func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.ListPackageFilesResult, error) {
+func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (list.Bounded[model.PackageFileView], error) {
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
 	p := list.Normalize(list.Paging{Page: r.Page, Limit: r.Limit}, list.DefaultLimit(defaultLimit, c))
-	page, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageFileView], error) {
+	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.PackageFileView], error) {
 		listed, err := s.port.ListPackageFiles(ctx, r.Owner, r.Type, r.Name, r.Version)
 		if err != nil {
 			return list.Batch[model.PackageFileView]{}, fmt.Errorf("list package files: %w", err)
@@ -101,10 +102,6 @@ func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.List
 		rows := list.Cut(all, q).Items
 		return list.Batch[model.PackageFileView]{Items: rows, Total: ptr.To(len(all))}, nil
 	})
-	if err != nil {
-		return model.ListPackageFilesResult{}, err
-	}
-	return model.ListPackageFilesResult{Files: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
 func view(src model.PackageVersion) model.PackageView {

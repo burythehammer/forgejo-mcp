@@ -29,7 +29,7 @@ type ListQuery struct {
 // marker reads the page as Forgejo paged it, so a state filter that drops rows
 // from the page does not end the list early. The state filter then applies to
 // the page's rows, which is why a page can hold fewer than its limit.
-func (s *Service) ListReleases(ctx context.Context, owner, repo string, q ListQuery) (model.ReleasePage, error) {
+func (s *Service) ListReleases(ctx context.Context, owner, repo string, q ListQuery) (list.Bounded[*model.Release], error) {
 	ceiling, known := s.p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
 	page, err := list.Run(ctx, list.Normalize(list.Paging(q.Paging), list.DefaultLimit(defaultLimit, c)), c,
@@ -41,16 +41,15 @@ func (s *Service) ListReleases(ctx context.Context, owner, repo string, q ListQu
 			return list.Batch[*model.Release]{Items: got}, nil
 		})
 	if err != nil {
-		return model.ReleasePage{}, err
+		return list.Bounded[*model.Release]{}, err
 	}
 	rels := filterByState(page.Items, q.State)
 	if rels == nil {
 		rels = []*model.Release{}
 	}
 	// The state filter runs after paging, so the count is what survives it.
-	meta := model.PageMetaOf(page)
-	meta.Count = len(rels)
-	return model.ReleasePage{Releases: rels, PageMeta: meta}, nil
+	page.Items, page.Count = rels, len(rels)
+	return page, nil
 }
 
 // defaultLimit is the page size a release list uses when the caller gives none.
@@ -152,7 +151,7 @@ func (s *Service) DeleteReleaseByTag(ctx context.Context, owner, repo, tag strin
 // ListAttachments returns one page of a release's assets with its next marker.
 // Forgejo does not page this endpoint, so the page is cut here, and the whole
 // list is the grand total the marker is derived from.
-func (s *Service) ListAttachments(ctx context.Context, owner, repo string, releaseID int64, p Paging) (model.AttachmentPage, error) {
+func (s *Service) ListAttachments(ctx context.Context, owner, repo string, releaseID int64, p Paging) (list.Bounded[*model.Attachment], error) {
 	ceiling, known := s.p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
 	page, err := list.Run(ctx, list.Normalize(list.Paging(p), list.DefaultLimit(defaultLimit, c)), c,
@@ -165,24 +164,12 @@ func (s *Service) ListAttachments(ctx context.Context, owner, repo string, relea
 			return list.Batch[*model.Attachment]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {
-		return model.AttachmentPage{}, err
+		return list.Bounded[*model.Attachment]{}, err
 	}
-	atts := page.Items
-	if atts == nil {
-		atts = []*model.Attachment{}
+	if page.Items == nil {
+		page.Items = []*model.Attachment{}
 	}
-	return model.AttachmentPage{
-		Attachments: atts,
-		PageMeta:    attachmentMeta(page),
-	}, nil
-}
-
-// attachmentMeta is the page's metadata without a total: the attachment list
-// has never reported one, though the whole list is read to page it.
-func attachmentMeta(page list.Page[*model.Attachment]) model.PageMeta {
-	meta := model.PageMetaOf(page)
-	meta.TotalCount = nil
-	return meta
+	return page, nil
 }
 
 // GetAttachment returns one asset's metadata.

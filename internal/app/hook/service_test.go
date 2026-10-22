@@ -237,8 +237,8 @@ func TestListReportsAZeroTotal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.TotalCount == nil || *got.TotalCount != 0 {
-		t.Fatalf("total: got %v, want a pointer to 0", got.TotalCount)
+	if got.Total == nil || *got.Total != 0 {
+		t.Fatalf("total: got %v, want a pointer to 0", got.Total)
 	}
 }
 
@@ -381,8 +381,8 @@ func TestListHasNextUsesTheReportedTotal(t *testing.T) {
 			if err != nil || got.Count != c.count || got.HasNext != c.hasNext {
 				t.Fatalf("got %+v, %v", got, err)
 			}
-			if got.TotalCount == nil || *got.TotalCount != c.n {
-				t.Fatalf("total: got %v, want %d", got.TotalCount, c.n)
+			if got.Total == nil || *got.Total != c.n {
+				t.Fatalf("total: got %v, want %d", got.Total, c.n)
 			}
 		})
 	}
