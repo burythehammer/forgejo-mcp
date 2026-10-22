@@ -214,7 +214,11 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 
 func (h handlers) ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoHooksFn", func(ctx context.Context, s *apphook.Service, a listArgs) (*mcp.CallToolResult, error) {
-		got, err := s.List(ctx, apphook.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit})
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return mcpresult.Fail(perr)
+		}
+		got, err := s.List(ctx, apphook.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: pg, Limit: lim})
 		if err != nil {
 			return mcpresult.Fail(err)
 		}

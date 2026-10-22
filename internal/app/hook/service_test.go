@@ -362,7 +362,7 @@ func TestListHasNextUsesTheReportedTotal(t *testing.T) {
 	cases := []struct {
 		name    string
 		n       int
-		page    float64
+		page    int
 		count   int
 		hasNext bool
 	}{

@@ -51,15 +51,12 @@ type reposArgs struct {
 	Limit   float64 `json:"limit"`
 }
 
-// paging applies the tools' defaults to the page and limit arguments: zero
-// means the default, and a fractional number is truncated.
-func paging(page, limit float64) appsearch.Paging {
-	if page == 0 {
-		page = 1
-	}
-	// An absent limit is passed on as 0: the use case applies the default,
-	// lowered to the instance ceiling.
-	return appsearch.Paging{Page: int(page), Limit: int(limit)}
+// paging reads the page and limit arguments through the numeric-argument
+// module: a zero page is page 1, an absent limit is 0 for the use case's
+// default, and a value that is not a whole number in range is refused.
+func paging(page, limit float64) (appsearch.Paging, error) {
+	p, l, err := decode.PagingArgs(page, limit)
+	return appsearch.Paging{Page: p, Limit: l}, err
 }
 
 // run is the shared shape of a tool call: decode the arguments into A, take
@@ -81,7 +78,11 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 
 func (h handlers) SearchUserFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchUserFn", func(ctx context.Context, s *appsearch.Service, a usersArgs) (*mcp.CallToolResult, error) {
-		return userSearchPage(s.Users(ctx, appsearch.UserQuery{Keyword: a.Keyword, Paging: paging(a.Page, a.Limit)}))
+		pg, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return userSearchPage(s.Users(ctx, appsearch.UserQuery{Keyword: a.Keyword, Paging: pg}))
 	})
 }
 
@@ -101,14 +102,22 @@ func (h handlers) SearchOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest)
 	if err != nil {
 		return mcpresult.Fail(err)
 	}
+	pg, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
 	return teamSearchPage(appsearch.New(searchadapter.New(port)).OrgTeams(ctx, *a.Org,
-		appsearch.TeamQuery{Keyword: a.Keyword, Paging: paging(a.Page, a.Limit)}))
+		appsearch.TeamQuery{Keyword: a.Keyword, Paging: pg}))
 }
 
 func (h handlers) SearchReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchReposFn", func(ctx context.Context, s *appsearch.Service, a reposArgs) (*mcp.CallToolResult, error) {
+		pg, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
 		return repositoryPage(s.Repos(ctx, appsearch.RepoQuery{
-			Keyword: a.Keyword, Sort: a.Sort, Order: a.Order, Paging: paging(a.Page, a.Limit),
+			Keyword: a.Keyword, Sort: a.Sort, Order: a.Order, Paging: pg,
 		}))
 	})
 }

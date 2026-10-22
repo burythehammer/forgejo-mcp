@@ -116,11 +116,10 @@ type repoMarkArgs struct {
 	LastReadAt string  `json:"last_read_at"`
 }
 
-// paging applies the tools' defaults to the page and limit arguments.
-func paging(page, limit float64) (int, int) {
-	// An absent page or limit is passed on as 0: the use case applies the
-	// defaults, lowering the default limit to the instance ceiling.
-	return int(page), int(limit)
+// paging reads the page and limit arguments through the numeric-argument
+// module, so a bad value is refused with the same message as on every list tool.
+func paging(page, limit float64) (int, int, error) {
+	return decode.PagingArgs(page, limit)
 }
 
 // start begins a tool call: it attaches the tool's name to the context, logs
@@ -156,9 +155,9 @@ func notificationPage(b list.Bounded[*model.NotificationThread]) model.Notificat
 	return model.NotificationPage{Notifications: b.Items, PageMeta: model.PageMetaOf(b)}
 }
 
-func notificationsInput(all bool, since, before string, pageArg, limitArg float64) appuser.NotificationsInput {
-	page, limit := paging(pageArg, limitArg)
-	return appuser.NotificationsInput{All: all, Since: since, Before: before, Page: page, Limit: limit}
+func notificationsInput(all bool, since, before string, pageArg, limitArg float64) (appuser.NotificationsInput, error) {
+	page, limit, err := paging(pageArg, limitArg)
+	return appuser.NotificationsInput{All: all, Since: since, Before: before, Page: page, Limit: limit}, err
 }
 
 func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -166,7 +165,11 @@ func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequ
 	if err != nil {
 		return refuse(ctx, CheckNotificationsToolName, started, err)
 	}
-	page, err := h.service().Notifications(ctx, notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit))
+	in, err := notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit)
+	if err != nil {
+		return refuse(ctx, CheckNotificationsToolName, started, err)
+	}
+	page, err := h.service().Notifications(ctx, in)
 	logAPICall(ctx, "GET", "/notifications", started, err)
 	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", page.Count), notificationPage(page), err)
 }
@@ -221,8 +224,12 @@ func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolR
 		return refuse(ctx, ListRepoNotificationsToolName, started, errOwnerRepo)
 	}
 	owner, repo := *a.Owner, *a.Repo
+	in, err := notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit)
+	if err != nil {
+		return refuse(ctx, ListRepoNotificationsToolName, started, err)
+	}
 	page, err := h.service().RepoNotifications(ctx, appuser.RepoNotificationsInput{
-		Owner: owner, Repo: repo, NotificationsInput: notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit),
+		Owner: owner, Repo: repo, NotificationsInput: in,
 	})
 	logAPICall(ctx, "GET", apiEndpoint("repos", owner, repo, "notifications"), started, err)
 	return finish(ctx, ListRepoNotificationsToolName, started,

@@ -42,7 +42,11 @@ func (h handlers) GetCommitStatusesFn(ctx context.Context, req mcp.CallToolReque
 	return runAdmin(ctx, h, req, "GetCommitStatusesFn", func(ctx context.Context, s *apprepo.AdminService, a getCommitStatusesArgs) (*mcp.CallToolResult, error) {
 		// A zero limit is passed on as zero so the use case applies the default,
 		// lowered to the instance ceiling; the list module refuses a limit above it.
-		b, err := s.GetCommitStatuses(ctx, a.Owner, a.Repo, a.SHA, apprepo.AdminPaging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)})
+		pg, limit, err := decode.PagingArgs(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Render(nil, err)
+		}
+		b, err := s.GetCommitStatuses(ctx, a.Owner, a.Repo, a.SHA, apprepo.AdminPaging{Page: pg, Limit: limit})
 		return mcpresult.Render(statusPage(a.SHA, b, err))
 	})
 }

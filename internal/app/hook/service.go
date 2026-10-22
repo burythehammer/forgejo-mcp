@@ -28,11 +28,11 @@ type HookRef struct {
 	ID          int64
 }
 
-// ListRequest lists a repository's webhooks. Page and Limit are the numbers as
-// the caller gave them: zero means page 1 and 30 hooks.
+// ListRequest lists a repository's webhooks. Page and Limit are whole numbers the
+// adapter has already validated; zero means page 1 and 30 hooks.
 type ListRequest struct {
 	Owner, Repo string
-	Page, Limit float64
+	Page, Limit int
 }
 
 // CreateRequest creates a webhook. Events is comma-separated. An empty string
@@ -60,7 +60,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.H
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	return list.Run(ctx, list.Request{Page: int(r.Page), Limit: int(r.Limit), Def: 30}, c, func(ctx context.Context, q list.Paging) (list.Batch[model.HookPayload], error) {
+	return list.Run(ctx, list.Request{Page: r.Page, Limit: r.Limit, Def: 30}, c, func(ctx context.Context, q list.Paging) (list.Batch[model.HookPayload], error) {
 		hooks, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[model.HookPayload]{}, fmt.Errorf("list repo hooks: %w", err)

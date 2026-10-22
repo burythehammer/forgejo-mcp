@@ -13,6 +13,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -487,10 +488,14 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.State != nil {
 			state = *a.State
 		}
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		page, err := s.List(ctx, apppissue.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
 			Milestones: a.Milestones, Labels: a.Labels,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})
 		envelope, err := issueListPage(page, err)
 		return compact.RenderIssueList(envelope, err, a.Verbose)
@@ -499,11 +504,14 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchIssuesFn", func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
-		// Out-of-range page and limit values are corrected by the use case.
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		page, err := s.Search(ctx, apppissue.SearchInput{
 			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
 			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
-			Paging: apppissue.Paging{Page: int(a.Page), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})
 		envelope, err := issueSearchPage(page, err)
 		return compact.RenderIssueSearchList(envelope, err, a.Verbose)
@@ -578,10 +586,14 @@ func (h handlers) IssueStateChangeFn(ctx context.Context, req mcp.CallToolReques
 
 func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueCommentsFn", func(ctx context.Context, s *apppissue.Service, a listCommentsArgs) (*mcp.CallToolResult, error) {
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		return mcpresult.Render(commentPage(s.Comments(ctx, apppissue.CommentsInput{
 			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
 			Since:  a.Since, Before: a.Before,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})))
 	})
 }
@@ -608,9 +620,13 @@ func (h handlers) DeleteIssueCommentFn(ctx context.Context, req mcp.CallToolRequ
 
 func (h handlers) ListRepoMilestonesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoMilestonesFn", func(ctx context.Context, s *apppissue.Service, a milestonesArgs) (*mcp.CallToolResult, error) {
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		return mcpresult.Render(milestonePage(s.Milestones(ctx, a.Owner, a.Repo, apppissue.MilestoneList{
 			State:  a.State,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})))
 	})
 }
@@ -621,9 +637,13 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.IncludeOrg != nil {
 			includeOrg = *a.IncludeOrg
 		}
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		list, err := s.ReadRepoLabels(ctx, apppissue.RepoLabelsInput{
 			Owner: a.Owner, Repo: a.Repo, IncludeOrg: includeOrg,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})
 		if err != nil {
 			return nil, mapErr(repoLabelsURI(a.Owner, a.Repo), err)
@@ -634,9 +654,11 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgLabelsFn", func(ctx context.Context, s *apppissue.Service, a orgLabelsArgs) (*mcp.CallToolResult, error) {
-		// A page below 1 reads as page 1: argument reading is the adapter's, not the use case's.
-		page := max(decode.PageOr(a.Page, 1), 1)
-		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: page, Limit: int(a.Limit)})
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
+		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: pg, Limit: lim})
 		if err != nil {
 			return nil, mapErr(orgLabelsURI(a.Org), err)
 		}
