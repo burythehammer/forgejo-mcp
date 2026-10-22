@@ -205,6 +205,17 @@ compared in full — scheme, host and port — because an `Origin`'s port belong
 page making the request, not to this server. Requests with no `Origin` header at all
 are unaffected, which is the normal case: an MCP client is not a browser.
 
+#### Request body size on `sse` and `http`
+
+Every request body on these transports is capped at `--max-request-body-bytes`
+(default 96 MiB, `100663296`). A request over the cap is refused with `413 Request
+Entity Too Large` before authentication runs, and the body names the limit. The
+cap applies to both the SSE and the streamable HTTP endpoints, in passthrough and
+resource-server modes alike. A normal request, including a base64 attachment upload
+up to the 90 MiB upload cap, is unaffected. Raise the cap only if a deployment needs
+a larger request, since the server reads each body into memory. `stdio` has no body
+cap.
+
 #### Authentication on `sse` and `http`
 
 On these transports every request must carry its own `Authorization` header. A request
@@ -618,6 +629,7 @@ You can configure the server using command-line arguments or environment variabl
 | `--allowed-hosts` | `FORGEJO_MCP_ALLOWED_HOSTS` | Comma-separated `Host` names this server answers to; required when `--host` is not loopback |
 | `--allowed-origins` | `FORGEJO_MCP_ALLOWED_ORIGINS` | Comma-separated web origins allowed to send an `Origin` header, as full origins (`https://console.example.org`). Empty by default |
 | `--allow-operator-token-fallback` | `FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK` | On `sse`/`http`, serve requests with no `Authorization` header using this server's own token. Off by default |
+| `--max-request-body-bytes` | `FORGEJO_MCP_MAX_REQUEST_BODY_BYTES` | On `sse`/`http`, the largest request body read, in bytes; a larger one gets `413`. Must be positive. Default `100663296` (96 MiB), which clears the largest attachment upload (90 MiB of base64) plus its envelope |
 | `--auth-mode` | `FORGEJO_MCP_AUTH_MODE` | `passthrough` (default) or `resource-server`; see [Remote operation as an OAuth resource server](#remote-operation-as-an-oauth-resource-server) |
 | `--authorization-server` | `FORGEJO_MCP_AUTHORIZATION_SERVER` | `resource-server` mode: issuer URL of the OpenID Connect provider, compared byte for byte |
 | `--resource` | `FORGEJO_MCP_RESOURCE` | `resource-server` mode: canonical URI of the MCP endpoint, for example `https://mcp.example.org/mcp`; its path must be `/mcp` |

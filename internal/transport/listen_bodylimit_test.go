@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/upload"
 )
 
@@ -166,8 +167,55 @@ func TestBodyLimit_ChunkedBody(t *testing.T) {
 // does not silently cut off uploads.
 func TestBodyLimit_DefaultClearsLargestUpload(t *testing.T) {
 	const envelopeAllowance = 1 << 20
-	if maxRequestBodyBytes < int64(upload.MaxContentB64Bytes)+envelopeAllowance {
-		t.Fatalf("maxRequestBodyBytes = %d, want at least upload cap %d plus %d bytes of envelope",
-			maxRequestBodyBytes, upload.MaxContentB64Bytes, envelopeAllowance)
+	if config.DefaultMaxRequestBodyBytes < int64(upload.MaxContentB64Bytes)+envelopeAllowance {
+		t.Fatalf("DefaultMaxRequestBodyBytes = %d, want at least upload cap %d plus %d bytes of envelope",
+			config.DefaultMaxRequestBodyBytes, upload.MaxContentB64Bytes, envelopeAllowance)
+	}
+}
+
+// A configured ceiling replaces the default on both HTTP endpoints, with and
+// without an Authorization header, and an unset one (a Config that skipped
+// Validate) takes the default.
+func TestBodyLimit_ConfiguredCeilingOnBothEndpoints(t *testing.T) {
+	const limit = 2048
+	app := config.Config{Listen: config.Listen{Host: "127.0.0.1", MaxRequestBodyBytes: limit}}
+	probe := &bodyProbe{}
+	srv := newMCPHTTPServer(probe, resolveTransportConfig(app))
+	ts := httptest.NewServer(srv.Handler)
+	t.Cleanup(ts.Close)
+
+	for _, path := range []string{"/sse", "/mcp"} {
+		for _, auth := range []bool{false, true} {
+			// Without a header the default door answers 401 to a body it accepts;
+			// the body check runs first, so an oversized one is 413 either way.
+			inLimit := http.StatusOK
+			if !auth {
+				inLimit = http.StatusUnauthorized
+			}
+			for _, tc := range []struct {
+				size   int
+				status int
+			}{{limit, inLimit}, {limit + 1, http.StatusRequestEntityTooLarge}} {
+				req, err := http.NewRequest(http.MethodPost, ts.URL+path, bytes.NewReader(make([]byte, tc.size)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if auth {
+					req.Header.Set("Authorization", "Bearer x")
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatalf("%s size %d auth %v: %v", path, tc.size, auth, err)
+				}
+				_ = resp.Body.Close()
+				if resp.StatusCode != tc.status {
+					t.Fatalf("%s size %d auth %v: status %d, want %d", path, tc.size, auth, resp.StatusCode, tc.status)
+				}
+			}
+		}
+	}
+
+	if got := resolveTransportConfig(config.Config{}).maxBody; got != config.DefaultMaxRequestBodyBytes {
+		t.Fatalf("unset ceiling resolved to %d, want the default %d", got, config.DefaultMaxRequestBodyBytes)
 	}
 }

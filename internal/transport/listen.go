@@ -31,14 +31,6 @@ const (
 	idleTimeout       = 120 * time.Second
 	maxHeaderBytes    = 64 << 10
 
-	// maxRequestBodyBytes is the largest request body either HTTP endpoint
-	// reads. The largest legitimate request is an attachment upload at the
-	// upload cap (upload.MaxContentB64Bytes, 90 MiB of base64 already), plus
-	// the JSON-RPC envelope around it. The 6 MiB above the cap leaves room for
-	// that envelope and the other arguments; TestBodyLimit_DefaultClearsLargestUpload
-	// pins the relation. Stdio is not affected.
-	maxRequestBodyBytes int64 = 96 << 20
-
 	// maxLoggedHeaderLen caps how much of a rejected header reaches the log.
 	// The value is attacker-controlled on exactly the requests this server
 	// refuses, so logging it whole lets a stranger write to the operator's disk
@@ -382,6 +374,10 @@ type transportConfig struct {
 	// refusals is this listener's refusal-log budget. It is created with the
 	// configuration, so each listener starts with its own.
 	refusals *refusalLimiter
+	// maxBody is the request body ceiling. Validate refuses a non-positive
+	// configured value at startup; a zero value here means a Config that never
+	// went through Validate, and takes the default.
+	maxBody int64
 }
 
 // resolveTransportConfig derives the listener decisions from a Config that
@@ -395,6 +391,10 @@ func resolveTransportConfig(cfg config.Config) transportConfig {
 		resourceServer: cfg.ResourceServerMode(),
 		app:            cfg,
 		refusals:       &refusalLimiter{},
+		maxBody:        l.MaxRequestBodyBytes,
+	}
+	if tc.maxBody == 0 {
+		tc.maxBody = config.DefaultMaxRequestBodyBytes
 	}
 
 	host := strings.TrimSpace(l.Host)
@@ -430,7 +430,7 @@ func newMCPHTTPServer(handler http.Handler, cfg transportConfig) *http.Server {
 		}
 	}
 	return &http.Server{
-		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, authorize, cfg.refusals, maxRequestBodyBytes),
+		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, authorize, cfg.refusals, cfg.maxBody),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		IdleTimeout:       idleTimeout,
