@@ -33,3 +33,15 @@ func TestCountIssuesLabelled_ServerFailureIsNotInaccessible(t *testing.T) {
 		t.Fatalf("error = %v, want a plain failure", err)
 	}
 }
+
+func TestCountIssuesLabelled_ForbiddenIsInaccessible(t *testing.T) {
+	t.Parallel()
+	f := fake.New()
+	f.AddRepo("acme", "a")
+	f.FailIssues(403)
+	_, err := issueadapter.New(f).CountIssuesLabelled(context.Background(), "acme", "a", "infra")
+	var inaccessible *appissue.InaccessibleError
+	if !errors.As(err, &inaccessible) {
+		t.Fatalf("error = %v, want *InaccessibleError", err)
+	}
+}

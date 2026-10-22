@@ -71,3 +71,45 @@ func TestDeleteOrgLabel_UnusedLabelDeletes(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 }
+
+// noTotal is a port whose label-usage count reports no total.
+type noTotal struct{ apppissue.Port }
+
+func (noTotal) CountIssuesLabelled(context.Context, string, string, string) (*int, error) {
+	return nil, nil
+}
+
+func TestDeleteOrgLabel_UnreportedTotalRefuses(t *testing.T) {
+	t.Parallel()
+	f := fake.New()
+	f.AddRepo("acme", "a")
+	s := apppissue.New(noTotal{issueadapter.New(f)})
+	l, err := s.CreateOrgLabel(context.Background(), "acme", apppissue.LabelNew{Name: "infra", Color: "#0000ff"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = s.DeleteOrgLabel(context.Background(), "acme", l.ID, false)
+	if err == nil || !strings.Contains(err.Error(), "acme/a") {
+		t.Fatalf("error = %q, want a refusal naming acme/a", errText(err))
+	}
+}
+
+func TestDeleteOrgLabel_UsedInSecondRepoIsRefused(t *testing.T) {
+	t.Parallel()
+	f := fake.New()
+	f.AddRepo("acme", "a")
+	f.AddRepo("acme", "b")
+	s := apppissue.New(issueadapter.New(f))
+	ctx := context.Background()
+	l, err := s.CreateOrgLabel(ctx, "acme", apppissue.LabelNew{Name: "infra", Color: "#0000ff"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create(ctx, apppissue.CreateInput{Owner: "acme", Repo: "b", Title: "t", Labels: str("infra")}); err != nil {
+		t.Fatal(err)
+	}
+	err = s.DeleteOrgLabel(ctx, "acme", l.ID, false)
+	if err == nil || !strings.Contains(err.Error(), "used by 1 issue(s)/PR(s)") {
+		t.Fatalf("error = %q, want a usage refusal", errText(err))
+	}
+}

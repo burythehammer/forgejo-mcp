@@ -161,7 +161,7 @@ func (s *Service) DeleteOrgLabel(ctx context.Context, org string, id int64, forc
 		}
 		count, cerr := s.orgLabelUsage(ctx, org, label.Name)
 		if cerr != nil {
-			return fmt.Errorf("label %q in-use count failed (token may lack org-repo access); use delete_mode=force to override: %w", label.Name, cerr)
+			return fmt.Errorf("label %q in-use count failed, so the label was not deleted; use delete_mode=force to override: %w", label.Name, cerr)
 		}
 		if count > 0 {
 			return fmt.Errorf("label %q is used by %d issue(s)/PR(s) in visible repos (count excludes inaccessible repos); set delete_mode=force to delete anyway", label.Name, count)
@@ -234,7 +234,7 @@ func (s *Service) orgLabelUsage(ctx context.Context, org, label string) (int, er
 			break
 		}
 		for _, name := range names {
-			n, err := s.labelUsage(ctx, org, name, label)
+			n, err := s.port.CountIssuesLabelled(ctx, org, name, label)
 			var inaccessible *InaccessibleError
 			if errors.As(err, &inaccessible) {
 				continue
@@ -242,7 +242,10 @@ func (s *Service) orgLabelUsage(ctx context.Context, org, label string) (int, er
 			if err != nil {
 				return total, fmt.Errorf("repo %s/%s: label may be in use: %w", org, name, err)
 			}
-			total += n
+			if n == nil {
+				return total, fmt.Errorf("repo %s/%s: label may be in use: Forgejo reported no total", org, name)
+			}
+			total += *n
 		}
 	}
 	return total, nil
