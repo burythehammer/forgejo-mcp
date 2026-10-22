@@ -24,13 +24,14 @@ const statusResourceURITemplate = "forgejo://repo/{owner}/{repo}/commit/{sha}/st
 type statusResourcePayload struct {
 	SHA   string `json:"sha"`
 	State string `json:"state"`
-	// TotalCount is the number of statuses the read fetched (at most the
-	// embedded cap plus one), not Forgejo's grand total. It is kept as it was
-	// shipped; get_commit_statuses carries the grand total.
+	// TotalCount is Forgejo's grand total of statuses on the commit.
 	TotalCount int                `json:"total_count"`
 	Statuses   []model.StatusItem `json:"statuses"`
-	Truncated  bool               `json:"truncated,omitempty"`
-	ListTool   string             `json:"list_tool,omitempty"`
+	// Truncated is true when the statuses list is cut at the embedded cap, or when
+	// the commit is too large to read in full, in which case State is unknown.
+	// ListTool then names get_commit_statuses, which pages the full list.
+	Truncated bool   `json:"truncated,omitempty"`
+	ListTool  string `json:"list_tool,omitempty"`
 }
 
 // RegisterStatusResource registers the forgejo://repo/{owner}/{repo}/commit/{sha}/status
@@ -69,14 +70,14 @@ func (h handlers) statusResourceHandler(ctx context.Context, req mcp.ReadResourc
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	// The first page, one row over the embedded cap, so that resource.Bounded can
-	// tell "exactly at cap" from "over cap". The read computes the aggregate
-	// state over the rows it fetched.
-	read, err := apprepo.NewAdmin(repoadminadapter.New(port)).ReadCommitStatuses(ctx, params.Owner, params.Repo, params.SHA, 1, resource.EmbeddedListCap+1)
+	// Every status of the commit is read, so the state covers all of them. Only
+	// the list in the payload is bounded; a commit too large to read in full
+	// reports an unknown state, flagged truncated.
+	sum, err := apprepo.NewAdmin(repoadminadapter.New(port)).CommitStatusSummary(ctx, params.Owner, params.Repo, params.SHA)
 	if err != nil {
 		return nil, resource.MapForgejoError(uri, err)
 	}
-	statuses := read.Statuses
+	statuses := sum.Statuses
 
 	items := make([]string, 0, len(statuses))
 	for _, s := range statuses {
@@ -90,14 +91,15 @@ func (h handlers) statusResourceHandler(ctx context.Context, req mcp.ReadResourc
 		boundedItems = statuses[:resource.EmbeddedListCap]
 	}
 
+	truncated := bounded.Truncated || !sum.Complete
 	payload := statusResourcePayload{
 		SHA:        params.SHA,
-		State:      read.State,
-		TotalCount: len(statuses),
+		State:      sum.State,
+		TotalCount: sum.TotalCount,
 		Statuses:   boundedItems,
-		Truncated:  bounded.Truncated,
+		Truncated:  truncated,
 	}
-	if bounded.Truncated {
+	if truncated {
 		payload.ListTool = resource.ToolRef("get_commit_statuses")
 	}
 
