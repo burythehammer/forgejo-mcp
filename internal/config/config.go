@@ -46,6 +46,10 @@ type Config struct {
 	Toolsets []string
 	Tools    []string
 
+	// Lean serves terse tool text under the same tool and argument names
+	// (--lean, FORGEJO_MCP_LEAN). Off by default, which serves the full text.
+	Lean bool
+
 	// suppliedResourceServer names the resource-server-only settings given at
 	// all, as a flag or an environment variable. Only validation reads it.
 	suppliedResourceServer []string

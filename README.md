@@ -493,6 +493,25 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | **Server** | |
 | `get_forgejo_mcp_server_version` | Get the MCP server version |
 
+### Lean mode: terse tool text
+
+Each tool definition sends a description and a property description for every argument, and mcp-go adds annotations to every tool. `--lean` (or `FORGEJO_MCP_LEAN=1`; the flag wins over the variable) serves the same tools with terse text:
+
+- each tool description is cut to its first sentence;
+- a property description is kept only where the argument has a format, an allowed-value list, or a rule its name and type do not show (comma-separated lists, RFC3339 times, `state`, `sort`, `content`, and similar); the rest are removed. `verbose` keeps its argument and loses its description;
+- annotations are sent as an empty object.
+
+Tool names, argument names and required lists are unchanged, so a prompt or script written for the full text still works. Lean mode is a rewrite at registration (`internal/lean/`), not a second set of descriptions.
+
+Measured by running the server over stdio on this build, for the whole catalogue of 167 tools:
+
+| Text | Bytes of the `tools/list` response | ~Tokens |
+|---|---:|---:|
+| Full (default) | 127,184 | 31,796 |
+| `--lean` | 69,327 | 17,332 |
+
+The estimate is bytes divided by 4, as in the standing-cost table below.
+
 ### Toolsets: choosing which tools load
 
 Every tool a client sees costs context on every request. By default the server offers all of them. To offer fewer, name toolsets (groups of related tools), individual tools, or both:
@@ -695,6 +714,7 @@ You can configure the server using command-line arguments or environment variabl
 | `--allowed-hosts` | `FORGEJO_MCP_ALLOWED_HOSTS` | Comma-separated `Host` names this server answers to; required when `--host` is not loopback |
 | `--toolsets` | `FORGEJO_MCP_TOOLSETS` | Comma-separated toolsets to load; unset loads every tool. See [Toolsets](#toolsets-choosing-which-tools-load) |
 | `--tools` | `FORGEJO_MCP_TOOLS` | Comma-separated individual tool names to load, added to any `--toolsets` |
+| `--lean` | `FORGEJO_MCP_LEAN` | Serve terse tool text with the same tool and argument names; see [Lean mode](#lean-mode-terse-tool-text) |
 | `--allowed-origins` | `FORGEJO_MCP_ALLOWED_ORIGINS` | Comma-separated web origins allowed to send an `Origin` header, as full origins (`https://console.example.org`). Empty by default |
 | `--allow-operator-token-fallback` | `FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK` | On `sse`/`http`, serve requests with no `Authorization` header using this server's own token. Off by default |
 | `--max-request-body-bytes` | `FORGEJO_MCP_MAX_REQUEST_BODY_BYTES` | On `sse`/`http`, the largest request body read, in bytes; a larger one gets `413`. Must be positive. Default `100663296` (96 MiB), which clears the largest attachment upload (90 MiB of base64) plus its envelope |

@@ -8,6 +8,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/attachment"
@@ -182,6 +183,9 @@ func Run(ctx context.Context, cfg config.Config, version string) error {
 	mcpServer := newMCPServer(version)
 	factory := newFactory(cfg, version)
 	RegisterSelectedTool(mcpServer, version, factory, sel)
+	if cfg.Lean {
+		lean.Apply(mcpServer)
+	}
 	RegisterSelectedResources(mcpServer, factory, sel)
 	return transport.Serve(ctx, cfg, mcpServer, factory)
 }
