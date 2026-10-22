@@ -48,7 +48,7 @@ gotchas on expansion, each also noted per row:
 | --- | --- | --- |
 | `forgejo://owner/{owner}` | application/json | User or org profile |
 | `forgejo://repo/{owner}/{repo}` | application/json | Repository overview |
-| `forgejo://repo/{owner}/{repo}/commit/{sha}{?page,limit}` | application/json + markdown | Commit metadata (sha must be 40 hex chars); `files` paged by `page`/`limit` (at most 30 per page), `files_next` names the next page |
+| `forgejo://repo/{owner}/{repo}/commit/{sha}{?page,limit,message_page}` | application/json + markdown | Commit metadata (sha must be 40 hex chars); `files` paged by `page`/`limit` (at most 30 per page), `files_next` names the next page; a message over 16 KiB is read in parts by `message_page`, `message_next` names the next part |
 | `forgejo://repo/{owner}/{repo}/commit/{sha}/status` | application/json | Combined CI status |
 | `forgejo://repo/{owner}/{repo}/issue/{index}` | application/json + markdown | Issue with bounded comments (cap 30) |
 | `forgejo://repo/{owner}/{repo}/issues{?state,labels,page,limit}` | application/json | Bounded issue rows, no bodies (state default open; cap 30, sentinel `list_repo_issues`); in `labels`, encode a literal `/` as `%2F` and spaces as `%20` without double-encoding (`+` does not work), and note that names are AND-ed and an unrecognised one is silently dropped — if none match you get the unfiltered set, not an empty one |
