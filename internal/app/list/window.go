@@ -34,11 +34,27 @@ func Window[T any](ctx context.Context, src CeilingSource, pg Paging, def int,
 // It is for a list Forgejo does not page: the whole list is fetched, then cut
 // here. A page past the end is empty and has no next page.
 func Cut[T any](all []T, p Paging) ([]T, bool) {
-	start64 := int64(p.Page-1) * int64(p.Limit)
-	start := len(all)
-	if start64 < int64(len(all)) {
-		start = int(start64)
+	start := Start(p, len(all))
+	end := start
+	if p.Limit > 0 {
+		end = len(all)
+		if p.Limit < len(all)-start {
+			end = start + p.Limit
+		}
 	}
-	end := min(start+p.Limit, len(all))
 	return all[start:end], end < len(all)
+}
+
+// Start is the index of the first row of page p in a list of n rows, clamped
+// to n: a page past the end starts at n. It never multiplies past n, so no
+// page or limit, however large, can overflow into a negative offset. A page
+// below 2 starts at 0.
+func Start(p Paging, n int) int {
+	if p.Page <= 1 || p.Limit < 1 {
+		return 0
+	}
+	if p.Page-1 > n/p.Limit {
+		return n
+	}
+	return (p.Page - 1) * p.Limit
 }
