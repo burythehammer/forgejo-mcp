@@ -69,6 +69,13 @@ func RequiredInt(name string, raw any, b Bounds) (int64, error) {
 	return value, nil
 }
 
+// PositiveID is RequiredInt for an ID, index or count that must name something:
+// a whole number from 1 up to the largest int64. Zero, negatives, fractions and
+// overflow are refused with the same wording as any other integer argument.
+func PositiveID(name string, raw any) (int64, error) {
+	return RequiredInt(name, raw, Bounds{Min: 1, Max: math.MaxInt64})
+}
+
 // Lenient truncates v to a whole number without checking it. It is the legacy
 // path that the page and limit helpers in the decode package keep, because
 // their pinned behaviour is to pass a fractional page on as its truncation.
