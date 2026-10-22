@@ -82,10 +82,10 @@ func (h handlers) ListRepoContentsFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return gitText(svc.ListContents(ctx, owner, repo, a.Ref, a.Path, apprepo.GitPage{
+	return gitText(contentsPage(svc.ListContents(ctx, owner, repo, a.Ref, a.Path, apprepo.GitPage{
 		Page:  decode.PageOr(a.Page, 1),
 		Limit: decode.IntOr(a.Limit, 0),
-	}))
+	})))
 }
 
 func (h handlers) GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

@@ -12,12 +12,12 @@ import (
 )
 
 // Dependencies lists the issues that an issue depends on, one page at a time.
-func (s *Service) Dependencies(ctx context.Context, t Target, p Paging) (model.DependencyPage, error) {
+func (s *Service) Dependencies(ctx context.Context, t Target, p Paging) (list.Bounded[*model.Issue], error) {
 	return s.relatedPage(ctx, "dependencies", s.port.ListIssueDependencies, t, p)
 }
 
 // Dependents lists the issues that depend on an issue, one page at a time.
-func (s *Service) Dependents(ctx context.Context, t Target, p Paging) (model.DependencyPage, error) {
+func (s *Service) Dependents(ctx context.Context, t Target, p Paging) (list.Bounded[*model.Issue], error) {
 	return s.relatedPage(ctx, "dependents", s.port.ListIssueDependents, t, p)
 }
 
@@ -26,7 +26,7 @@ func (s *Service) Dependents(ctx context.Context, t Target, p Paging) (model.Dep
 func (s *Service) relatedPage(ctx context.Context, what string,
 	fetch func(ctx context.Context, owner, repo string, index int64, p Paging) ([]*model.Issue, error),
 	t Target, p Paging,
-) (model.DependencyPage, error) {
+) (list.Bounded[*model.Issue], error) {
 	page, err := runPage(ctx, s.port, list.Paging(p), defaultLimit,
 		func(ctx context.Context, q list.Paging) ([]*model.Issue, error) {
 			got, err := fetch(ctx, t.Owner, t.Repo, t.Index, Paging(q))
@@ -36,11 +36,9 @@ func (s *Service) relatedPage(ctx context.Context, what string,
 			return got, nil
 		})
 	if err != nil {
-		return model.DependencyPage{}, err
+		return list.Bounded[*model.Issue]{}, err
 	}
-	return model.DependencyPage{
-		Issues: page.Items, PageMeta: model.PageMetaOf(page),
-	}, nil
+	return page, nil
 }
 
 // AddDependency makes the issue t depend on dep, which may be in another

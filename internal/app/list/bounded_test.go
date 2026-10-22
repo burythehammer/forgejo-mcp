@@ -121,6 +121,33 @@ func TestBounded_Window_Boundaries(t *testing.T) {
 	}
 }
 
+func TestBounded_Map_KeepsTheResumeInformation(t *testing.T) {
+	t.Parallel()
+	b := Bounded[int]{Items: []int{1, 2}, Page: 3, Limit: 2, Count: 2, HasNext: true, Total: intp(9)}
+	got := Map(b, func(n int) string { return fmt.Sprint(n * 10) })
+	if fmt.Sprint(got.Items) != "[10 20]" {
+		t.Errorf("items = %v, want [10 20]", got.Items)
+	}
+	if got.Page != 3 || got.Limit != 2 || got.Count != 2 || !got.HasNext || got.Total == nil || *got.Total != 9 {
+		t.Errorf("Map dropped the resume information: %+v", got)
+	}
+}
+
+func TestBounded_Extend_CountsEveryRowShown(t *testing.T) {
+	t.Parallel()
+	b := Bounded[int]{Items: []int{1, 2}, Page: 1, Limit: 2, Count: 2, HasNext: true}
+	got := b.Extend(7, 8, 9)
+	if fmt.Sprint(got.Items) != "[1 2 7 8 9]" {
+		t.Errorf("items = %v, want [1 2 7 8 9]", got.Items)
+	}
+	if got.Count != 5 {
+		t.Errorf("Count = %d, want 5", got.Count)
+	}
+	if !got.HasNext || got.Page != 1 || got.Limit != 2 || got.Total != nil {
+		t.Errorf("Extend changed the paging of the page: %+v", got)
+	}
+}
+
 func TestBounded_Cut_Boundaries(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
