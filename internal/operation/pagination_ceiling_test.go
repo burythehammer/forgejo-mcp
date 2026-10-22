@@ -32,7 +32,6 @@ var unpagedListTools = map[string]bool{
 	tracking.ListMyStopwatchesToolName:        true,
 	tracking.ListMyTrackedTimesToolName:       true,
 	pull.ListPullReviewCommentsToolName:       true,
-	repo.ListRepoContentsToolName:             true,
 }
 
 // TestCeilingListTools pins the instance ceiling on every paged list tool: a

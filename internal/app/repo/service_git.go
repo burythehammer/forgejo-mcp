@@ -10,6 +10,7 @@ import (
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
 )
 
 // GitService runs the branch, commit, contents and file use cases over a
@@ -87,13 +88,31 @@ func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q List
 	return model.CommitPage{Commits: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
-// ListContents lists one directory level of a repository at a ref.
-func (s *GitService) ListContents(ctx context.Context, owner, repo, ref, path string) ([]*model.ContentsResponse, error) {
-	out, err := s.port.ListContents(ctx, owner, repo, ref, path)
+// ListContents returns one page of the entries of one directory level of a
+// repository at a ref. Forgejo does not page this listing, so the whole level
+// is read and cut here; the whole count is not reported as TotalCount, since
+// Forgejo does not report it.
+func (s *GitService) ListContents(ctx context.Context, owner, repo, ref, path string, p GitPage) (model.ContentsPage, error) {
+	c := ceiling(ctx, s.port)
+	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.ContentsResponse], error) {
+			all, err := s.port.ListContents(ctx, owner, repo, ref, path)
+			if err != nil {
+				return list.Batch[*model.ContentsResponse]{}, fmt.Errorf("list repo contents err: %w", err)
+			}
+			rows, _ := list.Cut(all, q)
+			return list.Batch[*model.ContentsResponse]{Items: rows, Total: ptr.To(len(all))}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list repo contents err: %w", err)
+		return model.ContentsPage{}, err
 	}
-	return out, nil
+	rows := page.Items
+	if rows == nil {
+		rows = []*model.ContentsResponse{}
+	}
+	meta := model.PageMetaOf(page)
+	meta.TotalCount = nil
+	return model.ContentsPage{Contents: rows, PageMeta: meta}, nil
 }
 
 // GetTree returns the Git tree of a repository at a ref.
