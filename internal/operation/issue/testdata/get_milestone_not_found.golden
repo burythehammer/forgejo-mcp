@@ -1,3 +1,3 @@
-ERROR: get milestone: milestone 99 not found
+ERROR: get milestone err: milestone 99 not found
 -- port calls --
 GetMilestone ["octo","hello",99]

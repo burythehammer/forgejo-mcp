@@ -15,7 +15,7 @@ import (
 func (s *Service) GetMilestone(ctx context.Context, owner, repo string, id int64) (*model.Milestone, error) {
 	m, err := s.port.GetMilestone(ctx, owner, repo, id)
 	if err != nil {
-		return nil, fmt.Errorf("get milestone: %w", err)
+		return nil, fmt.Errorf("get milestone err: %w", err)
 	}
 	return m, nil
 }
@@ -27,7 +27,7 @@ func (s *Service) CreateMilestone(ctx context.Context, owner, repo string, in Mi
 	}
 	m, err := s.port.CreateMilestone(ctx, owner, repo, in)
 	if err != nil {
-		return nil, fmt.Errorf("create milestone: %w", err)
+		return nil, fmt.Errorf("create milestone err: %w", err)
 	}
 	return m, nil
 }
@@ -42,15 +42,15 @@ func (s *Service) EditMilestone(ctx context.Context, owner, repo string, id int6
 	}
 	m, err := s.port.EditMilestone(ctx, owner, repo, id, edit)
 	if err != nil {
-		return nil, fmt.Errorf("edit milestone: %w", err)
+		return nil, fmt.Errorf("edit milestone err: %w", err)
 	}
 	return m, nil
 }
 
+// milestoneEdit validates an edit and returns the fields to send. An empty
+// title is treated as not supplied, so a request with no usable field, the
+// nil-everything case included, fails once, at the end.
 func milestoneEdit(in MilestoneEdit) (MilestoneEdit, error) {
-	if in.Title == nil && in.Description == nil && in.State == nil && in.Due == nil {
-		return MilestoneEdit{}, fmt.Errorf("%s: at least one of title, description, state, due_date must be provided", in.Tool)
-	}
 	out := MilestoneEdit{Tool: in.Tool, Description: in.Description, Due: in.Due}
 	if in.Title != nil && *in.Title != "" {
 		if strings.TrimSpace(*in.Title) == "" {
