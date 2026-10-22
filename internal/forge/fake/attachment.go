@@ -261,6 +261,9 @@ func (f *Forgejo) DeleteCommentAttachment(_ context.Context, owner, repo string,
 // DownloadAttachment serves the bytes of an attachment this fake issued, found
 // by its download URL, refusing a body over the inline cap.
 func (f *Forgejo) DownloadAttachment(_ context.Context, downloadURL string) (forge.Download, error) {
+	if err := forge.CheckOrigin(f.baseURL(), downloadURL); err != nil {
+		return forge.Download{}, err
+	}
 	d, err := f.AttachmentContent(downloadURL)
 	if err == nil && int64(len(d.Body)) > forge.MaxInlineDownloadBytes {
 		return forge.Download{}, forge.ErrPayloadTooLarge
