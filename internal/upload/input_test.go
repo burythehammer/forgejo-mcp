@@ -264,3 +264,37 @@ func TestOpenRejectsInvalidSources(t *testing.T) {
 		})
 	}
 }
+
+// TestSourceFromArgumentsRejectsWrongTypes covers the present-but-wrong-typed
+// case: a non-string content or file_path must be an error, never an empty
+// string that Open would upload as a zero-byte file.
+func TestSourceFromArgumentsRejectsWrongTypes(t *testing.T) {
+	wrong := map[string]any{"number": 123.0, "bool": true, "null": nil, "object": map[string]any{"a": 1.0}}
+	for _, key := range []string{"content", "file_path"} {
+		for name, value := range wrong {
+			t.Run(key+"/"+name, func(t *testing.T) {
+				_, err := SourceFromArguments(map[string]any{key: value, "filename": "f"})
+				if err == nil || !strings.Contains(err.Error(), key+" must be a string") {
+					t.Fatalf("want %q error, got %v", key+" must be a string", err)
+				}
+			})
+		}
+	}
+}
+
+// TestSourceFromArgumentsKeepsAbsentAndStringArguments checks the unchanged
+// meanings: an absent argument stays nil, and a string (even empty) stays set.
+func TestSourceFromArgumentsKeepsAbsentAndStringArguments(t *testing.T) {
+	source, err := SourceFromArguments(map[string]any{"content": "eA==", "filename": "f"})
+	if err != nil || source.Content == nil || *source.Content != "eA==" || source.FilePath != nil {
+		t.Fatalf("string content: source=%+v err=%v", source, err)
+	}
+	source, err = SourceFromArguments(map[string]any{"content": "", "filename": "f"})
+	if err != nil || source.Content == nil || *source.Content != "" {
+		t.Fatalf("empty string content must stay present: source=%+v err=%v", source, err)
+	}
+	source, err = SourceFromArguments(map[string]any{"filename": "f"})
+	if err != nil || source.Content != nil || source.FilePath != nil {
+		t.Fatalf("absent arguments: source=%+v err=%v", source, err)
+	}
+}

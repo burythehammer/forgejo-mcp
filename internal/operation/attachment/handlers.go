@@ -102,9 +102,8 @@ type commentAttachmentArgs struct {
 
 // issueCreateArgs and commentCreateArgs declare content and file_path so the
 // schema check covers them, but the upload source is read from the raw
-// arguments by upload.SourceFromArguments: it must tell an explicit null or
-// wrongly typed value (present, empty) from an absent one, which decode.Lax
-// cannot.
+// arguments by upload.SourceFromArguments: it must tell a present non-string
+// value (rejected, including null) from an absent one, which decode.Lax cannot.
 type issueCreateArgs struct {
 	Owner    string `json:"owner" required:"true"`
 	Repo     string `json:"repo" required:"true"`
@@ -342,7 +341,11 @@ func (h handlers) create(ctx context.Context, req mcp.CallToolRequest, owner, re
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	reader, filename, err := upload.Open(upload.SourceFromArguments(req.GetArguments()))
+	source, err := upload.SourceFromArguments(req.GetArguments())
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	reader, filename, err := upload.Open(source)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

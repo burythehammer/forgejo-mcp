@@ -130,8 +130,8 @@ type attachmentRefArgs struct {
 
 // createAttachmentArgs declares content and file_path so the schema check covers
 // them, but the upload source is read from the raw arguments by
-// upload.SourceFromArguments: it must tell an explicit null or wrongly typed
-// value (present, empty) from an absent one, which decode.Lax cannot.
+// upload.SourceFromArguments: it must tell a present non-string value (rejected,
+// including null) from an absent one, which decode.Lax cannot.
 type createAttachmentArgs struct {
 	Owner     string `json:"owner" required:"true"`
 	Repo      string `json:"repo" required:"true"`
@@ -435,7 +435,11 @@ func (h handlers) CreateReleaseAttachmentFn(ctx context.Context, req mcp.CallToo
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	reader, filename, err := upload.Open(upload.SourceFromArguments(req.GetArguments()))
+	source, err := upload.SourceFromArguments(req.GetArguments())
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	reader, filename, err := upload.Open(source)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
