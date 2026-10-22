@@ -8,6 +8,7 @@ import (
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -75,6 +76,7 @@ type (
 var (
 	ListRepoActionSecretsTool = mcp.NewTool(
 		ListRepoActionSecretsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List action secrets for a repository (names only, values are never exposed by the Forgejo API). Returns a response envelope {owner, repo, secrets, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -84,6 +86,7 @@ var (
 
 	CreateOrUpdateRepoActionSecretTool = mcp.NewTool(
 		CreateOrUpdateRepoActionSecretToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create or update an action secret for a repository. Overwrites any existing secret with the same name; the value is never echoed back."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -93,6 +96,7 @@ var (
 
 	DeleteRepoActionSecretTool = mcp.NewTool(
 		DeleteRepoActionSecretToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete an action secret from a repository."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -101,6 +105,7 @@ var (
 
 	ListOrgActionSecretsTool = mcp.NewTool(
 		ListOrgActionSecretsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List action secrets for an organization (names only, values are never exposed by the Forgejo API). Returns a response envelope {org, secrets, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
@@ -109,6 +114,7 @@ var (
 
 	CreateOrUpdateOrgActionSecretTool = mcp.NewTool(
 		CreateOrUpdateOrgActionSecretToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create or update an action secret for an organization. Overwrites any existing secret with the same name; the value is never echoed back."),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithString("secret_name", mcp.Required(), mcp.Description(params.SecretName)),
@@ -117,6 +123,7 @@ var (
 
 	DeleteOrgActionSecretTool = mcp.NewTool(
 		DeleteOrgActionSecretToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete an action secret from an organization."),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithString("secret_name", mcp.Required(), mcp.Description(params.SecretName)),

@@ -7,6 +7,7 @@ import (
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -27,6 +28,7 @@ const (
 var (
 	CreateRepoTool = mcp.NewTool(
 		CreateRepoToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create repo"),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Repo name")),
 		mcp.WithString("description", mcp.Description(params.Description)),
@@ -43,6 +45,7 @@ var (
 
 	ForkRepoTool = mcp.NewTool(
 		ForkRepoToolName,
+		annotate.Write(),
 		mcp.WithDescription("Fork repo"),
 		mcp.WithString("user", mcp.Required(), mcp.Description(params.User)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -52,6 +55,7 @@ var (
 
 	ListMyReposTool = mcp.NewTool(
 		ListMyReposToolName,
+		annotate.Read(),
 		mcp.WithDescription("List my repos, one page at a time: page (default 1) and limit (default 100, capped at the instance maximum) select the page. Returns {repositories, page, limit, count, has_next}; has_next true means a further page exists."),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),

@@ -4,6 +4,7 @@ package pull
 
 import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -22,6 +23,7 @@ const (
 var (
 	CreatePullReviewTool = mcp.NewTool(
 		CreatePullReviewToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create a pull request review with optional inline comments"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -33,6 +35,7 @@ var (
 
 	SubmitPullReviewTool = mcp.NewTool(
 		SubmitPullReviewToolName,
+		annotate.Write(),
 		mcp.WithDescription("Submit a pending pull request review"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -44,6 +47,7 @@ var (
 
 	DismissPullReviewTool = mcp.NewTool(
 		DismissPullReviewToolName,
+		annotate.Write(),
 		mcp.WithDescription("Dismiss a pull request review"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -54,6 +58,7 @@ var (
 
 	DeletePullReviewTool = mcp.NewTool(
 		DeletePullReviewToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a pending pull request review"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -63,6 +68,7 @@ var (
 
 	CreateReviewRequestsTool = mcp.NewTool(
 		CreateReviewRequestsToolName,
+		annotate.Write(),
 		mcp.WithDescription("Request reviews from specific users or teams"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -73,6 +79,7 @@ var (
 
 	DeleteReviewRequestsTool = mcp.NewTool(
 		DeleteReviewRequestsToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Cancel pending review requests"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

@@ -8,6 +8,7 @@ import (
 	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/packages"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/packagesadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -17,6 +18,7 @@ import (
 
 var ListPackageFilesTool = mcp.NewTool(
 	ListPackageFilesToolName,
+	annotate.Read(),
 	mcp.WithDescription("List files of one package version. Forgejo returns the full file list with no paging; page (default 1) and limit (default 30, maximum 50) slice it client-side. Returns {files, page, limit, count, has_next, total_count}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the grand total: the number of files in the version (the files endpoint has no X-Total-Count, and its listing is read whole). Each file is id, name, size, sha256."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("type", mcp.Required(), mcp.Description(params.PackageType)),
