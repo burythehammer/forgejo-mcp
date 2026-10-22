@@ -85,24 +85,36 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 	}
 }
 
-// The tools keep the forgiving argument handling of the handlers they
-// replaced (decode.Lax): nothing is rejected up front, Forgejo answers.
-func TestMissingRequiredArgumentIsForwardedNotRejected(t *testing.T) {
+// A missing index is refused with the numeric-argument module's message
+// before Forgejo is asked (#246, under #228).
+func TestMissingRequiredIndexIsRefused(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	_, err := h.GetPullRequestByIndexFn(context.Background(), mcp.CallToolRequest{})
-	if err == nil || !strings.Contains(err.Error(), "get pull request err: ") {
-		t.Fatalf("want the use case's error for an unknown pull request, got %v", err)
+	res, err := h.GetPullRequestByIndexFn(context.Background(), mcp.CallToolRequest{})
+	if err != nil || res == nil || !res.IsError {
+		t.Fatalf("want an error result, got err=%v res=%+v", err, res)
+	}
+	if text := res.Content[0].(mcp.TextContent).Text; !strings.Contains(text, "index is required") {
+		t.Fatalf("got %q, want it to say index is required", text)
 	}
 }
 
-func TestFractionalAndStringNumbersAreTruncatedLikeBefore(t *testing.T) {
+// A numeric string is a number on every tool, so "1" resolves. A fraction is
+// refused, not truncated into the pull request below it (#246, under #228).
+func TestNonWholeIndexIsRefusedNumericStringResolves(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	idx := openPR(t, f, "five")
-	for _, v := range []any{float64(idx) + 0.5, "1", "1.9"} {
-		if got := call(t, h.GetPullRequestByIndexFn, map[string]any{"index": v}); !strings.Contains(got, "five") {
-			t.Fatalf("index %v: %s", v, got)
+	if got := call(t, h.GetPullRequestByIndexFn, map[string]any{"index": "1"}); !strings.Contains(got, "five") {
+		t.Fatalf("index \"1\": %s", got)
+	}
+	for _, v := range []any{float64(idx) + 0.5, "1.9"} {
+		res, err := h.GetPullRequestByIndexFn(context.Background(), mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{"index": v}}})
+		if err != nil || res == nil || !res.IsError {
+			t.Fatalf("index %v: want an error result, got err=%v res=%+v", v, err, res)
+		}
+		if text := res.Content[0].(mcp.TextContent).Text; !strings.Contains(text, "index must be an integer between 1 and 9223372036854775807") {
+			t.Fatalf("index %v: got %q", v, text)
 		}
 	}
 }
