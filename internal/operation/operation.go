@@ -175,7 +175,7 @@ func RegisterWikiTool(s *server.MCPServer, f forge.Factory) {
 // it to the transport package to serve on cfg.Transport. version is the build
 // version, which is build information and so not part of cfg.
 func Run(ctx context.Context, cfg config.Config, version string) error {
-	sel, err := toolset.Parse(cfg.Toolsets, cfg.Tools)
+	sel, err := toolset.ParseWithPreset(cfg.Preset, cfg.Toolsets, cfg.Tools)
 	if err != nil {
 		return err
 	}

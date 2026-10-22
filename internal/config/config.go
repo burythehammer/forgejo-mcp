@@ -45,6 +45,9 @@ type Config struct {
 	// Both empty means every tool is offered.
 	Toolsets []string
 	Tools    []string
+	// Preset is the named cross-domain tool selection, empty for none, validated
+	// by Load. It combines with Toolsets and Tools as a union.
+	Preset string
 
 	// suppliedResourceServer names the resource-server-only settings given at
 	// all, as a flag or an environment variable. Only validation reads it.

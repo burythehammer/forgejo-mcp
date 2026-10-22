@@ -501,12 +501,14 @@ Every tool a client sees costs context on every request. By default the server o
 |---|---|---|
 | Toolsets to load | `--toolsets` | `FORGEJO_MCP_TOOLSETS` |
 | Individual tools to load | `--tools` | `FORGEJO_MCP_TOOLS` |
+| Named preset to load | `--preset` | `FORGEJO_MCP_PRESET` |
 
-- With neither set, every tool and resource template registers (the default, unchanged).
+- With none set, every tool and resource template registers (the default, unchanged).
 - With toolsets only, the tools of those toolsets register, and their resource templates too.
 - With tools only, just the named tools register. No resource templates register.
-- With both, the result is the union. The flag wins over the environment variable.
-- An unknown toolset or tool name stops the server at startup, and the error lists the valid names.
+- With a preset, its tools register. No resource templates register for it.
+- With more than one of them, the result is the union. The flag wins over the environment variable.
+- An unknown toolset, tool or preset name stops the server at startup, and the error lists the valid names.
 - An unselected tool is absent from `tools/list`, not disabled. Selection applies to the server, not to `--cli` mode.
 
 `--help` prints every toolset with the tools it holds. The table below is the same catalogue, with the standing cost of each toolset. Tools are assigned to toolsets in `internal/toolset/toolset.go`.
@@ -516,6 +518,22 @@ Example, the issue-tracking selection:
 ```bash
 forgejo-mcp --toolsets issues,labels,milestones,dependencies,user
 ```
+
+#### Presets
+
+A preset is a named selection of individual tools that may cross domains. It is not a toolset: each tool still belongs to exactly one toolset, and a preset registers no resource templates. `--help` prints every preset with the tools it holds.
+
+`tracker-core` is the set an issue-tracking client needs, 24 tools across issues, labels, milestones and dependencies, plus `get_my_user_info`:
+
+```bash
+forgejo-mcp --preset tracker-core
+```
+
+| Preset | Tools |
+|---|---|
+| `tracker-core` | `get_my_user_info`; `get_issue_by_index`, `list_repo_issues`, `search_issues`, `create_issue`, `update_issue`, `replace_issue_body_line`, `issue_state_change`; `create_issue_comment`, `list_issue_comments`; `add_issue_labels`, `remove_issue_labels`, `list_repo_labels`, `get_repo_label`, `create_repo_label`, `edit_repo_label`; `list_repo_milestones`, `get_milestone`, `create_milestone`, `edit_milestone`; `add_issue_dependency`, `remove_issue_dependency`, `list_issue_dependencies`, `list_issue_dependents` |
+
+The list was inferred from the tfuk-specflow ticket texts, not from its code, so confirm it before relying on it.
 
 **Standing cost.** Estimated as bytes of the `tools/list` JSON-RPC response divided by 4, measured on this build with the fake forge. It is an estimate, not a model tokenizer count, and it is not the `/context` figure from a fresh session.
 
@@ -695,6 +713,7 @@ You can configure the server using command-line arguments or environment variabl
 | `--allowed-hosts` | `FORGEJO_MCP_ALLOWED_HOSTS` | Comma-separated `Host` names this server answers to; required when `--host` is not loopback |
 | `--toolsets` | `FORGEJO_MCP_TOOLSETS` | Comma-separated toolsets to load; unset loads every tool. See [Toolsets](#toolsets-choosing-which-tools-load) |
 | `--tools` | `FORGEJO_MCP_TOOLS` | Comma-separated individual tool names to load, added to any `--toolsets` |
+| `--preset` | `FORGEJO_MCP_PRESET` | Named cross-domain tool selection, added to any `--toolsets` and `--tools`. The only preset is `tracker-core`; see [Presets](#presets) |
 | `--allowed-origins` | `FORGEJO_MCP_ALLOWED_ORIGINS` | Comma-separated web origins allowed to send an `Origin` header, as full origins (`https://console.example.org`). Empty by default |
 | `--allow-operator-token-fallback` | `FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK` | On `sse`/`http`, serve requests with no `Authorization` header using this server's own token. Off by default |
 | `--max-request-body-bytes` | `FORGEJO_MCP_MAX_REQUEST_BODY_BYTES` | On `sse`/`http`, the largest request body read, in bytes; a larger one gets `413`. Must be positive. Default `100663296` (96 MiB), which clears the largest attachment upload (90 MiB of base64) plus its envelope |
