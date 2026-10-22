@@ -41,7 +41,11 @@ func (a *Adapter) MergePullRequest(ctx context.Context, owner, repo string, inde
 	if err := opt.Validate(a.client); err != nil {
 		return forge.MergeResult{}, err
 	}
-	status, body, err := a.raw.doStatus(ctx, http.MethodPost, forge.APIPath("repos", owner, repo, "pulls", index, "merge"), opt)
+	path, err := forge.APIPath("repos", owner, repo, "pulls", index, "merge")
+	if err != nil {
+		return forge.MergeResult{}, err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodPost, path, opt)
 	if err != nil {
 		return forge.MergeResult{}, err
 	}

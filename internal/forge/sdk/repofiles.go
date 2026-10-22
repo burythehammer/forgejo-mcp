@@ -47,7 +47,11 @@ func (a *Adapter) UpdateFile(_ context.Context, owner, repo, path string, opt fo
 // the body of a refusal. Forgejo defaults an empty branch to the default branch,
 // so the SDK's branch lookup for old servers is not repeated here.
 func (a *Adapter) DeleteFile(ctx context.Context, owner, repo, path string, opt forgejo_sdk.DeleteFileOptions) error {
-	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, contentsPath(owner, repo, path), opt)
+	p, err := contentsPath(owner, repo, path)
+	if err != nil {
+		return err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, p, opt)
 	if err != nil {
 		return err
 	}
@@ -58,7 +62,10 @@ func (a *Adapter) DeleteFile(ctx context.Context, owner, repo, path string, opt 
 // endpoint, through the adapter's raw client.
 func (a *Adapter) ChangeFiles(ctx context.Context, owner, repo string, opt forge.ChangeFilesOptions) (map[string]any, error) {
 	var out map[string]any
-	path := forge.APIPath("repos", owner, repo, "contents")
+	path, err := forge.APIPath("repos", owner, repo, "contents")
+	if err != nil {
+		return nil, err
+	}
 	if err := a.rawDo(ctx, http.MethodPost, path, opt, &out); err != nil {
 		return nil, err
 	}

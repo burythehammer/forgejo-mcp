@@ -66,7 +66,11 @@ func (a *Adapter) GetReleaseAttachment(_ context.Context, owner, repo string, re
 // CreateReleaseAttachment streams the upload over raw multipart HTTP: the
 // SDK's equivalent buffers the file and cannot set a content type.
 func (a *Adapter) CreateReleaseAttachment(ctx context.Context, owner, repo string, releaseID int64, up forge.Upload) (*forgejo_sdk.Attachment, error) {
-	return a.uploadAttachment(ctx, forge.APIPath("repos", owner, repo, "releases", releaseID, "assets"), up)
+	path, err := forge.APIPath("repos", owner, repo, "releases", releaseID, "assets")
+	if err != nil {
+		return nil, err
+	}
+	return a.uploadAttachment(ctx, path, up)
 }
 
 func (a *Adapter) EditReleaseAttachment(_ context.Context, owner, repo string, releaseID, id int64, name string) (*forgejo_sdk.Attachment, error) {

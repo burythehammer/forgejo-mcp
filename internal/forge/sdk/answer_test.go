@@ -53,9 +53,25 @@ func TestAnsweredMatchesKindOfStatus(t *testing.T) {
 
 func TestContentsPathEscapesEachSegment(t *testing.T) {
 	t.Parallel()
-	got := contentsPath("octo", "hello", "docs/a b?.md")
+	got, err := contentsPath("octo", "hello", "docs/a b?.md")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	want := "/repos/octo/hello/contents/docs/a%20b%3F.md"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestContentsPathRefusesDotComponents(t *testing.T) {
+	t.Parallel()
+	for _, p := range []string{"../x", "docs/../x", "a/./b", "."} {
+		if got, err := contentsPath("octo", "hello", p); !errors.Is(err, forge.ErrDotSegment) {
+			t.Fatalf("contentsPath(%q) = %q, %v; want ErrDotSegment", p, got, err)
+		}
+	}
+	got, err := contentsPath("octo", "hello", ".github/a.b.go")
+	if err != nil || got != "/repos/octo/hello/contents/.github/a.b.go" {
+		t.Fatalf("contentsPath(.github/a.b.go) = %q, %v", got, err)
 	}
 }

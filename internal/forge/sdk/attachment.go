@@ -17,11 +17,11 @@ var _ forge.Attachments = (*Adapter)(nil)
 // The SDK has no issue or comment attachment endpoints, so these go over raw
 // HTTP.
 
-func issueAssets(owner, repo string, index int64, rest ...any) string {
+func issueAssets(owner, repo string, index int64, rest ...any) (string, error) {
 	return forge.APIPath(append([]any{"repos", owner, repo, "issues", index, "assets"}, rest...)...)
 }
 
-func commentAssets(owner, repo string, commentID int64, rest ...any) string {
+func commentAssets(owner, repo string, commentID int64, rest ...any) (string, error) {
 	return forge.APIPath(append([]any{"repos", owner, repo, "issues", "comments", commentID, "assets"}, rest...)...)
 }
 
@@ -57,43 +57,83 @@ func (a *Adapter) deleteAttachment(ctx context.Context, path string) error {
 }
 
 func (a *Adapter) ListIssueAttachments(ctx context.Context, owner, repo string, index int64) ([]*forgejo_sdk.Attachment, error) {
-	return a.listAttachments(ctx, issueAssets(owner, repo, index))
+	path, err := issueAssets(owner, repo, index)
+	if err != nil {
+		return nil, err
+	}
+	return a.listAttachments(ctx, path)
 }
 
 func (a *Adapter) GetIssueAttachment(ctx context.Context, owner, repo string, index, id int64) (*forgejo_sdk.Attachment, error) {
-	return a.getAttachment(ctx, issueAssets(owner, repo, index, id))
+	path, err := issueAssets(owner, repo, index, id)
+	if err != nil {
+		return nil, err
+	}
+	return a.getAttachment(ctx, path)
 }
 
 func (a *Adapter) CreateIssueAttachment(ctx context.Context, owner, repo string, index int64, up forge.Upload) (*forgejo_sdk.Attachment, error) {
-	return a.uploadAttachment(ctx, issueAssets(owner, repo, index), up)
+	path, err := issueAssets(owner, repo, index)
+	if err != nil {
+		return nil, err
+	}
+	return a.uploadAttachment(ctx, path, up)
 }
 
 func (a *Adapter) EditIssueAttachment(ctx context.Context, owner, repo string, index, id int64, name string) (*forgejo_sdk.Attachment, error) {
-	return a.renameAttachment(ctx, issueAssets(owner, repo, index, id), name)
+	path, err := issueAssets(owner, repo, index, id)
+	if err != nil {
+		return nil, err
+	}
+	return a.renameAttachment(ctx, path, name)
 }
 
 func (a *Adapter) DeleteIssueAttachment(ctx context.Context, owner, repo string, index, id int64) error {
-	return a.deleteAttachment(ctx, issueAssets(owner, repo, index, id))
+	path, err := issueAssets(owner, repo, index, id)
+	if err != nil {
+		return err
+	}
+	return a.deleteAttachment(ctx, path)
 }
 
 func (a *Adapter) ListCommentAttachments(ctx context.Context, owner, repo string, commentID int64) ([]*forgejo_sdk.Attachment, error) {
-	return a.listAttachments(ctx, commentAssets(owner, repo, commentID))
+	path, err := commentAssets(owner, repo, commentID)
+	if err != nil {
+		return nil, err
+	}
+	return a.listAttachments(ctx, path)
 }
 
 func (a *Adapter) GetCommentAttachment(ctx context.Context, owner, repo string, commentID, id int64) (*forgejo_sdk.Attachment, error) {
-	return a.getAttachment(ctx, commentAssets(owner, repo, commentID, id))
+	path, err := commentAssets(owner, repo, commentID, id)
+	if err != nil {
+		return nil, err
+	}
+	return a.getAttachment(ctx, path)
 }
 
 func (a *Adapter) CreateCommentAttachment(ctx context.Context, owner, repo string, commentID int64, up forge.Upload) (*forgejo_sdk.Attachment, error) {
-	return a.uploadAttachment(ctx, commentAssets(owner, repo, commentID), up)
+	path, err := commentAssets(owner, repo, commentID)
+	if err != nil {
+		return nil, err
+	}
+	return a.uploadAttachment(ctx, path, up)
 }
 
 func (a *Adapter) EditCommentAttachment(ctx context.Context, owner, repo string, commentID, id int64, name string) (*forgejo_sdk.Attachment, error) {
-	return a.renameAttachment(ctx, commentAssets(owner, repo, commentID, id), name)
+	path, err := commentAssets(owner, repo, commentID, id)
+	if err != nil {
+		return nil, err
+	}
+	return a.renameAttachment(ctx, path, name)
 }
 
 func (a *Adapter) DeleteCommentAttachment(ctx context.Context, owner, repo string, commentID, id int64) error {
-	return a.deleteAttachment(ctx, commentAssets(owner, repo, commentID, id))
+	path, err := commentAssets(owner, repo, commentID, id)
+	if err != nil {
+		return err
+	}
+	return a.deleteAttachment(ctx, path)
 }
 
 // DownloadAttachment reads the attachment's bytes with the request's

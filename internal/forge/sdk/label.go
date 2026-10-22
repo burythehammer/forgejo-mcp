@@ -61,7 +61,11 @@ func (a *Adapter) ListOrgLabels(ctx context.Context, org string, page, limit int
 	if limit < 1 {
 		limit = 100
 	}
-	path := forge.APIPath("orgs", org, "labels") + "?" + pageQuery(page, limit)
+	base, err := forge.APIPath("orgs", org, "labels")
+	if err != nil {
+		return nil, forge.PageInfo{}, err
+	}
+	path := base + "?" + pageQuery(page, limit)
 	labels := []*forgejo_sdk.Label{}
 	header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &labels)
 	if forge.IsNotFound(err) {
@@ -75,7 +79,11 @@ func (a *Adapter) ListOrgLabels(ctx context.Context, org string, page, limit int
 
 func (a *Adapter) GetOrgLabel(ctx context.Context, org string, id int64) (*forgejo_sdk.Label, error) {
 	var l forgejo_sdk.Label
-	if _, err := a.rawJSON(ctx, http.MethodGet, forge.APIPath("orgs", org, "labels", id), nil, &l); err != nil {
+	path, err := forge.APIPath("orgs", org, "labels", id)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := a.rawJSON(ctx, http.MethodGet, path, nil, &l); err != nil {
 		return nil, err
 	}
 	return &l, nil
@@ -87,7 +95,11 @@ func (a *Adapter) CreateOrgLabel(ctx context.Context, org string, opt forgejo_sd
 		body.Description = &opt.Description
 	}
 	var l forgejo_sdk.Label
-	if _, err := a.rawJSON(ctx, http.MethodPost, forge.APIPath("orgs", org, "labels"), body, &l); err != nil {
+	path, err := forge.APIPath("orgs", org, "labels")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := a.rawJSON(ctx, http.MethodPost, path, body, &l); err != nil {
 		return nil, err
 	}
 	return &l, nil
@@ -96,14 +108,22 @@ func (a *Adapter) CreateOrgLabel(ctx context.Context, org string, opt forgejo_sd
 func (a *Adapter) EditOrgLabel(ctx context.Context, org string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
 	body := orgLabelPatch{Name: opt.Name, Color: opt.Color, Description: opt.Description}
 	var l forgejo_sdk.Label
-	if _, err := a.rawJSON(ctx, http.MethodPatch, forge.APIPath("orgs", org, "labels", id), body, &l); err != nil {
+	path, err := forge.APIPath("orgs", org, "labels", id)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := a.rawJSON(ctx, http.MethodPatch, path, body, &l); err != nil {
 		return nil, err
 	}
 	return &l, nil
 }
 
 func (a *Adapter) DeleteOrgLabel(ctx context.Context, org string, id int64) error {
-	_, err := a.rawJSON(ctx, http.MethodDelete, forge.APIPath("orgs", org, "labels", id), nil, nil)
+	path, err := forge.APIPath("orgs", org, "labels", id)
+	if err != nil {
+		return err
+	}
+	_, err = a.rawJSON(ctx, http.MethodDelete, path, nil, nil)
 	return err
 }
 

@@ -23,7 +23,11 @@ func (a *Adapter) ActionsURL(owner, repo string) string {
 // DispatchWorkflow posts the dispatch raw: the SDK's no-run-info path discards
 // the answer's body, which is where Forgejo says why it refused.
 func (a *Adapter) DispatchWorkflow(ctx context.Context, owner, repo, workflow string, opt forgejo_sdk.DispatchWorkflowOption) error {
-	status, body, err := a.raw.doStatus(ctx, http.MethodPost, forge.APIPath("repos", owner, repo, "actions", "workflows", workflow, "dispatches"), opt)
+	path, err := forge.APIPath("repos", owner, repo, "actions", "workflows", workflow, "dispatches")
+	if err != nil {
+		return err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodPost, path, opt)
 	if err != nil {
 		return err
 	}
@@ -41,17 +45,26 @@ func (a *Adapter) GetWorkflowRun(_ context.Context, owner, repo string, runID in
 }
 
 func (a *Adapter) CancelWorkflowRun(ctx context.Context, owner, repo string, runID int64) error {
-	path := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "cancel")
+	path, err := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "cancel")
+	if err != nil {
+		return err
+	}
 	return a.rawDo(ctx, http.MethodPost, path, nil, nil)
 }
 
 func (a *Adapter) DeleteWorkflowRun(ctx context.Context, owner, repo string, runID int64) error {
-	path := forge.APIPath("repos", owner, repo, "actions", "runs", runID)
+	path, err := forge.APIPath("repos", owner, repo, "actions", "runs", runID)
+	if err != nil {
+		return err
+	}
 	return a.rawDo(ctx, http.MethodDelete, path, nil, nil)
 }
 
 func (a *Adapter) ListRunJobs(ctx context.Context, owner, repo string, runID int64) ([]forge.ActionRunJob, error) {
-	path := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "jobs")
+	path, err := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "jobs")
+	if err != nil {
+		return nil, err
+	}
 	jobs := make([]forge.ActionRunJob, 0)
 	if err := a.rawDo(ctx, http.MethodGet, path, nil, &jobs); err != nil {
 		return nil, err
@@ -63,7 +76,10 @@ func (a *Adapter) ListRunJobs(ctx context.Context, owner, repo string, runID int
 }
 
 func (a *Adapter) GetJobLog(ctx context.Context, owner, repo string, jobID, attempt int64, byteRange string, maxBytes int64) (*forge.JobLog, error) {
-	path := forge.APIPath("repos", owner, repo, "actions", "jobs", jobID, "logs")
+	path, err := forge.APIPath("repos", owner, repo, "actions", "jobs", jobID, "logs")
+	if err != nil {
+		return nil, err
+	}
 	if attempt > 0 {
 		query := url.Values{}
 		query.Set("attempt", strconv.FormatInt(attempt, 10))
@@ -90,7 +106,11 @@ func (a *Adapter) ListRunArtifacts(ctx context.Context, owner, repo string, runI
 	if opt.Name != "" {
 		query.Set("name", opt.Name)
 	}
-	path := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "artifacts") + "?" + query.Encode()
+	base, err := forge.APIPath("repos", owner, repo, "actions", "runs", runID, "artifacts")
+	if err != nil {
+		return forge.ArtifactList{}, err
+	}
+	path := base + "?" + query.Encode()
 
 	artifacts := make([]forge.ActionArtifact, 0)
 	header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &artifacts)
@@ -105,7 +125,10 @@ func (a *Adapter) ListRunArtifacts(ctx context.Context, owner, repo string, runI
 }
 
 func (a *Adapter) GetArtifact(ctx context.Context, owner, repo string, artifactID int64) (*forge.ActionArtifact, error) {
-	path := forge.APIPath("repos", owner, repo, "actions", "artifacts", artifactID)
+	path, err := forge.APIPath("repos", owner, repo, "actions", "artifacts", artifactID)
+	if err != nil {
+		return nil, err
+	}
 	var artifact forge.ActionArtifact
 	if err := a.rawDo(ctx, http.MethodGet, path, nil, &artifact); err != nil {
 		return nil, err
@@ -125,7 +148,11 @@ func (a *Adapter) SetRepoActionSecret(ctx context.Context, owner, repo string, o
 	if err := opt.Validate(); err != nil {
 		return err
 	}
-	status, body, err := a.raw.doStatus(ctx, http.MethodPut, forge.APIPath("repos", owner, repo, "actions", "secrets", opt.Name), opt)
+	path, err := forge.APIPath("repos", owner, repo, "actions", "secrets", opt.Name)
+	if err != nil {
+		return err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodPut, path, opt)
 	if err != nil {
 		return err
 	}
@@ -133,7 +160,11 @@ func (a *Adapter) SetRepoActionSecret(ctx context.Context, owner, repo string, o
 }
 
 func (a *Adapter) DeleteRepoActionSecret(ctx context.Context, owner, repo, name string) error {
-	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, forge.APIPath("repos", owner, repo, "actions", "secrets", name), nil)
+	path, err := forge.APIPath("repos", owner, repo, "actions", "secrets", name)
+	if err != nil {
+		return err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, path, nil)
 	if err != nil {
 		return err
 	}
@@ -149,7 +180,11 @@ func (a *Adapter) SetOrgActionSecret(ctx context.Context, org string, opt forgej
 	if err := opt.Validate(); err != nil {
 		return err
 	}
-	status, body, err := a.raw.doStatus(ctx, http.MethodPut, forge.APIPath("orgs", org, "actions", "secrets", opt.Name), opt)
+	path, err := forge.APIPath("orgs", org, "actions", "secrets", opt.Name)
+	if err != nil {
+		return err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodPut, path, opt)
 	if err != nil {
 		return err
 	}
@@ -157,7 +192,11 @@ func (a *Adapter) SetOrgActionSecret(ctx context.Context, org string, opt forgej
 }
 
 func (a *Adapter) DeleteOrgActionSecret(ctx context.Context, org, name string) error {
-	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, forge.APIPath("orgs", org, "actions", "secrets", name), nil)
+	path, err := forge.APIPath("orgs", org, "actions", "secrets", name)
+	if err != nil {
+		return err
+	}
+	status, body, err := a.raw.doStatus(ctx, http.MethodDelete, path, nil)
 	if err != nil {
 		return err
 	}

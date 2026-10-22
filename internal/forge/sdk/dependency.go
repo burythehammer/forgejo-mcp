@@ -26,9 +26,13 @@ type issueMetaBody struct {
 
 // listIssues lists issues at an issue sub-resource, a 404 meaning none.
 func (a *Adapter) listIssues(ctx context.Context, owner, repo string, index int64, sub string, page, limit int) ([]*forgejo_sdk.Issue, error) {
-	path := forge.APIPath("repos", owner, repo, "issues", index, sub) + "?" + pageQuery(page, limit)
+	base, err := forge.APIPath("repos", owner, repo, "issues", index, sub)
+	if err != nil {
+		return nil, err
+	}
+	path := base + "?" + pageQuery(page, limit)
 	issues := []*forgejo_sdk.Issue{}
-	_, err := a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
+	_, err = a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
 	if forge.IsNotFound(err) {
 		return []*forgejo_sdk.Issue{}, nil
 	}
@@ -47,13 +51,19 @@ func (a *Adapter) ListIssueDependents(ctx context.Context, owner, repo string, i
 }
 
 func (a *Adapter) AddIssueDependency(ctx context.Context, owner, repo string, index int64, dep forge.IssueRef) error {
-	path := forge.APIPath("repos", owner, repo, "issues", index, "dependencies")
-	_, err := a.rawJSON(ctx, http.MethodPost, path, issueMetaBody{Index: dep.Index, Owner: dep.Owner, Repo: dep.Repo}, nil)
+	path, err := forge.APIPath("repos", owner, repo, "issues", index, "dependencies")
+	if err != nil {
+		return err
+	}
+	_, err = a.rawJSON(ctx, http.MethodPost, path, issueMetaBody{Index: dep.Index, Owner: dep.Owner, Repo: dep.Repo}, nil)
 	return err
 }
 
 func (a *Adapter) RemoveIssueDependency(ctx context.Context, owner, repo string, index int64, dep forge.IssueRef) error {
-	path := forge.APIPath("repos", owner, repo, "issues", index, "dependencies")
-	_, err := a.rawJSON(ctx, http.MethodDelete, path, issueMetaBody{Index: dep.Index, Owner: dep.Owner, Repo: dep.Repo}, nil)
+	path, err := forge.APIPath("repos", owner, repo, "issues", index, "dependencies")
+	if err != nil {
+		return err
+	}
+	_, err = a.rawJSON(ctx, http.MethodDelete, path, issueMetaBody{Index: dep.Index, Owner: dep.Owner, Repo: dep.Repo}, nil)
 	return err
 }
