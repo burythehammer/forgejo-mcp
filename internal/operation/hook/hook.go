@@ -7,12 +7,14 @@ package hook
 import (
 	"context"
 	"fmt"
+	"math"
 
 	apphook "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/hook"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/hookadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -129,10 +131,27 @@ type listArgs struct {
 	Limit float64 `json:"limit" required:"true"`
 }
 
+// The hook ID is kept raw (any) and read by hookRefOf, which validates it with
+// the numeric-argument module. schema:"number" names its schema type.
 type hookRefArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	ID    float64 `json:"id" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	ID    any    `json:"id" required:"true" schema:"number"`
+}
+
+// hookIDBounds is the range of a hook ID: a whole number from 1 up to the
+// largest int64. The numeric-argument module refuses zero, a negative number,
+// a fraction and an overflowing value, each with its own message.
+var hookIDBounds = numarg.Bounds{Min: 1, Max: math.MaxInt64}
+
+// hookRefOf is the validated reference a hook tool names. A refused ID is
+// returned as the module's error, which the handler sends back as the tool error.
+func hookRefOf(owner, repo string, raw any) (apphook.HookRef, error) {
+	id, err := numarg.RequiredInt("id", raw, hookIDBounds)
+	if err != nil {
+		return apphook.HookRef{}, err
+	}
+	return apphook.HookRef{Owner: owner, Repo: repo, ID: id}, nil
 }
 
 type createArgs struct {
@@ -154,7 +173,7 @@ type createArgs struct {
 type editArgs struct {
 	Owner        string     `json:"owner" required:"true"`
 	Repo         string     `json:"repo" required:"true"`
-	ID           float64    `json:"id" required:"true"`
+	ID           any        `json:"id" required:"true" schema:"number"`
 	URL          decode.Arg `json:"url" schema:"string"`
 	ContentType  decode.Arg `json:"content_type" schema:"string"`
 	Secret       decode.Arg `json:"secret" schema:"string"`
@@ -206,7 +225,11 @@ func (h handlers) ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) 
 
 func (h handlers) GetRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Get(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID}))
+		ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return mcpresult.Render(s.Get(ctx, ref))
 	})
 }
 
@@ -221,8 +244,12 @@ func (h handlers) CreateRepoHookFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditRepoHookFn", func(ctx context.Context, s *apphook.Service, a editArgs) (*mcp.CallToolResult, error) {
+		ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
 		return mcpresult.Render(s.Edit(ctx, apphook.EditRequest{
-			HookRef: apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID},
+			HookRef: ref,
 			URL:     optString(a.URL, "url"), ContentType: optString(a.ContentType, "content_type"),
 			Secret: optString(a.Secret, "secret"), HTTPMethod: optString(a.HTTPMethod, "http_method"),
 			BranchFilter: optString(a.BranchFilter, "branch_filter"), Events: optString(a.Events, "events"),
@@ -233,16 +260,24 @@ func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (
 
 func (h handlers) DeleteRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		if err := s.Delete(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID}); err != nil {
+		ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
+		if err != nil {
 			return mcpresult.Fail(err)
 		}
-		return to.TextResult(fmt.Sprintf("Deleted webhook %d on %s/%s", int64(a.ID), a.Owner, a.Repo))
+		if err := s.Delete(ctx, ref); err != nil {
+			return mcpresult.Fail(err)
+		}
+		return to.TextResult(fmt.Sprintf("Deleted webhook %d on %s/%s", ref.ID, a.Owner, a.Repo))
 	})
 }
 
 func (h handlers) TestRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "TestRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		if err := s.Test(ctx, apphook.HookRef{Owner: a.Owner, Repo: a.Repo, ID: a.ID}); err != nil {
+		ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		if err := s.Test(ctx, ref); err != nil {
 			return mcpresult.Fail(err)
 		}
 		return to.TextResult(map[string]bool{"triggered": true})

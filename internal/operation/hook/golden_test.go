@@ -192,6 +192,7 @@ var hookGoldenCases = []hookGoldenCase{
 	{name: "get_string_id", tool: GetRepoHookToolName, args: map[string]any{"id": "7"}},
 	{name: "get_fractional_id", tool: GetRepoHookToolName, args: map[string]any{"id": 7.5}},
 	{name: "get_zero_id", tool: GetRepoHookToolName, args: map[string]any{"id": float64(0)}},
+	{name: "get_negative_id", tool: GetRepoHookToolName, args: map[string]any{"id": float64(-3)}},
 	{name: "get_missing_repo", tool: GetRepoHookToolName, args: map[string]any{"id": float64(7), "repo": nil}},
 	{name: "get_port_error", tool: GetRepoHookToolName, args: map[string]any{"id": float64(7)}, stub: func(s *stubHook) { s.fail = errors.New("boom") }},
 
@@ -224,13 +225,20 @@ var hookGoldenCases = []hookGoldenCase{
 		stub: func(s *stubHook) { s.refetchFail = errors.New("gone") },
 	},
 	{name: "edit_missing_id", tool: EditRepoHookToolName, args: map[string]any{"id": nil}},
+	{name: "edit_zero_id", tool: EditRepoHookToolName, args: map[string]any{"id": float64(0), "url": "https://hooks.example/new"}},
+	{name: "edit_negative_id", tool: EditRepoHookToolName, args: map[string]any{"id": float64(-3), "url": "https://hooks.example/new"}},
+	{name: "edit_fractional_id", tool: EditRepoHookToolName, args: map[string]any{"id": 7.5, "url": "https://hooks.example/new"}},
 
 	{name: "delete_ok", tool: DeleteRepoHookToolName, args: map[string]any{"id": float64(7)}},
 	{name: "delete_zero_id", tool: DeleteRepoHookToolName, args: map[string]any{"id": float64(0)}},
+	{name: "delete_negative_id", tool: DeleteRepoHookToolName, args: map[string]any{"id": float64(-3)}},
+	{name: "delete_fractional_id", tool: DeleteRepoHookToolName, args: map[string]any{"id": 1.5}},
 	{name: "delete_port_error", tool: DeleteRepoHookToolName, args: map[string]any{"id": float64(7)}, stub: func(s *stubHook) { s.fail = errors.New("boom") }},
 
 	{name: "test_ok", tool: TestRepoHookToolName, args: map[string]any{"id": float64(7)}},
 	{name: "test_zero_id", tool: TestRepoHookToolName, args: map[string]any{"id": float64(0)}},
+	{name: "test_negative_id", tool: TestRepoHookToolName, args: map[string]any{"id": float64(-3)}},
+	{name: "test_fractional_id", tool: TestRepoHookToolName, args: map[string]any{"id": 1.5}},
 	{name: "test_port_error", tool: TestRepoHookToolName, args: map[string]any{"id": float64(7)}, stub: func(s *stubHook) { s.fail = errors.New("boom") }},
 }
 
