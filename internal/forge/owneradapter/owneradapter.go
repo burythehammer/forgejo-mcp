@@ -29,7 +29,7 @@ var _ appowner.Port = adapter{}
 func (a adapter) GetUser(ctx context.Context, login string) (*model.User, error) {
 	u, err := a.u.GetUserInfo(ctx, login)
 	if err != nil {
-		if isNotFound(err) {
+		if forge.IsNotFound(err) {
 			return nil, fmt.Errorf("%w: user %s", appowner.ErrNotFound, login)
 		}
 		return nil, err
@@ -40,17 +40,10 @@ func (a adapter) GetUser(ctx context.Context, login string) (*model.User, error)
 func (a adapter) GetOrg(ctx context.Context, name string) (*model.Organization, error) {
 	org, err := a.o.GetOrg(ctx, name)
 	if err != nil {
-		if isNotFound(err) {
+		if forge.IsNotFound(err) {
 			return nil, fmt.Errorf("%w: org %s", appowner.ErrNotFound, name)
 		}
 		return nil, err
 	}
 	return bridge.Convert[*model.Organization](org, nil)
-}
-
-// isNotFound is true only for a Forgejo 404, judged on its typed status. A
-// message that merely mentions "not found" is some other failure, and treating
-// it as a miss would send the owner read on to the org lookup.
-func isNotFound(err error) bool {
-	return forge.IsNotFound(err)
 }
