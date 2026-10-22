@@ -276,8 +276,10 @@ func parseBounds(since, before string) (time.Time, time.Time, error) {
 	return s, b, nil
 }
 
-// resolveSeconds picks the positive whole number of seconds to log from either
-// the seconds or the duration. Exactly one must be given.
+// resolveSeconds picks the whole number of seconds to log from either the
+// seconds or the duration. Exactly one must be given. Fractions are truncated
+// to whole seconds, and the result must still be at least one second, so the
+// check applies to the value that is actually sent.
 func resolveSeconds(seconds *float64, duration string) (int64, error) {
 	hasDur := duration != ""
 	switch {
@@ -286,18 +288,20 @@ func resolveSeconds(seconds *float64, duration string) (int64, error) {
 	case seconds == nil && !hasDur:
 		return 0, fmt.Errorf("one of 'seconds' or 'duration' is required")
 	case seconds != nil:
-		if *seconds <= 0 {
-			return 0, fmt.Errorf("seconds must be positive, got %v", *seconds)
+		whole := int64(*seconds)
+		if whole < 1 {
+			return 0, fmt.Errorf("seconds must be at least one second, got %v", *seconds)
 		}
-		return int64(*seconds), nil
+		return whole, nil
 	default:
 		d, err := time.ParseDuration(duration)
 		if err != nil {
 			return 0, fmt.Errorf("invalid duration %q: %w", duration, err)
 		}
-		if d <= 0 {
-			return 0, fmt.Errorf("duration must be positive, got %s", d)
+		whole := int64(d / time.Second)
+		if whole < 1 {
+			return 0, fmt.Errorf("duration must be at least one second, got %s", d)
 		}
-		return int64(d / time.Second), nil
+		return whole, nil
 	}
 }

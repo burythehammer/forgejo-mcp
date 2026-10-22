@@ -59,7 +59,7 @@ var (
 
 	AddIssueTimeTool = mcp.NewTool(
 		AddIssueTimeToolName,
-		mcp.WithDescription("Log time against an issue or pull request. Provide exactly one of 'seconds' or 'duration'."),
+		mcp.WithDescription("Log time against an issue or pull request, at least one whole second. Provide exactly one of 'seconds' or 'duration'."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(indexDescIssueOrPR)),
