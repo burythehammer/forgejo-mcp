@@ -101,31 +101,27 @@ func service(p *stubPort, lookups *int) *apptracking.Service {
 
 var ref = apptracking.IssueRef{Owner: "octo", Repo: "hello", Index: 7}
 
-func seconds(v float64) *float64 { return &v }
+// seconds is a validated whole number of seconds, as the operation layer hands
+// it over. Fractions and sub-second values are refused before this use case.
+func seconds(v int64) *int64 { return &v }
 
 func TestResolveSecondsRules(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
-		seconds  *float64
+		seconds  *int64
 		duration string
 		want     int64
 		wantErr  string
 	}{
 		{name: "seconds", seconds: seconds(900), want: 900},
-		{name: "fraction truncates", seconds: seconds(2.7), want: 2},
 		{name: "duration 15m", duration: "15m", want: 900},
 		{name: "duration 1h30m", duration: "1h30m", want: 5400},
 		{name: "both rejected", seconds: seconds(60), duration: "1m", wantErr: "exactly one"},
 		{name: "neither rejected", wantErr: "required"},
 		{name: "one second", seconds: seconds(1), want: 1},
-		{name: "one and a half truncates to one", seconds: seconds(1.5), want: 1},
 		{name: "duration 1s", duration: "1s", want: 1},
 		{name: "duration 90s", duration: "90s", want: 90},
-		{name: "zero seconds", seconds: seconds(0), wantErr: "at least one second, got 0"},
-		{name: "half a second rejected", seconds: seconds(0.5), wantErr: "at least one second, got 0.5"},
-		{name: "just under one second rejected", seconds: seconds(0.999), wantErr: "at least one second, got 0.999"},
-		{name: "negative seconds", seconds: seconds(-5), wantErr: "at least one second, got -5"},
 		{name: "negative duration", duration: "-30s", wantErr: "at least one second"},
 		{name: "500ms duration rejected", duration: "500ms", wantErr: "at least one second, got 500ms"},
 		{name: "zero duration", duration: "0s", wantErr: "at least one second"},
