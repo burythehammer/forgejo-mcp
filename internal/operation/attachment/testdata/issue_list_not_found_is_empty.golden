@@ -1,3 +1,3 @@
-{"Result":[]}
+{"Result":{"attachments":[],"page":1,"limit":20,"count":0,"has_next":false}}
 -- port calls --
 ListIssueAttachments ["octo","hello",4]

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -26,16 +25,19 @@ import (
 type Factory struct {
 	cfg config.Forgejo
 	ua  string
-	hc  *http.Client    // raw-HTTP client
-	tr  *http.Transport // TLS transport shared with the SDK client; nil for the default
+	// hc is the request client: the SDK clients and the raw client share it,
+	// so every Forgejo call gives up after the same RequestTimeout.
+	hc *http.Client
+	// up is the upload client. It carries the same transport as hc, with the
+	// longer uploadRequestTimeout bound, so a large upload is not cut off by the
+	// request timeout.
+	up *http.Client
+	tr *http.Transport // TLS transport shared with the SDK client; nil for the default
 
 	// serverVersion is the Forgejo version read at startup, or nothing. Every
 	// SDK client built afterwards is told it, and so skips the version request
 	// the SDK otherwise sends each time a client is constructed.
 	serverVersion atomic.Value
-
-	mu     sync.Mutex
-	shared *forgejo_sdk.Client // the operator's client, built on first use
 
 	settings *settings // the instance's pagination ceiling, shared by adapters
 }
@@ -54,20 +56,23 @@ func NewFactory(cfg config.Forgejo, version string) *Factory {
 			log.Errorf("Forgejo URL is not a valid URL: %v", err)
 		}
 	}
-	// One TLS setting serves both the SDK client and the raw client. Built here,
-	// once per factory; the default keeps the shared client and its keep-alives.
+	// One TLS setting serves the SDK client, the raw client and the upload
+	// client. Built here, once per factory, so keep-alives are shared across
+	// tool calls.
 	tr := tlsTransport(cfg.TLS)
-	hc := sharedHTTPClient
-	if tr != nil {
-		hc = &http.Client{Timeout: sharedHTTPClient.Timeout, Transport: tr}
+	timeout := cfg.RequestTimeout
+	if timeout <= 0 {
+		timeout = config.DefaultRequestTimeout
 	}
+	hc := newHTTPClient(timeout, tr)
+	up := newHTTPClient(uploadRequestTimeout, tr)
 	if cfg.TLS.SkipVerify {
 		log.Warn("TLS certificate verification is OFF for the Forgejo instance (--tls-skip-verify); "+
 			"the server does not check who it is talking to",
 			log.SanitizedURLField("url", cfg.URL),
 		)
 	}
-	return &Factory{cfg: cfg, ua: ua, hc: hc, tr: tr, settings: &settings{}}
+	return &Factory{cfg: cfg, ua: ua, hc: hc, up: up, tr: tr, settings: &settings{}}
 }
 
 // BaseURL is the Forgejo instance the factory serves.
@@ -78,17 +83,19 @@ func (f *Factory) knownServerVersion() string {
 	return v
 }
 
-// newClient builds an SDK client for token, telling it the recorded server
-// version, when there is one.
-func (f *Factory) newClient(token string) (*forgejo_sdk.Client, error) {
+// newClient builds an SDK client for token, bound to ctx: once ctx is
+// cancelled, the calls made with this client stop. It tells the client the
+// recorded server version, when there is one.
+func (f *Factory) newClient(ctx context.Context, token string) (*forgejo_sdk.Client, error) {
 	opts := []forgejo_sdk.ClientOption{
 		forgejo_sdk.SetToken(token),
 		forgejo_sdk.SetUserAgent(f.ua),
-	}
-	if f.tr != nil {
-		// No timeout here: the SDK's default client has none, and this only
-		// changes the transport.
-		opts = append(opts, forgejo_sdk.SetHTTPClient(&http.Client{Transport: f.tr}))
+		// The shared request client: same transport and RequestTimeout as the
+		// raw client, so a stalled Forgejo cannot hang an SDK-backed call.
+		forgejo_sdk.SetHTTPClient(f.hc),
+		// The SDK's context is per client, so each request gets its own client
+		// rather than sharing one whose context another request would change.
+		forgejo_sdk.SetContext(ctx),
 	}
 	if v := f.knownServerVersion(); v != "" {
 		opts = append(opts, forgejo_sdk.SetForgejoVersion(v))
@@ -96,14 +103,10 @@ func (f *Factory) newClient(token string) (*forgejo_sdk.Client, error) {
 	return forgejo_sdk.NewClient(f.cfg.URL, opts...)
 }
 
-// operatorClient is the shared client bound to the operator's credential.
-func (f *Factory) operatorClient() (*forgejo_sdk.Client, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.shared != nil {
-		return f.shared, nil
-	}
-	c, err := f.newClient(f.cfg.Token.Reveal())
+// operatorClient builds an SDK client bound to ctx with the operator's
+// credential. It is built per call, so no request's context can reach another.
+func (f *Factory) operatorClient(ctx context.Context) (*forgejo_sdk.Client, error) {
+	c, err := f.newClient(ctx, f.cfg.Token.Reveal())
 	if err != nil {
 		log.Error("Failed to create Forgejo client",
 			log.SanitizedURLField("url", f.cfg.URL),
@@ -114,24 +117,19 @@ func (f *Factory) operatorClient() (*forgejo_sdk.Client, error) {
 		// stays an ordinary error instead of killing the test binary.
 		return nil, fmt.Errorf("create forgejo client: %w", err)
 	}
-	f.shared = c
-	log.Info("Successfully created Forgejo client",
-		log.SanitizedURLField("url", f.cfg.URL),
-		log.BoolField("token_configured", f.cfg.Token.Reveal() != ""),
-		log.StringField("user_agent", f.ua),
-	)
 	return c, nil
 }
 
 // For implements forge.Factory.
 //
 // A request carrying its own token gets a fresh client bound to it; failure to
-// build one never falls through to the shared client. A request the
-// authentication port marked for the operator's credential gets the shared
-// client. Any other request is refused, so no client is built for it.
+// build one never falls through to the operator's client. A request the
+// authentication port marked for the operator's credential gets a fresh client
+// with the operator's token. Both are bound to ctx, so cancelling the request
+// stops its SDK calls. Any other request is refused, so no client is built for it.
 func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 	if token := forge.TokenFromContext(ctx); token != "" {
-		c, err := f.newClient(token)
+		c, err := f.newClient(ctx, token)
 		if err != nil {
 			log.ErrorCtx(ctx, "Failed to create ephemeral Forgejo client",
 				log.SanitizedURLField("url", f.cfg.URL),
@@ -148,7 +146,7 @@ func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 		)
 		return nil, forge.ErrNoRequestToken
 	}
-	c, err := f.operatorClient()
+	c, err := f.operatorClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +156,7 @@ func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 func (f *Factory) adapter(c *forgejo_sdk.Client, token string) *Adapter {
 	return &Adapter{
 		client:   c,
-		raw:      &rawClient{base: f.cfg.URL, token: token, ua: f.ua, hc: f.hc},
+		raw:      &rawClient{base: f.cfg.URL, token: token, ua: f.ua, hc: f.hc, up: f.up},
 		settings: f.settings,
 	}
 }
@@ -173,7 +171,7 @@ func (f *Factory) VerifyConnection(ctx context.Context) error {
 		log.SanitizedURLField("url", f.cfg.URL),
 	)
 
-	client, err := f.operatorClient()
+	client, err := f.operatorClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -202,7 +200,7 @@ func (f *Factory) HealthCheck(ctx context.Context) error {
 	start := time.Now()
 	log.Debug("Starting health check")
 
-	client, err := f.operatorClient()
+	client, err := f.operatorClient(ctx)
 	if err != nil {
 		return err
 	}

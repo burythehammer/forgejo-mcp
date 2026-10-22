@@ -53,6 +53,7 @@ type resourceSetting struct {
 
 var resourceSettings = []resourceSetting{
 	{"authorization-server", "FORGEJO_MCP_AUTHORIZATION_SERVER", "resource-server mode: issuer URL of the identity provider callers obtain tokens from"},
+	{"authorization-server-tls-ca", "FORGEJO_MCP_AUTHORIZATION_SERVER_TLS_CA", "resource-server mode: PEM file of CA certificates trusted for the identity provider's discovery and key lookups, added to the system roots"},
 	{"resource", "FORGEJO_MCP_RESOURCE", "resource-server mode: canonical URI of this server's MCP endpoint, e.g. https://mcp.example.org/mcp"},
 	{"resource-audience", "FORGEJO_MCP_RESOURCE_AUDIENCE", "resource-server mode: value an inbound token's aud must contain (default: the value of -resource)"},
 	{"scopes-supported", "FORGEJO_MCP_SCOPES_SUPPORTED", "resource-server mode: space-separated scopes advertised to clients"},
@@ -72,6 +73,7 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		warns []Warning
 
 		transport, urlFlag, token, userAgent string
+		requestTimeout                       string
 		host, allowedHosts, allowedOrigins   string
 		shutdownGrace                        string
 		ssePort, httpPort                    int
@@ -93,6 +95,9 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	fs.IntVar(&httpPort, "http-port", 8080, "Port for streamable HTTP transport mode")
 	fs.StringVar(&token, "token", "", "Your personal access token")
 	fs.StringVar(&userAgent, "user-agent", "", "User agent for HTTP requests (default: forgejo-mcp/<version>)")
+	fs.StringVar(&requestTimeout, "request-timeout", "",
+		"Longest wait for one Forgejo request, as a Go duration such as 30s "+
+			"(default: 60s; env: FORGEJO_REQUEST_TIMEOUT)")
 	fs.StringVar(&tlsCA, "tls-ca", "",
 		"PEM file of CA certificates trusted for the Forgejo instance, added to the system roots "+
 			"(env: FORGEJO_TLS_CA)")
@@ -198,6 +203,12 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	}
 	cfg.Forgejo.Token = NewSecret(tok)
 
+	timeout, err := parseRequestTimeout(resolve(requestTimeout, "FORGEJO_REQUEST_TIMEOUT", "request-timeout"))
+	if err != nil {
+		return Config{}, warns, err
+	}
+	cfg.Forgejo.RequestTimeout = timeout
+
 	cfg.Forgejo.UserAgent = userAgent
 	if cfg.Forgejo.UserAgent == "" {
 		cfg.Forgejo.UserAgent = getenv("FORGEJO_USER_AGENT")
@@ -273,6 +284,13 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	cfg.Auth.ForgejoJWTIssuer = values["forgejo-jwt-issuer"]
 	cfg.Auth.ForgejoJWTSigningKeyFile = values["forgejo-jwt-signing-key-file"]
 	cfg.Auth.ForgejoJWTPublishedKeyFiles = splitList(values["forgejo-jwt-published-key-files"])
+	if caFile := values["authorization-server-tls-ca"]; caFile != "" {
+		pool, err := loadCAPool("-authorization-server-tls-ca", caFile)
+		if err != nil {
+			return Config{}, warns, err
+		}
+		cfg.Auth.AuthorizationServerCAs = pool
+	}
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, warns, &ValidationError{Err: err}
@@ -305,6 +323,23 @@ func parseCLI(args []string) (CLI, error) {
 		}
 	}
 	return c, nil
+}
+
+// parseRequestTimeout reads --request-timeout. An empty value means the
+// default; a value that is not a positive duration is refused at startup, so a
+// typo cannot quietly turn every request into an instant timeout.
+func parseRequestTimeout(s string) (time.Duration, error) {
+	if s == "" {
+		return DefaultRequestTimeout, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid request timeout %q: %w", s, err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("request timeout must be positive, got %s", s)
+	}
+	return d, nil
 }
 
 func validateURL(raw string) error {

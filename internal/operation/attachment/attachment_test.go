@@ -332,3 +332,30 @@ func TestParentDeadlineNotMisattributed(t *testing.T) {
 		t.Fatalf("took %s, want the parent's 20ms bound", time.Since(start))
 	}
 }
+
+// TestCreateRejectsNonStringSourceBeforeUploading covers the issue and comment
+// families: a present non-string content or file_path must fail with
+// "must be a string" and reach no upload.
+func TestCreateRejectsNonStringSourceBeforeUploading(t *testing.T) {
+	t.Parallel()
+	h, f := newFixture(t)
+	values := map[string]any{"number": 123.0, "bool": true, "null": nil}
+	for _, key := range []string{"content", "file_path"} {
+		for name, value := range values {
+			issueMsg := fails(t, h.CreateIssueAttachmentFn, map[string]any{"index": 3.0, "filename": "a.png", key: value})
+			if !strings.Contains(issueMsg, key+" must be a string") {
+				t.Fatalf("issue %s=%s: want must-be-a-string error, got %s", key, name, issueMsg)
+			}
+			commentMsg := fails(t, h.CreateCommentAttachmentFn, map[string]any{"comment_id": 5.0, "filename": "a.png", key: value})
+			if !strings.Contains(commentMsg, key+" must be a string") {
+				t.Fatalf("comment %s=%s: want must-be-a-string error, got %s", key, name, commentMsg)
+			}
+		}
+	}
+	if atts, _ := f.ListIssueAttachments(context.Background(), owner, repo, 3); len(atts) != 0 {
+		t.Fatalf("issue: nothing should have been uploaded: %+v", atts)
+	}
+	if atts, _ := f.ListCommentAttachments(context.Background(), owner, repo, 5); len(atts) != 0 {
+		t.Fatalf("comment: nothing should have been uploaded: %+v", atts)
+	}
+}

@@ -234,9 +234,9 @@ func (f *Forgejo) CheckOrgMembership(_ context.Context, org, login string) (bool
 	defer f.orgs.mu.Unlock()
 	o, err := f.orgs.find(org)
 	if err != nil {
-		// Forgejo answers 404 for a missing org as for a non-member, and the
-		// port reports both as "not a member".
-		return false, nil
+		// A missing org is not found, not "not a member": Forgejo's 404 is
+		// ambiguous and the SDK adapter probes the org to tell them apart.
+		return false, err
 	}
 	return orgContains(o.members, login), nil
 }

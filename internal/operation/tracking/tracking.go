@@ -52,12 +52,14 @@ var (
 
 	ListMyTrackedTimesTool = mcp.NewTool(
 		ListMyTrackedTimesToolName,
-		mcp.WithDescription("List tracked time entries for the authenticated user across all repositories"),
+		mcp.WithDescription("List tracked time entries for the authenticated user across all repositories, one page at a time (page, limit; default 20). The response's has_next says whether more follow."),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 	)
 
 	AddIssueTimeTool = mcp.NewTool(
 		AddIssueTimeToolName,
-		mcp.WithDescription("Log time against an issue or pull request. Provide exactly one of 'seconds' or 'duration'."),
+		mcp.WithDescription("Log time against an issue or pull request, at least one whole second. Provide exactly one of 'seconds' or 'duration'."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(indexDescIssueOrPR)),

@@ -296,3 +296,21 @@ func TestCredentialPolicyErrorIsReported(t *testing.T) {
 		t.Fatal(msg)
 	}
 }
+
+// TestCreateReleaseAttachment_RejectsNonStringSource: a present non-string
+// content or file_path fails with "must be a string" and uploads nothing.
+func TestCreateReleaseAttachment_RejectsNonStringSource(t *testing.T) {
+	h, f := newFixture(t)
+	rid := float64(seed(t, f, "v1", false, false).ID)
+	for _, key := range []string{"content", "file_path"} {
+		for _, value := range []any{123.0, true, nil} {
+			msg := fails(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "filename": "a.png", key: value})
+			if !strings.Contains(msg, key+" must be a string") {
+				t.Fatalf("%s=%v: want must-be-a-string error, got %s", key, value, msg)
+			}
+		}
+	}
+	if atts, _ := f.ListReleaseAttachments(context.Background(), owner, repo, int64(rid)); len(atts) != 0 {
+		t.Fatalf("nothing should be uploaded: %+v", atts)
+	}
+}

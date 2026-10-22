@@ -90,20 +90,29 @@ type Source struct {
 	Filename string
 }
 
-// SourceFromArguments preserves the presence of optional MCP arguments.
-func SourceFromArguments(arguments map[string]any) Source {
+// SourceFromArguments preserves the presence of optional MCP arguments. An
+// argument that is present but not a string (including an explicit null) is an
+// error naming the argument: treating it as "" would upload a zero-byte file.
+// An absent argument stays nil.
+func SourceFromArguments(arguments map[string]any) (Source, error) {
 	var content *string
 	if value, exists := arguments["content"]; exists {
-		text, _ := value.(string)
+		text, ok := value.(string)
+		if !ok {
+			return Source{}, fmt.Errorf("content must be a string")
+		}
 		content = &text
 	}
 	var filePath *string
 	if value, exists := arguments["file_path"]; exists {
-		text, _ := value.(string)
+		text, ok := value.(string)
+		if !ok {
+			return Source{}, fmt.Errorf("file_path must be a string")
+		}
 		filePath = &text
 	}
 	filename, _ := arguments["filename"].(string)
-	return Source{Content: content, FilePath: filePath, Filename: filename}
+	return Source{Content: content, FilePath: filePath, Filename: filename}, nil
 }
 
 // Open validates the source and returns its reader and upload filename.

@@ -24,7 +24,7 @@ const (
 var (
 	GetFileContentTool = mcp.NewTool(
 		GetFileToolName,
-		mcp.WithDescription("Get file content as plain text by default. Set `with_metadata=true` for binary files, or when you need the SHA/encoding/links from the full `ContentsResponse` (e.g. before a follow-up `update_file` call). Optional `start_line` and `end_line` request a 1-indexed inclusive line range; out-of-range values clamp to the file extent. Range parameters are ignored when `with_metadata=true`."),
+		mcp.WithDescription("Get file content as plain text by default. Set `with_metadata=true` for binary files, or when you need the SHA/encoding/links from the full `ContentsResponse` (e.g. before a follow-up `update_file` call). Optional `start_line` and `end_line` request a 1-indexed inclusive line range; out-of-range values clamp to the file extent. With `with_metadata=true` the range replaces the content with that slice and keeps the metadata. A whole file, or a range, over 1 MiB of text is refused with a message asking for a narrower `start_line`/`end_line`."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("ref", mcp.Required(), mcp.Description(params.Ref)),
@@ -146,10 +146,11 @@ func (h handlers) GetFileContentFn(ctx context.Context, req mcp.CallToolRequest)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
+	lines := apprepo.LineRange{Start: int(a.StartLine), End: int(a.EndLine)}
 	if a.WithMetadata {
-		return gitText(svc.GetFileMetadata(ctx, owner, repo, a.Ref, filePath))
+		return gitText(svc.GetFileMetadata(ctx, owner, repo, a.Ref, filePath, lines))
 	}
-	return gitText(svc.GetFileText(ctx, owner, repo, a.Ref, filePath, apprepo.LineRange{Start: int(a.StartLine), End: int(a.EndLine)}))
+	return gitText(svc.GetFileText(ctx, owner, repo, a.Ref, filePath, lines))
 }
 
 func (h handlers) CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

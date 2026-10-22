@@ -23,7 +23,7 @@ import (
 // defaultAttachmentUploadTimeout bounds one issue or comment upload, so a stuck
 // network path fails with a clear, specific error well inside the caller's
 // patience. It is not applied to release assets, which may legitimately be
-// much larger; those rely on the HTTP client's own timeout.
+// much larger; those are bounded by the upload client's uploadRequestTimeout.
 const defaultAttachmentUploadTimeout = 45 * time.Second
 
 // attachmentUploadTimeout is a var so tests can shrink it; production never
@@ -75,15 +75,19 @@ func useCases(ctx context.Context, h handlers) (*appattachment.Service, error) {
 // which decode.Lax would otherwise hide as zero.
 
 type issueRefArgs struct {
-	Owner string `json:"owner" required:"true"`
-	Repo  string `json:"repo" required:"true"`
-	Index any    `json:"index" required:"true" schema:"number"`
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index any     `json:"index" required:"true" schema:"number"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
 }
 
 type commentRefArgs struct {
-	Owner     string `json:"owner" required:"true"`
-	Repo      string `json:"repo" required:"true"`
-	CommentID any    `json:"comment_id" required:"true" schema:"number"`
+	Owner     string  `json:"owner" required:"true"`
+	Repo      string  `json:"repo" required:"true"`
+	CommentID any     `json:"comment_id" required:"true" schema:"number"`
+	Page      float64 `json:"page"`
+	Limit     float64 `json:"limit"`
 }
 
 type issueAttachmentArgs struct {
@@ -102,9 +106,8 @@ type commentAttachmentArgs struct {
 
 // issueCreateArgs and commentCreateArgs declare content and file_path so the
 // schema check covers them, but the upload source is read from the raw
-// arguments by upload.SourceFromArguments: it must tell an explicit null or
-// wrongly typed value (present, empty) from an absent one, which decode.Lax
-// cannot.
+// arguments by upload.SourceFromArguments: it must tell a present non-string
+// value (rejected, including null) from an absent one, which decode.Lax cannot.
 type issueCreateArgs struct {
 	Owner    string `json:"owner" required:"true"`
 	Repo     string `json:"repo" required:"true"`
@@ -158,7 +161,7 @@ func (h handlers) ListIssueAttachmentsFn(ctx context.Context, req mcp.CallToolRe
 	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	return h.list(ctx, a.Owner, a.Repo, appattachment.ScopeIssue, a.Index)
+	return h.list(ctx, a.Owner, a.Repo, appattachment.ScopeIssue, a.Index, a.Page, a.Limit)
 }
 
 func (h handlers) GetIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -214,7 +217,7 @@ func (h handlers) ListCommentAttachmentsFn(ctx context.Context, req mcp.CallTool
 	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	return h.list(ctx, a.Owner, a.Repo, appattachment.ScopeComment, a.CommentID)
+	return h.list(ctx, a.Owner, a.Repo, appattachment.ScopeComment, a.CommentID, a.Page, a.Limit)
 }
 
 func (h handlers) GetCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -269,7 +272,7 @@ func (h handlers) DeleteCommentAttachmentFn(ctx context.Context, req mcp.CallToo
 // are read in the order the handlers always read them, so the first failure
 // is the one the client sees.
 
-func (h handlers) list(ctx context.Context, owner, repo string, sc appattachment.Scope, parent any) (*mcp.CallToolResult, error) {
+func (h handlers) list(ctx context.Context, owner, repo string, sc appattachment.Scope, parent any, page, limit float64) (*mcp.CallToolResult, error) {
 	p, err := number(parent, parentName(sc))
 	if err != nil {
 		return to.ErrorResult(err)
@@ -278,7 +281,10 @@ func (h handlers) list(ctx context.Context, owner, repo string, sc appattachment
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	out, err := svc.List(ctx, owner, repo, sc, p)
+	out, err := svc.List(ctx, owner, repo, sc, p, appattachment.Paging{
+		Page:  decode.PageOr(page, 1),
+		Limit: decode.IntOr(limit, 0),
+	})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -342,7 +348,11 @@ func (h handlers) create(ctx context.Context, req mcp.CallToolRequest, owner, re
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	reader, filename, err := upload.Open(upload.SourceFromArguments(req.GetArguments()))
+	source, err := upload.SourceFromArguments(req.GetArguments())
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	reader, filename, err := upload.Open(source)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

@@ -59,8 +59,16 @@ type Forgejo struct {
 	URL       string
 	Token     Secret
 	UserAgent string
-	TLS       TLS
+	// RequestTimeout bounds one request to Forgejo, including reading its
+	// response. Uploads have their own, longer bound. Zero means
+	// DefaultRequestTimeout.
+	RequestTimeout time.Duration
+	TLS            TLS
 }
+
+// DefaultRequestTimeout is how long one request to Forgejo may take when
+// --request-timeout (FORGEJO_REQUEST_TIMEOUT) is not set.
+const DefaultRequestTimeout = 60 * time.Second
 
 // TLS holds how the server verifies a Forgejo certificate. The zero value
 // verifies against the system roots only.
@@ -102,6 +110,10 @@ type Auth struct {
 	ForgejoJWTIssuer            string
 	ForgejoJWTSigningKeyFile    string
 	ForgejoJWTPublishedKeyFiles []string
+	// AuthorizationServerCAs holds the system roots with the provider's CA
+	// bundle appended. Nil when no bundle was given. It is separate from the
+	// Forgejo TLS settings and has no skip-verify counterpart.
+	AuthorizationServerCAs *x509.CertPool
 }
 
 // ResourceServerMode reports whether Auth selects the resource-server mode.

@@ -171,8 +171,8 @@ func (s *stubPulls) ListPullRequestFiles(_ context.Context, o, r string, i int64
 	return []*forgejo_sdk.ChangedFile{{Filename: "a.go", PreviousFilename: "b.go", Status: "renamed", Additions: 1, Deletions: 2, Changes: 3, HTMLURL: "h", ContentsURL: "c", RawURL: "r"}}, s.rec("ListPullRequestFiles", o, r, i, opt)
 }
 
-func (s *stubPulls) ListPullReviews(_ context.Context, o, r string, i int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, error) {
-	return []*forgejo_sdk.PullReview{fixedReview()}, s.rec("ListPullReviews", o, r, i, opt)
+func (s *stubPulls) ListPullReviews(_ context.Context, o, r string, i int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, forge.PageInfo, error) {
+	return []*forgejo_sdk.PullReview{fixedReview()}, forge.PageInfo{TotalCount: 1, TotalKnown: true}, s.rec("ListPullReviews", o, r, i, opt)
 }
 
 func (s *stubPulls) GetPullReview(_ context.Context, o, r string, i, id int64) (*forgejo_sdk.PullReview, error) {

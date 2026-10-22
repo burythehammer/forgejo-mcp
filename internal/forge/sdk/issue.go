@@ -54,7 +54,11 @@ func (a *Adapter) ListRepoIssues(ctx context.Context, owner, repo string, opt fo
 	// repository does not exist and must not read as "no issues".
 	if opt.Sort != "" {
 		query := opt.QueryEncode() + "&sort=" + url.QueryEscape(opt.Sort)
-		path := forge.APIPath("repos", owner, repo, "issues") + "?" + query
+		base, err := forge.APIPath("repos", owner, repo, "issues")
+		if err != nil {
+			return nil, forge.PageInfo{}, err
+		}
+		path := base + "?" + query
 		var issues []*forgejo_sdk.Issue
 		header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
 		if err != nil {

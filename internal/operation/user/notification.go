@@ -9,7 +9,6 @@ import (
 	"time"
 
 	appuser "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/user"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -175,7 +174,7 @@ func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolR
 	}
 	id := int64(*a.ID)
 	thread, err := h.service().Thread(ctx, id)
-	logAPICall(ctx, "GET", forge.APIPath("notifications", "threads", id), started, err)
+	logAPICall(ctx, "GET", apiEndpoint("notifications", "threads", id), started, err)
 	return finish(ctx, GetNotificationThreadToolName, started, "Retrieved notification thread", thread, err)
 }
 
@@ -189,7 +188,7 @@ func (h handlers) MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRe
 	}
 	id := int64(*a.ID)
 	thread, err := h.service().MarkRead(ctx, id)
-	logAPICall(ctx, "PATCH", forge.APIPath("notifications", "threads", id), started, err)
+	logAPICall(ctx, "PATCH", apiEndpoint("notifications", "threads", id), started, err)
 	return finish(ctx, MarkNotificationReadToolName, started, "Marked notification as read", thread, err)
 }
 
@@ -218,7 +217,7 @@ func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolR
 	page, err := h.service().RepoNotifications(ctx, appuser.RepoNotificationsInput{
 		Owner: owner, Repo: repo, NotificationsInput: notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit),
 	})
-	logAPICall(ctx, "GET", forge.APIPath("repos", owner, repo, "notifications"), started, err)
+	logAPICall(ctx, "GET", apiEndpoint("repos", owner, repo, "notifications"), started, err)
 	return finish(ctx, ListRepoNotificationsToolName, started,
 		fmt.Sprintf("Retrieved %d notifications for repo %s/%s", page.Count, owner, repo), page, err)
 }
@@ -233,7 +232,7 @@ func (h handlers) MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallT
 	}
 	owner, repo := *a.Owner, *a.Repo
 	err = h.service().MarkRepoRead(ctx, owner, repo, a.LastReadAt)
-	logAPICall(ctx, "PUT", forge.APIPath("repos", owner, repo, "notifications"), started, err)
+	logAPICall(ctx, "PUT", apiEndpoint("repos", owner, repo, "notifications"), started, err)
 	if err != nil {
 		return finish(ctx, MarkRepoNotificationsReadToolName, started, "", nil, err)
 	}

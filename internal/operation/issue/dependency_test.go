@@ -99,13 +99,15 @@ func TestListIssueDependencies_PagesAndEchoesThem(t *testing.T) {
 	}
 }
 
-func TestListIssueDependencies_UnknownIssueIsEmpty(t *testing.T) {
+// A missing issue is a not-found, not an empty list: an empty answer would read
+// as "no dependencies" for a mistyped index.
+func TestListIssueDependencies_UnknownIssueIsNotFound(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 	for name, fn := range map[string]toolFn{"dependencies": h.ListIssueDependenciesFn, "dependents": h.ListIssueDependentsFn} {
-		out := call(t, fn, map[string]any{"index": float64(42)})
-		if !strings.Contains(out, `"issues":[]`) || !strings.Contains(out, `"page":1`) || !strings.Contains(out, `"limit":20`) {
-			t.Fatalf("%s: expected an empty result echoing page/limit, got %q", name, out)
+		out := callErr(t, fn, map[string]any{"index": float64(42)})
+		if !strings.Contains(out, "not found") {
+			t.Fatalf("%s: expected a not-found error, got %q", name, out)
 		}
 	}
 }

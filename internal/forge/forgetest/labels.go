@@ -111,7 +111,9 @@ func RunLabels(t *testing.T, newHarness func(t *testing.T) Harness) {
 			must(t, h.Port.DeleteOrgLabel(ctx, "acme", l.ID))
 			wantNotFound(t, h.Port.DeleteOrgLabel(ctx, "acme", l.ID))
 		}},
-		{"org labels paginate and an unknown org has none", func(t *testing.T, h Harness) {
+		{"org labels paginate", func(t *testing.T, h Harness) {
+			_, err := h.Port.CreateOrg(ctx, forgejo_sdk.CreateOrgOption{Name: "acme"})
+			must(t, err)
 			for _, n := range []string{"a", "b", "c"} {
 				_, err := h.Port.CreateOrgLabel(ctx, "acme", forgejo_sdk.CreateLabelOption{Name: n, Color: "#0000ff"})
 				must(t, err)
@@ -125,9 +127,17 @@ func RunLabels(t *testing.T, newHarness func(t *testing.T) Harness) {
 			second, _, err := h.Port.ListOrgLabels(ctx, "acme", 2, 2)
 			must(t, err)
 			wantNames(t, second, "c")
-			none, _, err := h.Port.ListOrgLabels(ctx, "ghost", 1, 10)
+		}},
+		{"org labels of an existing org with none are empty", func(t *testing.T, h Harness) {
+			_, err := h.Port.CreateOrg(ctx, forgejo_sdk.CreateOrgOption{Name: "vacant"})
+			must(t, err)
+			none, _, err := h.Port.ListOrgLabels(ctx, "vacant", 1, 10)
 			must(t, err)
 			wantNames(t, none)
+		}},
+		{"org labels of an unknown org are not found", func(t *testing.T, h Harness) {
+			_, _, err := h.Port.ListOrgLabels(ctx, "ghost", 1, 10)
+			wantNotFound(t, err)
 		}},
 		{"issue labels add and remove, org labels included", func(t *testing.T, h Harness) {
 			h.Seed.AddRepo("acme", "anvil")

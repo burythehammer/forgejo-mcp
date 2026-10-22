@@ -57,8 +57,11 @@ func (a *Adapter) WithRawBaseURL(url string) *Adapter {
 // to the SDK by the adapter methods: the SDK client carries no per-call
 // context, and the request deadline is the HTTP client's.
 func statusErr(resp *forgejo_sdk.Response, err error) error {
-	if err == nil || resp == nil || resp.Response == nil {
-		return err
+	if err == nil {
+		return nil
+	}
+	if resp == nil || resp.Response == nil {
+		return deadlineErr(err)
 	}
 	return &forge.StatusError{StatusCode: resp.StatusCode, Err: err}
 }

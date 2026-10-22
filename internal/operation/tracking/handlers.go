@@ -74,6 +74,12 @@ type deleteEntryArgs struct {
 
 type noArgs struct{}
 
+// myTimesArgs are list_my_tracked_times' arguments: the page to read.
+type myTimesArgs struct {
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
+}
+
 // paging reads the page and limit arguments: a page of zero is page 1, and a
 // fractional number is truncated. An absent limit stays 0, which the use case
 // replaces with the tool's default, lowered to the instance ceiling.
@@ -142,8 +148,9 @@ func (h handlers) ListRepoTrackedTimesFn(ctx context.Context, req mcp.CallToolRe
 }
 
 func (h handlers) ListMyTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListMyTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, _ noArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.MyTimes(ctx))
+	return run(ctx, h, req, "ListMyTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a myTimesArgs) (*mcp.CallToolResult, error) {
+		page, limit := paging(a.Page, a.Limit)
+		return mcpresult.Render(s.MyTimes(ctx, apptracking.MyTimesInput{Page: page, Limit: limit}))
 	})
 }
 

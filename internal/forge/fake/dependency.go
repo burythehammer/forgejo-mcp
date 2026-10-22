@@ -48,7 +48,11 @@ func (f *Forgejo) relatedIssues(k depKey, dependents bool) []*forgejo_sdk.Issue 
 func (f *Forgejo) listRelated(owner, repo string, index int64, pg, limit int, dependents bool) ([]*forgejo_sdk.Issue, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
-	// Unknown issues list as empty, as Forgejo's 404 does through the adapter.
+	// A missing issue is not found, not an empty list: Forgejo's 404 is ambiguous
+	// and the SDK adapter probes the parent to tell the two apart.
+	if err := f.requireIssue(owner, repo, index); err != nil {
+		return nil, err
+	}
 	all := f.relatedIssues(keyOf(owner, repo, index), dependents)
 	lo, hi := page(forgejo_sdk.ListOptions{Page: pg, PageSize: limit}, len(all))
 	out := all[lo:hi]

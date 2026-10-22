@@ -26,24 +26,36 @@
 # printed unconditionally, not something a script can check ahead of time.
 #
 # Usage:
-#   scripts/ci/check-castra-release-onboarding.sh [owner/repo]
+#   FORGEJO_URL=<forge> scripts/ci/check-castra-release-onboarding.sh [owner/repo]
 #
-# Environment:
-#   FORGEJO_URL    forge base URL   (default https://git.b4mad.industries)
-#   FORGEJO_TOKEN  required for the webhook check (hook listing is
-#                  admin-only); the OWNERS check works without it on a public
-#                  repo.
+# Environment (both required; there is no default host, so the token is never
+# sent to a host you did not name):
+#   FORGEJO_URL    forge base URL, e.g. https://forgejo.burythehammer.com
+#   FORGEJO_TOKEN  sent to FORGEJO_URL; needed for the webhook check (hook
+#                  listing is admin-only) and for private repos
 #
 # Exit codes:
 #   0  release-manager list is non-empty AND a matching active webhook exists
 #   1  either check ran and failed
-#   0  (with a warning) when curl/jq, or FORGEJO_TOKEN for the webhook check,
-#      are unavailable — same convention as check-pr-ci-ran.sh: don't block
-#      a contributor who can't run the full check, just say so loudly
+#   2  FORGEJO_URL or FORGEJO_TOKEN is not set (refused before any request)
+#   0  (with a warning) when curl/jq are unavailable — same convention as
+#      check-pr-ci-ran.sh: don't block a contributor who can't run the full
+#      check, just say so loudly
 
 set -eu
 
-FORGE="${FORGEJO_URL:-https://git.b4mad.industries}"
+if [ -z "${FORGEJO_URL:-}" ]; then
+  echo "check-castra-release-onboarding: FORGEJO_URL is not set. Set it to the forge to check," >&2
+  echo "  e.g. FORGEJO_URL=https://forgejo.burythehammer.com. There is no default host." >&2
+  exit 2
+fi
+if [ -z "${FORGEJO_TOKEN:-}" ]; then
+  echo "check-castra-release-onboarding: FORGEJO_TOKEN is not set. Export it before running;" >&2
+  echo "  it is sent to FORGEJO_URL only." >&2
+  exit 2
+fi
+
+FORGE="$FORGEJO_URL"
 REPO="${1:-agentic-forges/forgejo-mcp}"
 WEBHOOK_URL="https://webhooks.castra.b4mad.industries"
 
