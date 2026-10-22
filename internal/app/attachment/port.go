@@ -9,7 +9,6 @@ package attachment
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -31,11 +30,6 @@ func (s Scope) label() string {
 	}
 	return "issue"
 }
-
-// ErrNotFound is what Port.List returns for a parent Forgejo does not know. A
-// list treats it as an empty list: Forgejo answers 404 for a parent with no
-// attachments as often as for a missing one.
-var ErrNotFound = errors.New("attachment parent not found")
 
 // Port is the attachment domain as the use cases need it, in repo-owned types.
 // internal/forge/attachmentadapter implements it over forge.Attachments.

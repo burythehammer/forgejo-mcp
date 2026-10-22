@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/download"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
 )
 
@@ -43,7 +44,7 @@ func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent
 	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Attachment], error) {
 			all, err := s.p.List(ctx, owner, repo, sc, parent)
-			if err != nil && !errors.Is(err, ErrNotFound) {
+			if err != nil && !forge.IsNotFound(err) {
 				return list.Batch[*model.Attachment]{}, fmt.Errorf("list %s attachments err: %w", sc.label(), err)
 			}
 			rows := list.Cut(all, q).Items
