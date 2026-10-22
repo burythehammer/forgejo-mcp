@@ -498,7 +498,7 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 Each tool definition sends a description and a property description for every argument, and mcp-go adds annotations to every tool. `--lean` (or `FORGEJO_MCP_LEAN=1`; the flag wins over the variable) serves the same tools with terse text:
 
 - each tool description is cut to its first sentence;
-- a property description is kept only where the argument has a format, an allowed-value list, or a rule its name and type do not show (comma-separated lists, RFC3339 times, `state`, `sort`, `content`, and similar); the rest are removed. `verbose` keeps its argument and loses its description;
+- a property description is kept only where the argument has a format, an allowed-value list, or a rule its name and type do not show (comma-separated lists, RFC3339 times, `state`, `sort`, and similar); the rest are removed. `verbose` keeps its argument and loses its description;
 - annotations are sent as an empty object.
 
 Tool names, argument names and required lists are unchanged, so a prompt or script written for the full text still works. Lean mode is a rewrite at registration (`internal/lean/`), not a second set of descriptions.
@@ -507,8 +507,8 @@ Measured by running the server over stdio on this build, for the whole catalogue
 
 | Text | Bytes of the `tools/list` response | ~Tokens |
 |---|---:|---:|
-| Full (default) | 127,184 | 31,796 |
-| `--lean` | 69,327 | 17,332 |
+| Full (default) | 127,243 | 31,811 |
+| `--lean` | 59,033 | 14,758 |
 
 The estimate is bytes divided by 4, as in the standing-cost table below.
 
@@ -558,7 +558,7 @@ The list was inferred from the tfuk-specflow ticket texts, not from its code, so
 
 | Selection | Tools | Bytes | ~Tokens | Resource templates, ~tokens |
 |---|---:|---:|---:|---:|
-| Default (no selection) | 167 | 126,572 | 31,643 | 1,896 |
+| Default (no selection) | 167 | 127,243 | 31,811 | 1,896 |
 | `issues,labels,milestones,dependencies,user` | 39 | 31,752 | 7,938 | 813 |
 | `--preset tracker-core` | 24 | 22,897 | 5,724 | 0 |
 | `--preset tracker-core --lean` | 24 | 10,852 | 2,713 | 0 |

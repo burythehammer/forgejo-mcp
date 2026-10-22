@@ -50,5 +50,5 @@ The default summary shape of a tool's entity. The write tools return it, and so 
 _Avoid_: short result, slim response
 
 **Lean mode**:
-The opt-in setting (`--lean`, or `FORGEJO_MCP_LEAN`, the flag winning) that serves terse tool text: each tool description cut to its first sentence, property descriptions removed except where an argument has a format or an allowed-value list, and annotations sent empty. Tool names and argument names are the same as in the full text. It is a rewrite at registration in `internal/lean/`, not a second set of descriptions.
+The opt-in setting (`--lean`, or `FORGEJO_MCP_LEAN`, the flag winning) that serves terse tool text: each tool description cut to its first sentence, property descriptions removed except where an argument has a format, an allowed-value list, or a rule its name and type do not show, and annotations sent empty. Tool names and argument names are the same as in the full text. It is a rewrite at registration in `internal/lean/`, not a second set of descriptions.
 _Avoid_: profile, bundle, tier, terse mode
