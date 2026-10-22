@@ -4,6 +4,7 @@ package sdk
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -107,5 +108,42 @@ func TestUploadOutlivesTheSharedRequestTimeout(t *testing.T) {
 	up := forge.Upload{Filename: "x.bin", Content: strings.NewReader("payload")}
 	if _, err := port.CreateIssueAttachment(context.Background(), "owner", "repo", 1, up); err != nil {
 		t.Fatalf("upload cut off by the request timeout: %v", err)
+	}
+}
+
+// Cancelling the request context stops an SDK-backed call against a stalled
+// Forgejo promptly, long before the request timeout would. Both credential
+// paths are covered: the operator's client and a per-request token's client.
+func TestSDKCallStopsWhenRequestIsCancelled(t *testing.T) {
+	t.Parallel()
+	cases := map[string]func(context.Context) context.Context{
+		"operator": forge.WithOperatorCredential,
+		"request token": func(ctx context.Context) context.Context {
+			return forge.WithToken(ctx, "decoy-request-token")
+		},
+	}
+	for name, bind := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			srv := stalledServer(t)
+			f := newTimedFactory(t, srv.URL, time.Minute)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			port, err := f.For(bind(ctx))
+			if err != nil {
+				t.Fatalf("For: %v", err)
+			}
+			time.AfterFunc(100*time.Millisecond, cancel)
+
+			start := time.Now()
+			_, err = port.GetRepo(ctx, "owner", "repo")
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("expected context.Canceled, got %v", err)
+			}
+			if elapsed := time.Since(start); elapsed > 5*time.Second {
+				t.Fatalf("cancelled call returned after %s, want it prompt", elapsed)
+			}
+		})
 	}
 }

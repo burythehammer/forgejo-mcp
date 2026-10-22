@@ -31,7 +31,7 @@ func TestFactory_WithContextToken(t *testing.T) {
 	f := NewFactory(config.Forgejo{URL: srv.URL, Token: config.NewSecret("global-token")}, "test")
 
 	// 1. A request the port marked for the operator's credential is served by
-	// the operator's shared client.
+	// a client of its own, so its context cannot reach another request.
 	p1, err := f.For(forge.WithOperatorCredential(context.Background()))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -40,8 +40,8 @@ func TestFactory_WithContextToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if p1.(*Adapter).client != p1b.(*Adapter).client {
-		t.Fatal("expected the operator's shared client to be reused")
+	if p1.(*Adapter).client == p1b.(*Adapter).client {
+		t.Fatal("expected each operator request to get its own client, not a shared one")
 	}
 
 	// 2. A request with a token gets its own ephemeral client.
