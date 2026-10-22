@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -38,6 +39,7 @@ const (
 var (
 	CreateRepoLabelTool = mcp.NewTool(
 		CreateRepoLabelToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create a repository label. Returns the created label including its numeric id."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -49,6 +51,7 @@ var (
 
 	EditRepoLabelTool = mcp.NewTool(
 		EditRepoLabelToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit a repository label (PATCH — only supplied fields change). Providing no fields is an error."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -61,6 +64,7 @@ var (
 
 	DeleteRepoLabelTool = mcp.NewTool(
 		DeleteRepoLabelToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a repository label. By default refuses if the label is in use; set delete_mode=force to override."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -70,6 +74,7 @@ var (
 
 	GetRepoLabelTool = mcp.NewTool(
 		GetRepoLabelToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get a single repository label by ID."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -78,6 +83,7 @@ var (
 
 	CreateOrgLabelTool = mcp.NewTool(
 		CreateOrgLabelToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create an organization-level label. Returns the created label including its numeric id."),
 		mcp.WithString("org", mcp.Required(), mcp.Description("Organization name")),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Label name")),
@@ -88,6 +94,7 @@ var (
 
 	EditOrgLabelTool = mcp.NewTool(
 		EditOrgLabelToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit an organization-level label (PATCH — only supplied fields change). Providing no fields is an error."),
 		mcp.WithString("org", mcp.Required(), mcp.Description("Organization name")),
 		mcp.WithNumber("id", mcp.Required(), mcp.Description("Label ID")),
@@ -99,6 +106,7 @@ var (
 
 	DeleteOrgLabelTool = mcp.NewTool(
 		DeleteOrgLabelToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete an organization-level label. By default refuses if the label is in use; set delete_mode=force to override. Note: in-use count is best-effort over repos visible to the token and may under-count."),
 		mcp.WithString("org", mcp.Required(), mcp.Description("Organization name")),
 		mcp.WithNumber("id", mcp.Required(), mcp.Description("Label ID")),
@@ -107,6 +115,7 @@ var (
 
 	GetOrgLabelTool = mcp.NewTool(
 		GetOrgLabelToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get a single organization-level label by ID."),
 		mcp.WithString("org", mcp.Required(), mcp.Description("Organization name")),
 		mcp.WithNumber("id", mcp.Required(), mcp.Description("Label ID")),

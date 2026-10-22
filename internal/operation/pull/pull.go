@@ -4,6 +4,7 @@ package pull
 
 import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 
@@ -27,6 +28,7 @@ const (
 var (
 	GetPullRequestByIndexTool = mcp.NewTool(
 		GetPullRequestByIndexToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get pull request by index"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -36,6 +38,7 @@ var (
 
 	ListRepoPullRequestsTool = mcp.NewTool(
 		ListRepoPullRequestsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List repo pull requests. Returns a response envelope {pull_requests, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -49,6 +52,7 @@ var (
 
 	CreatePullRequestTool = mcp.NewTool(
 		CreatePullRequestToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create pull request"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -61,6 +65,7 @@ var (
 
 	UpdatePullRequestTool = mcp.NewTool(
 		UpdatePullRequestToolName,
+		annotate.Write(),
 		mcp.WithDescription("Update pull request"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -75,6 +80,7 @@ var (
 
 	ListPullReviewsTool = mcp.NewTool(
 		ListPullReviewsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List reviews for a pull request. Returns a response envelope {reviews, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -85,6 +91,7 @@ var (
 
 	GetPullReviewTool = mcp.NewTool(
 		GetPullReviewToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get a specific pull request review"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -95,6 +102,7 @@ var (
 
 	ListPullReviewCommentsTool = mcp.NewTool(
 		ListPullReviewCommentsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List comments on a pull request review, one page at a time (page, limit; default 20). The response's has_next says whether more follow."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -106,6 +114,7 @@ var (
 
 	ListPullRequestFilesTool = mcp.NewTool(
 		ListPullRequestFilesToolName,
+		annotate.Read(),
 		mcp.WithDescription("List changed files in a pull request. Returns a response envelope {files, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -116,6 +125,7 @@ var (
 
 	GetPullRequestDiffTool = mcp.NewTool(
 		GetPullRequestDiffToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get the unified diff of a pull request, one page of whole files at a time (page, limit; default 50 files, so a pull request of ordinary size comes back whole). When files follow the page, the output ends with a truncation marker naming the next page. Pass an optional file_path to receive only the hunks for that file (match is exact on either the pre- or post-rename path); file_path ignores page and limit. Use list_pull_request_files first to discover the file paths in the PR."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -127,6 +137,7 @@ var (
 
 	MergePullRequestTool = mcp.NewTool(
 		MergePullRequestToolName,
+		annotate.Write(),
 		mcp.WithDescription("Merge a pull request"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

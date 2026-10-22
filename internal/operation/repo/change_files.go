@@ -9,6 +9,7 @@ import (
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -20,6 +21,7 @@ const ChangeFilesToolName = "change_files"
 
 var ChangeFilesTool = mcp.NewTool(
 	ChangeFilesToolName,
+	annotate.Write(),
 	mcp.WithDescription("Atomically create, update, and delete multiple repository files in one native Forgejo commit. The complete batch is validated before the write; create/update operations require exactly one of `content` or `content_base64`, and update/delete operations require the current file SHA. Existing single-file tools remain available."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

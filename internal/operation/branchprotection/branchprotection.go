@@ -15,6 +15,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/branchprotectionadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -35,6 +36,7 @@ const (
 var (
 	ListBranchProtectionsTool = mcp.NewTool(
 		ListBranchProtectionsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List a repository's branch protection rules (bounded by page/limit). Returns a response envelope {branch_protections, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -44,6 +46,7 @@ var (
 
 	GetBranchProtectionTool = mcp.NewTool(
 		GetBranchProtectionToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get a single branch protection rule by name"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -52,6 +55,7 @@ var (
 
 	CreateBranchProtectionTool = mcp.NewTool(
 		CreateBranchProtectionToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create a branch protection rule (e.g. require status checks before merge)"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -68,6 +72,7 @@ var (
 
 	EditBranchProtectionTool = mcp.NewTool(
 		EditBranchProtectionToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit a branch protection rule. Only fields you pass are changed; omitted fields are left untouched."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -89,6 +94,7 @@ var (
 
 	DeleteBranchProtectionTool = mcp.NewTool(
 		DeleteBranchProtectionToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a branch protection rule by name"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

@@ -12,6 +12,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	appuser "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/user"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -31,6 +32,7 @@ const (
 var (
 	CheckNotificationsTool = mcp.NewTool(
 		CheckNotificationsToolName,
+		annotate.Read(),
 		mcp.WithDescription("Check and list user notifications (page/limit). Returns a response envelope {notifications, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithBoolean("all", mcp.Description("Include read notifications (default: false)")),
 		mcp.WithString("since", mcp.Description(params.Since)),
@@ -41,24 +43,28 @@ var (
 
 	GetNotificationThreadTool = mcp.NewTool(
 		GetNotificationThreadToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get detailed info on a single notification thread"),
 		mcp.WithNumber("id", mcp.Description("Notification ID"), mcp.Required()),
 	)
 
 	MarkNotificationReadTool = mcp.NewTool(
 		MarkNotificationReadToolName,
+		annotate.Write(),
 		mcp.WithDescription("Mark a single notification thread as read"),
 		mcp.WithNumber("id", mcp.Description("Notification ID"), mcp.Required()),
 	)
 
 	MarkAllNotificationsReadTool = mcp.NewTool(
 		MarkAllNotificationsReadToolName,
+		annotate.Write(),
 		mcp.WithDescription("Acknowledge all notifications"),
 		mcp.WithString("last_read_at", mcp.Description("Optional RFC3339 time")),
 	)
 
 	ListRepoNotificationsTool = mcp.NewTool(
 		ListRepoNotificationsToolName,
+		annotate.Read(),
 		mcp.WithDescription("Filter notifications scoped to a single repository (page/limit). Returns a response envelope {notifications, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Description("Repository owner"), mcp.Required()),
 		mcp.WithString("repo", mcp.Description("Repository name"), mcp.Required()),
@@ -71,6 +77,7 @@ var (
 
 	MarkRepoNotificationsReadTool = mcp.NewTool(
 		MarkRepoNotificationsReadToolName,
+		annotate.Write(),
 		mcp.WithDescription("Mark all notifications in a specific repo as read"),
 		mcp.WithString("owner", mcp.Description("Repository owner"), mcp.Required()),
 		mcp.WithString("repo", mcp.Description("Repository name"), mcp.Required()),

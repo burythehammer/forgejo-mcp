@@ -6,6 +6,7 @@
 package release
 
 import (
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -38,6 +39,7 @@ const (
 var (
 	ListReleasesTool = mcp.NewTool(
 		ListReleasesToolName,
+		annotate.Read(),
 		mcp.WithDescription("List releases for a repository. Returns a response envelope {releases, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. The state filter is applied client-side after pagination, so count may be smaller than limit even when more matches exist on later pages."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -48,6 +50,7 @@ var (
 
 	GetReleaseByIDTool = mcp.NewTool(
 		GetReleaseByIDToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get a release by numeric ID."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -56,6 +59,7 @@ var (
 
 	GetReleaseByTagTool = mcp.NewTool(
 		GetReleaseByTagToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get a release by tag name."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -64,6 +68,7 @@ var (
 
 	GetLatestReleaseTool = mcp.NewTool(
 		GetLatestReleaseToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get the latest non-draft, non-prerelease release."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -71,6 +76,7 @@ var (
 
 	CreateReleaseTool = mcp.NewTool(
 		CreateReleaseToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create a release. If the tag does not yet exist, pass target_commitish so Forgejo creates the tag."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -84,6 +90,7 @@ var (
 
 	EditReleaseTool = mcp.NewTool(
 		EditReleaseToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit an existing release. Only fields supplied by the caller are sent to Forgejo."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -98,6 +105,7 @@ var (
 
 	DeleteReleaseTool = mcp.NewTool(
 		DeleteReleaseToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a release by numeric ID. Destructive."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -106,6 +114,7 @@ var (
 
 	DeleteReleaseByTagTool = mcp.NewTool(
 		DeleteReleaseByTagToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a release by tag name. Destructive — verify tag before calling."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -114,6 +123,7 @@ var (
 
 	ListReleaseAttachmentsTool = mcp.NewTool(
 		ListReleaseAttachmentsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List attachments on a release. Returns a response envelope {attachments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. The Forgejo API does not paginate this endpoint server-side, so the response is fetched in full and then sliced client-side; large attachment sets are still fully transferred from Forgejo before slicing."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -124,6 +134,7 @@ var (
 
 	GetReleaseAttachmentTool = mcp.NewTool(
 		GetReleaseAttachmentToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get metadata for a single release attachment."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -133,6 +144,7 @@ var (
 
 	DownloadReleaseAttachmentTool = mcp.NewTool(
 		DownloadReleaseAttachmentToolName,
+		annotate.Read(),
 		mcp.WithDescription("Download a release attachment. Files at or above the inline cap return metadata + browser_download_url only; the caller is expected to fetch that URL with the same auth token."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -142,6 +154,7 @@ var (
 
 	CreateReleaseAttachmentTool = mcp.NewTool(
 		CreateReleaseAttachmentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Upload an attachment to a release from exactly one of base64 content or a file path on the forgejo-mcp host."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -154,6 +167,7 @@ var (
 
 	EditReleaseAttachmentTool = mcp.NewTool(
 		EditReleaseAttachmentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Rename a release attachment."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -164,6 +178,7 @@ var (
 
 	DeleteReleaseAttachmentTool = mcp.NewTool(
 		DeleteReleaseAttachmentToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a release attachment. Destructive."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

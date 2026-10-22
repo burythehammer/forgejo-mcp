@@ -4,6 +4,7 @@ package search
 
 import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -19,6 +20,7 @@ const (
 var (
 	SearchUsersTool = mcp.NewTool(
 		SearchUsersToolName,
+		annotate.Read(),
 		mcp.WithDescription("Search users. Returns a response envelope {users, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("keyword", mcp.Description(params.Keyword)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -27,6 +29,7 @@ var (
 
 	SearchOrgTeamsTool = mcp.NewTool(
 		SearchOrgTeamsToolName,
+		annotate.Read(),
 		mcp.WithDescription("Search org teams. Returns a response envelope {teams, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithString("keyword", mcp.Description(params.Keyword)),
@@ -36,6 +39,7 @@ var (
 
 	SearchReposTool = mcp.NewTool(
 		SearchReposToolName,
+		annotate.Read(),
 		mcp.WithDescription("Search repos. Returns a response envelope {repositories, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("keyword", mcp.Description(params.Keyword)),
 		mcp.WithString("sort", mcp.Description(params.Sort), mcp.DefaultString("updated")),

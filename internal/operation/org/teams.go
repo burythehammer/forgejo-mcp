@@ -3,6 +3,7 @@
 package org
 
 import (
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -20,6 +21,7 @@ const (
 var (
 	ListOrgTeamsTool = mcp.NewTool(
 		ListOrgTeamsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List teams in an organization. Returns a response envelope {teams, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
@@ -28,6 +30,7 @@ var (
 
 	CreateOrgTeamTool = mcp.NewTool(
 		CreateOrgTeamToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create a team in an organization"),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Team name")),
@@ -39,6 +42,7 @@ var (
 
 	AddTeamMemberTool = mcp.NewTool(
 		AddTeamMemberToolName,
+		annotate.Write(),
 		mcp.WithDescription("Add a user to a team"),
 		mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 		mcp.WithString("user", mcp.Required(), mcp.Description(params.User)),
@@ -46,6 +50,7 @@ var (
 
 	RemoveTeamMemberTool = mcp.NewTool(
 		RemoveTeamMemberToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Remove a user from a team"),
 		mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 		mcp.WithString("user", mcp.Required(), mcp.Description(params.User)),
@@ -53,6 +58,7 @@ var (
 
 	AddTeamRepoTool = mcp.NewTool(
 		AddTeamRepoToolName,
+		annotate.Write(),
 		mcp.WithDescription("Add a repository to a team"),
 		mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
@@ -61,6 +67,7 @@ var (
 
 	RemoveTeamRepoTool = mcp.NewTool(
 		RemoveTeamRepoToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Remove a repository from a team"),
 		mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Team ID")),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),

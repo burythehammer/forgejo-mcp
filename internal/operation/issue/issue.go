@@ -9,6 +9,7 @@ import (
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
@@ -56,6 +57,7 @@ const (
 var (
 	GetIssueByIndexTool = mcp.NewTool(
 		GetIssueByIndexToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get issue by index"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -66,6 +68,7 @@ var (
 
 	ListRepoIssuesTool = mcp.NewTool(
 		ListRepoIssuesToolName,
+		annotate.Read(),
 		mcp.WithDescription("List repo issues (page/limit). Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -81,6 +84,7 @@ var (
 
 	CreateIssueTool = mcp.NewTool(
 		CreateIssueToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create issue, optionally with labels (by name or ID), assignees and a milestone in the same call"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -95,6 +99,7 @@ var (
 
 	CreateIssueCommentTool = mcp.NewTool(
 		CreateIssueCommentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create issue comment"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -105,6 +110,7 @@ var (
 
 	UpdateIssueTool = mcp.NewTool(
 		UpdateIssueToolName,
+		annotate.Write(),
 		mcp.WithDescription("Update issue. 'set_labels' replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -123,6 +129,7 @@ var (
 
 	ReplaceIssueBodyLineTool = mcp.NewTool(
 		ReplaceIssueBodyLineToolName,
+		annotate.Write(),
 		mcp.WithDescription("Replace one exact piece of an issue's body on the server, without sending the whole body. 'old' is matched as a case-sensitive substring (it may span a whole line) and must occur exactly once: zero matches or several refuse with the body left unchanged, and several report the count. 'old' must not be empty. Pull request indexes are refused. Limitation: Forgejo has no compare-and-swap for issue edits, so an edit made between this call's read and write can be lost; compare updated_at in the result to detect that."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -133,6 +140,7 @@ var (
 
 	AddIssueLabelsTools = mcp.NewTool(
 		AddIssueLabelsToolName,
+		annotate.Write(),
 		mcp.WithDescription("Add labels to issue, by label name or numeric ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -143,6 +151,7 @@ var (
 
 	RemoveIssueLabelsTools = mcp.NewTool(
 		RemoveIssueLabelsToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Remove labels from issue, by label name or numeric ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -153,6 +162,7 @@ var (
 
 	IssueStateChangeTool = mcp.NewTool(
 		IssueStateChangeToolName,
+		annotate.Write(),
 		mcp.WithDescription("Change issue state"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -163,6 +173,7 @@ var (
 
 	ListIssueCommentsTool = mcp.NewTool(
 		ListIssueCommentsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List issue/PR comments. Returns a response envelope {comments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -175,6 +186,7 @@ var (
 
 	GetIssueCommentTool = mcp.NewTool(
 		GetIssueCommentToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get comment by ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -184,6 +196,7 @@ var (
 
 	EditIssueCommentTool = mcp.NewTool(
 		EditIssueCommentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit issue/PR comment"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -194,6 +207,7 @@ var (
 
 	DeleteIssueCommentTool = mcp.NewTool(
 		DeleteIssueCommentToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete issue/PR comment"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -202,6 +216,7 @@ var (
 
 	ListRepoMilestonesTool = mcp.NewTool(
 		ListRepoMilestonesToolName,
+		annotate.Read(),
 		mcp.WithDescription("List repository milestones. Returns a response envelope {milestones, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -212,6 +227,7 @@ var (
 
 	ListRepoLabelsTool = mcp.NewTool(
 		ListRepoLabelsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List repository labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the labels list; count includes them, while has_next and total_count describe the repository labels only. Each label carries a scope field of \"repo\" or \"org\"."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -222,6 +238,7 @@ var (
 
 	ListOrgLabelsTool = mcp.NewTool(
 		ListOrgLabelsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List organization-level labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. Each label carries a scope field of \"org\"."),
 		mcp.WithString("org", mcp.Required(), mcp.Description("Organization name")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -230,6 +247,7 @@ var (
 
 	SearchIssuesTool = mcp.NewTool(
 		SearchIssuesToolName,
+		annotate.Read(),
 		mcp.WithDescription("Search issues across every repository belonging to one owner (organization or user), without naming a repo. "+
 			"Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. "+
 			"has_next true means a further page may exist; re-issue the call with page incremented to fetch it. "+
