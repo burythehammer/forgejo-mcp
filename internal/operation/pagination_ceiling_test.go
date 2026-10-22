@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/tracking"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/wiki"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -19,13 +20,13 @@ import (
 // ceilingItems is the instance ceiling the list tools are run under.
 const ceilingItems = 2
 
-// unpagedListTools are list tools whose input schema has no page or limit: their
-// goldens are the same at every call shape, so there is no client-controlled
-// bound for the ceiling to apply to. Giving them one changes a tool schema,
-// which this ticket does not do, so they are left as they are.
-var unpagedListTools = map[string]bool{
-	repo.ListMyReposToolName:           true,
-	tracking.ListMyStopwatchesToolName: true,
+// ceilingExempt are list tools the instance ceiling does not reach yet. Each is
+// a subtest that skips with its reason, so the gap shows in every run.
+var ceilingExempt = map[string]string{
+	tracking.ListMyStopwatchesToolName: "no page or limit, so there is no client bound for the ceiling to apply to",
+	wiki.GetWikiRevisionsToolName:      "the revision history is deliberately not held to the ceiling (see wiki.Service.Revisions)",
+	repo.GetCommitStatusesToolName:     "clamps its own limit to 50 rather than calling the list module, so the ceiling is never read",
+	repo.GetRepoTreeToolName:           "passes page and limit to the tree endpoint and does not call the list module, so the ceiling is never read",
 }
 
 // TestCeilingListTools pins the instance ceiling on every paged list tool: a
@@ -35,7 +36,8 @@ var unpagedListTools = map[string]bool{
 func TestCeilingListTools(t *testing.T) {
 	t.Parallel()
 	for _, pt := range pageToolsTable {
-		if unpagedListTools[pt.tool] {
+		if reason, ok := ceilingExempt[pt.tool]; ok {
+			t.Run(pt.tool, func(t *testing.T) { t.Skip(reason) })
 			continue
 		}
 		t.Run(pt.tool+"/over_ceiling", func(t *testing.T) {
@@ -61,7 +63,7 @@ func ceilingInvoke(t *testing.T, pt pageTool, extra map[string]any) string {
 	t.Helper()
 	f := fake.New()
 	f.Now = func() time.Time { return pageNow }
-	pt.seed(t, f)
+	pt.seed(t, f, pageItems)
 	f.SetMaxResponseItems(ceilingItems)
 	s := server.NewMCPServer("test", "0")
 	RegisterTool(s, "test", fake.Factory{Forgejo: f})

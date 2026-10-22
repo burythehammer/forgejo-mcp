@@ -79,32 +79,30 @@ func paging(page, limit float64) (int, int) {
 // continuation probe. The X-Total-Count the wiki reports counts raw tree
 // entries, not pages, so it is not a grand total: it is neither reported as
 // total_count nor passed to the module.
-func (s *Service) List(ctx context.Context, r ListRequest) (model.WikiPageListResult, error) {
+func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.WikiPageSummary], error) {
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
 	page, limit := paging(r.Page, r.Limit)
 	if r.Limit <= 0 {
 		limit = list.DefaultLimit(defaultLimit, c)
 	}
-	res, err := list.Run(ctx, list.Paging{Page: page, Limit: limit}, c,
-		func(ctx context.Context, p list.Paging) (list.Batch[model.WikiPageMeta], error) {
+	return list.Run(ctx, list.Paging{Page: page, Limit: limit}, c,
+		func(ctx context.Context, p list.Paging) (list.Batch[model.WikiPageSummary], error) {
 			listed, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, p.Page, p.Limit)
 			if err != nil {
-				return list.Batch[model.WikiPageMeta]{}, fmt.Errorf("list wiki pages: %w", err)
+				return list.Batch[model.WikiPageSummary]{}, fmt.Errorf("list wiki pages: %w", err)
 			}
-			return list.Batch[model.WikiPageMeta]{Items: listed.Pages}, nil
+			return list.Batch[model.WikiPageSummary]{Items: wikiSummaries(listed.Pages)}, nil
 		})
-	if err != nil {
-		return model.WikiPageListResult{}, err
+}
+
+// wikiSummaries is each listed wiki page in its summary form.
+func wikiSummaries(pages []model.WikiPageMeta) []model.WikiPageSummary {
+	out := make([]model.WikiPageSummary, len(pages))
+	for i, p := range pages {
+		out[i] = model.WikiPageSummary{Title: p.Title, PageName: p.SubURL, SubURL: p.SubURL}
 	}
-	summaries := make([]model.WikiPageSummary, len(res.Items))
-	for i, p := range res.Items {
-		summaries[i] = model.WikiPageSummary{Title: p.Title, PageName: p.SubURL, SubURL: p.SubURL}
-	}
-	return model.WikiPageListResult{
-		Pages:    summaries,
-		PageMeta: model.PageMetaOf(res),
-	}, nil
+	return out
 }
 
 // Get returns a page's content, cut to the requested line range when one is
@@ -148,28 +146,39 @@ func (s *Service) Get(ctx context.Context, r GetRequest) (model.WikiPageView, er
 }
 
 // Revisions returns one page of a page's history, and whether another follows.
-func (s *Service) Revisions(ctx context.Context, r RevisionsRequest) (model.WikiRevisionsResult, error) {
+func (s *Service) Revisions(ctx context.Context, r RevisionsRequest) (list.Bounded[model.WikiRevisionSummary], error) {
 	page, limit := paging(r.Page, r.Limit)
-	revisions, err := s.port.GetWikiPageRevisions(ctx, r.Owner, r.Repo, r.PageName, page, limit)
-	if err != nil {
-		return model.WikiRevisionsResult{}, fmt.Errorf("get wiki revisions: %w", err)
-	}
-	hasNext := false
-	if len(revisions.Commits) == limit {
-		next, err := s.port.GetWikiPageRevisions(ctx, r.Owner, r.Repo, r.PageName, page+1, limit)
-		if err != nil {
-			return model.WikiRevisionsResult{}, fmt.Errorf("probe next wiki revision page: %w", err)
-		}
-		hasNext = len(next.Commits) > 0
-	}
-	summaries := make([]model.WikiRevisionSummary, len(revisions.Commits))
-	for i, c := range revisions.Commits {
-		summaries[i] = model.WikiRevisionSummary{SHA: c.SHA, Author: c.Author.Name, Message: c.Message}
-	}
-	// The total is the page's revision count from the body, which the port
-	// reports as Count.
-	return model.WikiRevisionsResult{Revisions: summaries, Page: page, HasNext: hasNext, TotalCount: revisions.Count}, nil
+	// The history has never been held to the instance ceiling, so the window
+	// reads through a source that reports none.
+	return list.Window(ctx, noCeiling{}, list.Paging{Page: page, Limit: limit}, limit,
+		func(ctx context.Context, q list.Paging) (list.Batch[model.WikiRevisionSummary], error) {
+			revisions, err := s.port.GetWikiPageRevisions(ctx, r.Owner, r.Repo, r.PageName, q.Page, q.Limit)
+			if err != nil {
+				return list.Batch[model.WikiRevisionSummary]{}, fmt.Errorf("get wiki revisions: %w", err)
+			}
+			// A full page may be the last, so the next page is probed once. The
+			// body's count is the grand total, reported as Total.
+			more := false
+			if len(revisions.Commits) == q.Limit {
+				next, err := s.port.GetWikiPageRevisions(ctx, r.Owner, r.Repo, r.PageName, q.Page+1, q.Limit)
+				if err != nil {
+					return list.Batch[model.WikiRevisionSummary]{}, fmt.Errorf("probe next wiki revision page: %w", err)
+				}
+				more = len(next.Commits) > 0
+			}
+			summaries := make([]model.WikiRevisionSummary, len(revisions.Commits))
+			for i, c := range revisions.Commits {
+				summaries[i] = model.WikiRevisionSummary{SHA: c.SHA, Author: c.Author.Name, Message: c.Message}
+			}
+			return list.Batch[model.WikiRevisionSummary]{Items: summaries, Total: list.Reported(revisions.Count, true), More: more}, nil
+		})
 }
+
+// noCeiling is the ceiling source of a listing the instance ceiling does not apply to.
+type noCeiling struct{}
+
+// MaxResponseItems reports no ceiling.
+func (noCeiling) MaxResponseItems(context.Context) (int, bool) { return 0, false }
 
 // Create adds a page and returns its title, name and commit.
 func (s *Service) Create(ctx context.Context, r CreateRequest) (model.WikiWriteResult, error) {

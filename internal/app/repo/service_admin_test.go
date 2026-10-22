@@ -299,7 +299,7 @@ func TestListRepoTopicsPagesReportTheNextMarker(t *testing.T) {
 				t.Fatal(err)
 			}
 			page, err := s.ListRepoTopics(ctx, owner, repo, apprepo.AdminPaging{Page: c.page, Limit: 2})
-			if err != nil || len(page.Topics) != c.want || page.Count != c.want || page.HasNext != c.hasNext || page.Page != c.page || page.Limit != 2 {
+			if err != nil || len(page.Items) != c.want || page.Count != c.want || page.HasNext != c.hasNext || page.Page != c.page || page.Limit != 2 {
 				t.Fatalf("topics: %+v, %v", page, err)
 			}
 		})

@@ -14,12 +14,13 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 const (
-	branchProtectionsResourceURITemplate = "forgejo://repo/{owner}/{repo}/branch_protections"
+	branchProtectionsResourceURITemplate = "forgejo://repo/{owner}/{repo}/branch_protections{?page,limit}"
 	branchProtectionResourceURITemplate  = "forgejo://repo/{owner}/{repo}/branch_protection/{rule}"
 )
 
@@ -48,9 +49,10 @@ func RegisterResource(s *server.MCPServer, f forge.Factory) {
 		h.branchProtectionsResourceHandler,
 		mcp.WithTemplateDescription(
 			"Branch protection rules for a Forgejo repository. "+
-				"URI: forgejo://repo/{owner}/{repo}/branch_protections. "+
-				"Returns the rules as a read-only JSON document, bounded to the first "+
-				"EmbeddedListCap rules; when truncated, use the list_branch_protections "+
+				"URI: forgejo://repo/{owner}/{repo}/branch_protections{?page,limit}. "+
+				"Returns the rules as a read-only JSON document, one page at a time: page "+
+				"(default 1) and limit (default and maximum EmbeddedListCap, 30) select the window. "+
+				"When truncated, pass the next page, or use the list_branch_protections "+
 				"tool to page through the remainder.",
 		),
 		mcp.WithTemplateMIMEType("application/json"),
@@ -92,7 +94,8 @@ func (h handlers) branchProtectionsResourceHandler(ctx context.Context, req mcp.
 		return nil, fmt.Errorf("forgejo client: %w", err)
 	}
 
-	col, err := appbp.New(branchprotectionadapter.New(port)).ReadCollection(ctx, p.Owner, p.Repo, resource.EmbeddedListCap)
+	page, limit := resource.PageLimit(req)
+	col, err := appbp.New(branchprotectionadapter.New(port)).ReadCollection(ctx, p.Owner, p.Repo, list.Paging{Page: page, Limit: limit})
 	if err != nil {
 		return nil, mapErr(uri, err)
 	}
@@ -100,13 +103,13 @@ func (h handlers) branchProtectionsResourceHandler(ctx context.Context, req mcp.
 	payload := bpCollectionPayload{
 		Owner:             p.Owner,
 		Repo:              p.Repo,
-		TotalCount:        len(col.Rules),
-		BranchProtections: col.Rules,
-		Truncated:         col.Truncated,
+		TotalCount:        col.Count,
+		BranchProtections: col.Items,
+		Truncated:         col.HasNext,
 	}
-	if col.Truncated {
+	if col.HasNext {
 		// The note names the list tool only when the registry has it.
-		bounded := resource.BoundedResult{Cap: resource.EmbeddedListCap, ListTool: ListBranchProtectionsToolName, Truncated: true}
+		bounded := resource.BoundedResult{Cap: limit, ListTool: ListBranchProtectionsToolName, Truncated: true}
 		payload.Sentinel = bounded.Sentinel()
 		payload.ListTool = resource.ToolRef(ListBranchProtectionsToolName)
 	}

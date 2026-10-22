@@ -63,9 +63,9 @@ type EditRequest struct {
 }
 
 // List returns one page of a repository's rules.
-func (s *Service) List(ctx context.Context, r ListRequest) (model.BranchProtectionList, error) {
+func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[*model.BranchProtection], error) {
 	if r.Owner == "" || r.Repo == "" {
-		return model.BranchProtectionList{}, fmt.Errorf("owner and repo are required")
+		return list.Bounded[*model.BranchProtection]{}, fmt.Errorf("owner and repo are required")
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
@@ -78,19 +78,13 @@ func (s *Service) List(ctx context.Context, r ListRequest) (model.BranchProtecti
 		limit = float64(list.DefaultLimit(100, c))
 	}
 	p := list.Paging{Page: int(page), Limit: int(limit)}
-	got, err := list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
+	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
 		rules, err := s.port.ListBranchProtections(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[*model.BranchProtection]{}, fmt.Errorf("list branch protections err: %w", err)
 		}
 		return list.Batch[*model.BranchProtection]{Items: rules}, nil
 	})
-	if err != nil {
-		return model.BranchProtectionList{}, err
-	}
-	return model.BranchProtectionList{
-		BranchProtections: got.Items, PageMeta: model.PageMetaOf(got),
-	}, nil
 }
 
 // Get returns one rule.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -132,5 +133,89 @@ func TestCommitResourceUncutCommitHasNoMarkers(t *testing.T) {
 	got, md := readCommitPage(t, h, commitURI(testSHA, ""))
 	if got.FilesTotal != 0 || got.FilesTruncated || got.FilesNext != "" || got.MessageTruncated || strings.Contains(md, "truncated") {
 		t.Fatalf("a small commit carries markers: %+v, %q", got, md)
+	}
+}
+
+// messagePartOf is the part of a commit message a resource read returns: the
+// commit's own message and the markers that resume it.
+type messagePartOf struct {
+	Commit struct {
+		Message string `json:"message"`
+	} `json:"commit"`
+	MessageTruncated bool   `json:"message_truncated"`
+	MessagePage      int    `json:"message_page"`
+	MessagePages     int    `json:"message_pages"`
+	MessageNext      string `json:"message_next"`
+}
+
+func readMessagePart(t *testing.T, h handlers, uri string) (messagePartOf, string) {
+	t.Helper()
+	contents, err := h.commitResourceHandler(context.Background(), mcp.ReadResourceRequest{
+		Params: mcp.ReadResourceParams{URI: uri},
+	})
+	if err != nil {
+		t.Fatalf("read %s: %v", uri, err)
+	}
+	var out messagePartOf
+	if err := json.Unmarshal([]byte(contents[0].(mcp.TextResourceContents).Text), &out); err != nil {
+		t.Fatal(err)
+	}
+	md := ""
+	if len(contents) > 1 {
+		md = contents[1].(mcp.TextResourceContents).Text
+	}
+	return out, md
+}
+
+// A message longer than one part is read part by part: each part names the
+// next, the parts join back to the whole message, and no part splits a rune.
+// The leading "a" makes the message an odd length, so the first part must back
+// off the rune that straddles the cap.
+func TestCommitResourceMessagePartsRejoinToTheWholeMessage(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	msg := "a" + strings.Repeat("é", 20000)
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, msg, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+
+	var joined strings.Builder
+	uri := commitURI(testSHA, "")
+	for part := 1; ; part++ {
+		got, md := readMessagePart(t, h, uri)
+		if got.MessagePage != part || got.MessagePages != 3 || !got.MessageTruncated {
+			t.Fatalf("part %d markers: page %d of %d, truncated %v", part, got.MessagePage, got.MessagePages, got.MessageTruncated)
+		}
+		if !utf8.ValidString(got.Commit.Message) || len(got.Commit.Message) > commitMessageCap {
+			t.Fatalf("part %d is not a valid part: %d bytes", part, len(got.Commit.Message))
+		}
+		if !strings.Contains(md, fmt.Sprintf("message truncated: part %d of 3", part)) {
+			t.Fatalf("part %d markdown lacks its marker: %.80q", part, md)
+		}
+		joined.WriteString(got.Commit.Message)
+		if got.MessageNext == "" {
+			if part != 3 {
+				t.Fatalf("last part is %d, want 3", part)
+			}
+			break
+		}
+		uri = got.MessageNext
+	}
+	if joined.String() != msg {
+		t.Fatalf("parts do not rejoin to the message: %d bytes, want %d", joined.Len(), len(msg))
+	}
+}
+
+// A message that fits in one part reads whole, whatever message_page asks, and
+// carries no message markers.
+func TestCommitResourceShortMessageIgnoresMessagePage(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, "short subject", "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	got, md := readMessagePart(t, h, commitURI(testSHA, "message_page=2"))
+	if got.Commit.Message != "short subject" || got.MessageTruncated || got.MessageNext != "" || strings.Contains(md, "truncated") {
+		t.Fatalf("short message carries parts or markers: %+v, %q", got, md)
 	}
 }

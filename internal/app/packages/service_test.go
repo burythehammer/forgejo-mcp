@@ -4,9 +4,7 @@ package packages_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -47,9 +45,8 @@ func TestListEmptyIsAnArrayNotNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := json.Marshal(got)
-	if !strings.Contains(string(b), `"packages":[]`) {
-		t.Fatalf("empty list should render as [], got %s", b)
+	if got.Items == nil || len(got.Items) != 0 {
+		t.Fatalf("empty list should be a non-nil empty page, got %+v", got)
 	}
 }
 
@@ -61,7 +58,7 @@ func TestListCarriesPageAndTotal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Count != 1 || got.HasNext || got.Page != 2 || got.Limit != 5 || got.TotalCount == nil || *got.TotalCount != 0 {
+	if got.Count != 1 || got.HasNext || got.Page != 2 || got.Limit != 5 || got.Total == nil || *got.Total != 0 {
 		t.Fatalf("got %+v", got)
 	}
 }
@@ -106,14 +103,14 @@ func TestListFilesPagesAndReportsHasNext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(second.Files) != 2 || second.Files[0].ID != 3 || !second.HasNext || (second.TotalCount == nil || *second.TotalCount != 5) {
+	if len(second.Items) != 2 || second.Items[0].ID != 3 || !second.HasNext || (second.Total == nil || *second.Total != 5) {
 		t.Fatalf("page 2: got %+v", second)
 	}
 	last, err := s.ListFiles(context.Background(), apppkg.ListFilesRequest{Coords: coords, Page: 3, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(last.Files) != 1 || last.HasNext {
+	if len(last.Items) != 1 || last.HasNext {
 		t.Fatalf("page 3: got %+v", last)
 	}
 }
@@ -124,9 +121,8 @@ func TestListFilesPastTheEndIsAnEmptyArray(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := json.Marshal(got)
-	if !strings.Contains(string(b), `"files":[]`) || got.TotalCount == nil || *got.TotalCount != 0 {
-		t.Fatalf("got %s", b)
+	if got.Items == nil || len(got.Items) != 0 || got.Total == nil || *got.Total != 0 {
+		t.Fatalf("got %+v", got)
 	}
 }
 
@@ -215,7 +211,7 @@ func TestListFilesEnvelopeOnAnExactMultiple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Page != 2 || got.Limit != 2 || got.Count != 2 || got.HasNext || got.TotalCount == nil || *got.TotalCount != 4 {
+	if got.Page != 2 || got.Limit != 2 || got.Count != 2 || got.HasNext || got.Total == nil || *got.Total != 4 {
 		t.Fatalf("got %+v", got)
 	}
 }

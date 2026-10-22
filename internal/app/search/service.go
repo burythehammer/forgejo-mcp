@@ -21,7 +21,7 @@ func New(port Port) *Service { return &Service{port: port} }
 const defaultLimit = 100
 
 // Users returns one page of the users matching q.
-func (s *Service) Users(ctx context.Context, q UserQuery) (model.UserSearchPage, error) {
+func (s *Service) Users(ctx context.Context, q UserQuery) (list.Bounded[*model.User], error) {
 	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.User, error) {
 		q.Paging = p
 		users, err := s.port.SearchUsers(ctx, q)
@@ -31,13 +31,13 @@ func (s *Service) Users(ctx context.Context, q UserQuery) (model.UserSearchPage,
 		return users, nil
 	})
 	if err != nil {
-		return model.UserSearchPage{}, err
+		return list.Bounded[*model.User]{}, err
 	}
-	return model.UserSearchPage{Users: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // OrgTeams returns one page of the teams of org matching q.
-func (s *Service) OrgTeams(ctx context.Context, org string, q TeamQuery) (model.TeamSearchPage, error) {
+func (s *Service) OrgTeams(ctx context.Context, org string, q TeamQuery) (list.Bounded[*model.Team], error) {
 	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.Team, error) {
 		q.Paging = p
 		teams, err := s.port.SearchOrgTeams(ctx, org, q)
@@ -47,13 +47,13 @@ func (s *Service) OrgTeams(ctx context.Context, org string, q TeamQuery) (model.
 		return teams, nil
 	})
 	if err != nil {
-		return model.TeamSearchPage{}, err
+		return list.Bounded[*model.Team]{}, err
 	}
-	return model.TeamSearchPage{Teams: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // Repos returns one page of the repositories matching q.
-func (s *Service) Repos(ctx context.Context, q RepoQuery) (model.RepositoryPage, error) {
+func (s *Service) Repos(ctx context.Context, q RepoQuery) (list.Bounded[*model.Repository], error) {
 	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.Repository, error) {
 		q.Paging = p
 		repos, err := s.port.SearchRepos(ctx, q)
@@ -63,7 +63,7 @@ func (s *Service) Repos(ctx context.Context, q RepoQuery) (model.RepositoryPage,
 		return repos, nil
 	})
 	if err != nil {
-		return model.RepositoryPage{}, err
+		return list.Bounded[*model.Repository]{}, err
 	}
-	return model.RepositoryPage{Repositories: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }

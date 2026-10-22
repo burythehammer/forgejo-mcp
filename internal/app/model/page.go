@@ -36,8 +36,8 @@ type PageMeta struct {
 	PageTotal
 }
 
-// PageMetaOf is the one place a list.Page becomes its response metadata.
-func PageMetaOf[T any](p list.Page[T]) PageMeta {
+// PageMetaOf is the one place a list.Bounded becomes its response metadata.
+func PageMetaOf[T any](p list.Bounded[T]) PageMeta {
 	return PageMeta{
 		PageWindow: PageWindow{Page: p.Page, Limit: p.Limit, Count: p.Count},
 		PageNext:   PageNext{HasNext: p.HasNext},

@@ -93,7 +93,7 @@ func (h handlers) ListActionRunArtifactsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return to.TextResult(list)
+	return to.TextResult(artifactPage(runID, list))
 }
 
 func (h handlers) GetActionArtifactFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
