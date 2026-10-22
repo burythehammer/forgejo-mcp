@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	appissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
@@ -168,7 +169,7 @@ func (a adapter) ListRepoMilestones(ctx context.Context, owner, repo string, m a
 func (a adapter) GetMilestone(ctx context.Context, owner, repo string, id int64) (*model.Milestone, error) {
 	m, err := a.s.GetMilestone(ctx, owner, repo, id)
 	if forge.IsNotFound(err) {
-		return nil, &appissue.NotFoundError{Err: fmt.Errorf("milestone %d not found", id)}
+		return nil, &forge.StatusError{StatusCode: http.StatusNotFound, Err: fmt.Errorf("milestone %d not found", id)}
 	}
 	return bridge.Convert[*model.Milestone](m, err)
 }
@@ -194,7 +195,7 @@ func (a adapter) EditMilestone(ctx context.Context, owner, repo string, id int64
 	}
 	m, err := a.s.EditMilestone(ctx, owner, repo, id, opt)
 	if forge.IsNotFound(err) {
-		return nil, &appissue.NotFoundError{Err: fmt.Errorf("milestone %d not found", id)}
+		return nil, &forge.StatusError{StatusCode: http.StatusNotFound, Err: fmt.Errorf("milestone %d not found", id)}
 	}
 	return bridge.Convert[*model.Milestone](m, err)
 }
@@ -220,11 +221,7 @@ func (a adapter) EditRepoLabel(ctx context.Context, owner, repo string, id int64
 }
 
 func (a adapter) DeleteRepoLabel(ctx context.Context, owner, repo string, id int64) error {
-	err := a.s.DeleteRepoLabel(ctx, owner, repo, id)
-	if forge.IsNotFound(err) {
-		return &appissue.NotFoundError{Err: err}
-	}
-	return err
+	return a.s.DeleteRepoLabel(ctx, owner, repo, id)
 }
 
 func (a adapter) ListOrgLabels(ctx context.Context, org string, p appissue.Paging) ([]*model.CatalogLabel, error) {

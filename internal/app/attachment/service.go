@@ -35,7 +35,7 @@ const defaultLimit = 20
 
 // List returns one page of the attachments of a parent with its next marker.
 // Forgejo does not page this listing, so the whole list is read and cut here.
-// A parent Forgejo does not know is an empty list. The page's attachments are
+// A parent Forgejo does not know is not found (forge.ErrNotFound). The page's attachments are
 // never nil.
 func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent int64, p Paging) (list.Bounded[*model.Attachment], error) {
 	max, known := s.p.MaxResponseItems(ctx)
@@ -43,7 +43,7 @@ func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent
 	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Attachment], error) {
 			all, err := s.p.List(ctx, owner, repo, sc, parent)
-			if err != nil && !errors.Is(err, ErrNotFound) {
+			if err != nil {
 				return list.Batch[*model.Attachment]{}, fmt.Errorf("list %s attachments err: %w", sc.label(), err)
 			}
 			rows := list.Cut(all, q).Items

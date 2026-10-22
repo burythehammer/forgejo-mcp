@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/labelresolve"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
 )
 
@@ -118,8 +119,7 @@ func (s *Service) DeleteRepoLabel(ctx context.Context, owner, repo string, id in
 		}
 	}
 	if err := s.port.DeleteRepoLabel(ctx, owner, repo, id); err != nil {
-		var nf *NotFoundError
-		if errors.As(err, &nf) {
+		if errors.Is(err, forge.ErrNotFound) {
 			return fmt.Errorf("label %d not found", id)
 		}
 		return fmt.Errorf("delete repo label: %w", err)

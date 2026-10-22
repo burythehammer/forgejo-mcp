@@ -154,14 +154,15 @@ func TestCommentAttachmentLifecycle(t *testing.T) {
 	}
 }
 
-func TestListUnknownParentIsEmptyArray(t *testing.T) {
+// A list under a missing parent fails with not found; it is never an empty array.
+func TestListUnknownParentIsNotFound(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	if body := text(t, ok(t, h.ListIssueAttachmentsFn, map[string]any{"index": 99.0})); !strings.Contains(body, "[]") {
-		t.Fatalf("issue: %s", body)
+	if msg := fails(t, h.ListIssueAttachmentsFn, map[string]any{"index": 99.0}); !strings.Contains(msg, "not found") {
+		t.Fatalf("issue: %s", msg)
 	}
-	if body := text(t, ok(t, h.ListCommentAttachmentsFn, map[string]any{"comment_id": 99.0})); !strings.Contains(body, "[]") {
-		t.Fatalf("comment: %s", body)
+	if msg := fails(t, h.ListCommentAttachmentsFn, map[string]any{"comment_id": 99.0}); !strings.Contains(msg, "not found") {
+		t.Fatalf("comment: %s", msg)
 	}
 }
 
