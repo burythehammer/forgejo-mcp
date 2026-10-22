@@ -33,6 +33,9 @@ type Issues interface {
 	DeleteIssueComment(ctx context.Context, owner, repo string, id int64) error
 
 	ListRepoMilestones(ctx context.Context, owner, repo string, opt forgejo_sdk.ListMilestoneOption) ([]*forgejo_sdk.Milestone, error)
+	GetMilestone(ctx context.Context, owner, repo string, id int64) (*forgejo_sdk.Milestone, error)
+	CreateMilestone(ctx context.Context, owner, repo string, opt forgejo_sdk.CreateMilestoneOption) (*forgejo_sdk.Milestone, error)
+	EditMilestone(ctx context.Context, owner, repo string, id int64, opt forgejo_sdk.EditMilestoneOption) (*forgejo_sdk.Milestone, error)
 
 	// MaxResponseItems is the instance's pagination ceiling; ok is false when
 	// it cannot be determined, which is "unknown", never a ceiling of zero.

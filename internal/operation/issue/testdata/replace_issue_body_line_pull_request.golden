@@ -1,0 +1,3 @@
+ERROR: #7 is a pull request; replace_issue_body_line edits issues only, nothing changed
+-- port calls --
+GetIssue ["octo","hello",7]

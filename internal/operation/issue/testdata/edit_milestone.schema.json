@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Edit a repository milestone. Only the fields given change. Set state to closed to close a milestone, or open to reopen it. Returns the milestone as the server stored it. A due date cannot be cleared.",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "New description",
+        "type": "string"
+      },
+      "due_date": {
+        "description": "New due date as an RFC3339 timestamp",
+        "type": "string"
+      },
+      "id": {
+        "description": "Milestone ID (a positive integer)",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "open or closed",
+        "type": "string"
+      },
+      "title": {
+        "description": "New title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "edit_milestone"
+}

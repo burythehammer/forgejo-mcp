@@ -16,6 +16,10 @@
         "description": "New label description",
         "type": "string"
       },
+      "exclusive": {
+        "description": "Exclusive flag to set or clear (see create). Omit to leave the stored value unchanged.",
+        "type": "boolean"
+      },
       "id": {
         "description": "Label ID",
         "type": "number"

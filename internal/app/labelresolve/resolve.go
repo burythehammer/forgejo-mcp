@@ -47,8 +47,8 @@ type Paging struct{ Page, Limit int }
 // Catalog lists the labels a repository and its organization carry. The
 // use case that owns the Forgejo port adapts its reads to this shape.
 type Catalog interface {
-	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.Label, error)
-	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.Label, error)
+	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.CatalogLabel, error)
+	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.CatalogLabel, error)
 	// MaxResponseItems is the instance's pagination ceiling; ok is false when
 	// it could not be determined.
 	MaxResponseItems(ctx context.Context) (limit int, ok bool)
@@ -73,6 +73,20 @@ func New(c Catalog) *Resolver { return &Resolver{catalog: c} }
 // names. An ID is honoured only when the catalogue has it, which turns a stale
 // ID into the same clear error as a stale name.
 func (r *Resolver) Resolve(ctx context.Context, owner, repo, csv string) ([]int64, error) {
+	labels, err := r.ResolveLabels(ctx, owner, repo, csv)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, len(labels))
+	for i, l := range labels {
+		ids[i] = l.ID
+	}
+	return ids, nil
+}
+
+// ResolveLabels is Resolve for callers that need each label's scope and
+// exclusive flag, not only its ID. Duplicates collapse, in request order.
+func (r *Resolver) ResolveLabels(ctx context.Context, owner, repo, csv string) ([]model.ScopedLabel, error) {
 	tokens := split.CSV(csv)
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("labels names nothing: pass at least one label name or numeric ID")
@@ -89,20 +103,20 @@ func (r *Resolver) Resolve(ctx context.Context, owner, repo, csv string) ([]int6
 		byID[l.ID] = l
 	}
 
-	ids := make([]int64, 0, len(tokens))
+	labels := make([]model.ScopedLabel, 0, len(tokens))
 	seen := make(map[int64]bool, len(tokens))
 	for _, token := range tokens {
-		id, err := resolveOne(token, byName, byID)
+		l, err := resolveOne(token, byName, byID)
 		if err != nil {
 			return nil, err
 		}
-		if seen[id] {
+		if seen[l.ID] {
 			continue
 		}
-		seen[id] = true
-		ids = append(ids, id)
+		seen[l.ID] = true
+		labels = append(labels, l)
 	}
-	return ids, nil
+	return labels, nil
 }
 
 // assignable returns every label that can be applied to an issue or pull
@@ -112,14 +126,14 @@ func (r *Resolver) Resolve(ctx context.Context, owner, repo, csv string) ([]int6
 func (r *Resolver) assignable(ctx context.Context, owner, repo string) ([]model.ScopedLabel, error) {
 	fullPage := r.fullPage(ctx)
 	repoLabels, err := enumerate(fmt.Sprintf("%s/%s", owner, repo), "repo", "repo", fullPage,
-		func(p Paging) ([]*model.Label, error) {
+		func(p Paging) ([]*model.CatalogLabel, error) {
 			return r.catalog.ListRepoLabels(ctx, owner, repo, p)
 		})
 	if err != nil {
 		return nil, err
 	}
 	orgLabels, err := enumerate("organization "+owner, "org", "org", fullPage,
-		func(p Paging) ([]*model.Label, error) {
+		func(p Paging) ([]*model.CatalogLabel, error) {
 			return r.catalog.ListOrgLabels(ctx, owner, p)
 		})
 	// The owner may be a user, which has no organization labels. The repository's
@@ -149,7 +163,7 @@ func (r *Resolver) fullPage(ctx context.Context) int {
 // Paging stops at the first page shorter than fullPage, so it needs no probe
 // request past the end. what names the scope in the cap's error, and kind
 // names it in the fetch error.
-func enumerate(what, scope, kind string, fullPage int, fetch func(Paging) ([]*model.Label, error)) ([]model.ScopedLabel, error) {
+func enumerate(what, scope, kind string, fullPage int, fetch func(Paging) ([]*model.CatalogLabel, error)) ([]model.ScopedLabel, error) {
 	var out []model.ScopedLabel
 	for page := 1; ; page++ {
 		labels, err := fetch(Paging{Page: page, Limit: catalogPageSize})
@@ -157,7 +171,7 @@ func enumerate(what, scope, kind string, fullPage int, fetch func(Paging) ([]*mo
 			return nil, fmt.Errorf("list %s labels err: %w", kind, err)
 		}
 		for _, l := range labels {
-			out = append(out, model.ScopedLabel{Label: *l, Scope: scope})
+			out = append(out, model.ScopedLabel{CatalogLabel: *l, Scope: scope})
 		}
 		if len(out) > maxCatalogLabels {
 			return nil, fmt.Errorf(
@@ -171,30 +185,30 @@ func enumerate(what, scope, kind string, fullPage int, fetch func(Paging) ([]*mo
 	}
 }
 
-func resolveOne(token string, byName map[string][]model.ScopedLabel, byID map[int64]model.ScopedLabel) (int64, error) {
+func resolveOne(token string, byName map[string][]model.ScopedLabel, byID map[int64]model.ScopedLabel) (model.ScopedLabel, error) {
 	switch matches := byName[token]; len(matches) {
 	case 1:
-		return matches[0].ID, nil
+		return matches[0], nil
 	case 0:
 		// Fall through to the numeric form below.
 	default:
-		return 0, fmt.Errorf(
+		return model.ScopedLabel{}, fmt.Errorf(
 			"label %q is ambiguous: it matches %s; pass the numeric label ID instead",
 			token, describeScopes(matches),
 		)
 	}
 
 	if id, err := strconv.ParseInt(token, 10, 64); err == nil {
-		if _, ok := byID[id]; ok {
-			return id, nil
+		if l, ok := byID[id]; ok {
+			return l, nil
 		}
-		return 0, fmt.Errorf(
+		return model.ScopedLabel{}, fmt.Errorf(
 			"label %q is neither a label name nor the ID of a label on this issue's repository or organization; list_repo_labels shows what exists",
 			token,
 		)
 	}
 
-	return 0, fmt.Errorf(
+	return model.ScopedLabel{}, fmt.Errorf(
 		"unknown label %q: no repository or organization label has that name; list_repo_labels shows what exists, create_repo_label adds one",
 		token,
 	)

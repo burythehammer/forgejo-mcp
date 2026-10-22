@@ -31,8 +31,17 @@ import (
 // the write tools declare.
 const VerboseDescription = "Return the full entity instead of the compact summary. Default false."
 
-// Issue is the compact result of an issue write.
-type Issue struct {
+// Milestone is the milestone an issue belongs to: its ID and title. An issue
+// with none carries a null milestone.
+type Milestone struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+}
+
+// issueCore is the part of the compact issue shape that issues and pull
+// requests share. Only Issue adds the milestone and the pull-request flag, so
+// pull request results keep their shape.
+type issueCore struct {
 	Number    int64     `json:"number"`
 	URL       string    `json:"url"`
 	Title     string    `json:"title"`
@@ -42,10 +51,27 @@ type Issue struct {
 	Updated   time.Time `json:"updated_at"`
 }
 
-// PullRequest is the compact result of a pull request write: the issue shape
-// plus the head and base branch names.
-type PullRequest struct {
+// Issue is the compact result of an issue write, and the element of every
+// compact issue list. IsPullRequest is true when the index is a pull request,
+// since issues and pull requests share one index sequence.
+type Issue struct {
+	issueCore
+	Milestone     *Milestone `json:"milestone"`
+	IsPullRequest bool       `json:"is_pull_request"`
+}
+
+// IssueWrite is the compact result of create_issue and update_issue: the issue
+// shape plus BodySHA256, the hash of the body the server stored. It is set only
+// when the request sent a body, so a write without one stays small.
+type IssueWrite struct {
 	Issue
+	BodySHA256 string `json:"body_sha256,omitempty"`
+}
+
+// PullRequest is the compact result of a pull request write: the shared issue
+// core plus the head and base branch names.
+type PullRequest struct {
+	issueCore
 	Head string `json:"head"`
 	Base string `json:"base"`
 }
@@ -88,7 +114,23 @@ type Comment struct {
 
 // OfIssue returns the compact shape of an issue.
 func OfIssue(iss *model.Issue) Issue {
-	out := Issue{
+	return Issue{
+		issueCore:     ofCore(iss),
+		Milestone:     ofMilestone(iss.Milestone),
+		IsPullRequest: iss.PullRequest != nil,
+	}
+}
+
+func ofMilestone(m *model.Milestone) *Milestone {
+	if m == nil {
+		return nil
+	}
+	return &Milestone{ID: m.ID, Title: m.Title}
+}
+
+// ofCore returns the fields an issue and a pull request share.
+func ofCore(iss *model.Issue) issueCore {
+	out := issueCore{
 		Number:    iss.Index,
 		URL:       iss.HTMLURL,
 		Title:     iss.Title,
@@ -124,7 +166,7 @@ func OfPullRequest(pr *model.PullRequest) PullRequest {
 	if pr.Updated != nil {
 		iss.Updated = *pr.Updated
 	}
-	out := PullRequest{Issue: OfIssue(iss)}
+	out := PullRequest{issueCore: ofCore(iss)}
 	if pr.Head != nil {
 		out.Head = pr.Head.Name
 	}
@@ -249,6 +291,19 @@ func RenderIssue(iss *model.Issue, err error, verbose bool) (*mcp.CallToolResult
 	return render(iss, err, verbose, OfIssue)
 }
 
+// RenderIssueWrite sends the result of create_issue or update_issue. bodySent
+// says whether the request carried a body; only then is the stored body hashed.
+// The hash is taken from the server's issue, so it reports what was stored.
+func RenderIssueWrite(iss *model.Issue, err error, verbose, bodySent bool) (*mcp.CallToolResult, error) {
+	return render(iss, err, verbose, func(i *model.Issue) IssueWrite {
+		w := IssueWrite{Issue: OfIssue(i)}
+		if bodySent {
+			w.BodySHA256 = BodySHA256(i.Body)
+		}
+		return w
+	})
+}
+
 // RenderPullRequest sends the result of a pull request write.
 func RenderPullRequest(pr *model.PullRequest, err error, verbose bool) (*mcp.CallToolResult, error) {
 	return render(pr, err, verbose, OfPullRequest)
@@ -270,6 +325,15 @@ func RenderPullRequestRead(pr *model.PullRequest, verbose bool) (*mcp.CallToolRe
 // full page when verbose. The caller maps the error itself.
 func RenderIssueList(p model.IssuePage, err error, verbose bool) (*mcp.CallToolResult, error) {
 	return render(&p, err, verbose, func(p *model.IssuePage) IssueList {
+		return OfIssueList(p.Issues, p.PageMeta)
+	})
+}
+
+// RenderDependencyPage sends the result of list_issue_dependencies and
+// list_issue_dependents: the compact page of issues. Neither tool takes verbose,
+// so the compact page is always sent; an error is passed through.
+func RenderDependencyPage(p model.DependencyPage, err error) (*mcp.CallToolResult, error) {
+	return render(&p, err, false, func(p *model.DependencyPage) IssueList {
 		return OfIssueList(p.Issues, p.PageMeta)
 	})
 }

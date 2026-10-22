@@ -47,6 +47,14 @@ type Label struct {
 	URL         string `json:"url"`
 }
 
+// CatalogLabel is a repository or organization label as Forgejo's label
+// endpoints report it. Exclusive is the flag an issue's label does not carry,
+// so it stays off Label, which issues share with the SDK's wire shape.
+type CatalogLabel struct {
+	Label
+	Exclusive bool `json:"exclusive"`
+}
+
 type Milestone struct {
 	ID           int64      `json:"id"`
 	Title        string     `json:"title"`
@@ -242,7 +250,7 @@ type User struct {
 // ScopedLabel is a label listed for an issue, tagged with where it lives:
 // "repo" for the repository's own labels, "org" for its organization's.
 type ScopedLabel struct {
-	Label
+	CatalogLabel
 	Scope string `json:"scope"`
 }
 

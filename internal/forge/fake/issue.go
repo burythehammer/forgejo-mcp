@@ -21,12 +21,12 @@ var _ forge.Issues = (*Forgejo)(nil)
 
 type issueState struct {
 	mu        sync.Mutex
-	repos     map[string]*issueRepo                   // key "owner/repo"
-	maxItems  int                                     // 0 = unknown
-	nextLabel int64                                   // label IDs are unique across the instance
-	orgLabels map[string]map[int64]*forgejo_sdk.Label // by org
-	deps      [][2]depKey                             // issue -> issue it depends on
-	fault     int                                     // HTTP status every issue call answers with; 0 = none
+	repos     map[string]*issueRepo             // key "owner/repo"
+	maxItems  int                               // 0 = unknown
+	nextLabel int64                             // label IDs are unique across the instance
+	orgLabels map[string]map[int64]*forge.Label // by org
+	deps      [][2]depKey                       // issue -> issue it depends on
+	fault     int                               // HTTP status every issue call answers with; 0 = none
 }
 
 type issueRepo struct {
@@ -35,7 +35,7 @@ type issueRepo struct {
 	next        int64
 	nextComment int64
 	nextMS      int64
-	labels      map[int64]*forgejo_sdk.Label
+	labels      map[int64]*forge.Label
 	milestones  []*forgejo_sdk.Milestone
 }
 
@@ -78,7 +78,7 @@ func (f *Forgejo) issueRepo(owner, repo string) (*issueRepo, error) {
 	if f.issues.repos == nil {
 		f.issues.repos = map[string]*issueRepo{}
 	}
-	r := &issueRepo{owner: owner, name: repo, labels: map[int64]*forgejo_sdk.Label{}}
+	r := &issueRepo{owner: owner, name: repo, labels: map[int64]*forge.Label{}}
 	f.issues.repos[key] = r
 	return r, nil
 }
@@ -134,7 +134,7 @@ func (f *Forgejo) SeedIssueLabel(owner, repo, name string) int64 {
 		panic(fmt.Sprintf("fake: SeedIssueLabel in unknown repository %s/%s", owner, repo))
 	}
 	f.issues.nextLabel++
-	r.labels[f.issues.nextLabel] = &forgejo_sdk.Label{ID: f.issues.nextLabel, Name: name}
+	r.labels[f.issues.nextLabel] = &forge.Label{ID: f.issues.nextLabel, Name: name}
 	return f.issues.nextLabel
 }
 
@@ -149,6 +149,24 @@ func (f *Forgejo) SeedMilestone(owner, repo, title string) int64 {
 	r.nextMS++
 	r.milestones = append(r.milestones, &forgejo_sdk.Milestone{ID: r.nextMS, Title: title, State: forgejo_sdk.StateOpen, Created: f.Now()})
 	return r.nextMS
+}
+
+// MarkPullRequest makes the issue at index report a pull-request link, as
+// Forgejo does for a pull request's index on the issue endpoints. The fake keeps
+// pull requests in their own store, so a test marks one here to read it as an
+// issue. It panics if the index is not an issue.
+func (f *Forgejo) MarkPullRequest(owner, repo string, index int64) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		panic(fmt.Sprintf("fake: MarkPullRequest in unknown repository %s/%s", owner, repo))
+	}
+	rec, err := r.issue(index)
+	if err != nil {
+		panic(fmt.Sprintf("fake: MarkPullRequest of unknown issue %d", index))
+	}
+	rec.issue.PullRequest = &forgejo_sdk.PullRequestMeta{}
 }
 
 // CloseMilestone marks a seeded milestone closed.
@@ -382,8 +400,7 @@ func (f *Forgejo) CreateIssue(_ context.Context, owner, repo string, opt forgejo
 	}
 	for _, id := range opt.Labels {
 		if l, ok := f.assignableLabel(r, id); ok {
-			cp := *l
-			iss.Labels = append(iss.Labels, &cp)
+			iss.Labels = append(iss.Labels, issueLabel(l))
 		}
 	}
 	for _, a := range opt.Assignees {
@@ -477,8 +494,7 @@ func (f *Forgejo) ReplaceIssueLabels(_ context.Context, owner, repo string, inde
 		if !ok {
 			return notFound("label")
 		}
-		cp := *l
-		labels = append(labels, &cp)
+		labels = append(labels, issueLabel(l))
 	}
 	rec.issue.Labels = labels
 	rec.issue.Updated = f.Now()
@@ -624,4 +640,100 @@ func (f *Forgejo) ListRepoMilestones(_ context.Context, owner, repo string, opt 
 	}
 	lo, hi := page(opt.ListOptions, len(out))
 	return out[lo:hi], nil
+}
+
+// milestoneRec finds a milestone of the repository by ID. The caller holds the
+// issue lock.
+func (r *issueRepo) milestoneRec(id int64) (*forgejo_sdk.Milestone, error) {
+	for _, m := range r.milestones {
+		if m.ID == id {
+			return m, nil
+		}
+	}
+	return nil, notFound("milestone")
+}
+
+// milestoneView is a copy of a milestone as the server reports it: its issue
+// counts are worked out from the repository's issues. The caller holds the
+// issue lock.
+func (r *issueRepo) milestoneView(m *forgejo_sdk.Milestone) *forgejo_sdk.Milestone {
+	cp := *m
+	cp.OpenIssues, cp.ClosedIssues = 0, 0
+	for _, rec := range r.issues {
+		if rec.issue.Milestone == nil || rec.issue.Milestone.ID != m.ID {
+			continue
+		}
+		if rec.issue.State == forgejo_sdk.StateClosed {
+			cp.ClosedIssues++
+		} else {
+			cp.OpenIssues++
+		}
+	}
+	return &cp
+}
+
+func (f *Forgejo) GetMilestone(_ context.Context, owner, repo string, id int64) (*forgejo_sdk.Milestone, error) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	m, err := r.milestoneRec(id)
+	if err != nil {
+		return nil, err
+	}
+	return r.milestoneView(m), nil
+}
+
+func (f *Forgejo) CreateMilestone(_ context.Context, owner, repo string, opt forgejo_sdk.CreateMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(opt.Title) == "" {
+		return nil, fmt.Errorf("title is empty")
+	}
+	r.nextMS++
+	m := &forgejo_sdk.Milestone{ID: r.nextMS, Title: opt.Title, Description: opt.Description,
+		State: forgejo_sdk.StateOpen, Created: f.Now(), Deadline: opt.Deadline}
+	r.milestones = append(r.milestones, m)
+	return r.milestoneView(m), nil
+}
+
+func (f *Forgejo) EditMilestone(_ context.Context, owner, repo string, id int64, opt forgejo_sdk.EditMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	m, err := r.milestoneRec(id)
+	if err != nil {
+		return nil, err
+	}
+	if opt.State != nil && *opt.State != forgejo_sdk.StateOpen && *opt.State != forgejo_sdk.StateClosed {
+		return nil, statusErr(http.StatusUnprocessableEntity, "state must be open or closed")
+	}
+	now := f.Now()
+	if opt.Title != "" {
+		m.Title = opt.Title
+	}
+	if opt.Description != nil {
+		m.Description = *opt.Description
+	}
+	if opt.State != nil && *opt.State != m.State {
+		m.State = *opt.State
+		m.Closed = nil
+		if m.State == forgejo_sdk.StateClosed {
+			m.Closed = &now
+		}
+	}
+	if opt.Deadline != nil {
+		m.Deadline = opt.Deadline
+	}
+	m.Updated = &now
+	return r.milestoneView(m), nil
 }

@@ -1,1 +1,1 @@
-{"Result":{"labels":[{"id":5,"name":"org label 5","color":"0000ff","description":"","url":"","scope":"org"}],"page":3,"limit":2,"count":1,"has_next":false,"total_count":5}}
+{"Result":{"labels":[{"id":5,"name":"org label 5","color":"0000ff","description":"","url":"","exclusive":false,"scope":"org"}],"page":3,"limit":2,"count":1,"has_next":false,"total_count":5}}

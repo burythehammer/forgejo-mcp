@@ -29,9 +29,10 @@ import (
 
 var goldenAllTools = []mcp.Tool{
 	GetIssueByIndexTool, ListRepoIssuesTool, CreateIssueTool, CreateIssueCommentTool,
-	UpdateIssueTool, AddIssueLabelsTools, RemoveIssueLabelsTools, IssueStateChangeTool,
+	UpdateIssueTool, ReplaceIssueBodyLineTool, AddIssueLabelsTools, RemoveIssueLabelsTools, IssueStateChangeTool,
 	ListIssueCommentsTool, GetIssueCommentTool, EditIssueCommentTool, DeleteIssueCommentTool,
-	ListRepoMilestonesTool, ListRepoLabelsTool, ListOrgLabelsTool, SearchIssuesTool,
+	ListRepoMilestonesTool, CreateMilestoneTool, EditMilestoneTool, GetMilestoneTool,
+	ListRepoLabelsTool, ListOrgLabelsTool, SearchIssuesTool,
 	CreateRepoLabelTool, EditRepoLabelTool, DeleteRepoLabelTool, GetRepoLabelTool,
 	CreateOrgLabelTool, EditOrgLabelTool, DeleteOrgLabelTool, GetOrgLabelTool,
 	ListIssueDependenciesTool, ListIssueDependentsTool, AddIssueDependencyTool, RemoveIssueDependencyTool,
@@ -44,6 +45,15 @@ func TestSchemaSnapshots(t *testing.T) {
 	}
 }
 
+// TestMilestoneArgsMatchSchemas keeps the milestone tools' argument structs in
+// step with their schemas.
+func TestMilestoneArgsMatchSchemas(t *testing.T) {
+	t.Parallel()
+	mcptest.ArgsMatchSchema(t, CreateMilestoneTool, createMilestoneArgs{})
+	mcptest.ArgsMatchSchema(t, EditMilestoneTool, editMilestoneArgs{})
+	mcptest.ArgsMatchSchema(t, GetMilestoneTool, getMilestoneArgs{})
+}
+
 // TestCompactWriteArgsMatchSchemas keeps the write tools' argument structs,
 // including the optional verbose flag, in step with their schemas.
 func TestCompactWriteArgsMatchSchemas(t *testing.T) {
@@ -53,6 +63,7 @@ func TestCompactWriteArgsMatchSchemas(t *testing.T) {
 	mcptest.ArgsMatchSchema(t, SearchIssuesTool, searchArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueTool, createIssueArgs{})
 	mcptest.ArgsMatchSchema(t, UpdateIssueTool, updateIssueArgs{})
+	mcptest.ArgsMatchSchema(t, ReplaceIssueBodyLineTool, replaceBodyLineArgs{})
 	mcptest.ArgsMatchSchema(t, IssueStateChangeTool, stateArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueCommentTool, createCommentArgs{})
 	mcptest.ArgsMatchSchema(t, EditIssueCommentTool, editCommentArgs{})
@@ -180,8 +191,41 @@ func (s *goldenStub) ListRepoMilestones(_ context.Context, o, r string, opt forg
 	return []*forgejo_sdk.Milestone{{ID: 4, Title: "v1", Created: gT0}}, s.rec("ListRepoMilestones", o, r, opt)
 }
 
+// goldenMilestone is milestone 4 as the server holds it. The write methods
+// return it with the fields they were given applied, as Forgejo does.
+func goldenMilestone() *forgejo_sdk.Milestone {
+	return &forgejo_sdk.Milestone{ID: 4, Title: "v1", Description: "first", State: forgejo_sdk.StateOpen, OpenIssues: 2, ClosedIssues: 1, Created: gT0}
+}
+
+func (s *goldenStub) GetMilestone(_ context.Context, o, r string, id int64) (*forgejo_sdk.Milestone, error) {
+	return goldenMilestone(), s.rec("GetMilestone", o, r, id)
+}
+
+func (s *goldenStub) CreateMilestone(_ context.Context, o, r string, opt forgejo_sdk.CreateMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	m := goldenMilestone()
+	m.Title, m.Description, m.Deadline = opt.Title, opt.Description, opt.Deadline
+	return m, s.rec("CreateMilestone", o, r, opt)
+}
+
+func (s *goldenStub) EditMilestone(_ context.Context, o, r string, id int64, opt forgejo_sdk.EditMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	m := goldenMilestone()
+	if opt.Title != "" {
+		m.Title = opt.Title
+	}
+	if opt.Description != nil {
+		m.Description = *opt.Description
+	}
+	if opt.State != nil {
+		m.State = *opt.State
+	}
+	if opt.Deadline != nil {
+		m.Deadline = opt.Deadline
+	}
+	return m, s.rec("EditMilestone", o, r, id, opt)
+}
+
 // repoLabels are the labels of every repository: "bug" and "ui".
-var goldenRepoLabels = []*forgejo_sdk.Label{
+var goldenRepoLabels = []*forge.Label{
 	{ID: 3, Name: "bug", Color: "ff0000", Description: "broken", URL: "https://f.example/l/3"},
 	{ID: 4, Name: "ui", Color: "00ff00", Description: "look", URL: "https://f.example/l/4"},
 }
@@ -189,28 +233,28 @@ var goldenRepoLabels = []*forgejo_sdk.Label{
 // goldenOrgLabels are the labels of the organization "acme". "ui" repeats a
 // repository label name, so resolving it is ambiguous. The owner "octo" is a
 // user, which has no organization labels, and "denied" answers 403.
-var goldenOrgLabels = []*forgejo_sdk.Label{
+var goldenOrgLabels = []*forge.Label{
 	{ID: 12, Name: "infra", Color: "0000ff", Description: "org", URL: "https://f.example/o/12"},
 	{ID: 13, Name: "ui", Color: "00aaaa", Description: "org ui", URL: "https://f.example/o/13"},
 }
 
-func (s *goldenStub) ListRepoLabels(_ context.Context, o, r string, opt forgejo_sdk.ListLabelsOptions) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
-	var out []*forgejo_sdk.Label
-	if opt.Page <= 1 {
+func (s *goldenStub) ListRepoLabels(_ context.Context, o, r string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
+	var out []*forge.Label
+	if page <= 1 {
 		out = goldenRepoLabels
 	}
-	return out, forge.PageInfo{}, s.rec("ListRepoLabels", o, r, opt)
+	return out, forge.PageInfo{}, s.rec("ListRepoLabels", o, r, page, limit)
 }
 
-func (s *goldenStub) GetRepoLabel(_ context.Context, o, r string, id int64) (*forgejo_sdk.Label, error) {
+func (s *goldenStub) GetRepoLabel(_ context.Context, o, r string, id int64) (*forge.Label, error) {
 	return goldenRepoLabels[0], s.rec("GetRepoLabel", o, r, id)
 }
 
-func (s *goldenStub) CreateRepoLabel(_ context.Context, o, r string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error) {
-	return &forgejo_sdk.Label{ID: 5, Name: opt.Name, Color: opt.Color, Description: opt.Description, URL: "u"}, s.rec("CreateRepoLabel", o, r, opt)
+func (s *goldenStub) CreateRepoLabel(_ context.Context, o, r string, opt forge.LabelCreate) (*forge.Label, error) {
+	return &forge.Label{ID: 5, Name: opt.Name, Color: opt.Color, Description: opt.Description, URL: "u"}, s.rec("CreateRepoLabel", o, r, opt)
 }
 
-func (s *goldenStub) EditRepoLabel(_ context.Context, o, r string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
+func (s *goldenStub) EditRepoLabel(_ context.Context, o, r string, id int64, opt forge.LabelPatch) (*forge.Label, error) {
 	return goldenRepoLabels[0], s.rec("EditRepoLabel", o, r, id, opt)
 }
 
@@ -218,7 +262,7 @@ func (s *goldenStub) DeleteRepoLabel(_ context.Context, o, r string, id int64) e
 	return s.rec("DeleteRepoLabel", o, r, id)
 }
 
-func (s *goldenStub) ListOrgLabels(_ context.Context, org string, page, limit int) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
+func (s *goldenStub) ListOrgLabels(_ context.Context, org string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
 	err := s.rec("ListOrgLabels", org, page, limit)
 	switch {
 	case org == "denied":
@@ -229,15 +273,15 @@ func (s *goldenStub) ListOrgLabels(_ context.Context, org string, page, limit in
 	return goldenOrgLabels, forge.PageInfo{}, err
 }
 
-func (s *goldenStub) GetOrgLabel(_ context.Context, org string, id int64) (*forgejo_sdk.Label, error) {
+func (s *goldenStub) GetOrgLabel(_ context.Context, org string, id int64) (*forge.Label, error) {
 	return goldenOrgLabels[0], s.rec("GetOrgLabel", org, id)
 }
 
-func (s *goldenStub) CreateOrgLabel(_ context.Context, org string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error) {
-	return &forgejo_sdk.Label{ID: 14, Name: opt.Name, Color: opt.Color, Description: opt.Description, URL: "u"}, s.rec("CreateOrgLabel", org, opt)
+func (s *goldenStub) CreateOrgLabel(_ context.Context, org string, opt forge.LabelCreate) (*forge.Label, error) {
+	return &forge.Label{ID: 14, Name: opt.Name, Color: opt.Color, Description: opt.Description, URL: "u"}, s.rec("CreateOrgLabel", org, opt)
 }
 
-func (s *goldenStub) EditOrgLabel(_ context.Context, org string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
+func (s *goldenStub) EditOrgLabel(_ context.Context, org string, id int64, opt forge.LabelPatch) (*forge.Label, error) {
 	return goldenOrgLabels[0], s.rec("EditOrgLabel", org, id, opt)
 }
 
@@ -335,6 +379,11 @@ var goldenCases = []goldenCase{
 	{name: "get_issue_fractional_index", tool: GetIssueByIndexToolName, args: map[string]any{"index": 5.5}},
 	{name: "get_issue_missing_required", tool: GetIssueByIndexToolName, args: map[string]any{"owner": nil, "repo": nil}},
 	{name: "get_issue_port_error", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7)}, stub: failing("GetIssue", errBoom)},
+	// The golden stub's index 7 is a pull request, so type=issues refuses it and
+	// type=pulls accepts it.
+	{name: "get_issue_type_issues_refuses_pull", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "type": "issues"}},
+	{name: "get_issue_type_pulls_accepts_pull", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "type": "pulls"}},
+	{name: "get_issue_type_unknown", tool: GetIssueByIndexToolName, args: map[string]any{"index": float64(7), "type": "issue"}},
 
 	// list_repo_issues
 	{name: "list_issues_defaults", tool: ListRepoIssuesToolName},
@@ -417,6 +466,12 @@ var goldenCases = []goldenCase{
 	{name: "update_issue_clear_labels", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": ""}},
 	{name: "update_issue_set_labels_unknown", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T", "set_labels": "nope"}},
 	{name: "update_issue_nothing", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7)}},
+
+	// replace_issue_body_line: the stub's issue is a pull request, so the
+	// success and count paths are covered in replace_body_line_test.go.
+	{name: "replace_issue_body_line_pull_request", tool: ReplaceIssueBodyLineToolName, args: map[string]any{"index": float64(7), "old": "body", "new": "BODY"}},
+	{name: "replace_issue_body_line_empty_old", tool: ReplaceIssueBodyLineToolName, args: map[string]any{"index": float64(7), "old": "", "new": "x"}},
+	{name: "replace_issue_body_line_get_error", tool: ReplaceIssueBodyLineToolName, args: map[string]any{"index": float64(7), "old": "body", "new": "x"}, stub: failing("GetIssue", errBoom)},
 	{name: "update_issue_wrong_types", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": float64(5), "clear_due_date": "true", "assignees": float64(7)}},
 	{name: "update_issue_edit_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T"}, stub: failing("EditIssue", errBoom)},
 	{name: "update_issue_replace_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": "bug"}, stub: failing("ReplaceIssueLabels", errBoom)},
@@ -434,6 +489,24 @@ var goldenCases = []goldenCase{
 	{name: "list_milestones_closed_paged", tool: ListRepoMilestonesToolName, args: map[string]any{"state": "closed", "page": float64(2), "limit": float64(10)}},
 	{name: "list_milestones_empty_state", tool: ListRepoMilestonesToolName, args: map[string]any{"state": ""}},
 	{name: "list_milestones_port_error", tool: ListRepoMilestonesToolName, stub: failing("ListRepoMilestones", errBoom)},
+
+	// create_milestone, edit_milestone, get_milestone
+	{name: "create_milestone", tool: CreateMilestoneToolName, args: map[string]any{"title": "v2", "description": "second", "due_date": "2026-12-01T00:00:00Z"}},
+	{name: "create_milestone_no_due", tool: CreateMilestoneToolName, args: map[string]any{"title": "v2"}},
+	{name: "create_milestone_blank_title", tool: CreateMilestoneToolName, args: map[string]any{"title": "  "}},
+	{name: "create_milestone_bad_due", tool: CreateMilestoneToolName, args: map[string]any{"title": "v2", "due_date": "tomorrow"}},
+	{name: "create_milestone_port_error", tool: CreateMilestoneToolName, args: map[string]any{"title": "v2"}, stub: failing("CreateMilestone", errBoom)},
+	{name: "edit_milestone_close", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4), "state": "closed"}},
+	{name: "edit_milestone_partial", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4), "description": "fixed"}},
+	{name: "edit_milestone_rename_and_due", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4), "title": "v1.1", "due_date": "2027-01-02T03:04:05Z"}},
+	{name: "edit_milestone_no_fields", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4)}},
+	{name: "edit_milestone_bad_state", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4), "state": "archived"}},
+	{name: "edit_milestone_bad_id", tool: EditMilestoneToolName, args: map[string]any{"id": float64(2.5), "state": "closed"}},
+	{name: "edit_milestone_not_found", tool: EditMilestoneToolName, args: map[string]any{"id": float64(99), "state": "closed"}, stub: failing("EditMilestone", goldenStatus(http.StatusNotFound))},
+	{name: "get_milestone", tool: GetMilestoneToolName, args: map[string]any{"id": float64(4)}},
+	{name: "get_milestone_zero_id", tool: GetMilestoneToolName, args: map[string]any{"id": float64(0)}},
+	{name: "get_milestone_not_found", tool: GetMilestoneToolName, args: map[string]any{"id": float64(99)}, stub: failing("GetMilestone", goldenStatus(http.StatusNotFound))},
+	{name: "get_milestone_port_error", tool: GetMilestoneToolName, args: map[string]any{"id": float64(4)}, stub: failing("GetMilestone", errBoom)},
 
 	// list_repo_labels, list_org_labels
 	{name: "list_repo_labels_user_owner", tool: ListRepoLabelsToolName},

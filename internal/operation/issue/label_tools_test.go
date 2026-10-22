@@ -4,21 +4,20 @@ package issue
 
 import (
 	"context"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"net/http"
 	"strconv"
 	"strings"
 	"testing"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
 // Tests of the label-assignment and label-listing tools.
 
 func newLabel(t *testing.T, f *fake.Forgejo, name string) int64 {
 	t.Helper()
-	l, err := f.CreateRepoLabel(context.Background(), testOwner, testRepo, forgejo_sdk.CreateLabelOption{Name: name, Color: "#aabbcc"})
+	l, err := f.CreateRepoLabel(context.Background(), testOwner, testRepo, forge.LabelCreate{Name: name, Color: "#aabbcc"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +70,7 @@ func TestListRepoLabels_MergeWithOrgLabels(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	newLabel(t, f, "good-first-issue")
-	if _, err := f.CreateOrgLabel(context.Background(), testOwner, forgejo_sdk.CreateLabelOption{Name: "security", Color: "#d73a4a"}); err != nil {
+	if _, err := f.CreateOrgLabel(context.Background(), testOwner, forge.LabelCreate{Name: "security", Color: "#d73a4a"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -88,7 +87,7 @@ func TestListRepoLabels_IncludeOrgFalseSkipsOrgLabels(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	newLabel(t, f, "good-first-issue")
-	if _, err := f.CreateOrgLabel(context.Background(), testOwner, forgejo_sdk.CreateLabelOption{Name: "security", Color: "#d73a4a"}); err != nil {
+	if _, err := f.CreateOrgLabel(context.Background(), testOwner, forge.LabelCreate{Name: "security", Color: "#d73a4a"}); err != nil {
 		t.Fatal(err)
 	}
 

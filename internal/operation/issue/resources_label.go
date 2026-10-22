@@ -79,11 +79,12 @@ type labelResourcePayload struct {
 	Color       string `json:"color"`
 	Description string `json:"description"`
 	URL         string `json:"url"`
+	Exclusive   bool   `json:"exclusive"`
 }
 
 // labelPayloadOf is the resource's flattened encoding of one label.
-func labelPayloadOf(l model.Label) labelResourcePayload {
-	return labelResourcePayload{ID: l.ID, Name: l.Name, Color: l.Color, Description: l.Description, URL: l.URL}
+func labelPayloadOf(l model.CatalogLabel) labelResourcePayload {
+	return labelResourcePayload{ID: l.ID, Name: l.Name, Color: l.Color, Description: l.Description, URL: l.URL, Exclusive: l.Exclusive}
 }
 
 func (h handlers) repoLabelResourceHandler(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
@@ -158,7 +159,7 @@ func (h handlers) repoLabelsResourceHandler(ctx context.Context, req mcp.ReadRes
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
 	for _, l := range list.Items[:len(bounded.Items)] {
-		labels = append(labels, labelPayloadOf(l.Label))
+		labels = append(labels, labelPayloadOf(l.CatalogLabel))
 	}
 
 	payload := labelsListPayload{
@@ -219,7 +220,7 @@ func (h handlers) orgLabelsResourceHandler(ctx context.Context, req mcp.ReadReso
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
 	for _, l := range list.Items[:len(bounded.Items)] {
-		labels = append(labels, labelPayloadOf(l.Label))
+		labels = append(labels, labelPayloadOf(l.CatalogLabel))
 	}
 
 	payload := orgLabelsListPayload{

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"strings"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestCreateRepoLabelFn_CreatesIt(t *testing.T) {
 	if !strings.Contains(out, `"name":"bug"`) {
 		t.Fatalf("got %q", out)
 	}
-	labels, _, err := f.ListRepoLabels(context.Background(), testOwner, testRepo, forgejo_sdk.ListLabelsOptions{})
+	labels, _, err := f.ListRepoLabels(context.Background(), testOwner, testRepo, 0, 0)
 	if err != nil || len(labels) != 1 || labels[0].Description != "a bug" {
 		t.Fatalf("labels = %+v err=%v", labels, err)
 	}
@@ -36,7 +37,7 @@ func TestCreateRepoLabelFn_InvalidColor(t *testing.T) {
 	h, f := newFixture(t)
 
 	callErr(t, h.CreateRepoLabelFn, map[string]any{"name": "bug", "color": "gg00ff"})
-	if labels, _, _ := f.ListRepoLabels(context.Background(), testOwner, testRepo, forgejo_sdk.ListLabelsOptions{}); len(labels) != 0 {
+	if labels, _, _ := f.ListRepoLabels(context.Background(), testOwner, testRepo, 0, 0); len(labels) != 0 {
 		t.Fatalf("an invalid colour must create nothing, got %+v", labels)
 	}
 }
@@ -190,7 +191,7 @@ func TestDeleteOrgLabelFn_RefusedWhileAnIssueInAnOrgRepoUsesIt(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	f.AddRepo("acme", "anvil")
-	label, err := f.CreateOrgLabel(context.Background(), "acme", forgejo_sdk.CreateLabelOption{Name: "prio", Color: "#aabbcc"})
+	label, err := f.CreateOrgLabel(context.Background(), "acme", forge.LabelCreate{Name: "prio", Color: "#aabbcc"})
 	if err != nil {
 		t.Fatal(err)
 	}

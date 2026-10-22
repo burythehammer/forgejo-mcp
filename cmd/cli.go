@@ -15,57 +15,23 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// toolDomains maps tool names to their domain for grouped listing.
-// Built by registering tools per domain and tracking which names appear.
+// toolDomains maps each tool name to its toolset, for grouped listing.
 var toolDomains = map[string]string{}
 
-// registerToolsWithDomains registers all tools and builds the domain mapping.
+// registerToolsWithDomains registers every tool through operation.RegisterTool,
+// so the CLI lists the same registry the server serves, and records each
+// tool's toolset from the toolset catalogue.
 func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Factory) {
-	beforeNames := toolNames(s)
-
-	type domainReg struct {
-		name string
-		fn   func(*server.MCPServer)
+	operation.RegisterTool(s, version, f)
+	for _, name := range toolNames(s) {
+		toolDomains[name] = toolset.Of(name)
 	}
-	domains := []domainReg{
-		{"user", func(s *server.MCPServer) { operation.RegisterUserTool(s, f) }},
-		{"repo", func(s *server.MCPServer) { operation.RegisterRepoTool(s, f) }},
-		{"issue", func(s *server.MCPServer) { operation.RegisterIssueTool(s, f) }},
-		{"pull", func(s *server.MCPServer) { operation.RegisterPullTool(s, f) }},
-		{"pull", func(s *server.MCPServer) { operation.RegisterPullReviewTool(s, f) }},
-		{"search", func(s *server.MCPServer) { operation.RegisterSearchTool(s, f) }},
-		{"version", func(s *server.MCPServer) { operation.RegisterVersionTool(s, version) }},
-		{"actions", func(s *server.MCPServer) { operation.RegisterActionsTool(s, f) }},
-		{"org", func(s *server.MCPServer) { operation.RegisterOrgTool(s, f) }},
-		{"packages", func(s *server.MCPServer) { operation.RegisterPackagesTool(s, f) }},
-		{"tracking", func(s *server.MCPServer) { operation.RegisterTrackingTool(s, f) }},
-		{"attachment", func(s *server.MCPServer) { operation.RegisterAttachmentTool(s, f) }},
-		{"release", func(s *server.MCPServer) { operation.RegisterReleaseTool(s, f) }},
-		{"branch-protection", func(s *server.MCPServer) { operation.RegisterBranchProtectionTool(s, f) }},
-		{"webhook", func(s *server.MCPServer) { operation.RegisterHookTool(s, f) }},
-		{"wiki", func(s *server.MCPServer) { operation.RegisterWikiTool(s, f) }},
-	}
-
-	for _, d := range domains {
-		d.fn(s)
-		afterNames := toolNames(s)
-		for _, name := range afterNames {
-			if !contains(beforeNames, name) {
-				toolDomains[name] = d.name
-			}
-		}
-		beforeNames = afterNames
-	}
-
-	// Truncation notes may name only tools in this registry (resource.ToolRef),
-	// as operation.RegisterTool records it for the server.
-	resource.SetRegisteredTools(beforeNames)
 }
 
 func toolNames(s *server.MCPServer) []string {
@@ -75,15 +41,6 @@ func toolNames(s *server.MCPServer) []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-func contains(ss []string, s string) bool {
-	for _, v := range ss {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
 
 // RunCLI is the entry point for --cli mode. cfg.CLI holds the parsed command.

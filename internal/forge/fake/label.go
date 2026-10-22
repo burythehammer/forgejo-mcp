@@ -22,7 +22,7 @@ var _ forge.Labels = (*Forgejo)(nil)
 // assignableLabel finds a label an issue in r may carry: one of the
 // repository's own, or one of its owner's organization. The caller holds
 // f.issues.mu.
-func (f *Forgejo) assignableLabel(r *issueRepo, id int64) (*forgejo_sdk.Label, bool) {
+func (f *Forgejo) assignableLabel(r *issueRepo, id int64) (*forge.Label, bool) {
 	if l, ok := r.labels[id]; ok {
 		return l, true
 	}
@@ -30,8 +30,14 @@ func (f *Forgejo) assignableLabel(r *issueRepo, id int64) (*forgejo_sdk.Label, b
 	return l, ok
 }
 
-func sortedLabels(m map[int64]*forgejo_sdk.Label) []*forgejo_sdk.Label {
-	out := make([]*forgejo_sdk.Label, 0, len(m))
+// issueLabel is a label as an issue carries it. The SDK's issue label has no
+// exclusive flag, so the copy drops it, as Forgejo's issue payload does.
+func issueLabel(l *forge.Label) *forgejo_sdk.Label {
+	return &forgejo_sdk.Label{ID: l.ID, Name: l.Name, Color: l.Color, Description: l.Description, URL: l.URL}
+}
+
+func sortedLabels(m map[int64]*forge.Label) []*forge.Label {
+	out := make([]*forge.Label, 0, len(m))
 	for _, l := range m {
 		cp := *l
 		out = append(out, &cp)
@@ -43,7 +49,7 @@ func sortedLabels(m map[int64]*forgejo_sdk.Label) []*forgejo_sdk.Label {
 // labelPage pages a label list. Like Forgejo, it clamps the page size to the
 // instance ceiling (max_response_items) when one is set, so a page can come back
 // shorter than the size asked for without being the last one.
-func labelPage(all []*forgejo_sdk.Label, opt forgejo_sdk.ListOptions, ceiling int) ([]*forgejo_sdk.Label, forge.PageInfo) {
+func labelPage(all []*forge.Label, opt forgejo_sdk.ListOptions, ceiling int) ([]*forge.Label, forge.PageInfo) {
 	if opt.PageSize <= 0 {
 		opt.PageSize = defaultPageSize
 	}
@@ -61,7 +67,7 @@ func validColor(c string) error {
 	return nil
 }
 
-func applyEdit(l *forgejo_sdk.Label, opt forgejo_sdk.EditLabelOption) {
+func applyEdit(l *forge.Label, opt forge.LabelPatch) {
 	if opt.Name != nil {
 		l.Name = *opt.Name
 	}
@@ -71,20 +77,23 @@ func applyEdit(l *forgejo_sdk.Label, opt forgejo_sdk.EditLabelOption) {
 	if opt.Description != nil {
 		l.Description = *opt.Description
 	}
+	if opt.Exclusive != nil {
+		l.Exclusive = *opt.Exclusive
+	}
 }
 
-func (f *Forgejo) ListRepoLabels(_ context.Context, owner, repo string, opt forgejo_sdk.ListLabelsOptions) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
+func (f *Forgejo) ListRepoLabels(_ context.Context, owner, repo string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
 	r, err := f.issueRepo(owner, repo)
 	if err != nil {
 		return nil, forge.PageInfo{}, err
 	}
-	out, info := labelPage(sortedLabels(r.labels), opt.ListOptions, f.issues.maxItems)
+	out, info := labelPage(sortedLabels(r.labels), forgejo_sdk.ListOptions{Page: page, PageSize: limit}, f.issues.maxItems)
 	return out, info, nil
 }
 
-func (f *Forgejo) GetRepoLabel(_ context.Context, owner, repo string, id int64) (*forgejo_sdk.Label, error) {
+func (f *Forgejo) GetRepoLabel(_ context.Context, owner, repo string, id int64) (*forge.Label, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
 	r, err := f.issueRepo(owner, repo)
@@ -99,7 +108,7 @@ func (f *Forgejo) GetRepoLabel(_ context.Context, owner, repo string, id int64) 
 	return &cp, nil
 }
 
-func (f *Forgejo) CreateRepoLabel(_ context.Context, owner, repo string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error) {
+func (f *Forgejo) CreateRepoLabel(_ context.Context, owner, repo string, opt forge.LabelCreate) (*forge.Label, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
 	r, err := f.issueRepo(owner, repo)
@@ -113,13 +122,13 @@ func (f *Forgejo) CreateRepoLabel(_ context.Context, owner, repo string, opt for
 		return nil, err
 	}
 	f.issues.nextLabel++
-	l := &forgejo_sdk.Label{ID: f.issues.nextLabel, Name: opt.Name, Color: strings.TrimPrefix(opt.Color, "#"), Description: opt.Description}
+	l := &forge.Label{ID: f.issues.nextLabel, Name: opt.Name, Color: strings.TrimPrefix(opt.Color, "#"), Description: opt.Description, Exclusive: opt.Exclusive}
 	r.labels[l.ID] = l
 	cp := *l
 	return &cp, nil
 }
 
-func (f *Forgejo) EditRepoLabel(_ context.Context, owner, repo string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
+func (f *Forgejo) EditRepoLabel(_ context.Context, owner, repo string, id int64, opt forge.LabelPatch) (*forge.Label, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
 	r, err := f.issueRepo(owner, repo)
@@ -169,7 +178,7 @@ func (f *Forgejo) DeleteRepoLabel(_ context.Context, owner, repo string, id int6
 	return nil
 }
 
-func (f *Forgejo) ListOrgLabels(_ context.Context, org string, pg, limit int) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
+func (f *Forgejo) ListOrgLabels(_ context.Context, org string, pg, limit int) ([]*forge.Label, forge.PageInfo, error) {
 	f.orgs.mu.Lock()
 	_, err := f.orgs.find(org)
 	f.orgs.mu.Unlock()
@@ -185,7 +194,7 @@ func (f *Forgejo) ListOrgLabels(_ context.Context, org string, pg, limit int) ([
 	return out, info, nil
 }
 
-func (f *Forgejo) GetOrgLabel(_ context.Context, org string, id int64) (*forgejo_sdk.Label, error) {
+func (f *Forgejo) GetOrgLabel(_ context.Context, org string, id int64) (*forge.Label, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
 	l, ok := f.issues.orgLabels[org][id]
@@ -196,7 +205,7 @@ func (f *Forgejo) GetOrgLabel(_ context.Context, org string, id int64) (*forgejo
 	return &cp, nil
 }
 
-func (f *Forgejo) CreateOrgLabel(_ context.Context, org string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error) {
+func (f *Forgejo) CreateOrgLabel(_ context.Context, org string, opt forge.LabelCreate) (*forge.Label, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
 	if opt.Name == "" {
@@ -206,19 +215,19 @@ func (f *Forgejo) CreateOrgLabel(_ context.Context, org string, opt forgejo_sdk.
 		return nil, err
 	}
 	if f.issues.orgLabels == nil {
-		f.issues.orgLabels = map[string]map[int64]*forgejo_sdk.Label{}
+		f.issues.orgLabels = map[string]map[int64]*forge.Label{}
 	}
 	if f.issues.orgLabels[org] == nil {
-		f.issues.orgLabels[org] = map[int64]*forgejo_sdk.Label{}
+		f.issues.orgLabels[org] = map[int64]*forge.Label{}
 	}
 	f.issues.nextLabel++
-	l := &forgejo_sdk.Label{ID: f.issues.nextLabel, Name: opt.Name, Color: strings.TrimPrefix(opt.Color, "#"), Description: opt.Description}
+	l := &forge.Label{ID: f.issues.nextLabel, Name: opt.Name, Color: strings.TrimPrefix(opt.Color, "#"), Description: opt.Description, Exclusive: opt.Exclusive}
 	f.issues.orgLabels[org][l.ID] = l
 	cp := *l
 	return &cp, nil
 }
 
-func (f *Forgejo) EditOrgLabel(_ context.Context, org string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
+func (f *Forgejo) EditOrgLabel(_ context.Context, org string, id int64, opt forge.LabelPatch) (*forge.Label, error) {
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
 	l, ok := f.issues.orgLabels[org][id]
@@ -285,8 +294,7 @@ func (f *Forgejo) AddIssueLabels(_ context.Context, owner, repo string, index in
 			have = have || h.ID == id
 		}
 		if !have {
-			cp := *l
-			rec.issue.Labels = append(rec.issue.Labels, &cp)
+			rec.issue.Labels = append(rec.issue.Labels, issueLabel(l))
 		}
 	}
 	rec.issue.Updated = f.Now()

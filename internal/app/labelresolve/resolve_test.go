@@ -167,7 +167,7 @@ func TestResolve_LabelBeyondACeilingBelowThePageSize(t *testing.T) {
 // type, as the owning use case does in production.
 type catalogOf struct{ port apppissue.Port }
 
-func (c catalogOf) ListRepoLabels(ctx context.Context, owner, repo string, p labelresolve.Paging) ([]*model.Label, error) {
+func (c catalogOf) ListRepoLabels(ctx context.Context, owner, repo string, p labelresolve.Paging) ([]*model.CatalogLabel, error) {
 	return c.port.ListRepoLabels(ctx, owner, repo, apppissue.Paging{Page: p.Page, Limit: p.Limit})
 }
 
@@ -175,6 +175,6 @@ func (c catalogOf) MaxResponseItems(ctx context.Context) (int, bool) {
 	return c.port.MaxResponseItems(ctx)
 }
 
-func (c catalogOf) ListOrgLabels(ctx context.Context, org string, p labelresolve.Paging) ([]*model.Label, error) {
+func (c catalogOf) ListOrgLabels(ctx context.Context, org string, p labelresolve.Paging) ([]*model.CatalogLabel, error) {
 	return c.port.ListOrgLabels(ctx, org, apppissue.Paging{Page: p.Page, Limit: p.Limit})
 }

@@ -11,7 +11,6 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -36,7 +35,7 @@ func seedRepoLabels(t *testing.T, f *fake.Forgejo, n int) []int64 {
 	t.Helper()
 	ids := make([]int64, 0, n)
 	for i := 1; i <= n; i++ {
-		l, err := f.CreateRepoLabel(context.Background(), testOwner, testRepo, forgejo_sdk.CreateLabelOption{Name: fmt.Sprintf("label-%d", i), Color: "#aabbcc"})
+		l, err := f.CreateRepoLabel(context.Background(), testOwner, testRepo, forge.LabelCreate{Name: fmt.Sprintf("label-%d", i), Color: "#aabbcc"})
 		if err != nil {
 			t.Fatalf("seeding label: %v", err)
 		}
@@ -50,7 +49,7 @@ func seedOrgLabels(t *testing.T, f *fake.Forgejo, org string, n int) []int64 {
 	t.Helper()
 	ids := make([]int64, 0, n)
 	for i := 1; i <= n; i++ {
-		l, err := f.CreateOrgLabel(context.Background(), org, forgejo_sdk.CreateLabelOption{Name: fmt.Sprintf("label-%d", i), Color: "#aabbcc"})
+		l, err := f.CreateOrgLabel(context.Background(), org, forge.LabelCreate{Name: fmt.Sprintf("label-%d", i), Color: "#aabbcc"})
 		if err != nil {
 			t.Fatalf("seeding org label: %v", err)
 		}
@@ -81,16 +80,16 @@ type statusPort struct {
 	repoLabelReads  *int
 }
 
-func (p statusPort) ListOrgLabels(ctx context.Context, org string, page, limit int) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
+func (p statusPort) ListOrgLabels(ctx context.Context, org string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
 	if p.orgLabelsStatus != 0 {
 		return nil, forge.PageInfo{}, &forge.StatusError{StatusCode: p.orgLabelsStatus, Err: errString("no")}
 	}
 	return p.Forgejo.ListOrgLabels(ctx, org, page, limit)
 }
 
-func (p statusPort) ListRepoLabels(ctx context.Context, owner, repo string, opt forgejo_sdk.ListLabelsOptions) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
+func (p statusPort) ListRepoLabels(ctx context.Context, owner, repo string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
 	if p.repoLabelReads != nil {
 		*p.repoLabelReads++
 	}
-	return p.Forgejo.ListRepoLabels(ctx, owner, repo, opt)
+	return p.Forgejo.ListRepoLabels(ctx, owner, repo, page, limit)
 }

@@ -1,2 +1,2 @@
-{"owner":"octo","repo":"hello","labels":[{"id":1,"name":"label-1","color":"aabbcc","description":"","url":""},{"id":2,"name":"label-2","color":"aabbcc","description":"","url":""}]}
+{"owner":"octo","repo":"hello","labels":[{"id":1,"name":"label-1","color":"aabbcc","description":"","url":"","exclusive":false},{"id":2,"name":"label-2","color":"aabbcc","description":"","url":"","exclusive":false}]}
 ---

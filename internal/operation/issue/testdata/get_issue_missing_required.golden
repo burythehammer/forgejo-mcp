@@ -1,3 +1,3 @@
-{"Result":{"number":7,"url":"https://f.example/octo/hello/issues/7","title":"fixed","state":"open","labels":["bug"],"assignees":["octo"],"updated_at":"2026-02-03T04:05:06Z","body":"body","closed_at":"2026-02-03T04:05:06Z","ref":"refs/heads/feat","comments":2}}
+{"Result":{"number":7,"url":"https://f.example/octo/hello/issues/7","title":"fixed","state":"open","labels":["bug"],"assignees":["octo"],"updated_at":"2026-02-03T04:05:06Z","milestone":{"id":4,"title":"v1"},"is_pull_request":true,"body":"body","closed_at":"2026-02-03T04:05:06Z","ref":"refs/heads/feat","comments":2}}
 -- port calls --
 GetIssue ["","",0]

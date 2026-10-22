@@ -5,7 +5,7 @@ Read this when you add or change an MCP tool. Code examples and patterns: [DEVEL
 
 1. **Use case first.** Put the logic in `internal/app/{domain}/` (typed input, repo-owned result). `internal/app/**` must not import mcp-go or the Forgejo SDK (depguard in `.golangci.yml`); reach Forgejo through the port in `internal/forge/`, bridged by `internal/forge/<domain>adapter/`.
 2. **MCP adapter.** In `internal/operation/{domain}/`: a `mcp.NewTool()` definition, an argument struct (`json:"name"`, `required:"true"`) decoded with `decode.Lax`, then a call to the use case. Numbers are `float64`, except where a tool's error text depends on how the number was given (`internal/operation/actions`, a few others): those type it `any` and read it with a helper, see `internal/operation/actions/args.go` and DEVELOPER.md.
-3. **Register** in the domain's `RegisterTool(s *server.MCPServer, f forge.Factory)`.
+3. **Register** in the domain's `RegisterTool(s *server.MCPServer, f forge.Factory)`. Then add the tool's name to its toolset in `internal/toolset/toolset.go`; the registry test fails for a tool in no toolset.
 4. **New domain:** import and call it in `internal/operation/operation.go`.
 5. **Pin it with tests.** `mcptest.SchemaSnapshot` and `mcptest.Golden` per tool, `mcptest.ArgsMatchSchema` per argument struct (`go test ./internal/operation/{domain} -update` writes the files), and use-case tests in `internal/app/{domain}/`.
 6. **Go through the port.** The adapter's `run` helper calls `f.For(ctx)` per request and hands the port to the bridge. A new endpoint is a port method, its adapter in `internal/forge/sdk/`, its fake and a contract case. Nothing outside `internal/forge/sdk` builds an SDK client or an HTTP request to Forgejo.

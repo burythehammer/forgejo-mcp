@@ -14,19 +14,19 @@ import (
 //
 // Failures from Forgejo are *StatusError; validation failures are plain errors.
 type Labels interface {
-	ListRepoLabels(ctx context.Context, owner, repo string, opt forgejo_sdk.ListLabelsOptions) ([]*forgejo_sdk.Label, PageInfo, error)
-	GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*forgejo_sdk.Label, error)
-	CreateRepoLabel(ctx context.Context, owner, repo string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error)
-	EditRepoLabel(ctx context.Context, owner, repo string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error)
+	ListRepoLabels(ctx context.Context, owner, repo string, page, limit int) ([]*Label, PageInfo, error)
+	GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*Label, error)
+	CreateRepoLabel(ctx context.Context, owner, repo string, opt LabelCreate) (*Label, error)
+	EditRepoLabel(ctx context.Context, owner, repo string, id int64, opt LabelPatch) (*Label, error)
 	DeleteRepoLabel(ctx context.Context, owner, repo string, id int64) error
 
 	// ListOrgLabels pages an organization's labels. An owner that is not an
 	// organization (Forgejo answers 404) has none, which is an empty list, not
 	// an error.
-	ListOrgLabels(ctx context.Context, org string, page, limit int) ([]*forgejo_sdk.Label, PageInfo, error)
-	GetOrgLabel(ctx context.Context, org string, id int64) (*forgejo_sdk.Label, error)
-	CreateOrgLabel(ctx context.Context, org string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error)
-	EditOrgLabel(ctx context.Context, org string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error)
+	ListOrgLabels(ctx context.Context, org string, page, limit int) ([]*Label, PageInfo, error)
+	GetOrgLabel(ctx context.Context, org string, id int64) (*Label, error)
+	CreateOrgLabel(ctx context.Context, org string, opt LabelCreate) (*Label, error)
+	EditOrgLabel(ctx context.Context, org string, id int64, opt LabelPatch) (*Label, error)
 	DeleteOrgLabel(ctx context.Context, org string, id int64) error
 
 	// ListOrgRepoNames pages the names of the organization's repositories, for
@@ -36,6 +36,36 @@ type Labels interface {
 	// AddIssueLabels adds labels, by ID, to the issue's existing ones.
 	AddIssueLabels(ctx context.Context, owner, repo string, index int64, labelIDs []int64) error
 	RemoveIssueLabel(ctx context.Context, owner, repo string, index, labelID int64) error
+}
+
+// Label is a Forgejo label, repository or organization. Exclusive is the flag
+// the SDK's label type does not carry, so label calls read it from the raw
+// response. The JSON names are Forgejo's, so the bridge converts a Label to the
+// model by marshalling it.
+type Label struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
+	Exclusive   bool   `json:"exclusive"`
+}
+
+// LabelCreate is the body that creates a label.
+type LabelCreate struct {
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Description string `json:"description,omitempty"`
+	Exclusive   bool   `json:"exclusive"`
+}
+
+// LabelPatch is the body that edits a label. A nil field is left as it is, so
+// an edit that omits Exclusive keeps the stored value.
+type LabelPatch struct {
+	Name        *string `json:"name,omitempty"`
+	Color       *string `json:"color,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Exclusive   *bool   `json:"exclusive,omitempty"`
 }
 
 // IssueRef names an issue in any repository.
