@@ -205,20 +205,24 @@ func TestGetFileContentFn_LineRange_InvertedAfterClamping(t *testing.T) {
 	}
 }
 
-func TestGetFileContentFn_LineRange_IgnoredWithMetadata(t *testing.T) {
+func TestGetFileContentFn_LineRangeSlicesMetadataContent(t *testing.T) {
 	t.Parallel()
 	h, f := newFilesFixture(t)
 	seedFile(t, f, "README.md", "one\ntwo")
 
 	result, err := h.GetFileContentFn(context.Background(), filesReq(map[string]any{
 		"ref": "main", "filePath": "README.md", "with_metadata": true,
-		"start_line": float64(5), "end_line": float64(10),
+		"start_line": float64(1), "end_line": float64(1),
 	}))
 	if err != nil || result.IsError {
 		t.Fatalf("err=%v result=%v", err, result)
 	}
-	if !strings.Contains(extractText(t, result), `"sha":"`) {
-		t.Fatalf("expected ContentsResponse with sha when with_metadata=true, got %q", extractText(t, result))
+	out := extractText(t, result)
+	if !strings.Contains(out, `"sha":"`) {
+		t.Fatalf("expected ContentsResponse with sha when with_metadata=true, got %q", out)
+	}
+	if !strings.Contains(out, base64.StdEncoding.EncodeToString([]byte("one"))) {
+		t.Fatalf("expected the content to be the base64 of line 1 only, got %q", out)
 	}
 }
 

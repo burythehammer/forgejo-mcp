@@ -72,8 +72,8 @@ func TestPRResourceHandler_OpenPR_HappyPath(t *testing.T) {
 	if len(payload.RecentComments) != 2 || payload.RecentComments[0].Author != "bob" || payload.CommentCount != 2 {
 		t.Errorf("comments=%+v count=%d", payload.RecentComments, payload.CommentCount)
 	}
-	if payload.ReviewCount != 1 || len(payload.RecentReviews) != 1 {
-		t.Errorf("reviews=%+v count=%d", payload.RecentReviews, payload.ReviewCount)
+	if payload.ReviewCount == nil || *payload.ReviewCount != 1 || len(payload.RecentReviews) != 1 {
+		t.Errorf("reviews=%+v count=%v", payload.RecentReviews, payload.ReviewCount)
 	}
 	if payload.CommentsTruncated || payload.ReviewsTruncated {
 		t.Error("nothing should be truncated")
@@ -137,6 +137,9 @@ func TestPRResourceHandler_OverCapReviews(t *testing.T) {
 	payload, _ := readPR(t, h, idx)
 	if !payload.ReviewsTruncated {
 		t.Error("expected reviews_truncated=true")
+	}
+	if payload.ReviewCount == nil || *payload.ReviewCount != resource.EmbeddedListCap+1 {
+		t.Errorf("expected review_count=%d, the real total, got %v", resource.EmbeddedListCap+1, payload.ReviewCount)
 	}
 	if payload.ReviewsListTool != "list_pull_reviews" {
 		t.Errorf("expected reviews_list_tool=list_pull_reviews, got %q", payload.ReviewsListTool)

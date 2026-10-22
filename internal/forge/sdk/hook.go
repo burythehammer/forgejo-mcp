@@ -26,7 +26,11 @@ type hookWire struct {
 // fake keeps it too.
 func (a *Adapter) getRepoHook(ctx context.Context, owner, repo string, id int64) (*forgejo_sdk.Hook, error) {
 	var w hookWire
-	if err := a.rawDo(ctx, http.MethodGet, forge.APIPath("repos", owner, repo, "hooks", id), nil, &w); err != nil {
+	path, err := forge.APIPath("repos", owner, repo, "hooks", id)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.rawDo(ctx, http.MethodGet, path, nil, &w); err != nil {
 		return nil, err
 	}
 	h := w.Hook
@@ -105,7 +109,11 @@ func (a *Adapter) EditRepoHook(ctx context.Context, owner, repo string, id int64
 	if opt.AuthorizationHeader != nil {
 		body["authorization_header"] = *opt.AuthorizationHeader
 	}
-	return a.rawDo(ctx, http.MethodPatch, forge.APIPath("repos", owner, repo, "hooks", id), body, nil)
+	path, err := forge.APIPath("repos", owner, repo, "hooks", id)
+	if err != nil {
+		return err
+	}
+	return a.rawDo(ctx, http.MethodPatch, path, body, nil)
 }
 
 func (a *Adapter) DeleteRepoHook(_ context.Context, owner, repo string, id int64) error {
@@ -115,5 +123,9 @@ func (a *Adapter) DeleteRepoHook(_ context.Context, owner, repo string, id int64
 
 // TestRepoHook is not in SDK v3: POST /repos/{owner}/{repo}/hooks/{id}/tests.
 func (a *Adapter) TestRepoHook(ctx context.Context, owner, repo string, id int64) error {
-	return a.rawDo(ctx, http.MethodPost, forge.APIPath("repos", owner, repo, "hooks", id, "tests"), nil, nil)
+	path, err := forge.APIPath("repos", owner, repo, "hooks", id, "tests")
+	if err != nil {
+		return err
+	}
+	return a.rawDo(ctx, http.MethodPost, path, nil, nil)
 }

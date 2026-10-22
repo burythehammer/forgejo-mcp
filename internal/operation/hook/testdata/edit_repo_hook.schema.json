@@ -29,7 +29,7 @@
         "type": "string"
       },
       "id": {
-        "description": "Webhook ID",
+        "description": "Webhook ID, a positive whole number; fractions and zero or negative numbers are rejected",
         "type": "number"
       },
       "owner": {

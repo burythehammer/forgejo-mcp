@@ -266,9 +266,8 @@ func TestStatusReadParity_ToolAndResourceAgree(t *testing.T) {
 }
 
 // Over the embedded cap the two paths differ on purpose. The resource shows 30
-// statuses, marks itself truncated and names the tool; its total_count is the
-// rows it fetched (31 at most) and stays that way for compatibility. The tool
-// shows the page asked for and the grand total from Forgejo.
+// statuses, marks itself truncated and names the tool. Both report Forgejo's
+// grand total; the tool shows the page asked for, the resource the capped list.
 func TestStatusReadParity_OverCapDiffersOnPurpose(t *testing.T) {
 	t.Parallel()
 	h, f := newFilesFixture(t)
@@ -294,8 +293,8 @@ func TestStatusReadParity_OverCapDiffersOnPurpose(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := statusPayload(t, contents)
-	if len(p.Statuses) != 30 || !p.Truncated || p.ListTool != "get_commit_statuses" || p.TotalCount != 31 {
-		t.Fatalf("resource: %d statuses, truncated %v, list_tool %q, total_count %d; want 30, true, get_commit_statuses, 31",
+	if len(p.Statuses) != 30 || !p.Truncated || p.ListTool != "get_commit_statuses" || p.TotalCount != 40 {
+		t.Fatalf("resource: %d statuses, truncated %v, list_tool %q, total_count %d; want 30, true, get_commit_statuses, 40",
 			len(p.Statuses), p.Truncated, p.ListTool, p.TotalCount)
 	}
 	mcptest.Golden(t, "read_status_resource_over_cap", stableTimes(contents[0].(mcp.TextResourceContents).Text))

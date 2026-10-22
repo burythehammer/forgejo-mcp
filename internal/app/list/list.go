@@ -126,8 +126,7 @@ func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Page[
 	if b.Total != nil {
 		// A reported grand total decides: rows follow this page when the rows
 		// before it plus this page fall short of the total. No probe is made.
-		before := int64(p.Page-1) * int64(p.Limit)
-		hasNext = before+int64(count) < int64(*b.Total)
+		hasNext = Start(p, *b.Total)+count < *b.Total
 	} else if !c.Known || count >= p.Limit {
 		next, err := fetch(ctx, Paging{Page: p.Page + 1, Limit: p.Limit})
 		if err != nil {

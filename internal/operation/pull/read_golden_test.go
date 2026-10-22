@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
@@ -40,8 +41,8 @@ func (t thread) ListPullRequestComments(context.Context, string, string, int64, 
 	return t.comments, nil
 }
 
-func (t thread) ListPullReviews(context.Context, string, string, int64, forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, error) {
-	return t.reviews, nil
+func (t thread) ListPullReviews(context.Context, string, string, int64, forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, forge.PageInfo, error) {
+	return t.reviews, forge.PageInfo{TotalCount: len(t.reviews), TotalKnown: true}, nil
 }
 
 // failingThread serves the pull request but fails the thread listing.

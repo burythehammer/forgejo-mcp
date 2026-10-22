@@ -58,6 +58,17 @@ func apiStatus(err error) int {
 // logAPICall records an API call that reached Forgejo: one that succeeded, or
 // one Forgejo answered with an HTTP status. A request refused before the call
 // (bad input, no credential) is not an API call and is not logged as one.
+// apiEndpoint is the endpoint label for an API-call log line. The service call
+// does the real request; a segment the path builder refuses is logged as a
+// placeholder rather than the raw value.
+func apiEndpoint(segments ...any) string {
+	p, err := forge.APIPath(segments...)
+	if err != nil {
+		return "(refused path segment)"
+	}
+	return p
+}
+
 func logAPICall(ctx context.Context, method, endpoint string, start time.Time, err error) {
 	if err != nil && forge.StatusCode(err) == 0 {
 		return

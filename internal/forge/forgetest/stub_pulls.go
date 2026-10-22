@@ -87,8 +87,17 @@ func (s *Stub) mountPulls(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("GET "+pullsBase+"/{index}/reviews", func(w http.ResponseWriter, r *http.Request) {
-		out, err := f.ListPullReviews(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "index"),
+		out, info, err := f.ListPullReviews(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "index"),
 			forgejo_sdk.ListPullReviewsOptions{ListOptions: listOptions(r)})
+		if err == nil && info.TotalKnown {
+			w.Header().Set("X-Total-Count", strconv.Itoa(info.TotalCount))
+		}
+		if err == nil && info.HasNext {
+			page := max(listOptions(r).Page, 1)
+			q := r.URL.Query()
+			q.Set("page", strconv.Itoa(page+1))
+			w.Header().Set("Link", `<`+r.URL.Path+`?`+q.Encode()+`>; rel="next"`)
+		}
 		reply(w, out, err)
 	})
 	mux.HandleFunc("POST "+pullsBase+"/{index}/reviews", func(w http.ResponseWriter, r *http.Request) {

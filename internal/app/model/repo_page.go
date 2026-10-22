@@ -9,6 +9,13 @@ type BranchPage struct {
 	PageMeta
 }
 
+// ContentsPage is the response of list_repo_contents: one page of the entries
+// of one directory level.
+type ContentsPage struct {
+	Contents []*ContentsResponse `json:"contents"`
+	PageMeta
+}
+
 // CommitPage is the response of list_repo_commits: one page of commits.
 type CommitPage struct {
 	Commits []*Commit `json:"commits"`

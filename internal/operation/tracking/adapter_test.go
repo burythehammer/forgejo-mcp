@@ -26,7 +26,7 @@ func TestArgsMatchSchemas(t *testing.T) {
 	}{
 		{ListIssueTrackedTimesTool, issueTimesArgs{}},
 		{ListRepoTrackedTimesTool, repoTimesArgs{}},
-		{ListMyTrackedTimesTool, noArgs{}},
+		{ListMyTrackedTimesTool, myTimesArgs{}},
 		{AddIssueTimeTool, addTimeArgs{}},
 		{ResetIssueTimeTool, issueArgs{}},
 		{DeleteIssueTimeEntryTool, deleteEntryArgs{}},

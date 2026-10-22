@@ -53,6 +53,64 @@ func statusPayload(t *testing.T, contents []mcp.ResourceContents) statusResource
 	return payload
 }
 
+// A failure beyond the first page must reach the resource's state, and total_count
+// must be the real total, not the page length.
+func TestStatusResourceHandler_FailureBeyondFirstPage(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	states := make([]forgejo_sdk.StatusState, 40)
+	for i := range states {
+		states[i] = forgejo_sdk.StatusSuccess
+	}
+	states[34] = forgejo_sdk.StatusFailure // the 35th status
+	seedStatuses(t, f, states...)
+
+	contents, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest(testSHA))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	payload := statusPayload(t, contents)
+	if payload.State != "failure" {
+		t.Errorf("state = %q, want failure (the 35th status)", payload.State)
+	}
+	if payload.TotalCount != 40 {
+		t.Errorf("total_count = %d, want 40", payload.TotalCount)
+	}
+	if len(payload.Statuses) != resource.EmbeddedListCap {
+		t.Errorf("statuses = %d, want the embedded cap %d", len(payload.Statuses), resource.EmbeddedListCap)
+	}
+	if !payload.Truncated {
+		t.Error("truncated = false, want true (the list is cut at the cap)")
+	}
+}
+
+// A commit too large to read in full reports unknown and truncated, never a state
+// from the part seen.
+func TestStatusResourceHandler_TooLargeToReadIsUnknownAndTruncated(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	states := make([]forgejo_sdk.StatusState, 1001)
+	for i := range states {
+		states[i] = forgejo_sdk.StatusSuccess
+	}
+	seedStatuses(t, f, states...)
+
+	contents, err := h.statusResourceHandler(context.Background(), makeStatusResourceRequest(testSHA))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	payload := statusPayload(t, contents)
+	if payload.State != "unknown" {
+		t.Errorf("state = %q, want unknown", payload.State)
+	}
+	if payload.TotalCount != 1001 {
+		t.Errorf("total_count = %d, want the real total 1001", payload.TotalCount)
+	}
+	if !payload.Truncated {
+		t.Error("truncated = false, want true")
+	}
+}
+
 func TestStatusResourceHandler_HappyPath_UnderCap(t *testing.T) {
 	t.Parallel()
 	h, f := newFilesFixture(t)

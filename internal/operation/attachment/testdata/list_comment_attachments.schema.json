@@ -5,16 +5,26 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List attachments on an issue/PR comment.",
+  "description": "List attachments on an issue/PR comment, one page at a time (page, limit; default 20). The response's has_next says whether more follow.",
   "inputSchema": {
     "properties": {
       "comment_id": {
         "description": "Comment ID",
         "type": "number"
       },
+      "limit": {
+        "default": 20,
+        "description": "Page size",
+        "type": "number"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
       },
       "repo": {
         "description": "Repository name",

@@ -61,9 +61,10 @@ func TestMarkedRequestIsServedWhenTheOperatorCredentialIsEmpty(t *testing.T) {
 	}
 }
 
-func TestMarkedRequestReusesTheSharedOperatorClient(t *testing.T) {
-	// Stdio serves every tool call through the operator's mark, so those calls
-	// must share one client as they did before the port took the policy.
+func TestMarkedRequestGetsItsOwnOperatorClient(t *testing.T) {
+	// Stdio serves every tool call through the operator's mark. Each call gets
+	// a client of its own, bound to its request context, so cancelling one
+	// request stops only its calls and no request's context leaks into another.
 	t.Parallel()
 	srv := newStub(t)
 	f := NewFactory(config.Forgejo{URL: srv.URL, Token: config.NewSecret(decoyOperatorCredential)}, "test")
@@ -75,7 +76,7 @@ func TestMarkedRequestReusesTheSharedOperatorClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.(*Adapter).client != b.(*Adapter).client {
-		t.Fatal("operator-marked requests built separate clients; want the shared one")
+	if a.(*Adapter).client == b.(*Adapter).client {
+		t.Fatal("operator-marked requests shared one client; each must carry its own context")
 	}
 }

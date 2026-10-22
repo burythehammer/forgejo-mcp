@@ -87,8 +87,49 @@ func TestReadCapsTheReviewsAndSaysSo(t *testing.T) {
 	if len(over.Reviews) != 2 || !over.ReviewsTruncated {
 		t.Fatalf("got %d reviews, truncated=%v; want 2, true", len(over.Reviews), over.ReviewsTruncated)
 	}
+	if !over.ReviewsTotalKnown || over.ReviewsTotal != 3 {
+		t.Fatalf("review total = %d known=%v; want 3, true", over.ReviewsTotal, over.ReviewsTotalKnown)
+	}
 	if over.Comments != nil {
 		t.Fatalf("a review-only read must not read the thread, got %d comments", len(over.Comments))
+	}
+}
+
+// unreportedReviewTotal is a port whose review listing does not say how many
+// reviews the pull request has.
+type unreportedReviewTotal struct{ apppull.Port }
+
+func (u unreportedReviewTotal) ListPullReviews(ctx context.Context, owner, repo string, index int64, p apppull.Paging) (apppull.ReviewPage, error) {
+	page, err := u.Port.ListPullReviews(ctx, owner, repo, index, p)
+	page.Total, page.TotalKnown = 0, false
+	return page, err
+}
+
+func TestReadWithoutAReportedTotalSaysSo(t *testing.T) {
+	t.Parallel()
+	f := fake.New()
+	f.AddRepo(owner, repo)
+	s := apppull.New(unreportedReviewTotal{pulladapter.New(f)})
+	i := open(t, s, "no total")
+	for range 3 {
+		if _, err := s.CreateReview(context.Background(), apppull.CreateReviewRequest{PR: pr(i), State: "COMMENT", Body: "r"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	over, err := s.Read(context.Background(), pr(i), apppull.ReadOptions{ReviewCap: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !over.ReviewsTruncated || over.ReviewsTotalKnown {
+		t.Fatalf("truncated=%v total known=%v; want true, false", over.ReviewsTruncated, over.ReviewsTotalKnown)
+	}
+	// Every review fits under the cap: the count is exact without a reported total.
+	all, err := s.Read(context.Background(), pr(i), apppull.ReadOptions{ReviewCap: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !all.ReviewsTotalKnown || all.ReviewsTotal != 3 {
+		t.Fatalf("uncapped total = %d known=%v; want 3, true", all.ReviewsTotal, all.ReviewsTotalKnown)
 	}
 }
 

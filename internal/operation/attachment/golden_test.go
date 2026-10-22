@@ -62,6 +62,9 @@ type stubAttach struct {
 	notFound bool
 }
 
+// MaxResponseItems reports no ceiling, so the list default applies.
+func (s *stubAttach) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+
 func (s *stubAttach) rec(name string, args ...any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

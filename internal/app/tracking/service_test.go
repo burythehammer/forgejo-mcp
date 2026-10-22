@@ -50,7 +50,7 @@ func (p *stubPort) ListRepoTrackedTimes(_ context.Context, _, _ string, q apptra
 
 func (p *stubPort) ListMyTrackedTimes(context.Context) ([]*model.TrackedTime, error) {
 	p.last = "mine"
-	return nil, p.err
+	return p.times, p.err
 }
 
 func (p *stubPort) AddIssueTime(_ context.Context, _, _ string, _ int64, in apptracking.AddTime) (*model.TrackedTime, error) {
@@ -116,9 +116,17 @@ func TestResolveSecondsRules(t *testing.T) {
 		{name: "duration 1h30m", duration: "1h30m", want: 5400},
 		{name: "both rejected", seconds: seconds(60), duration: "1m", wantErr: "exactly one"},
 		{name: "neither rejected", wantErr: "required"},
-		{name: "zero seconds", seconds: seconds(0), wantErr: "positive"},
-		{name: "negative seconds", seconds: seconds(-5), wantErr: "positive"},
-		{name: "negative duration", duration: "-30s", wantErr: "positive"},
+		{name: "one second", seconds: seconds(1), want: 1},
+		{name: "one and a half truncates to one", seconds: seconds(1.5), want: 1},
+		{name: "duration 1s", duration: "1s", want: 1},
+		{name: "duration 90s", duration: "90s", want: 90},
+		{name: "zero seconds", seconds: seconds(0), wantErr: "at least one second, got 0"},
+		{name: "half a second rejected", seconds: seconds(0.5), wantErr: "at least one second, got 0.5"},
+		{name: "just under one second rejected", seconds: seconds(0.999), wantErr: "at least one second, got 0.999"},
+		{name: "negative seconds", seconds: seconds(-5), wantErr: "at least one second, got -5"},
+		{name: "negative duration", duration: "-30s", wantErr: "at least one second"},
+		{name: "500ms duration rejected", duration: "500ms", wantErr: "at least one second, got 500ms"},
+		{name: "zero duration", duration: "0s", wantErr: "at least one second"},
 		{name: "malformed duration", duration: "not a duration", wantErr: "invalid duration"},
 	}
 	for _, tc := range tests {
@@ -231,7 +239,10 @@ func TestFailuresAreWrapped(t *testing.T) {
 			_, err := s.RepoTimes(context.Background(), apptracking.RepoTimesInput{})
 			return err
 		}, "list repo tracked times err: "},
-		{"my times", func(s *apptracking.Service) error { _, err := s.MyTimes(context.Background()); return err }, "list my tracked times err: "},
+		{"my times", func(s *apptracking.Service) error {
+			_, err := s.MyTimes(context.Background(), apptracking.MyTimesInput{})
+			return err
+		}, "list my tracked times err: "},
 		{"add", func(s *apptracking.Service) error {
 			_, err := s.AddTime(context.Background(), apptracking.AddTimeInput{IssueRef: ref, Seconds: seconds(5)})
 			return err
@@ -259,7 +270,7 @@ func TestSourceFailureIsReturnedAsIs(t *testing.T) {
 	t.Parallel()
 	denied := errors.New("no credential")
 	s := apptracking.New(func(context.Context) (apptracking.Port, error) { return nil, denied })
-	if _, err := s.MyTimes(context.Background()); !errors.Is(err, denied) || err.Error() != denied.Error() {
+	if _, err := s.MyTimes(context.Background(), apptracking.MyTimesInput{}); !errors.Is(err, denied) || err.Error() != denied.Error() {
 		t.Fatalf("got %v", err)
 	}
 }

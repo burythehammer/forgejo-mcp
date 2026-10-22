@@ -42,7 +42,7 @@ func TestSmokeOverHTTP(t *testing.T) {
 		return res.Content[0].(mcp.TextContent).Text
 	}
 
-	if got := call(ListIssueAttachmentsToolName, map[string]any{"index": float64(1)}); got != `{"Result":[]}` {
+	if got := call(ListIssueAttachmentsToolName, map[string]any{"index": float64(1)}); got != `{"Result":{"attachments":[],"page":1,"limit":20,"count":0,"has_next":false}}` {
 		t.Fatalf("list on an issue with none: %s", got)
 	}
 	content := base64.StdEncoding.EncodeToString([]byte("hello attachment"))

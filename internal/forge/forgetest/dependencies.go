@@ -83,6 +83,20 @@ func RunDependencies(t *testing.T, newHarness func(t *testing.T) Harness) {
 			must(t, err)
 			wantIssueIndices(t, second, want[2])
 		}},
+		{"dependencies and dependents of a missing issue are not found", func(t *testing.T, h Harness) {
+			a := newIssue(t, h, "a")
+			_, err := h.Port.ListIssueDependencies(ctx, Owner, Repo, 99, 1, 10)
+			wantNotFound(t, err)
+			_, err = h.Port.ListIssueDependents(ctx, Owner, Repo, 99, 1, 10)
+			wantNotFound(t, err)
+			// An existing issue with nothing related is an empty list, not not-found.
+			deps, err := h.Port.ListIssueDependencies(ctx, Owner, Repo, a.Index, 1, 10)
+			must(t, err)
+			wantIssueIndices(t, deps)
+			dependents, err := h.Port.ListIssueDependents(ctx, Owner, Repo, a.Index, 1, 10)
+			must(t, err)
+			wantIssueIndices(t, dependents)
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

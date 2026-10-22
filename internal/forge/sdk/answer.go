@@ -40,8 +40,9 @@ func jsonMessage(body []byte) string {
 
 // contentsPath is the API path of a file in a repository. Each segment of the
 // file path is escaped on its own, so the slashes that separate directories
-// stay path separators while a segment cannot retarget the request.
-func contentsPath(owner, repo, filePath string) string {
+// stay path separators while a segment cannot retarget the request. A "." or
+// ".." component is refused by forge.APIPath, wherever it sits in the path.
+func contentsPath(owner, repo, filePath string) (string, error) {
 	segments := []any{"repos", owner, repo, "contents"}
 	for _, p := range strings.Split(filePath, "/") {
 		segments = append(segments, p)
