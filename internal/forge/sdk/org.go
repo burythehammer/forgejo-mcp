@@ -49,14 +49,17 @@ func (a *Adapter) ListOrgMembers(_ context.Context, org string, opt forgejo_sdk.
 }
 
 // CheckOrgMembership is raw so that a refusal keeps Forgejo's message: a 404 is
-// "not a member", and any other status that is not 204 is a failure.
+// "not a member" when the org exists and not found when it does not (see
+// notFoundOr), and any other status that is not 204 is a failure.
 func (a *Adapter) CheckOrgMembership(ctx context.Context, org, user string) (bool, error) {
 	status, body, err := a.raw.doStatus(ctx, http.MethodGet, forge.APIPath("orgs", org, "members", user), nil)
 	if err != nil {
 		return false, err
 	}
 	if status == http.StatusNotFound {
-		return false, nil
+		// "Not a member" only when the org exists; a missing org is not found.
+		_, probe := a.GetOrg(ctx, org)
+		return false, notFoundOr(probe, orgNotFound(org))
 	}
 	if err := answered(status, body, http.StatusNoContent); err != nil {
 		return false, err

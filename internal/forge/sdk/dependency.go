@@ -24,12 +24,17 @@ type issueMetaBody struct {
 	Repo  string `json:"repo"`
 }
 
-// listIssues lists issues at an issue sub-resource, a 404 meaning none.
+// listIssues lists issues at an issue sub-resource. A 404 is an empty list only
+// when the parent issue exists; a missing parent is not found (see notFoundOr).
 func (a *Adapter) listIssues(ctx context.Context, owner, repo string, index int64, sub string, page, limit int) ([]*forgejo_sdk.Issue, error) {
 	path := forge.APIPath("repos", owner, repo, "issues", index, sub) + "?" + pageQuery(page, limit)
 	issues := []*forgejo_sdk.Issue{}
 	_, err := a.rawJSON(ctx, http.MethodGet, path, nil, &issues)
 	if forge.IsNotFound(err) {
+		_, probe := a.GetIssue(ctx, owner, repo, index)
+		if err := notFoundOr(probe, fmt.Sprintf("issue %d in %s/%s not found", index, owner, repo)); err != nil {
+			return nil, err
+		}
 		return []*forgejo_sdk.Issue{}, nil
 	}
 	if err != nil {

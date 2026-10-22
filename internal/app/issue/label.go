@@ -32,6 +32,21 @@ func (c catalog) ListOrgLabels(ctx context.Context, org string, p labelresolve.P
 	return c.port.ListOrgLabels(ctx, org, Paging{Page: p.Page, Limit: p.Limit})
 }
 
+// ErrOrgNotFound marks a label read whose organization Forgejo does not know. It
+// is the resolver's sentinel, so the resolver can read a user owner as having no
+// organization labels; the error keeps its message and its forge kind (see
+// AsOrgNotFound).
+var ErrOrgNotFound = labelresolve.ErrOrgNotFound
+
+// AsOrgNotFound marks err, a forge not-found, as ErrOrgNotFound.
+func AsOrgNotFound(err error) error { return orgNotFound{err} }
+
+type orgNotFound struct{ err error }
+
+func (e orgNotFound) Error() string        { return e.err.Error() }
+func (e orgNotFound) Unwrap() error        { return e.err }
+func (e orgNotFound) Is(target error) bool { return target == ErrOrgNotFound }
+
 func (c catalog) MaxResponseItems(ctx context.Context) (int, bool) {
 	return c.port.MaxResponseItems(ctx)
 }

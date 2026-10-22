@@ -65,6 +65,11 @@ func (a *Adapter) ListOrgLabels(ctx context.Context, org string, page, limit int
 	labels := []*forgejo_sdk.Label{}
 	header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &labels)
 	if forge.IsNotFound(err) {
+		// Forgejo answers 404 for a missing org too; the org decides.
+		_, probe := a.GetOrg(ctx, org)
+		if perr := notFoundOr(probe, orgNotFound(org)); perr != nil {
+			return nil, forge.PageInfo{}, perr
+		}
 		return []*forgejo_sdk.Label{}, forge.PageInfo{}, nil
 	}
 	if err != nil {

@@ -199,7 +199,12 @@ func TestRepoLabelsResource_ClampsLimitToCap(t *testing.T) {
 // list, not a failed read.
 func TestOrgLabelsResource_NoLabelsMeansEmptyList(t *testing.T) {
 	t.Parallel()
-	h, _ := newFixture(t)
+	h, f := newFixture(t)
+	// The org exists and has no labels; a missing org is not-found (see the
+	// unknown-org test in label_tools_test.go).
+	if _, err := f.CreateOrg(context.Background(), forgejo_sdk.CreateOrgOption{Name: "o"}); err != nil {
+		t.Fatal(err)
+	}
 
 	p := readLabelPage(t, h.orgLabelsResourceHandler, "forgejo://org/o/labels?limit=5")
 	if len(p.Labels) != 0 || p.Truncated {

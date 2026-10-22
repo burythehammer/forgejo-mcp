@@ -126,11 +126,10 @@ func RunOrgs(t *testing.T, newHarness func(t *testing.T) Harness) {
 		{"members of an unknown organization are not found", func(t *testing.T, h Harness) {
 			_, err := h.Port.ListOrgMembers(ctx, "nothing", forgejo_sdk.ListOrgMembershipOption{})
 			wantNotFound(t, err)
-			is, err := h.Port.CheckOrgMembership(ctx, "nothing", "bob")
-			must(t, err)
-			if is {
-				t.Fatal("nobody is a member of an organization that does not exist")
-			}
+			// Forgejo's 404 for a missing org is not "not a member": a typo in the
+			// org name must not read as a plain no.
+			_, err = h.Port.CheckOrgMembership(ctx, "nothing", "bob")
+			wantNotFound(t, err)
 		}},
 		{"removing an unknown user from an organization is not found", func(t *testing.T, h Harness) {
 			newOrg(t, h, "acme")
