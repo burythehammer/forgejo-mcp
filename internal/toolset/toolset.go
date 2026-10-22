@@ -76,6 +76,7 @@ var catalogue = []Toolset{
 			"issue_state_change",
 			"list_issue_comments",
 			"list_repo_issues",
+			"replace_issue_body_line",
 			"search_issues",
 			"update_issue",
 		},

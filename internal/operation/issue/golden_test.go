@@ -29,7 +29,7 @@ import (
 
 var goldenAllTools = []mcp.Tool{
 	GetIssueByIndexTool, ListRepoIssuesTool, CreateIssueTool, CreateIssueCommentTool,
-	UpdateIssueTool, AddIssueLabelsTools, RemoveIssueLabelsTools, IssueStateChangeTool,
+	UpdateIssueTool, ReplaceIssueBodyLineTool, AddIssueLabelsTools, RemoveIssueLabelsTools, IssueStateChangeTool,
 	ListIssueCommentsTool, GetIssueCommentTool, EditIssueCommentTool, DeleteIssueCommentTool,
 	ListRepoMilestonesTool, CreateMilestoneTool, EditMilestoneTool, GetMilestoneTool,
 	ListRepoLabelsTool, ListOrgLabelsTool, SearchIssuesTool,
@@ -63,6 +63,7 @@ func TestCompactWriteArgsMatchSchemas(t *testing.T) {
 	mcptest.ArgsMatchSchema(t, SearchIssuesTool, searchArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueTool, createIssueArgs{})
 	mcptest.ArgsMatchSchema(t, UpdateIssueTool, updateIssueArgs{})
+	mcptest.ArgsMatchSchema(t, ReplaceIssueBodyLineTool, replaceBodyLineArgs{})
 	mcptest.ArgsMatchSchema(t, IssueStateChangeTool, stateArgs{})
 	mcptest.ArgsMatchSchema(t, CreateIssueCommentTool, createCommentArgs{})
 	mcptest.ArgsMatchSchema(t, EditIssueCommentTool, editCommentArgs{})
@@ -465,6 +466,12 @@ var goldenCases = []goldenCase{
 	{name: "update_issue_clear_labels", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": ""}},
 	{name: "update_issue_set_labels_unknown", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T", "set_labels": "nope"}},
 	{name: "update_issue_nothing", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7)}},
+
+	// replace_issue_body_line: the stub's issue is a pull request, so the
+	// success and count paths are covered in replace_body_line_test.go.
+	{name: "replace_issue_body_line_pull_request", tool: ReplaceIssueBodyLineToolName, args: map[string]any{"index": float64(7), "old": "body", "new": "BODY"}},
+	{name: "replace_issue_body_line_empty_old", tool: ReplaceIssueBodyLineToolName, args: map[string]any{"index": float64(7), "old": "", "new": "x"}},
+	{name: "replace_issue_body_line_get_error", tool: ReplaceIssueBodyLineToolName, args: map[string]any{"index": float64(7), "old": "body", "new": "x"}, stub: failing("GetIssue", errBoom)},
 	{name: "update_issue_wrong_types", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": float64(5), "clear_due_date": "true", "assignees": float64(7)}},
 	{name: "update_issue_edit_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "title": "T"}, stub: failing("EditIssue", errBoom)},
 	{name: "update_issue_replace_error", tool: UpdateIssueToolName, args: map[string]any{"index": float64(7), "set_labels": "bug"}, stub: failing("ReplaceIssueLabels", errBoom)},
