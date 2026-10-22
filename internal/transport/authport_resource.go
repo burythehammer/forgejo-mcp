@@ -118,7 +118,7 @@ func authenticateResourceServer(r *http.Request, rs *resourceServer, challenge s
 			challenge: value,
 			logMsg:    "Refused a request to the MCP endpoint",
 			logFields: []zap.Field{
-				log.StringField("reason", err.Error()),
+				log.StringField("reason", truncateForLog(err.Error())),
 				log.StringField("path", truncateForLog(r.URL.Path)),
 			},
 		}
