@@ -161,8 +161,8 @@ func TestLabelsResources_LastPageIsNotTruncated(t *testing.T) {
 // an instance that sends a Link header without X-Total-Count.
 type noTotal struct{ *fake.Forgejo }
 
-func (n noTotal) ListRepoLabels(ctx context.Context, owner, repo string, opt forgejo_sdk.ListLabelsOptions) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
-	out, info, err := n.Forgejo.ListRepoLabels(ctx, owner, repo, opt)
+func (n noTotal) ListRepoLabels(ctx context.Context, owner, repo string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
+	out, info, err := n.Forgejo.ListRepoLabels(ctx, owner, repo, page, limit)
 	info.TotalKnown, info.TotalCount = false, 0
 	return out, info, err
 }

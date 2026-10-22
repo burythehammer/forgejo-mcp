@@ -21,12 +21,12 @@ var _ forge.Issues = (*Forgejo)(nil)
 
 type issueState struct {
 	mu        sync.Mutex
-	repos     map[string]*issueRepo                   // key "owner/repo"
-	maxItems  int                                     // 0 = unknown
-	nextLabel int64                                   // label IDs are unique across the instance
-	orgLabels map[string]map[int64]*forgejo_sdk.Label // by org
-	deps      [][2]depKey                             // issue -> issue it depends on
-	fault     int                                     // HTTP status every issue call answers with; 0 = none
+	repos     map[string]*issueRepo             // key "owner/repo"
+	maxItems  int                               // 0 = unknown
+	nextLabel int64                             // label IDs are unique across the instance
+	orgLabels map[string]map[int64]*forge.Label // by org
+	deps      [][2]depKey                       // issue -> issue it depends on
+	fault     int                               // HTTP status every issue call answers with; 0 = none
 }
 
 type issueRepo struct {
@@ -35,7 +35,7 @@ type issueRepo struct {
 	next        int64
 	nextComment int64
 	nextMS      int64
-	labels      map[int64]*forgejo_sdk.Label
+	labels      map[int64]*forge.Label
 	milestones  []*forgejo_sdk.Milestone
 }
 
@@ -78,7 +78,7 @@ func (f *Forgejo) issueRepo(owner, repo string) (*issueRepo, error) {
 	if f.issues.repos == nil {
 		f.issues.repos = map[string]*issueRepo{}
 	}
-	r := &issueRepo{owner: owner, name: repo, labels: map[int64]*forgejo_sdk.Label{}}
+	r := &issueRepo{owner: owner, name: repo, labels: map[int64]*forge.Label{}}
 	f.issues.repos[key] = r
 	return r, nil
 }
@@ -134,7 +134,7 @@ func (f *Forgejo) SeedIssueLabel(owner, repo, name string) int64 {
 		panic(fmt.Sprintf("fake: SeedIssueLabel in unknown repository %s/%s", owner, repo))
 	}
 	f.issues.nextLabel++
-	r.labels[f.issues.nextLabel] = &forgejo_sdk.Label{ID: f.issues.nextLabel, Name: name}
+	r.labels[f.issues.nextLabel] = &forge.Label{ID: f.issues.nextLabel, Name: name}
 	return f.issues.nextLabel
 }
 
@@ -400,8 +400,7 @@ func (f *Forgejo) CreateIssue(_ context.Context, owner, repo string, opt forgejo
 	}
 	for _, id := range opt.Labels {
 		if l, ok := f.assignableLabel(r, id); ok {
-			cp := *l
-			iss.Labels = append(iss.Labels, &cp)
+			iss.Labels = append(iss.Labels, issueLabel(l))
 		}
 	}
 	for _, a := range opt.Assignees {
@@ -495,8 +494,7 @@ func (f *Forgejo) ReplaceIssueLabels(_ context.Context, owner, repo string, inde
 		if !ok {
 			return notFound("label")
 		}
-		cp := *l
-		labels = append(labels, &cp)
+		labels = append(labels, issueLabel(l))
 	}
 	rec.issue.Labels = labels
 	rec.issue.Updated = f.Now()

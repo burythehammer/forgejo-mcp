@@ -371,14 +371,14 @@ List all my repositories
 | `create_milestone` | Create an open milestone (`title` required; optional `description` and `due_date`, RFC3339). Returns the milestone as stored: `id`, `title`, `description`, `state`, `due_date`, `open_issues`, `closed_issues`. |
 | `edit_milestone` | Edit a milestone by numeric `id`. Only the fields given change: `title`, `description`, `state` (`open` or `closed`, which closes or reopens it) and `due_date` (RFC3339). A due date cannot be cleared. Returns the milestone as stored. |
 | `get_milestone` | Get one milestone by numeric `id`, in the same shape as the write tools. A missing id is an error. |
-| `list_repo_labels` | List labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`). |
-| `list_org_labels` | List organization-level labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
-| `create_repo_label` | Create a repository label (`name`, `color` as 6-digit hex, optional `description`). Returns the numeric `id`; `add_issue_labels` also takes the name. |
-| `edit_repo_label` | Edit a repository label (PATCH — only supplied fields change: `name`, `color`, `description`). |
+| `list_repo_labels` | List labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`) and an `exclusive` flag. |
+| `list_org_labels` | List organization-level labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`, each with an `exclusive` flag. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
+| `create_repo_label` | Create a repository label (`name`, `color` as 6-digit hex, optional `description`, optional `exclusive`). Returns the numeric `id`; `add_issue_labels` also takes the name. `exclusive=true` makes the label's scope (the name before the last `/`, e.g. `status` in `status/ready`) hold at most one label per issue. The result reports the stored `exclusive`; if Forgejo does not store it, the call fails. |
+| `edit_repo_label` | Edit a repository label (PATCH — only supplied fields change: `name`, `color`, `description`, `exclusive`). Omitting `exclusive` leaves the stored value unchanged. |
 | `delete_repo_label` | Delete a repository label. Refuses by default when the label is in use (reports count); set `delete_mode=force` to override. |
 | `get_repo_label` | Get a single repository label by numeric `id`. |
-| `create_org_label` | Create an organization-level label. Same fields as `create_repo_label`. |
-| `edit_org_label` | Edit an organization-level label (PATCH semantics). |
+| `create_org_label` | Create an organization-level label. Same fields as `create_repo_label`, including `exclusive`. |
+| `edit_org_label` | Edit an organization-level label (PATCH semantics; `exclusive` is optional and omitting it leaves it unchanged). |
 | `delete_org_label` | Delete an organization-level label. In-use guard counts across visible org repos (best-effort); `delete_mode=force` overrides. |
 | `get_org_label` | Get a single organization-level label by numeric `id`. |
 | **Comments** | |
@@ -575,9 +575,9 @@ Resources that embed a list (issue, pr) cap the embedded array at 30 items. When
 | `forgejo://repo/{owner}/{repo}/branch_protection/{rule}` | application/json | Single branch protection rule. Rule names are branch patterns, so encode a literal `/` as `%2F` and spaces as `%20` (`release%2Fv1`); a raw `/` does not resolve. |
 | `forgejo://repo/{owner}/{repo}/hooks{?page,limit}` | application/json | Bounded list of repository webhooks (page/limit client-controlled, cap 30, sentinel names `list_repo_hooks`). The secret is never returned. |
 | `forgejo://repo/{owner}/{repo}/hook/{id}` | application/json | Single repository webhook by id. The secret is never returned. |
-| `forgejo://repo/{owner}/{repo}/label/{id}` | application/json | Single repository label by numeric id. |
-| `forgejo://repo/{owner}/{repo}/labels{?page,limit}` | application/json | Bounded list of repository labels (cap 30, sentinel names `list_repo_labels`). |
-| `forgejo://org/{org}/labels{?page,limit}` | application/json | Bounded list of organization-level labels (cap 30, sentinel names `list_org_labels`). |
+| `forgejo://repo/{owner}/{repo}/label/{id}` | application/json | Single repository label by numeric id, with its `exclusive` flag. |
+| `forgejo://repo/{owner}/{repo}/labels{?page,limit}` | application/json | Bounded list of repository labels, each with its `exclusive` flag (cap 30, sentinel names `list_repo_labels`). |
+| `forgejo://org/{org}/labels{?page,limit}` | application/json | Bounded list of organization-level labels, each with its `exclusive` flag (cap 30, sentinel names `list_org_labels`). |
 | `forgejo://repo/{owner}/{repo}/wiki/{pageName}` | application/json (+ text/markdown sidecar) | Wiki page with bounded revisions and Markdown capped at 1 MiB. Use the returned normalized `page_name`; encode a literal `/` as `%2F` and spaces as `%20` in the URI (do not double-encode an already normalized name). |
 
 Slash-separated titles such as `Guides/Setup` are useful as a subpage naming convention,

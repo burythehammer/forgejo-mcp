@@ -27,6 +27,13 @@ const (
 	GetOrgLabelToolName    = "get_org_label"
 )
 
+// The exclusive flag: a scope is the part of a label name before its last "/",
+// and an exclusive scope holds at most one label per issue.
+const (
+	exclusiveCreateDescription = "Exclusive: an issue carries at most one label of this label's scope (the name before the last /, e.g. status in status/ready). Default false. No effect on a name without a /."
+	exclusiveEditDescription   = "Exclusive flag to set or clear (see create). Omit to leave the stored value unchanged."
+)
+
 var (
 	CreateRepoLabelTool = mcp.NewTool(
 		CreateRepoLabelToolName,
@@ -36,6 +43,7 @@ var (
 		mcp.WithString("name", mcp.Required(), mcp.Description("Label name")),
 		mcp.WithString("color", mcp.Required(), mcp.Description("Label color as 6-digit hex (e.g. #0088ff or 0088ff)")),
 		mcp.WithString("description", mcp.Description("Label description")),
+		mcp.WithBoolean("exclusive", mcp.Description(exclusiveCreateDescription)),
 	)
 
 	EditRepoLabelTool = mcp.NewTool(
@@ -47,6 +55,7 @@ var (
 		mcp.WithString("name", mcp.Description("New label name")),
 		mcp.WithString("color", mcp.Description("New label color as 6-digit hex (e.g. #0088ff or 0088ff)")),
 		mcp.WithString("description", mcp.Description("New label description")),
+		mcp.WithBoolean("exclusive", mcp.Description(exclusiveEditDescription)),
 	)
 
 	DeleteRepoLabelTool = mcp.NewTool(
@@ -73,6 +82,7 @@ var (
 		mcp.WithString("name", mcp.Required(), mcp.Description("Label name")),
 		mcp.WithString("color", mcp.Required(), mcp.Description("Label color as 6-digit hex (e.g. #0088ff or 0088ff)")),
 		mcp.WithString("description", mcp.Description("Label description")),
+		mcp.WithBoolean("exclusive", mcp.Description(exclusiveCreateDescription)),
 	)
 
 	EditOrgLabelTool = mcp.NewTool(
@@ -83,6 +93,7 @@ var (
 		mcp.WithString("name", mcp.Description("New label name")),
 		mcp.WithString("color", mcp.Description("New label color as 6-digit hex (e.g. #0088ff or 0088ff)")),
 		mcp.WithString("description", mcp.Description("New label description")),
+		mcp.WithBoolean("exclusive", mcp.Description(exclusiveEditDescription)),
 	)
 
 	DeleteOrgLabelTool = mcp.NewTool(
@@ -118,6 +129,7 @@ type createRepoLabelArgs struct {
 	Name        string `json:"name" required:"true"`
 	Color       string `json:"color" required:"true"`
 	Description string `json:"description"`
+	Exclusive   bool   `json:"exclusive"`
 }
 
 type editRepoLabelArgs struct {
@@ -127,6 +139,7 @@ type editRepoLabelArgs struct {
 	Name        *string `json:"name"`
 	Color       *string `json:"color"`
 	Description *string `json:"description"`
+	Exclusive   *bool   `json:"exclusive"`
 }
 
 type deleteRepoLabelArgs struct {
@@ -147,6 +160,7 @@ type createOrgLabelArgs struct {
 	Name        string `json:"name" required:"true"`
 	Color       string `json:"color" required:"true"`
 	Description string `json:"description"`
+	Exclusive   bool   `json:"exclusive"`
 }
 
 type editOrgLabelArgs struct {
@@ -155,6 +169,7 @@ type editOrgLabelArgs struct {
 	Name        *string `json:"name"`
 	Color       *string `json:"color"`
 	Description *string `json:"description"`
+	Exclusive   *bool   `json:"exclusive"`
 }
 
 type deleteOrgLabelArgs struct {
@@ -169,25 +184,25 @@ type getOrgLabelArgs struct {
 }
 
 // labelNew is the label a create call names.
-func labelNew(name, color, description string) apppissue.LabelNew {
-	return apppissue.LabelNew{Name: name, Color: color, Description: description}
+func labelNew(name, color, description string, exclusive bool) apppissue.LabelNew {
+	return apppissue.LabelNew{Name: name, Color: color, Description: description, Exclusive: exclusive}
 }
 
 // labelEdit is the edit a call names. Tool is the tool's name, for the error
 // when no field is supplied.
-func labelEdit(tool string, name, color, description *string) apppissue.LabelEdit {
-	return apppissue.LabelEdit{Tool: tool, Name: name, Color: color, Description: description}
+func labelEdit(tool string, name, color, description *string, exclusive *bool) apppissue.LabelEdit {
+	return apppissue.LabelEdit{Tool: tool, Name: name, Color: color, Description: description, Exclusive: exclusive}
 }
 
 func (h handlers) CreateRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a createRepoLabelArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.CreateRepoLabel(ctx, a.Owner, a.Repo, labelNew(a.Name, a.Color, a.Description)))
+		return mcpresult.Render(s.CreateRepoLabel(ctx, a.Owner, a.Repo, labelNew(a.Name, a.Color, a.Description, a.Exclusive)))
 	})
 }
 
 func (h handlers) EditRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a editRepoLabelArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.EditRepoLabel(ctx, a.Owner, a.Repo, int64(a.ID), labelEdit("edit_repo_label", a.Name, a.Color, a.Description)))
+		return mcpresult.Render(s.EditRepoLabel(ctx, a.Owner, a.Repo, int64(a.ID), labelEdit("edit_repo_label", a.Name, a.Color, a.Description, a.Exclusive)))
 	})
 }
 
@@ -228,13 +243,13 @@ func (h handlers) GetRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (
 
 func (h handlers) CreateOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a createOrgLabelArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.CreateOrgLabel(ctx, a.Org, labelNew(a.Name, a.Color, a.Description)))
+		return mcpresult.Render(s.CreateOrgLabel(ctx, a.Org, labelNew(a.Name, a.Color, a.Description, a.Exclusive)))
 	})
 }
 
 func (h handlers) EditOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a editOrgLabelArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.EditOrgLabel(ctx, a.Org, int64(a.ID), labelEdit("edit_org_label", a.Name, a.Color, a.Description)))
+		return mcpresult.Render(s.EditOrgLabel(ctx, a.Org, int64(a.ID), labelEdit("edit_org_label", a.Name, a.Color, a.Description, a.Exclusive)))
 	})
 }
 

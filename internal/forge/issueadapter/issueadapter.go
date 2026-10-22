@@ -199,24 +199,24 @@ func (a adapter) EditMilestone(ctx context.Context, owner, repo string, id int64
 	return bridge.Convert[*model.Milestone](m, err)
 }
 
-func (a adapter) ListRepoLabels(ctx context.Context, owner, repo string, p appissue.Paging) ([]*model.Label, error) {
-	labels, _, err := a.s.ListRepoLabels(ctx, owner, repo, forgejo_sdk.ListLabelsOptions{ListOptions: listOptions(p)})
-	return bridge.Convert[[]*model.Label](labels, err)
+func (a adapter) ListRepoLabels(ctx context.Context, owner, repo string, p appissue.Paging) ([]*model.CatalogLabel, error) {
+	labels, _, err := a.s.ListRepoLabels(ctx, owner, repo, p.Page, p.Limit)
+	return bridge.Convert[[]*model.CatalogLabel](labels, err)
 }
 
-func (a adapter) GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*model.Label, error) {
+func (a adapter) GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*model.CatalogLabel, error) {
 	label, err := a.s.GetRepoLabel(ctx, owner, repo, id)
-	return bridge.Convert[*model.Label](label, err)
+	return bridge.Convert[*model.CatalogLabel](label, err)
 }
 
-func (a adapter) CreateRepoLabel(ctx context.Context, owner, repo string, in appissue.LabelNew) (*model.Label, error) {
+func (a adapter) CreateRepoLabel(ctx context.Context, owner, repo string, in appissue.LabelNew) (*model.CatalogLabel, error) {
 	label, err := a.s.CreateRepoLabel(ctx, owner, repo, labelNew(in))
-	return bridge.Convert[*model.Label](label, err)
+	return bridge.Convert[*model.CatalogLabel](label, err)
 }
 
-func (a adapter) EditRepoLabel(ctx context.Context, owner, repo string, id int64, in appissue.LabelEdit) (*model.Label, error) {
+func (a adapter) EditRepoLabel(ctx context.Context, owner, repo string, id int64, in appissue.LabelEdit) (*model.CatalogLabel, error) {
 	label, err := a.s.EditRepoLabel(ctx, owner, repo, id, labelEdit(in))
-	return bridge.Convert[*model.Label](label, err)
+	return bridge.Convert[*model.CatalogLabel](label, err)
 }
 
 func (a adapter) DeleteRepoLabel(ctx context.Context, owner, repo string, id int64) error {
@@ -227,13 +227,13 @@ func (a adapter) DeleteRepoLabel(ctx context.Context, owner, repo string, id int
 	return err
 }
 
-func (a adapter) ListOrgLabels(ctx context.Context, org string, p appissue.Paging) ([]*model.Label, error) {
+func (a adapter) ListOrgLabels(ctx context.Context, org string, p appissue.Paging) ([]*model.CatalogLabel, error) {
 	labels, _, err := a.s.ListOrgLabels(ctx, org, p.Page, p.Limit)
-	return bridge.Convert[[]*model.Label](labels, orgLabelsErr(err))
+	return bridge.Convert[[]*model.CatalogLabel](labels, orgLabelsErr(err))
 }
 
 func (a adapter) ListRepoLabelsPage(ctx context.Context, owner, repo string, p appissue.Paging) (appissue.LabelPage, error) {
-	labels, info, err := a.s.ListRepoLabels(ctx, owner, repo, forgejo_sdk.ListLabelsOptions{ListOptions: listOptions(p)})
+	labels, info, err := a.s.ListRepoLabels(ctx, owner, repo, p.Page, p.Limit)
 	return labelPage(labels, info, err)
 }
 
@@ -253,8 +253,8 @@ func orgLabelsErr(err error) error {
 	return err
 }
 
-func labelPage(labels []*forgejo_sdk.Label, info forge.PageInfo, err error) (appissue.LabelPage, error) {
-	out, err := bridge.Convert[[]*model.Label](labels, err)
+func labelPage(labels []*forge.Label, info forge.PageInfo, err error) (appissue.LabelPage, error) {
+	out, err := bridge.Convert[[]*model.CatalogLabel](labels, err)
 	if err != nil {
 		return appissue.LabelPage{}, err
 	}
@@ -265,19 +265,19 @@ func labelPage(labels []*forgejo_sdk.Label, info forge.PageInfo, err error) (app
 	}, nil
 }
 
-func (a adapter) GetOrgLabel(ctx context.Context, org string, id int64) (*model.Label, error) {
+func (a adapter) GetOrgLabel(ctx context.Context, org string, id int64) (*model.CatalogLabel, error) {
 	label, err := a.s.GetOrgLabel(ctx, org, id)
-	return bridge.Convert[*model.Label](label, err)
+	return bridge.Convert[*model.CatalogLabel](label, err)
 }
 
-func (a adapter) CreateOrgLabel(ctx context.Context, org string, in appissue.LabelNew) (*model.Label, error) {
+func (a adapter) CreateOrgLabel(ctx context.Context, org string, in appissue.LabelNew) (*model.CatalogLabel, error) {
 	label, err := a.s.CreateOrgLabel(ctx, org, labelNew(in))
-	return bridge.Convert[*model.Label](label, err)
+	return bridge.Convert[*model.CatalogLabel](label, err)
 }
 
-func (a adapter) EditOrgLabel(ctx context.Context, org string, id int64, in appissue.LabelEdit) (*model.Label, error) {
+func (a adapter) EditOrgLabel(ctx context.Context, org string, id int64, in appissue.LabelEdit) (*model.CatalogLabel, error) {
 	label, err := a.s.EditOrgLabel(ctx, org, id, labelEdit(in))
-	return bridge.Convert[*model.Label](label, err)
+	return bridge.Convert[*model.CatalogLabel](label, err)
 }
 
 func (a adapter) DeleteOrgLabel(ctx context.Context, org string, id int64) error {
@@ -327,10 +327,10 @@ func issueRef(t appissue.Target) forge.IssueRef {
 	return forge.IssueRef{Owner: t.Owner, Repo: t.Repo, Index: t.Index}
 }
 
-func labelNew(in appissue.LabelNew) forgejo_sdk.CreateLabelOption {
-	return forgejo_sdk.CreateLabelOption{Name: in.Name, Color: in.Color, Description: in.Description}
+func labelNew(in appissue.LabelNew) forge.LabelCreate {
+	return forge.LabelCreate{Name: in.Name, Color: in.Color, Description: in.Description, Exclusive: in.Exclusive}
 }
 
-func labelEdit(in appissue.LabelEdit) forgejo_sdk.EditLabelOption {
-	return forgejo_sdk.EditLabelOption{Name: in.Name, Color: in.Color, Description: in.Description}
+func labelEdit(in appissue.LabelEdit) forge.LabelPatch {
+	return forge.LabelPatch{Name: in.Name, Color: in.Color, Description: in.Description, Exclusive: in.Exclusive}
 }

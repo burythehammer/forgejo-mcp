@@ -47,8 +47,8 @@ type Paging struct{ Page, Limit int }
 // Catalog lists the labels a repository and its organization carry. The
 // use case that owns the Forgejo port adapts its reads to this shape.
 type Catalog interface {
-	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.Label, error)
-	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.Label, error)
+	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.CatalogLabel, error)
+	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.CatalogLabel, error)
 	// MaxResponseItems is the instance's pagination ceiling; ok is false when
 	// it could not be determined.
 	MaxResponseItems(ctx context.Context) (limit int, ok bool)
@@ -112,14 +112,14 @@ func (r *Resolver) Resolve(ctx context.Context, owner, repo, csv string) ([]int6
 func (r *Resolver) assignable(ctx context.Context, owner, repo string) ([]model.ScopedLabel, error) {
 	fullPage := r.fullPage(ctx)
 	repoLabels, err := enumerate(fmt.Sprintf("%s/%s", owner, repo), "repo", "repo", fullPage,
-		func(p Paging) ([]*model.Label, error) {
+		func(p Paging) ([]*model.CatalogLabel, error) {
 			return r.catalog.ListRepoLabels(ctx, owner, repo, p)
 		})
 	if err != nil {
 		return nil, err
 	}
 	orgLabels, err := enumerate("organization "+owner, "org", "org", fullPage,
-		func(p Paging) ([]*model.Label, error) {
+		func(p Paging) ([]*model.CatalogLabel, error) {
 			return r.catalog.ListOrgLabels(ctx, owner, p)
 		})
 	// The owner may be a user, which has no organization labels. The repository's
@@ -149,7 +149,7 @@ func (r *Resolver) fullPage(ctx context.Context) int {
 // Paging stops at the first page shorter than fullPage, so it needs no probe
 // request past the end. what names the scope in the cap's error, and kind
 // names it in the fetch error.
-func enumerate(what, scope, kind string, fullPage int, fetch func(Paging) ([]*model.Label, error)) ([]model.ScopedLabel, error) {
+func enumerate(what, scope, kind string, fullPage int, fetch func(Paging) ([]*model.CatalogLabel, error)) ([]model.ScopedLabel, error) {
 	var out []model.ScopedLabel
 	for page := 1; ; page++ {
 		labels, err := fetch(Paging{Page: page, Limit: catalogPageSize})
@@ -157,7 +157,7 @@ func enumerate(what, scope, kind string, fullPage int, fetch func(Paging) ([]*mo
 			return nil, fmt.Errorf("list %s labels err: %w", kind, err)
 		}
 		for _, l := range labels {
-			out = append(out, model.ScopedLabel{Label: *l, Scope: scope})
+			out = append(out, model.ScopedLabel{CatalogLabel: *l, Scope: scope})
 		}
 		if len(out) > maxCatalogLabels {
 			return nil, fmt.Errorf(

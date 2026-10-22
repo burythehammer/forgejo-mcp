@@ -25,11 +25,11 @@ const (
 // through it, so the two share one rule.
 type catalog struct{ port Port }
 
-func (c catalog) ListRepoLabels(ctx context.Context, owner, repo string, p labelresolve.Paging) ([]*model.Label, error) {
+func (c catalog) ListRepoLabels(ctx context.Context, owner, repo string, p labelresolve.Paging) ([]*model.CatalogLabel, error) {
 	return c.port.ListRepoLabels(ctx, owner, repo, Paging{Page: p.Page, Limit: p.Limit})
 }
 
-func (c catalog) ListOrgLabels(ctx context.Context, org string, p labelresolve.Paging) ([]*model.Label, error) {
+func (c catalog) ListOrgLabels(ctx context.Context, org string, p labelresolve.Paging) ([]*model.CatalogLabel, error) {
 	return c.port.ListOrgLabels(ctx, org, Paging{Page: p.Page, Limit: p.Limit})
 }
 
@@ -65,7 +65,7 @@ func (s *Service) OrgLabels(ctx context.Context, org string, p Paging) (list.Bou
 }
 
 // GetRepoLabel returns one repository label by its ID.
-func (s *Service) GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*model.Label, error) {
+func (s *Service) GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*model.CatalogLabel, error) {
 	label, err := s.port.GetRepoLabel(ctx, owner, repo, id)
 	if err != nil {
 		return nil, fmt.Errorf("get repo label: %w", err)
@@ -75,7 +75,7 @@ func (s *Service) GetRepoLabel(ctx context.Context, owner, repo string, id int64
 
 // CreateRepoLabel creates a repository label. The colour is checked and
 // normalised to #rrggbb before anything is sent.
-func (s *Service) CreateRepoLabel(ctx context.Context, owner, repo string, in LabelNew) (*model.Label, error) {
+func (s *Service) CreateRepoLabel(ctx context.Context, owner, repo string, in LabelNew) (*model.CatalogLabel, error) {
 	color, err := normalizeColor(in.Color)
 	if err != nil {
 		return nil, err
@@ -89,7 +89,7 @@ func (s *Service) CreateRepoLabel(ctx context.Context, owner, repo string, in La
 }
 
 // EditRepoLabel changes the supplied fields of a repository label.
-func (s *Service) EditRepoLabel(ctx context.Context, owner, repo string, id int64, in LabelEdit) (*model.Label, error) {
+func (s *Service) EditRepoLabel(ctx context.Context, owner, repo string, id int64, in LabelEdit) (*model.CatalogLabel, error) {
 	edit, err := labelEdit(in)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (s *Service) DeleteRepoLabel(ctx context.Context, owner, repo string, id in
 }
 
 // GetOrgLabel returns one organization label by its ID.
-func (s *Service) GetOrgLabel(ctx context.Context, org string, id int64) (*model.Label, error) {
+func (s *Service) GetOrgLabel(ctx context.Context, org string, id int64) (*model.CatalogLabel, error) {
 	label, err := s.port.GetOrgLabel(ctx, org, id)
 	if err != nil {
 		return nil, fmt.Errorf("get org label: %w", err)
@@ -137,7 +137,7 @@ func (s *Service) GetOrgLabel(ctx context.Context, org string, id int64) (*model
 }
 
 // CreateOrgLabel creates an organization label.
-func (s *Service) CreateOrgLabel(ctx context.Context, org string, in LabelNew) (*model.Label, error) {
+func (s *Service) CreateOrgLabel(ctx context.Context, org string, in LabelNew) (*model.CatalogLabel, error) {
 	color, err := normalizeColor(in.Color)
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func (s *Service) CreateOrgLabel(ctx context.Context, org string, in LabelNew) (
 }
 
 // EditOrgLabel changes the supplied fields of an organization label.
-func (s *Service) EditOrgLabel(ctx context.Context, org string, id int64, in LabelEdit) (*model.Label, error) {
+func (s *Service) EditOrgLabel(ctx context.Context, org string, id int64, in LabelEdit) (*model.CatalogLabel, error) {
 	edit, err := labelEdit(in)
 	if err != nil {
 		return nil, err
@@ -269,10 +269,10 @@ func (s *Service) orgLabelUsage(ctx context.Context, org, label string) (int, er
 // the edit the port takes: an empty name is left alone, a colour is normalised,
 // and a description, even an empty one, is set.
 func labelEdit(in LabelEdit) (LabelEdit, error) {
-	if in.Name == nil && in.Color == nil && in.Description == nil {
-		return LabelEdit{}, fmt.Errorf("%s: at least one of name, color, description must be provided", in.Tool)
+	if in.Name == nil && in.Color == nil && in.Description == nil && in.Exclusive == nil {
+		return LabelEdit{}, fmt.Errorf("%s: at least one of name, color, description, exclusive must be provided", in.Tool)
 	}
-	out := LabelEdit{Tool: in.Tool}
+	out := LabelEdit{Tool: in.Tool, Exclusive: in.Exclusive}
 	if in.Name != nil && *in.Name != "" {
 		name := *in.Name
 		out.Name = &name

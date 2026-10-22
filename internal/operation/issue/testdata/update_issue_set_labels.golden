@@ -1,6 +1,6 @@
 {"Result":{"number":7,"url":"https://f.example/octo/hello/issues/7","title":"fixed","state":"open","labels":["bug"],"assignees":["octo"],"updated_at":"2026-02-03T04:05:06Z","milestone":{"id":4,"title":"v1"},"is_pull_request":true}}
 -- port calls --
-ListRepoLabels ["octo","hello",{"Page":1,"PageSize":100}]
+ListRepoLabels ["octo","hello",1,100]
 ListOrgLabels ["octo",1,100]
 EditIssue ["octo","hello",7,{"title":"T","body":null,"ref":null,"assignees":null,"milestone":null,"state":null,"due_date":null,"unset_due_date":null}]
 ReplaceIssueLabels ["octo","hello",7,[3,4]]

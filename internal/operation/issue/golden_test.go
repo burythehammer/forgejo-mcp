@@ -225,7 +225,7 @@ func (s *goldenStub) EditMilestone(_ context.Context, o, r string, id int64, opt
 }
 
 // repoLabels are the labels of every repository: "bug" and "ui".
-var goldenRepoLabels = []*forgejo_sdk.Label{
+var goldenRepoLabels = []*forge.Label{
 	{ID: 3, Name: "bug", Color: "ff0000", Description: "broken", URL: "https://f.example/l/3"},
 	{ID: 4, Name: "ui", Color: "00ff00", Description: "look", URL: "https://f.example/l/4"},
 }
@@ -233,28 +233,28 @@ var goldenRepoLabels = []*forgejo_sdk.Label{
 // goldenOrgLabels are the labels of the organization "acme". "ui" repeats a
 // repository label name, so resolving it is ambiguous. The owner "octo" is a
 // user, which has no organization labels, and "denied" answers 403.
-var goldenOrgLabels = []*forgejo_sdk.Label{
+var goldenOrgLabels = []*forge.Label{
 	{ID: 12, Name: "infra", Color: "0000ff", Description: "org", URL: "https://f.example/o/12"},
 	{ID: 13, Name: "ui", Color: "00aaaa", Description: "org ui", URL: "https://f.example/o/13"},
 }
 
-func (s *goldenStub) ListRepoLabels(_ context.Context, o, r string, opt forgejo_sdk.ListLabelsOptions) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
-	var out []*forgejo_sdk.Label
-	if opt.Page <= 1 {
+func (s *goldenStub) ListRepoLabels(_ context.Context, o, r string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
+	var out []*forge.Label
+	if page <= 1 {
 		out = goldenRepoLabels
 	}
-	return out, forge.PageInfo{}, s.rec("ListRepoLabels", o, r, opt)
+	return out, forge.PageInfo{}, s.rec("ListRepoLabels", o, r, page, limit)
 }
 
-func (s *goldenStub) GetRepoLabel(_ context.Context, o, r string, id int64) (*forgejo_sdk.Label, error) {
+func (s *goldenStub) GetRepoLabel(_ context.Context, o, r string, id int64) (*forge.Label, error) {
 	return goldenRepoLabels[0], s.rec("GetRepoLabel", o, r, id)
 }
 
-func (s *goldenStub) CreateRepoLabel(_ context.Context, o, r string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error) {
-	return &forgejo_sdk.Label{ID: 5, Name: opt.Name, Color: opt.Color, Description: opt.Description, URL: "u"}, s.rec("CreateRepoLabel", o, r, opt)
+func (s *goldenStub) CreateRepoLabel(_ context.Context, o, r string, opt forge.LabelCreate) (*forge.Label, error) {
+	return &forge.Label{ID: 5, Name: opt.Name, Color: opt.Color, Description: opt.Description, URL: "u"}, s.rec("CreateRepoLabel", o, r, opt)
 }
 
-func (s *goldenStub) EditRepoLabel(_ context.Context, o, r string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
+func (s *goldenStub) EditRepoLabel(_ context.Context, o, r string, id int64, opt forge.LabelPatch) (*forge.Label, error) {
 	return goldenRepoLabels[0], s.rec("EditRepoLabel", o, r, id, opt)
 }
 
@@ -262,7 +262,7 @@ func (s *goldenStub) DeleteRepoLabel(_ context.Context, o, r string, id int64) e
 	return s.rec("DeleteRepoLabel", o, r, id)
 }
 
-func (s *goldenStub) ListOrgLabels(_ context.Context, org string, page, limit int) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
+func (s *goldenStub) ListOrgLabels(_ context.Context, org string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
 	err := s.rec("ListOrgLabels", org, page, limit)
 	switch {
 	case org == "denied":
@@ -273,15 +273,15 @@ func (s *goldenStub) ListOrgLabels(_ context.Context, org string, page, limit in
 	return goldenOrgLabels, forge.PageInfo{}, err
 }
 
-func (s *goldenStub) GetOrgLabel(_ context.Context, org string, id int64) (*forgejo_sdk.Label, error) {
+func (s *goldenStub) GetOrgLabel(_ context.Context, org string, id int64) (*forge.Label, error) {
 	return goldenOrgLabels[0], s.rec("GetOrgLabel", org, id)
 }
 
-func (s *goldenStub) CreateOrgLabel(_ context.Context, org string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error) {
-	return &forgejo_sdk.Label{ID: 14, Name: opt.Name, Color: opt.Color, Description: opt.Description, URL: "u"}, s.rec("CreateOrgLabel", org, opt)
+func (s *goldenStub) CreateOrgLabel(_ context.Context, org string, opt forge.LabelCreate) (*forge.Label, error) {
+	return &forge.Label{ID: 14, Name: opt.Name, Color: opt.Color, Description: opt.Description, URL: "u"}, s.rec("CreateOrgLabel", org, opt)
 }
 
-func (s *goldenStub) EditOrgLabel(_ context.Context, org string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
+func (s *goldenStub) EditOrgLabel(_ context.Context, org string, id int64, opt forge.LabelPatch) (*forge.Label, error) {
 	return goldenOrgLabels[0], s.rec("EditOrgLabel", org, id, opt)
 }
 

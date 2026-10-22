@@ -5,6 +5,8 @@ package forgetest
 import (
 	"net/http"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
@@ -17,11 +19,12 @@ func (s *Stub) mountLabels(mux *http.ServeMux) {
 	const orgLabels = "/api/v1/orgs/{org}/labels"
 
 	mux.HandleFunc("GET "+repoLabels, func(w http.ResponseWriter, r *http.Request) {
-		out, info, err := f.ListRepoLabels(r.Context(), r.PathValue("owner"), r.PathValue("repo"), forgejo_sdk.ListLabelsOptions{ListOptions: listOptions(r)})
+		lo := listOptions(r)
+		out, info, err := f.ListRepoLabels(r.Context(), r.PathValue("owner"), r.PathValue("repo"), lo.Page, lo.PageSize)
 		replyPaged(w, r, out, info, err)
 	})
 	mux.HandleFunc("POST "+repoLabels, func(w http.ResponseWriter, r *http.Request) {
-		var opt forgejo_sdk.CreateLabelOption
+		var opt forge.LabelCreate
 		if !decode(w, r, &opt) {
 			return
 		}
@@ -33,7 +36,7 @@ func (s *Stub) mountLabels(mux *http.ServeMux) {
 		reply(w, l, err)
 	})
 	mux.HandleFunc("PATCH "+repoLabels+"/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var opt forgejo_sdk.EditLabelOption
+		var opt forge.LabelPatch
 		if !decode(w, r, &opt) {
 			return
 		}
@@ -50,7 +53,7 @@ func (s *Stub) mountLabels(mux *http.ServeMux) {
 		replyPaged(w, r, out, info, err)
 	})
 	mux.HandleFunc("POST "+orgLabels, func(w http.ResponseWriter, r *http.Request) {
-		var opt forgejo_sdk.CreateLabelOption
+		var opt forge.LabelCreate
 		if !decode(w, r, &opt) {
 			return
 		}
@@ -62,7 +65,7 @@ func (s *Stub) mountLabels(mux *http.ServeMux) {
 		reply(w, l, err)
 	})
 	mux.HandleFunc("PATCH "+orgLabels+"/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var opt forgejo_sdk.EditLabelOption
+		var opt forge.LabelPatch
 		if !decode(w, r, &opt) {
 			return
 		}

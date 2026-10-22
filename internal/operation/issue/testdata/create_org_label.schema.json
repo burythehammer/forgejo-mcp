@@ -16,6 +16,10 @@
         "description": "Label description",
         "type": "string"
       },
+      "exclusive": {
+        "description": "Exclusive: an issue carries at most one label of this label's scope (the name before the last /, e.g. status in status/ready). Default false. No effect on a name without a /.",
+        "type": "boolean"
+      },
       "name": {
         "description": "Label name",
         "type": "string"

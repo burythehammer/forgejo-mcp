@@ -1,6 +1,6 @@
 ERROR: get updated issue err: boom
 -- port calls --
-ListRepoLabels ["octo","hello",{"Page":1,"PageSize":100}]
+ListRepoLabels ["octo","hello",1,100]
 ListOrgLabels ["octo",1,100]
 ReplaceIssueLabels ["octo","hello",7,[3]]
 GetIssue ["octo","hello",7]

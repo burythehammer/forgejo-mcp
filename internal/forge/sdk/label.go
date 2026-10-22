@@ -4,7 +4,9 @@ package sdk
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 
@@ -13,24 +15,64 @@ import (
 
 var _ forge.Labels = (*Adapter)(nil)
 
-func (a *Adapter) ListRepoLabels(_ context.Context, owner, repo string, opt forgejo_sdk.ListLabelsOptions) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
-	labels, resp, err := a.client.ListRepoLabels(owner, repo, opt)
-	return labels, pageInfo(resp), statusErr(resp, err)
+// The SDK's label types predate the exclusive flag, so every label call goes
+// around it: the bodies and replies are forge.Label, LabelCreate and
+// LabelPatch, whose JSON is Forgejo's. Only repository label deletion and the
+// issue label calls still use the SDK.
+
+func (a *Adapter) ListRepoLabels(ctx context.Context, owner, repo string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
+	base, err := forge.APIPath("repos", owner, repo, "labels")
+	if err != nil {
+		return nil, forge.PageInfo{}, err
+	}
+	labels := []*forge.Label{}
+	header, err := a.rawJSON(ctx, http.MethodGet, base+"?"+labelPageQuery(page, limit), nil, &labels)
+	if err != nil {
+		return nil, forge.PageInfo{}, err
+	}
+	return labels, headerPageInfo(header), nil
 }
 
-func (a *Adapter) GetRepoLabel(_ context.Context, owner, repo string, id int64) (*forgejo_sdk.Label, error) {
-	l, resp, err := a.client.GetRepoLabel(owner, repo, id)
-	return l, statusErr(resp, err)
+func (a *Adapter) GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*forge.Label, error) {
+	path, err := forge.APIPath("repos", owner, repo, "labels", id)
+	if err != nil {
+		return nil, err
+	}
+	var l forge.Label
+	if _, err := a.rawJSON(ctx, http.MethodGet, path, nil, &l); err != nil {
+		return nil, err
+	}
+	return &l, nil
 }
 
-func (a *Adapter) CreateRepoLabel(_ context.Context, owner, repo string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error) {
-	l, resp, err := a.client.CreateLabel(owner, repo, opt)
-	return l, statusErr(resp, err)
+func (a *Adapter) CreateRepoLabel(ctx context.Context, owner, repo string, opt forge.LabelCreate) (*forge.Label, error) {
+	path, err := forge.APIPath("repos", owner, repo, "labels")
+	if err != nil {
+		return nil, err
+	}
+	var l forge.Label
+	if _, err := a.rawJSON(ctx, http.MethodPost, path, opt, &l); err != nil {
+		return nil, err
+	}
+	if err := honoursCreate(opt, &l); err != nil {
+		return nil, err
+	}
+	return &l, nil
 }
 
-func (a *Adapter) EditRepoLabel(_ context.Context, owner, repo string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
-	l, resp, err := a.client.EditLabel(owner, repo, id, opt)
-	return l, statusErr(resp, err)
+func (a *Adapter) EditRepoLabel(ctx context.Context, owner, repo string, id int64, opt forge.LabelPatch) (*forge.Label, error) {
+	path, err := forge.APIPath("repos", owner, repo, "labels", id)
+	if err != nil {
+		return nil, err
+	}
+	var l forge.Label
+	if _, err := a.rawJSON(ctx, http.MethodPatch, path, opt, &l); err != nil {
+		return nil, err
+	}
+	if err := honoursPatch(opt, &l); err != nil {
+		return nil, err
+	}
+	return &l, nil
 }
 
 func (a *Adapter) DeleteRepoLabel(_ context.Context, owner, repo string, id int64) error {
@@ -38,23 +80,39 @@ func (a *Adapter) DeleteRepoLabel(_ context.Context, owner, repo string, id int6
 	return statusErr(resp, err)
 }
 
-// The SDK has no organization-label endpoints, so these go around it. The
-// bodies omit empty fields: an org label is created without a description
-// unless one is given, and edited only in the fields supplied.
-
-type orgLabelCreate struct {
-	Name        string  `json:"name,omitempty"`
-	Color       string  `json:"color,omitempty"`
-	Description *string `json:"description,omitempty"`
+// honoursCreate fails a create whose stored exclusive flag is not the one
+// asked for. Forgejo that ignores the field must not look like success.
+func honoursCreate(opt forge.LabelCreate, got *forge.Label) error {
+	if got.Exclusive == opt.Exclusive {
+		return nil
+	}
+	return fmt.Errorf("forgejo did not store exclusive=%t on label %q", opt.Exclusive, got.Name)
 }
 
-type orgLabelPatch struct {
-	Name        *string `json:"name,omitempty"`
-	Color       *string `json:"color,omitempty"`
-	Description *string `json:"description,omitempty"`
+// honoursPatch is honoursCreate for an edit: an edit that omits Exclusive has
+// nothing to check.
+func honoursPatch(opt forge.LabelPatch, got *forge.Label) error {
+	if opt.Exclusive == nil || got.Exclusive == *opt.Exclusive {
+		return nil
+	}
+	return fmt.Errorf("forgejo did not store exclusive=%t on label %d", *opt.Exclusive, got.ID)
 }
 
-func (a *Adapter) ListOrgLabels(ctx context.Context, org string, page, limit int) ([]*forgejo_sdk.Label, forge.PageInfo, error) {
+// labelPageQuery is the page query for a label list. An unset limit is left to
+// the server's default.
+func labelPageQuery(page, limit int) string {
+	if page < 1 {
+		page = 1
+	}
+	q := url.Values{}
+	q.Set("page", fmt.Sprint(page))
+	if limit > 0 {
+		q.Set("limit", fmt.Sprint(limit))
+	}
+	return q.Encode()
+}
+
+func (a *Adapter) ListOrgLabels(ctx context.Context, org string, page, limit int) ([]*forge.Label, forge.PageInfo, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -66,7 +124,7 @@ func (a *Adapter) ListOrgLabels(ctx context.Context, org string, page, limit int
 		return nil, forge.PageInfo{}, err
 	}
 	path := base + "?" + pageQuery(page, limit)
-	labels := []*forgejo_sdk.Label{}
+	labels := []*forge.Label{}
 	header, err := a.rawJSON(ctx, http.MethodGet, path, nil, &labels)
 	if forge.IsNotFound(err) {
 		// Forgejo answers 404 for a missing org too; the org decides.
@@ -74,7 +132,7 @@ func (a *Adapter) ListOrgLabels(ctx context.Context, org string, page, limit int
 		if perr := notFoundOr(probe, orgNotFound(org)); perr != nil {
 			return nil, forge.PageInfo{}, perr
 		}
-		return []*forgejo_sdk.Label{}, forge.PageInfo{}, nil
+		return []*forge.Label{}, forge.PageInfo{}, nil
 	}
 	if err != nil {
 		return nil, forge.PageInfo{}, err
@@ -82,8 +140,8 @@ func (a *Adapter) ListOrgLabels(ctx context.Context, org string, page, limit int
 	return labels, headerPageInfo(header), nil
 }
 
-func (a *Adapter) GetOrgLabel(ctx context.Context, org string, id int64) (*forgejo_sdk.Label, error) {
-	var l forgejo_sdk.Label
+func (a *Adapter) GetOrgLabel(ctx context.Context, org string, id int64) (*forge.Label, error) {
+	var l forge.Label
 	path, err := forge.APIPath("orgs", org, "labels", id)
 	if err != nil {
 		return nil, err
@@ -94,30 +152,31 @@ func (a *Adapter) GetOrgLabel(ctx context.Context, org string, id int64) (*forge
 	return &l, nil
 }
 
-func (a *Adapter) CreateOrgLabel(ctx context.Context, org string, opt forgejo_sdk.CreateLabelOption) (*forgejo_sdk.Label, error) {
-	body := orgLabelCreate{Name: opt.Name, Color: opt.Color}
-	if opt.Description != "" {
-		body.Description = &opt.Description
-	}
-	var l forgejo_sdk.Label
+func (a *Adapter) CreateOrgLabel(ctx context.Context, org string, opt forge.LabelCreate) (*forge.Label, error) {
+	var l forge.Label
 	path, err := forge.APIPath("orgs", org, "labels")
 	if err != nil {
 		return nil, err
 	}
-	if _, err := a.rawJSON(ctx, http.MethodPost, path, body, &l); err != nil {
+	if _, err := a.rawJSON(ctx, http.MethodPost, path, opt, &l); err != nil {
+		return nil, err
+	}
+	if err := honoursCreate(opt, &l); err != nil {
 		return nil, err
 	}
 	return &l, nil
 }
 
-func (a *Adapter) EditOrgLabel(ctx context.Context, org string, id int64, opt forgejo_sdk.EditLabelOption) (*forgejo_sdk.Label, error) {
-	body := orgLabelPatch{Name: opt.Name, Color: opt.Color, Description: opt.Description}
-	var l forgejo_sdk.Label
+func (a *Adapter) EditOrgLabel(ctx context.Context, org string, id int64, opt forge.LabelPatch) (*forge.Label, error) {
+	var l forge.Label
 	path, err := forge.APIPath("orgs", org, "labels", id)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := a.rawJSON(ctx, http.MethodPatch, path, body, &l); err != nil {
+	if _, err := a.rawJSON(ctx, http.MethodPatch, path, opt, &l); err != nil {
+		return nil, err
+	}
+	if err := honoursPatch(opt, &l); err != nil {
 		return nil, err
 	}
 	return &l, nil

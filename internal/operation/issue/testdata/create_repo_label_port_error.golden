@@ -1,3 +1,3 @@
 ERROR: create repo label: boom
 -- port calls --
-CreateRepoLabel ["octo","hello",{"name":"x","color":"#0088ff","description":""}]
+CreateRepoLabel ["octo","hello",{"name":"x","color":"#0088ff","exclusive":false}]

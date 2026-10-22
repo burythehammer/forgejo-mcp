@@ -10,7 +10,6 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -36,7 +35,7 @@ func labelListFactory(t *testing.T, scope string, total int) forge.Factory {
 	f.AddRepo("o", "r")
 	ctx := context.Background()
 	for i := 1; i <= total; i++ {
-		opt := forgejo_sdk.CreateLabelOption{Name: fmt.Sprintf("label-%d", i), Color: "#aabbcc"}
+		opt := forge.LabelCreate{Name: fmt.Sprintf("label-%d", i), Color: "#aabbcc"}
 		var err error
 		if scope == "org" {
 			_, err = f.CreateOrgLabel(ctx, "o", opt)
