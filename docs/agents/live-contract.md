@@ -2,7 +2,7 @@
 
 # Running the contract cases against a real Forgejo
 
-The contract cases in `internal/forge/forgetest` run against the fake and against the SDK adapter pointed at a stub. A live driver runs the same cases against a real Forgejo instance, so a disagreement between our assumptions and Forgejo shows up as a failing test.
+The contract cases in `internal/forge/forgetest` run against the fake and against the SDK adapter pointed at a stub. A live run of the Forgejo adapter runs the same cases against a real Forgejo instance, so a disagreement between our assumptions and Forgejo shows up as a failing test.
 
 The first slice covers the hook cases (`forgetest.RunHooks`) and is `TestHooksContractLive` in `internal/forge/sdk/contract_live_test.go`.
 
@@ -33,7 +33,7 @@ Not yet run against a real server. The first real run checks the install-form fi
 
 ## When the live run disagrees
 
-Where a live run disagrees with the fake or the stub, correct the fake or stub to match Forgejo and keep the case. The live run is the source of truth; the offline drivers should get more truthful over time.
+Where a live run disagrees with the fake or the stub, correct the fake or stub to match Forgejo and keep the case. The live run is the source of truth; the offline runs should get more truthful over time.
 
 ## Adding a domain
 

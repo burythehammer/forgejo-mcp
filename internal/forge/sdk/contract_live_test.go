@@ -16,7 +16,7 @@ import (
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
-// Environment variables that switch on the live contract driver. The token is
+// Environment variables that switch on the live contract run. The token is
 // supplied by a human at run time; nothing reads it from a file.
 const (
 	liveURLEnv   = "FORGEJO_URL"
@@ -68,7 +68,7 @@ func liveHarness(url, token string) func(t *testing.T) forgetest.Harness {
 // liveSeed creates the case's repository on the first AddRepo and deletes it
 // in the case's cleanup. The hook cases need no other seeding. Any other
 // Seeder method reaches the nil embedded interface and panics, which is the
-// signal that a case needs a live seeder this driver does not have yet.
+// signal that a case needs a live seeder this live run does not have yet.
 type liveSeed struct {
 	forgetest.Seeder
 	t       *testing.T
