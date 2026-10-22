@@ -245,8 +245,8 @@ func TestInlineCommentsSubmitAndDismiss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	comments, err := s.ReviewComments(ctx, apppull.ReviewRef{PR: pr(i), ID: rev.ID})
-	if err != nil || len(comments) != 1 || comments[0].Body != "why?" || comments[0].Path != "a.go" {
+	comments, err := s.ReviewComments(ctx, apppull.ReviewRef{PR: pr(i), ID: rev.ID}, apppull.Paging{})
+	if err != nil || len(comments.Comments) != 1 || comments.Comments[0].Body != "why?" || comments.Comments[0].Path != "a.go" {
 		t.Fatalf("comments: %+v, %v", comments, err)
 	}
 	sub, err := s.SubmitReview(ctx, apppull.SubmitReviewRequest{ReviewRef: apppull.ReviewRef{PR: pr(i), ID: rev.ID}, State: "APPROVED"})

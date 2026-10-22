@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pull"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/tracking"
 
@@ -28,7 +27,6 @@ var unpagedListTools = map[string]bool{
 	repo.ListMyReposToolName:            true,
 	tracking.ListMyStopwatchesToolName:  true,
 	tracking.ListMyTrackedTimesToolName: true,
-	pull.ListPullReviewCommentsToolName: true,
 }
 
 // TestCeilingListTools pins the instance ceiling on every paged list tool: a

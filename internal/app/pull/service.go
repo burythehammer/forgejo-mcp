@@ -303,13 +303,30 @@ func (s *Service) Review(ctx context.Context, in ReviewRef) (*model.PullReview, 
 	return review, nil
 }
 
-// ReviewComments lists the inline comments of a review.
-func (s *Service) ReviewComments(ctx context.Context, in ReviewRef) ([]*model.PullReviewComment, error) {
-	comments, err := s.port.ListPullReviewComments(ctx, in.Owner, in.Repo, in.Index, in.ID)
+// ReviewComments returns one page of the inline comments of a review. Forgejo
+// does not page this listing, so the whole list is read and cut here. The
+// page's comments are never nil; no total is reported.
+func (s *Service) ReviewComments(ctx context.Context, in ReviewRef, p Paging) (model.PullReviewCommentPage, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.PullReviewComment], error) {
+			all, err := s.port.ListPullReviewComments(ctx, in.Owner, in.Repo, in.Index, in.ID)
+			if err != nil {
+				return list.Batch[*model.PullReviewComment]{}, fmt.Errorf("list pull review comments err: %w", err)
+			}
+			rows, _ := list.Cut(all, q)
+			return list.Batch[*model.PullReviewComment]{Items: rows, Total: ptr.To(len(all))}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list pull review comments err: %w", err)
+		return model.PullReviewCommentPage{}, err
 	}
-	return comments, nil
+	rows := page.Items
+	if rows == nil {
+		rows = []*model.PullReviewComment{}
+	}
+	meta := model.PageMetaOf(page)
+	meta.TotalCount = nil
+	return model.PullReviewCommentPage{Comments: rows, PageMeta: meta}, nil
 }
 
 // CreateReview creates a review, with inline comments when in.Comments is a

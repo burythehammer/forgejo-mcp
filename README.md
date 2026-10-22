@@ -379,7 +379,7 @@ List all my repositories
 | `update_pull_request` | Update an existing pull request. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full pull request |
 | `list_pull_reviews` | List reviews for a pull request (page/limit); returns `{reviews,page,limit,count,has_next}` |
 | `get_pull_review` | Get a specific pull request review. Returns a compact result by default (id, url, author login, state, body, commit_id, stale, dismissed, official, comments_count, submitted_at); `verbose=true` returns the full review |
-| `list_pull_review_comments` | List comments on a pull request review |
+| `list_pull_review_comments` | List comments on a pull request review, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `list_pull_request_files` | List changed files in a pull request (page/limit); returns `{files,page,limit,count,has_next}`. Use the returned filenames as the `file_path` argument to `get_pull_request_diff`. |
 | `get_pull_request_diff` | Get the unified diff of a pull request, one page of whole files at a time: `page`/`limit` (default 50 files). A page with files after it ends with a truncation marker naming the next page. Optional `file_path` returns only that file's hunks and ignores paging (matches on either pre- or post-rename path). |
 | `merge_pull_request` | Merge a pull request (style: merge/rebase/rebase-merge/squash; optional title/message/delete-branch/force-merge/wait-for-checks). |

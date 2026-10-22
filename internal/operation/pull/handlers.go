@@ -83,6 +83,17 @@ type reviewArgs struct {
 	ID    float64 `json:"id" required:"true"`
 }
 
+// reviewCommentsArgs is list_pull_review_comments' argument struct: a review
+// reference and the page to read.
+type reviewCommentsArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index float64 `json:"index" required:"true"`
+	ID    float64 `json:"id" required:"true"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
+}
+
 // getReviewArgs is get_pull_review's own argument struct, so its verbose flag
 // does not reach the review tools that share reviewArgs.
 type getReviewArgs struct {
@@ -225,8 +236,12 @@ func (h handlers) GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) 
 }
 
 func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListPullReviewCommentsFn", func(ctx context.Context, s *apppull.Service, a reviewArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.ReviewComments(ctx, reviewRef(a)))
+	return run(ctx, h, req, "ListPullReviewCommentsFn", func(ctx context.Context, s *apppull.Service, a reviewCommentsArgs) (*mcp.CallToolResult, error) {
+		ref := reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID})
+		return mcpresult.Render(s.ReviewComments(ctx, ref, apppull.Paging{
+			Page:  decode.PageOr(a.Page, 1),
+			Limit: decode.IntOr(a.Limit, 0),
+		}))
 	})
 }
 

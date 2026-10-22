@@ -95,11 +95,13 @@ var (
 
 	ListPullReviewCommentsTool = mcp.NewTool(
 		ListPullReviewCommentsToolName,
-		mcp.WithDescription("List comments on a pull request review"),
+		mcp.WithDescription("List comments on a pull request review, one page at a time (page, limit; default 20). The response's has_next says whether more follow."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.PRIndex)),
 		mcp.WithNumber("id", mcp.Required(), mcp.Description("Review ID")),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 	)
 
 	ListPullRequestFilesTool = mcp.NewTool(
