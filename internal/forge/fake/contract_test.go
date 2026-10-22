@@ -118,3 +118,11 @@ func TestMissingVersusEmptyContract(t *testing.T) {
 		return forgetest.Harness{Port: f, Seed: f}
 	})
 }
+
+func TestParentsContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunParents(t, func(*testing.T) forgetest.Harness {
+		f := fake.New()
+		return forgetest.Harness{Port: f, Seed: f}
+	})
+}
