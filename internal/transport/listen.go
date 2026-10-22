@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -211,8 +212,26 @@ func (l *refusalLimiter) write(emit func(string, ...zap.Field), msg string, fiel
 //
 // The Authorization check is the authentication port's refusal, passed in as
 // authorize; nil means the door does not look at Authorization.
-func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, authorize func(*http.Request) error, refusals *refusalLimiter) http.Handler {
+//
+// The body ceiling, maxBody, is checked before all three. A request whose
+// declared length is over it is refused without reading anything; a chunked
+// one is wrapped so that the first read past the ceiling is refused with 413.
+// Nothing downstream, authentication included, sees a body over the ceiling.
+func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, authorize func(*http.Request) error, refusals *refusalLimiter, maxBody int64) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ContentLength > maxBody {
+			refusals.write(log.Warn, "Rejected request body over the size limit",
+				log.StringField("declared_length", truncateForLog(strconv.FormatInt(r.ContentLength, 10))),
+				log.StringField("path", truncateForLog(r.URL.Path)),
+			)
+			refuseTooLarge(w, maxBody)
+			return
+		}
+		if r.Body != nil && r.Body != http.NoBody {
+			body := &bodyLimit{ReadCloser: http.MaxBytesReader(w, r.Body, maxBody)}
+			r.Body = body
+			w = &bodyLimitWriter{ResponseWriter: w, body: body, maxBody: maxBody, refusals: refusals, path: r.URL.Path}
+		}
 		if !hosts.permits(r.Host) {
 			refusals.write(log.Warn, "Rejected request with unacceptable Host header",
 				log.StringField("host", truncateForLog(r.Host)),
@@ -249,6 +268,83 @@ func guardRequests(next http.Handler, hosts hostPolicy, origins originPolicy, au
 	})
 }
 
+// refuseTooLarge answers 413 with the ceiling in the body, so a client can
+// reduce its payload. It closes the connection, since the unread body would
+// otherwise be read off the wire to keep it alive.
+func refuseTooLarge(w http.ResponseWriter, maxBody int64) {
+	w.Header().Set("Connection", "close")
+	http.Error(w, fmt.Sprintf("Request Entity Too Large: the request body exceeds the %d-byte limit", maxBody), http.StatusRequestEntityTooLarge)
+}
+
+// bodyLimit records whether the reader gave up because the body went over the
+// ceiling. A chunked body has no length to check up front, so only the read can
+// tell.
+type bodyLimit struct {
+	io.ReadCloser
+	exceeded bool
+}
+
+func (b *bodyLimit) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		b.exceeded = true
+	}
+	return n, err
+}
+
+// bodyLimitWriter turns the handler's response into a 413 when the body it
+// read went over the ceiling. The handler sees the read fail and answers with
+// its own status, which would otherwise be what the client gets.
+type bodyLimitWriter struct {
+	http.ResponseWriter
+	body     *bodyLimit
+	maxBody  int64
+	refusals *refusalLimiter
+	path     string
+	wrote    bool
+}
+
+// header commits the status for the first write, substituting the 413 when the
+// body was over the ceiling.
+func (w *bodyLimitWriter) header(code int) {
+	if w.wrote {
+		return
+	}
+	w.wrote = true
+	if !w.body.exceeded {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+	w.refusals.write(log.Warn, "Rejected request body over the size limit",
+		log.StringField("path", truncateForLog(w.path)),
+	)
+	refuseTooLarge(w.ResponseWriter, w.maxBody)
+}
+
+func (w *bodyLimitWriter) WriteHeader(code int) { w.header(code) }
+
+func (w *bodyLimitWriter) Write(p []byte) (int, error) {
+	w.header(http.StatusOK)
+	if w.body.exceeded {
+		// The refusal is already written; the handler's output is dropped.
+		return len(p), nil
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+// Flush passes through so that streamed responses still flush. A flush before
+// any header commits the status the same way a write does.
+func (w *bodyLimitWriter) Flush() {
+	w.header(http.StatusOK)
+	if f, ok := w.ResponseWriter.(http.Flusher); ok && !w.body.exceeded {
+		f.Flush()
+	}
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (w *bodyLimitWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 // transportConfig is the decision this change exists to make explicit, resolved
 // once from configuration before anything is bound.
 type transportConfig struct {
@@ -279,6 +375,10 @@ type transportConfig struct {
 	// refusals is this listener's refusal-log budget. It is created with the
 	// configuration, so each listener starts with its own.
 	refusals *refusalLimiter
+	// maxBody is the request body ceiling. Validate refuses a non-positive
+	// configured value at startup; a zero value here means a Config that never
+	// went through Validate, and takes the default.
+	maxBody int64
 }
 
 // resolveTransportConfig derives the listener decisions from a Config that
@@ -292,6 +392,10 @@ func resolveTransportConfig(cfg config.Config) transportConfig {
 		resourceServer: cfg.ResourceServerMode(),
 		app:            cfg,
 		refusals:       &refusalLimiter{},
+		maxBody:        l.MaxRequestBodyBytes,
+	}
+	if tc.maxBody == 0 {
+		tc.maxBody = config.DefaultMaxRequestBodyBytes
 	}
 
 	host := strings.TrimSpace(l.Host)
@@ -327,7 +431,7 @@ func newMCPHTTPServer(handler http.Handler, cfg transportConfig) *http.Server {
 		}
 	}
 	return &http.Server{
-		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, authorize, cfg.refusals),
+		Handler:           guardRequests(handler, cfg.hosts, cfg.origins, authorize, cfg.refusals, cfg.maxBody),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		IdleTimeout:       idleTimeout,

@@ -112,6 +112,9 @@ func TestLoadRefusesInvalidConfiguration(t *testing.T) {
 		},
 		{"empty bind address", []string{"-t", "http", "-host", " "}, nil, "empty bind address"},
 		{"unusable origin", []string{"-t", "http", "-allowed-origins", "ftp://x.example.org"}, nil, "not a usable origin"},
+		{"zero body limit flag", []string{"-t", "http", "-max-request-body-bytes", "0"}, nil, "request body limit must be a positive"},
+		{"negative body limit flag", []string{"-t", "sse", "-max-request-body-bytes", "-1"}, nil, "request body limit must be a positive"},
+		{"zero body limit env", []string{"-t", "http"}, []string{"FORGEJO_MCP_MAX_REQUEST_BODY_BYTES", "0"}, "request body limit must be a positive"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

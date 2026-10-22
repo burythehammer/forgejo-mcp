@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -78,6 +79,7 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		shutdownGrace                        string
 		ssePort, httpPort                    int
 		allowFallback, debug                 bool
+		maxRequestBody                       int64
 		authMode                             string
 		tlsCA                                string
 		tlsSkipVerify                        bool
@@ -123,6 +125,9 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		"On the sse and http transports, serve a request that carries no Authorization header using "+
 			"this server's own token. Off by default: it hands this server's forge credential to any "+
 			"caller that can reach the port")
+	fs.Int64Var(&maxRequestBody, "max-request-body-bytes", DefaultMaxRequestBodyBytes,
+		"Largest request body the sse and http transports read, in bytes; a larger request gets 413. "+
+			"Must be positive. The default clears the largest attachment upload (env: FORGEJO_MCP_MAX_REQUEST_BODY_BYTES)")
 	fs.BoolVar(&debug, "d", false, "debug mode")
 	fs.BoolVar(&debug, "debug", false, "debug mode")
 	fs.StringVar(&authMode, "auth-mode", "passthrough",
@@ -247,6 +252,25 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		if v := getenv("FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK"); v != "" {
 			cfg.Listen.AllowOperatorTokenFallback = isTruthy(v)
 		}
+	}
+	cfg.Listen.MaxRequestBodyBytes = maxRequestBody
+	bodyLimitSource := "-max-request-body-bytes"
+	if !passed["max-request-body-bytes"] {
+		if v := getenv("FORGEJO_MCP_MAX_REQUEST_BODY_BYTES"); v != "" {
+			n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+			if err != nil {
+				return Config{}, warns, fmt.Errorf("refusing to start: FORGEJO_MCP_MAX_REQUEST_BODY_BYTES must be a whole number of bytes, got %q", v)
+			}
+			cfg.Listen.MaxRequestBodyBytes = n
+			bodyLimitSource = "FORGEJO_MCP_MAX_REQUEST_BODY_BYTES"
+		}
+	}
+	// Checked here, where the value was given, rather than in Validate: an
+	// in-process Config that never set the field is zero too, and takes the default.
+	if cfg.Listen.MaxRequestBodyBytes <= 0 {
+		return Config{}, warns, fmt.Errorf("refusing to start: the request body limit must be a positive number of bytes, got %d from %s; "+
+			"set it to a positive byte count or leave it unset for the default %d",
+			cfg.Listen.MaxRequestBodyBytes, bodyLimitSource, DefaultMaxRequestBodyBytes)
 	}
 
 	switch {

@@ -146,6 +146,15 @@ func RunAttachments(t *testing.T, newHarness func(t *testing.T) Harness) {
 		}
 	}
 
+	t.Run("download from another origin is refused", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		_, err := h.Port.DownloadAttachment(ctx, "https://elsewhere.example/attachments/x")
+		if !errors.Is(err, forge.ErrForeignOrigin) {
+			t.Fatalf("got %v, want ErrForeignOrigin", err)
+		}
+	})
+
 	t.Run("download over the inline cap is refused", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
