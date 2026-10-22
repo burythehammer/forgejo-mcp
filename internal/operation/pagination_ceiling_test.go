@@ -10,7 +10,6 @@ import (
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/tracking"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/wiki"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -23,10 +22,9 @@ const ceilingItems = 2
 // ceilingExempt are list tools the instance ceiling does not reach yet. Each is
 // a subtest that skips with its reason, so the gap shows in every run.
 var ceilingExempt = map[string]string{
-	tracking.ListMyStopwatchesToolName: "no page or limit, so there is no client bound for the ceiling to apply to",
-	wiki.GetWikiRevisionsToolName:      "the revision history is deliberately not held to the ceiling (see wiki.Service.Revisions)",
-	repo.GetCommitStatusesToolName:     "clamps its own limit to 50 rather than calling the list module, so the ceiling is never read",
-	repo.GetRepoTreeToolName:           "passes page and limit to the tree endpoint and does not call the list module, so the ceiling is never read",
+	wiki.GetWikiRevisionsToolName:  "the revision history is deliberately not held to the ceiling (see wiki.Service.Revisions)",
+	repo.GetCommitStatusesToolName: "clamps its own limit to 50 rather than calling the list module, so the ceiling is never read",
+	repo.GetRepoTreeToolName:       "passes page and limit to the tree endpoint and does not call the list module, so the ceiling is never read",
 }
 
 // TestCeilingListTools pins the instance ceiling on every paged list tool: a

@@ -33,7 +33,7 @@ func TestArgsMatchSchemas(t *testing.T) {
 		{StartIssueStopwatchTool, issueArgs{}},
 		{StopIssueStopwatchTool, issueArgs{}},
 		{CancelIssueStopwatchTool, issueArgs{}},
-		{ListMyStopwatchesTool, noArgs{}},
+		{ListMyStopwatchesTool, myStopwatchesArgs{}},
 	}
 	for _, c := range cases {
 		t.Run(c.tool.Name, func(t *testing.T) { mcptest.ArgsMatchSchema(t, c.tool, c.args) })
