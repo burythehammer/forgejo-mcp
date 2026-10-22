@@ -17,7 +17,7 @@
         "type": "string"
       },
       "exclusive": {
-        "description": "Exclusive: an issue carries at most one label of this label's scope (the name before the last /, e.g. status in status/ready). Default false. No effect on a name without a /.",
+        "description": "Exclusive: marks this label's scope (the name before the last /, e.g. status in status/ready) as exclusive. A write that names two labels from one exclusive scope is refused; a label the issue already carries is not counted, so an issue can still end up with two. Default false. No effect on a name without a /.",
         "type": "boolean"
       },
       "name": {

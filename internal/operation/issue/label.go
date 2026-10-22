@@ -27,10 +27,11 @@ const (
 	GetOrgLabelToolName    = "get_org_label"
 )
 
-// The exclusive flag: a scope is the part of a label name before its last "/",
-// and an exclusive scope holds at most one label per issue.
+// The exclusive flag: a scope is the part of a label name before its last "/".
+// A write may not name two labels from one exclusive scope; a label the issue
+// already carries is not compared.
 const (
-	exclusiveCreateDescription = "Exclusive: an issue carries at most one label of this label's scope (the name before the last /, e.g. status in status/ready). Default false. No effect on a name without a /."
+	exclusiveCreateDescription = "Exclusive: marks this label's scope (the name before the last /, e.g. status in status/ready) as exclusive. A write that names two labels from one exclusive scope is refused; a label the issue already carries is not counted, so an issue can still end up with two. Default false. No effect on a name without a /."
 	exclusiveEditDescription   = "Exclusive flag to set or clear (see create). Omit to leave the stored value unchanged."
 )
 

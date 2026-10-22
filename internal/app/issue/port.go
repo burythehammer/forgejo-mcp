@@ -153,8 +153,8 @@ type MilestoneEdit struct {
 	Due         *time.Time
 }
 
-// LabelNew is a label to create. Exclusive makes its scope hold at most one
-// label per issue.
+// LabelNew is a label to create. Exclusive marks its scope as exclusive: one
+// write may not name two of its labels.
 type LabelNew struct {
 	Name, Color, Description string
 	Exclusive                bool
