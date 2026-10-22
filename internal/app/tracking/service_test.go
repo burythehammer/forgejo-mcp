@@ -24,6 +24,8 @@ type stubPort struct {
 	add   apptracking.AddTime
 	// times are the rows the server holds; a list is served one page of them.
 	times []*model.TrackedTime
+	// watches are the running stopwatches the server holds.
+	watches []*model.StopWatch
 }
 
 // servePage returns the rows a server-paged list sends for q.
@@ -85,7 +87,7 @@ func (p *stubPort) CancelIssueStopwatch(context.Context, string, string, int64) 
 
 func (p *stubPort) ListMyStopwatches(context.Context) ([]*model.StopWatch, error) {
 	p.last = "watches"
-	return []*model.StopWatch{{RepoName: "hello"}}, p.err
+	return p.watches, p.err
 }
 
 // service returns the use cases over p, and counts how often the port was
@@ -252,7 +254,10 @@ func TestFailuresAreWrapped(t *testing.T) {
 		{"start", func(s *apptracking.Service) error { return s.StartStopwatch(context.Background(), ref) }, "start issue stopwatch err: "},
 		{"stop", func(s *apptracking.Service) error { return s.StopStopwatch(context.Background(), ref) }, "stop issue stopwatch err: "},
 		{"cancel", func(s *apptracking.Service) error { return s.CancelStopwatch(context.Background(), ref) }, "cancel issue stopwatch err: "},
-		{"watches", func(s *apptracking.Service) error { _, err := s.MyStopwatches(context.Background()); return err }, "list my stopwatches err: "},
+		{"watches", func(s *apptracking.Service) error {
+			_, err := s.MyStopwatches(context.Background(), apptracking.MyStopwatchesInput{})
+			return err
+		}, "list my stopwatches err: "},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -244,17 +244,39 @@ func (s *Service) CancelStopwatch(ctx context.Context, ref IssueRef) error {
 	return nil
 }
 
-// MyStopwatches returns the running stopwatches of the authenticated user.
-func (s *Service) MyStopwatches(ctx context.Context) ([]*model.StopWatch, error) {
+// MyStopwatchesInput pages the authenticated user's running stopwatches. Page
+// and Limit are 1-based; a zero Limit takes the default.
+type MyStopwatchesInput struct{ Page, Limit int }
+
+// MyStopwatches returns one page of the running stopwatches of the
+// authenticated user with its next marker. Forgejo does not page the endpoint,
+// so the list is cut here and its length is the grand total.
+func (s *Service) MyStopwatches(ctx context.Context, in MyStopwatchesInput) (model.StopWatchPage, error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.StopWatchPage{}, err
 	}
-	watches, err := p.ListMyStopwatches(ctx)
+	c := ceiling(ctx, p)
+	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.StopWatch], error) {
+			all, err := p.ListMyStopwatches(ctx)
+			if err != nil {
+				return list.Batch[*model.StopWatch]{}, fmt.Errorf("list my stopwatches err: %w", err)
+			}
+			rows := list.Cut(all, q).Items
+			return list.Batch[*model.StopWatch]{Items: rows, Total: ptr.To(len(all))}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list my stopwatches err: %w", err)
+		return model.StopWatchPage{}, err
 	}
-	return watches, nil
+	watches := page.Items
+	if watches == nil {
+		watches = []*model.StopWatch{}
+	}
+	out := model.StopWatchPage{Stopwatches: watches, PageMeta: model.PageMetaOf(page)}
+	// The endpoint sends no X-Total-Count, so the total is not reported to callers.
+	out.TotalCount = nil
+	return out, nil
 }
 
 func (s *Service) port(ctx context.Context) (Port, error) { return s.src(ctx) }

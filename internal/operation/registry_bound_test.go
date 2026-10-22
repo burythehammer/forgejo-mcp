@@ -16,7 +16,6 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pull"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/tracking"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -52,10 +51,7 @@ var textListTools = map[string]textShape{
 
 // skippedListTools are list tools the bound cannot hold yet. Each runs as a
 // subtest that skips with its reason, so the gap shows in every run.
-var skippedListTools = map[string]string{
-	tracking.ListMyStopwatchesToolName: "no page or limit: the tool returns the whole list. " +
-		"Adding them changes the output shape, which the output-bounding design files as its own issue",
-}
+var skippedListTools = map[string]string{}
 
 // fullPageContinuation are list tools whose payload is a bare array with no
 // has_next. ADR 0003 freezes that rendering, so a caller reads a full page as

@@ -112,7 +112,9 @@ var (
 
 	ListMyStopwatchesTool = mcp.NewTool(
 		ListMyStopwatchesToolName,
-		mcp.WithDescription("List all currently running stopwatches for the authenticated user"),
+		mcp.WithDescription("List currently running stopwatches for the authenticated user, one page at a time (page, limit; default 20). Returns a response envelope {stopwatches, page, limit, count, has_next}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 	)
 )
 

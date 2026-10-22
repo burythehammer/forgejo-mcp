@@ -448,7 +448,7 @@ List all my repositories
 | `start_issue_stopwatch` | Start a stopwatch on an issue or PR |
 | `stop_issue_stopwatch` | Stop a running stopwatch and record the elapsed time |
 | `cancel_issue_stopwatch` | Cancel a running stopwatch without recording |
-| `list_my_stopwatches` | List currently running stopwatches |
+| `list_my_stopwatches` | List your currently running stopwatches, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | **Attachments** | |
 | `list_issue_attachments` | List attachments on an issue or PR, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `get_issue_attachment` | Get metadata for a single issue/PR attachment |
