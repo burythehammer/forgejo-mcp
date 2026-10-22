@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 )
 
 // Each tool decodes its arguments with decode.Lax into a struct beside its
@@ -53,20 +55,14 @@ func requiredRepo(owner, repo string) error {
 	return required("repo", repo)
 }
 
-// positiveIntegerArg reads a positive whole number. An absent value is an error
-// only when required.
+// positiveIntegerArg reads a positive whole number through the numeric-argument
+// module. An absent value is an error only when required.
 func positiveIntegerArg(v any, name string, isRequired bool) (int64, error) {
-	if absent(v) {
-		if isRequired {
-			return 0, fmt.Errorf("%s is required", name)
-		}
-		return 0, nil
+	if isRequired {
+		return numarg.RequiredPositiveInt(name, v)
 	}
-	n, ok := number(v)
-	if !ok || n <= 0 || math.Trunc(n) != n || n >= float64(math.MaxInt64) {
-		return 0, fmt.Errorf("%s must be a positive integer", name)
-	}
-	return int64(n), nil
+	n, _, err := numarg.PositiveInt(name, v)
+	return n, err
 }
 
 // optionalNonNegativeIntegerArg reads a non-negative whole number and reports
