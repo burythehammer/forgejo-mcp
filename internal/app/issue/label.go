@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/labelresolve"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
 )
@@ -53,16 +54,14 @@ func (c catalog) MaxResponseItems(ctx context.Context) (int, bool) {
 
 // RepoLabels lists a repository's labels. With IncludeOrg, an organization's
 // labels follow, each tagged with its scope.
-func (s *Service) RepoLabels(ctx context.Context, in RepoLabelsInput) ([]model.ScopedLabel, error) {
-	list, err := s.ReadRepoLabels(ctx, in)
-	return list.Labels, err
+func (s *Service) RepoLabels(ctx context.Context, in RepoLabelsInput) (list.Bounded[model.ScopedLabel], error) {
+	return s.ReadRepoLabels(ctx, in)
 }
 
 // OrgLabels lists an organization's labels, each tagged with scope "org". See
 // ReadOrgLabels for the paging defaults.
-func (s *Service) OrgLabels(ctx context.Context, org string, p Paging) ([]model.ScopedLabel, error) {
-	list, err := s.ReadOrgLabels(ctx, org, p)
-	return list.Labels, err
+func (s *Service) OrgLabels(ctx context.Context, org string, p Paging) (list.Bounded[model.ScopedLabel], error) {
+	return s.ReadOrgLabels(ctx, org, p)
 }
 
 // GetRepoLabel returns one repository label by its ID.

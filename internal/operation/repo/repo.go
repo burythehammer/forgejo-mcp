@@ -140,7 +140,7 @@ type listMyReposArgs struct {
 
 func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return runAdmin(ctx, h, req, "ListMyReposFn", func(ctx context.Context, s *apprepo.AdminService, a listMyReposArgs) (*mcp.CallToolResult, error) {
-		repos, err := s.ListMyRepos(ctx, apprepo.AdminPaging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 100)})
+		repos, err := repoRows(s.ListMyRepos(ctx, apprepo.AdminPaging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 100)}))
 		return mcpresult.Render(repos, err)
 	})
 }

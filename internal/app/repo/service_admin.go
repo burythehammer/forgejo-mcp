@@ -94,13 +94,27 @@ func (s *AdminService) ForkRepo(ctx context.Context, in ForkInput) error {
 	return nil
 }
 
-// ListMyRepos lists the repositories the credential's user owns, one page.
-func (s *AdminService) ListMyRepos(ctx context.Context, p AdminPaging) ([]*model.Repository, error) {
-	repos, err := s.port.ListMyRepos(ctx, p)
+// ListMyRepos lists the repositories the credential's user owns, one page. The
+// page is read through the list module, so a limit above the instance ceiling
+// is refused and a missing limit takes the default.
+func (s *AdminService) ListMyRepos(ctx context.Context, p AdminPaging) (list.Bounded[*model.Repository], error) {
+	c := ceiling(ctx, s.port)
+	pg := list.Given(list.Paging(p), defaultListLimit, c)
+	// The listing reports neither a total nor a more-flag, and it has never
+	// probed for the next page, so the page is read once: a full page is taken
+	// to mean rows may follow.
+	page, err := list.Window(ctx, s.port, pg, defaultListLimit,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.Repository], error) {
+			repos, err := s.port.ListMyRepos(ctx, AdminPaging(q))
+			if err != nil {
+				return list.Batch[*model.Repository]{}, fmt.Errorf("list my repositories error: %w", err)
+			}
+			return list.Batch[*model.Repository]{Items: repos, More: len(repos) >= q.Limit}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list my repositories error: %w", err)
+		return list.Bounded[*model.Repository]{}, err
 	}
-	return repos, nil
+	return page, nil
 }
 
 // GetRepo returns a repository with its topics. A repository with no topics
@@ -137,9 +151,9 @@ func (s *AdminService) EditRepo(ctx context.Context, in EditRepoInput) (*model.R
 }
 
 // ListRepoTopics returns one page of a repository's topics.
-func (s *AdminService) ListRepoTopics(ctx context.Context, owner, repo string, p AdminPaging) (model.TopicPage, error) {
+func (s *AdminService) ListRepoTopics(ctx context.Context, owner, repo string, p AdminPaging) (list.Bounded[string], error) {
 	if owner == "" || repo == "" {
-		return model.TopicPage{}, errors.New("owner and repo are required")
+		return list.Bounded[string]{}, errors.New("owner and repo are required")
 	}
 	c := ceiling(ctx, s.port)
 	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
@@ -151,13 +165,9 @@ func (s *AdminService) ListRepoTopics(ctx context.Context, owner, repo string, p
 			return list.Batch[string]{Items: topics}, nil
 		})
 	if err != nil {
-		return model.TopicPage{}, err
+		return list.Bounded[string]{}, err
 	}
-	topics := page.Items
-	if topics == nil {
-		topics = []string{}
-	}
-	return model.TopicPage{Topics: topics, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // SetRepoTopics replaces every topic of a repository with the comma-separated

@@ -300,3 +300,47 @@ func TestStatusReadParity_OverCapDiffersOnPurpose(t *testing.T) {
 	mcptest.Golden(t, "read_status_resource_over_cap", stableTimes(contents[0].(mcp.TextResourceContents).Text))
 	mcptest.Golden(t, "read_status_tool_over_cap", stableTimes(extractText(t, res)))
 }
+
+// The combined state is read over every page: the one failure sits on the
+// second page of statuses (page size 50), and the golden pins the answer.
+func TestStatusReadGolden_FailureOnASecondPageReachesTheState(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	knownCommit(t, f)
+	states := make([]forgejo_sdk.StatusState, 60)
+	for i := range states {
+		states[i] = forgejo_sdk.StatusSuccess
+	}
+	states[55] = forgejo_sdk.StatusFailure
+	seedStatuses(t, f, states...)
+
+	contents, err := h.statusResourceHandler(t.Context(), makeStatusResourceRequest(testSHA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := statusPayload(t, contents)
+	if p.State != "failure" || p.TotalCount != 60 {
+		t.Fatalf("state %q total %d, want failure and 60", p.State, p.TotalCount)
+	}
+	mcptest.Golden(t, "read_status_resource_second_page_failure", stableTimes(contents[0].(mcp.TextResourceContents).Text))
+}
+
+// The last part of a message longer than two parts. The golden pins the commit
+// JSON and the markdown sidecar a caller reads to finish the message.
+func TestCommitMessagePartGolden_LastPart(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	msg := "subject\n\n" + strings.Repeat("m", 2*commitMessageCap+100)
+	if err := f.AddCommit(filesOwner, filesRepo, testSHA, msg, "a.go"); err != nil {
+		t.Fatal(err)
+	}
+	uri := commitURI(testSHA, "message_page=3")
+	contents, err := h.commitResourceHandler(t.Context(), mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: uri}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contents) != 2 {
+		t.Fatalf("content blocks = %d, want JSON and markdown", len(contents))
+	}
+	mcptest.Golden(t, "read_commit_message_last_part", stableTimes(contents[0].(mcp.TextResourceContents).Text+"\n"+contents[1].(mcp.TextResourceContents).Text))
+}

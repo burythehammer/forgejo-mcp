@@ -150,7 +150,8 @@ func TestCommitResourceHandler_BoundsFilesAndMessage(t *testing.T) {
 	if len(decoded.Commit.Message) > commitMessageCap+8 {
 		t.Errorf("json message is %d bytes, want at most about %d", len(decoded.Commit.Message), commitMessageCap)
 	}
-	if md := contents[1].(mcp.TextResourceContents).Text; len(md) > commitMessageCap+8+len(commitMessageMarker) {
+	marker := commitMessageMarker(messagePart{page: 1, parts: 3, hasNext: true})
+	if md := contents[1].(mcp.TextResourceContents).Text; len(md) > commitMessageCap+8+len(marker) {
 		t.Errorf("markdown sidecar is %d bytes, want at most about %d plus the marker", len(md), commitMessageCap)
 	}
 }
