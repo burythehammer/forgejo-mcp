@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestReadCollection_CapsAndFlagsMore(t *testing.T) {
 	s := newService(t)
 	seedHooks(t, s, 3)
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 2)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +43,7 @@ func TestReadCollection_ExactlyTheCapIsNotTruncated(t *testing.T) {
 	s := newService(t)
 	seedHooks(t, s, 2)
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 2)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +57,7 @@ func TestReadCollection_NeverCarriesTheSecret(t *testing.T) {
 	s := newService(t)
 	seedHooks(t, s, 2)
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 1)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestReadCollection_CarriesTheGrandTotalNotTheCap(t *testing.T) {
 	s := newService(t)
 	seedHooks(t, s, 3)
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 2)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +97,7 @@ func TestReadCollection_ListFailureIsWrapped(t *testing.T) {
 	f.AddRepo(owner, repo)
 	s := apphook.New(failingList{hookadapter.New(f)})
 
-	_, err := s.ReadCollection(context.Background(), owner, repo, 5)
+	_, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 5})
 	if err == nil || !strings.Contains(err.Error(), "list boom") {
 		t.Fatalf("want the listing failure, got %v", err)
 	}

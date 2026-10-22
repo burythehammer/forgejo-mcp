@@ -1,0 +1,1 @@
+{"Result":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","statuses":[{"context":"ci/3","state":"success","target_url":"https://ci.example/ci/3","description":"ok","created_at":"2026-01-02T03:04:05Z"},{"context":"ci/4","state":"success","target_url":"https://ci.example/ci/4","description":"ok","created_at":"2026-01-02T03:04:05Z"}],"page":2,"limit":2,"count":2,"total_count":5}}

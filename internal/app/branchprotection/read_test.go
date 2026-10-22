@@ -5,6 +5,7 @@ package branchprotection_test
 import (
 	"context"
 	"errors"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"strings"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestReadCollection_CapsAndFlagsMore(t *testing.T) {
 		seed(t, s, b)
 	}
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 2)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +40,7 @@ func TestReadCollection_ExactlyTheCapIsNotTruncated(t *testing.T) {
 	seed(t, s, "main")
 	seed(t, s, "dev")
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 2)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestReadCollection_ListFailureIsWrapped(t *testing.T) {
 	f.AddRepo(owner, repo)
 	s := appbp.New(failingRules{branchprotectionadapter.New(f)})
 
-	_, err := s.ReadCollection(context.Background(), owner, repo, 5)
+	_, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 5})
 	if err == nil || !strings.Contains(err.Error(), "list boom") {
 		t.Fatalf("want the listing failure, got %v", err)
 	}

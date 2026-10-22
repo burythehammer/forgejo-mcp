@@ -314,7 +314,7 @@ List all my repositories
 | `mark_repo_notifications_read` | Mark all notifications in a specific repo as read |
 | `search_users` | Search for users (page/limit); returns `{users,page,limit,count,has_next}` |
 | **Repositories** | |
-| `list_my_repos` | List all repositories you own |
+| `list_my_repos` | List repositories you own, one page at a time (`page`/`limit`, default 100, capped at the instance maximum). Returns a bare array: a full page may be followed by more, a short page is the last. |
 | `get_repo` | Get a single repository by owner and name |
 | `create_repo` | Create a new repository |
 | `fork_repo` | Fork a repository |
@@ -345,7 +345,7 @@ List all my repositories
 | **Files** | |
 | `get_file_content` | Get the content of a file. Optional `start_line`/`end_line` request a 1-indexed inclusive line range (clamps to file extent; with `with_metadata=true` the range replaces the content and keeps the metadata). A whole file or range over 1 MiB of text is refused with a message asking for a narrower range. |
 | `list_repo_contents` | List files and directories at a path. `path=""` lists the repository root. Returns one level, one page at a time (`page`/`limit`, default 100 entries) with `has_next`; for a full tree use `get_repo_tree` with `recursive=true`. |
-| `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. |
+| `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. `page`/`limit` (default 1000) select one page of the entries. |
 | `create_file` | Create a new file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `update_file` | Update an existing file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `delete_file` | Delete a file |
@@ -508,9 +508,9 @@ Resources that embed a list (issue, pr) cap the embedded array at 30 items. When
 | `forgejo://repo/{owner}/{repo}/{kind}/{index}/comment/{id}` | application/json (+ text/markdown sidecar) | Single comment by id; kind ∈ {issue, pr}. |
 | `forgejo://repo/{owner}/{repo}/{kind}/{index}/comments{?page,limit}` | application/json | Bounded comment thread with **full bodies** (the single-issue resource excerpts them at 200 chars); kind ∈ {issue, pr}; cap 30, sentinel names `list_issue_comments`. |
 | `forgejo://repo/{owner}/{repo}/pr/{index}` | application/json (+ text/markdown sidecar) | PR metadata, head/base refs, mergeability, bounded recent comments (cap 30, sentinel `list_issue_comments`) and reviews (cap 30, sentinel `list_pull_reviews`). |
-| `forgejo://repo/{owner}/{repo}/branch_protections` | application/json | Bounded list of branch protection rules. |
+| `forgejo://repo/{owner}/{repo}/branch_protections{?page,limit}` | application/json | Bounded list of branch protection rules (page/limit client-controlled, cap 30, sentinel names `list_branch_protections`). |
 | `forgejo://repo/{owner}/{repo}/branch_protection/{rule}` | application/json | Single branch protection rule. Rule names are branch patterns, so encode a literal `/` as `%2F` and spaces as `%20` (`release%2Fv1`); a raw `/` does not resolve. |
-| `forgejo://repo/{owner}/{repo}/hooks` | application/json | Bounded list of repository webhooks (cap 30, sentinel names `list_repo_hooks`). The secret is never returned. |
+| `forgejo://repo/{owner}/{repo}/hooks{?page,limit}` | application/json | Bounded list of repository webhooks (page/limit client-controlled, cap 30, sentinel names `list_repo_hooks`). The secret is never returned. |
 | `forgejo://repo/{owner}/{repo}/hook/{id}` | application/json | Single repository webhook by id. The secret is never returned. |
 | `forgejo://repo/{owner}/{repo}/label/{id}` | application/json | Single repository label by numeric id. |
 | `forgejo://repo/{owner}/{repo}/labels{?page,limit}` | application/json | Bounded list of repository labels (cap 30, sentinel names `list_repo_labels`). |

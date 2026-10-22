@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List my repos",
+  "description": "List my repos, one page at a time: page (default 1) and limit (default 100, capped at the instance maximum) select the page. A full page may be followed by more; a short page is the last.",
   "inputSchema": {
     "properties": {
       "limit": {
