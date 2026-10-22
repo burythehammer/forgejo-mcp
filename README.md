@@ -560,8 +560,12 @@ The list was inferred from the tfuk-specflow ticket texts, not from its code, so
 |---|---:|---:|---:|---:|
 | Default (no selection) | 167 | 126,572 | 31,643 | 1,896 |
 | `issues,labels,milestones,dependencies,user` | 39 | 31,752 | 7,938 | 813 |
+| `--preset tracker-core` | 24 | 22,897 | 5,724 | 0 |
+| `--preset tracker-core --lean` | 24 | 10,852 | 2,713 | 0 |
 
 The selection above costs about 25% of the default. It misses the ticket target of well under 5,000 tokens. Most of the cost is tool descriptions and input schemas, about 760 to 820 bytes per tool, so shortening them is the next lever. That is a follow-up, not part of toolset selection.
+
+The `tracker-core` rows are measured the same way, on this build with the fake forge. The lean row is the figure the budget test guards (`TestTrackerCoreLeanStaysWithinBudget`, budget 11,000 bytes). Against the design target of about 8 KB (about 2k tokens), the lean preset is about 2.8 KB over, roughly 36%. The largest remaining lean tools are `update_issue` (939 bytes), `search_issues` (803), `list_repo_issues` (775), `replace_issue_body_line` (688) and `create_issue` (599). Those are the next lever for shrinking the preset.
 
 Per-toolset figures below are the same measure for a selection of that one toolset. They do not sum to the totals, because each response carries its own envelope.
 
