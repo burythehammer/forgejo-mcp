@@ -1,0 +1,3 @@
+ERROR: index 7 is a pull request, not an issue; use get_pull_request_by_index to read it
+-- port calls --
+GetIssue ["octo","hello",7]
