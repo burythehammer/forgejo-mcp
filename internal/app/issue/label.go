@@ -190,7 +190,7 @@ func (s *Service) DeleteOrgLabel(ctx context.Context, org string, id int64, forc
 // AddLabels adds labels, by name or ID, to an issue's existing ones and returns
 // the issue as it now is.
 func (s *Service) AddLabels(ctx context.Context, t Target, labels string) (*model.Issue, error) {
-	ids, err := s.labels.Resolve(ctx, t.Owner, t.Repo, labels)
+	ids, err := s.resolveApplied(ctx, t.Owner, t.Repo, labels)
 	if err != nil {
 		return nil, err
 	}
