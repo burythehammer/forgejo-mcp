@@ -19,12 +19,24 @@ import (
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
 
-// New returns the use cases' port over p.
-func New(p forge.Attachments) attachment.Port { return adapter{p: p} }
+// AttachmentSource is the part of the Forgejo port the attachment domain reads
+// through: its attachment methods and the instance's pagination ceiling.
+type AttachmentSource interface {
+	forge.Attachments
+	forge.Ceilings
+}
 
-type adapter struct{ p forge.Attachments }
+// New returns the use cases' port over p.
+func New(p AttachmentSource) attachment.Port { return adapter{p: p} }
+
+type adapter struct{ p AttachmentSource }
 
 var _ attachment.Port = adapter{}
+
+// MaxResponseItems reads the instance's pagination ceiling through the source.
+func (a adapter) MaxResponseItems(ctx context.Context) (int, bool) {
+	return a.p.MaxResponseItems(ctx)
+}
 
 func (a adapter) List(ctx context.Context, owner, repo string, s attachment.Scope, parent int64) ([]*model.Attachment, error) {
 	var (

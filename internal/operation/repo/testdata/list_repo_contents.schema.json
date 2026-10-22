@@ -5,12 +5,22 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "List the files and directories at a given path in a repository. Use path=\"\" to list the repository root. Returns one level of entries at the specified path; for a full recursive file tree use get_repo_tree with recursive=true.",
+  "description": "List the files and directories at a given path in a repository. Use path=\"\" to list the repository root. Returns one level of entries at the specified path, one page at a time: page and limit (default 100 entries) select the page, and the response carries has_next to say whether more entries follow. For a full recursive file tree use get_repo_tree with recursive=true.",
   "inputSchema": {
     "properties": {
+      "limit": {
+        "default": 100,
+        "description": "Page size",
+        "type": "number"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "description": "Page number (1-based)",
+        "type": "number"
       },
       "path": {
         "description": "Directory path within the repository (empty string lists the repository root)",

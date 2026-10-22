@@ -332,8 +332,8 @@ List all my repositories
 | `delete_repo_hook` | Delete a repository webhook by ID |
 | `test_repo_hook` | Trigger a test delivery for a repository webhook — WARNING: triggers a live HTTP delivery |
 | **Files** | |
-| `get_file_content` | Get the content of a file. Optional `start_line`/`end_line` request a 1-indexed inclusive line range (clamps to file extent; ignored when `with_metadata=true`). |
-| `list_repo_contents` | List files and directories at a path. `path=""` lists the repository root. Returns one level; for a full tree use `get_repo_tree` with `recursive=true`. |
+| `get_file_content` | Get the content of a file. Optional `start_line`/`end_line` request a 1-indexed inclusive line range (clamps to file extent; with `with_metadata=true` the range replaces the content and keeps the metadata). A whole file or range over 1 MiB of text is refused with a message asking for a narrower range. |
+| `list_repo_contents` | List files and directories at a path. `path=""` lists the repository root. Returns one level, one page at a time (`page`/`limit`, default 100 entries) with `has_next`; for a full tree use `get_repo_tree` with `recursive=true`. |
 | `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. |
 | `create_file` | Create a new file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `update_file` | Update an existing file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
@@ -379,9 +379,9 @@ List all my repositories
 | `update_pull_request` | Update an existing pull request. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full pull request |
 | `list_pull_reviews` | List reviews for a pull request (page/limit); returns `{reviews,page,limit,count,has_next}` |
 | `get_pull_review` | Get a specific pull request review. Returns a compact result by default (id, url, author login, state, body, commit_id, stale, dismissed, official, comments_count, submitted_at); `verbose=true` returns the full review |
-| `list_pull_review_comments` | List comments on a pull request review |
+| `list_pull_review_comments` | List comments on a pull request review, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `list_pull_request_files` | List changed files in a pull request (page/limit); returns `{files,page,limit,count,has_next}`. Use the returned filenames as the `file_path` argument to `get_pull_request_diff`. |
-| `get_pull_request_diff` | Get the unified diff of a pull request. Optional `file_path` returns only that file's hunks (matches on either pre- or post-rename path). |
+| `get_pull_request_diff` | Get the unified diff of a pull request, one page of whole files at a time: `page`/`limit` (default 50 files). A page with files after it ends with a truncation marker naming the next page. Optional `file_path` returns only that file's hunks and ignores paging (matches on either pre- or post-rename path). |
 | `merge_pull_request` | Merge a pull request (style: merge/rebase/rebase-merge/squash; optional title/message/delete-branch/force-merge/wait-for-checks). |
 | `create_pull_review` | Create a review on a pull request (state: APPROVED/REQUEST_CHANGES/COMMENT) with optional inline comments. |
 | `submit_pull_review` | Submit a pending pull request review |
@@ -430,7 +430,7 @@ List all my repositories
 | **Time Tracking** | |
 | `list_issue_tracked_times` | List tracked time entries on an issue or PR (page/limit); returns `{times, page, limit, count, has_next}` |
 | `list_repo_tracked_times` | List tracked time entries across a repository (page/limit); returns `{times, page, limit, count, has_next}` |
-| `list_my_tracked_times` | List your own tracked time entries |
+| `list_my_tracked_times` | List your own tracked time entries, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `add_issue_time` | Log time against an issue or PR (accepts seconds or duration like `15m`) |
 | `reset_issue_time` | Delete ALL tracked time entries on an issue or PR (destructive) |
 | `delete_issue_time_entry` | Delete a single tracked time entry by ID |
@@ -439,13 +439,13 @@ List all my repositories
 | `cancel_issue_stopwatch` | Cancel a running stopwatch without recording |
 | `list_my_stopwatches` | List currently running stopwatches |
 | **Attachments** | |
-| `list_issue_attachments` | List attachments on an issue or PR |
+| `list_issue_attachments` | List attachments on an issue or PR, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `get_issue_attachment` | Get metadata for a single issue/PR attachment |
 | `download_issue_attachment` | Download an issue/PR attachment (inline if < 1 MiB; metadata + URL otherwise) |
 | `create_issue_attachment` | Upload a new attachment to an issue or PR (base64 content or a file path on the MCP host) |
 | `edit_issue_attachment` | Rename an issue/PR attachment |
 | `delete_issue_attachment` | Delete an issue/PR attachment |
-| `list_comment_attachments` | List attachments on an issue/PR comment |
+| `list_comment_attachments` | List attachments on an issue/PR comment, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `get_comment_attachment` | Get metadata for a single comment attachment |
 | `download_comment_attachment` | Download a comment attachment (inline if < 1 MiB; metadata + URL otherwise) |
 | `create_comment_attachment` | Upload a new attachment to an issue/PR comment (base64 content or a file path on the MCP host) |
@@ -490,7 +490,7 @@ Resources that embed a list (issue, pr) cap the embedded array at 30 items. When
 |---|---|---|
 | `forgejo://owner/{owner}` | application/json | User or org profile addressed by login; resolves user first, falls back to org. |
 | `forgejo://repo/{owner}/{repo}` | application/json | Repository overview: identity + counts, no embedded lists. |
-| `forgejo://repo/{owner}/{repo}/commit/{sha}` | Commit metadata | Immutable per sha. Returns JSON + markdown sidecar. sha must be 40 hex chars. Bounded: `files` capped at 30 (`files_total` and `files_truncated` appear when cut) and the message at 16 KiB in both blocks. |
+| `forgejo://repo/{owner}/{repo}/commit/{sha}{?page,limit}` | Commit metadata | Immutable per sha. Returns JSON + markdown sidecar. sha must be 40 hex chars. `files` is paged: `page`/`limit` select a page of at most 30 files; when files are cut the response carries `files_total`, `files_page`, `files_limit`, `files_truncated` and `files_next` (the next page's URI). The message is capped at 16 KiB in both blocks, marked `message_truncated` and with a truncation line in the sidecar. |
 | `forgejo://repo/{owner}/{repo}/commit/{sha}/status` | application/json | Combined CI status for a sha: aggregate state + bounded per-context statuses (cap 30, sentinel names list tool `get_commit_statuses`). |
 | `forgejo://repo/{owner}/{repo}/issue/{index}` | application/json (+ text/markdown sidecar) | Issue metadata + rendered body + bounded recent comments (cap 30, sentinel names `list_issue_comments`). |
 | `forgejo://repo/{owner}/{repo}/issues{?state,labels,page,limit}` | application/json | Bounded list of issues as rows — index, title, state, author, labels, assignees, milestone, comment count, timestamps, due date — and **no bodies**. `state` ∈ {open, closed, all} (default `open`); `labels` comma-separated; cap 30, sentinel names `list_repo_issues`. Read the single-issue resource for a body. |

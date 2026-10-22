@@ -50,7 +50,7 @@ func (p *stubPort) ListRepoTrackedTimes(_ context.Context, _, _ string, q apptra
 
 func (p *stubPort) ListMyTrackedTimes(context.Context) ([]*model.TrackedTime, error) {
 	p.last = "mine"
-	return nil, p.err
+	return p.times, p.err
 }
 
 func (p *stubPort) AddIssueTime(_ context.Context, _, _ string, _ int64, in apptracking.AddTime) (*model.TrackedTime, error) {
@@ -231,7 +231,10 @@ func TestFailuresAreWrapped(t *testing.T) {
 			_, err := s.RepoTimes(context.Background(), apptracking.RepoTimesInput{})
 			return err
 		}, "list repo tracked times err: "},
-		{"my times", func(s *apptracking.Service) error { _, err := s.MyTimes(context.Background()); return err }, "list my tracked times err: "},
+		{"my times", func(s *apptracking.Service) error {
+			_, err := s.MyTimes(context.Background(), apptracking.MyTimesInput{})
+			return err
+		}, "list my tracked times err: "},
 		{"add", func(s *apptracking.Service) error {
 			_, err := s.AddTime(context.Background(), apptracking.AddTimeInput{IssueRef: ref, Seconds: seconds(5)})
 			return err
@@ -259,7 +262,7 @@ func TestSourceFailureIsReturnedAsIs(t *testing.T) {
 	t.Parallel()
 	denied := errors.New("no credential")
 	s := apptracking.New(func(context.Context) (apptracking.Port, error) { return nil, denied })
-	if _, err := s.MyTimes(context.Background()); !errors.Is(err, denied) || err.Error() != denied.Error() {
+	if _, err := s.MyTimes(context.Background(), apptracking.MyTimesInput{}); !errors.Is(err, denied) || err.Error() != denied.Error() {
 		t.Fatalf("got %v", err)
 	}
 }

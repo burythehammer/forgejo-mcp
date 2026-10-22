@@ -52,7 +52,9 @@ var (
 
 	ListMyTrackedTimesTool = mcp.NewTool(
 		ListMyTrackedTimesToolName,
-		mcp.WithDescription("List tracked time entries for the authenticated user across all repositories"),
+		mcp.WithDescription("List tracked time entries for the authenticated user across all repositories, one page at a time (page, limit; default 20). The response's has_next says whether more follow."),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 	)
 
 	AddIssueTimeTool = mcp.NewTool(

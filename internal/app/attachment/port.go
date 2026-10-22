@@ -40,6 +40,10 @@ var ErrNotFound = errors.New("attachment parent not found")
 // Port is the attachment domain as the use cases need it, in repo-owned types.
 // internal/forge/attachmentadapter implements it over forge.Attachments.
 type Port interface {
+	// MaxResponseItems is the instance's pagination ceiling; ok is false when it
+	// cannot be determined, which is "unknown", never a ceiling of zero.
+	MaxResponseItems(ctx context.Context) (limit int, ok bool)
+	// List returns the whole attachment list of a parent, unpaged.
 	List(ctx context.Context, owner, repo string, s Scope, parent int64) ([]*model.Attachment, error)
 	Get(ctx context.Context, owner, repo string, s Scope, parent, id int64) (model.Attachment, error)
 	Create(ctx context.Context, owner, repo string, s Scope, parent int64, up Upload) (model.Attachment, error)

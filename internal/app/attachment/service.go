@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/download"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
 )
 
 // Service is the attachment use cases: one method per scope and action.
@@ -25,17 +27,39 @@ func New(p Port, uploadTimeout time.Duration) *Service {
 	return &Service{p: p, uploadTimeout: uploadTimeout}
 }
 
-// List returns the attachments of a parent. A parent Forgejo does not know is
-// an empty list. The result is never nil.
-func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent int64) ([]*model.Attachment, error) {
-	out, err := s.p.List(ctx, owner, repo, sc, parent)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		return nil, fmt.Errorf("list %s attachments err: %w", sc.label(), err)
+// Paging is one page request: a 1-based page and an item limit.
+type Paging struct{ Page, Limit int }
+
+// defaultLimit is the page size an attachment list uses when the caller gives none.
+const defaultLimit = 20
+
+// List returns one page of the attachments of a parent with its next marker.
+// Forgejo does not page this listing, so the whole list is read and cut here.
+// A parent Forgejo does not know is an empty list. The page's attachments are
+// never nil.
+func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent int64, p Paging) (model.AttachmentPage, error) {
+	max, known := s.p.MaxResponseItems(ctx)
+	c := list.Ceiling{Max: max, Known: known}
+	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.Attachment], error) {
+			all, err := s.p.List(ctx, owner, repo, sc, parent)
+			if err != nil && !errors.Is(err, ErrNotFound) {
+				return list.Batch[*model.Attachment]{}, fmt.Errorf("list %s attachments err: %w", sc.label(), err)
+			}
+			rows, _ := list.Cut(all, q)
+			return list.Batch[*model.Attachment]{Items: rows, Total: ptr.To(len(all))}, nil
+		})
+	if err != nil {
+		return model.AttachmentPage{}, err
 	}
-	if out == nil {
-		out = []*model.Attachment{}
+	rows := page.Items
+	if rows == nil {
+		rows = []*model.Attachment{}
 	}
-	return out, nil
+	meta := model.PageMetaOf(page)
+	// Forgejo reports no total for this listing, so none is reported.
+	meta.TotalCount = nil
+	return model.AttachmentPage{Attachments: rows, PageMeta: meta}, nil
 }
 
 // Get returns one attachment's metadata.

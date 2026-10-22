@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/split"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/diff"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
 )
 
 // Service runs the pull-request use cases over a Port. Build one per request
@@ -67,10 +69,12 @@ type MergeRequest struct {
 // scheduled for when checks succeed.
 type MergeResult struct{ Scheduled bool }
 
-// DiffInput fetches a pull request's diff, optionally of one file.
+// DiffInput fetches a pull request's diff, optionally of one file, or one page
+// of its files when FilePath is empty. Page and Limit are 1-based and count files.
 type DiffInput struct {
 	PR
-	FilePath string
+	FilePath    string
+	Page, Limit int
 }
 
 // CreateReviewRequest creates a review; Comments is the JSON array of inline
@@ -101,6 +105,9 @@ type ReviewersInput struct {
 const (
 	defaultLimit      = 20
 	defaultFilesLimit = 50
+	// defaultDiffLimit is the number of files in one diff page. It matches the
+	// files list, so a pull request of ordinary size comes back whole.
+	defaultDiffLimit = 50
 )
 
 func paging(page, limit, defLimit int, c list.Ceiling) Paging {
@@ -222,21 +229,53 @@ func (s *Service) Files(ctx context.Context, in PagedPR) (model.ChangedFilePage,
 	return model.ChangedFilePage{Files: page.Items, PageMeta: model.PageMetaOf(page)}, nil
 }
 
-// Diff returns a pull request's unified diff, or only the section for
-// in.FilePath (*DiffFileNotFoundError when the diff has none).
-func (s *Service) Diff(ctx context.Context, in DiffInput) (string, error) {
+// Diff returns a pull request's unified diff. With in.FilePath it returns only
+// that file's section (*DiffFileNotFoundError when the diff has none) and no
+// page. Otherwise it returns one page of whole files, in.Limit files from
+// in.Page; a page of a diff that fits in one page is the whole diff.
+func (s *Service) Diff(ctx context.Context, in DiffInput) (DiffPage, error) {
 	body, err := s.port.GetPullRequestDiff(ctx, in.Owner, in.Repo, in.Index)
 	if err != nil {
-		return "", fmt.Errorf("get pull request diff err: %w", err)
+		return DiffPage{}, fmt.Errorf("get pull request diff err: %w", err)
 	}
-	if in.FilePath == "" {
-		return body, nil
+	if in.FilePath != "" {
+		slice, found := diff.FileSlice(body, in.FilePath)
+		if !found {
+			return DiffPage{}, &DiffFileNotFoundError{Path: in.FilePath}
+		}
+		return DiffPage{Text: slice}, nil
 	}
-	slice, found := diff.FileSlice(body, in.FilePath)
-	if !found {
-		return "", &DiffFileNotFoundError{Path: in.FilePath}
+	c := s.ceiling(ctx)
+	files := diff.Files(body)
+	page, err := list.Run(ctx, list.Given(list.Paging{Page: in.Page, Limit: in.Limit}, defaultDiffLimit, c), c,
+		func(_ context.Context, p list.Paging) (list.Batch[string], error) {
+			rows, _ := list.Cut(files, p)
+			return list.Batch[string]{Items: rows, Total: ptr.To(len(files))}, nil
+		})
+	if err != nil {
+		return DiffPage{}, err
 	}
-	return slice, nil
+	return DiffPage{
+		Text:    strings.Join(page.Items, "\n"),
+		Page:    page.Page,
+		Limit:   page.Limit,
+		Count:   page.Count,
+		Files:   len(files),
+		HasNext: page.HasNext,
+	}, nil
+}
+
+// DiffPage is one page of a pull request's diff. Text holds whole files joined
+// as the diff has them. Page, Limit and Count describe the page; Files is the
+// number of files in the whole diff; HasNext reports that files follow. A
+// file_path result has no page: Page and Limit are zero.
+type DiffPage struct {
+	Text    string
+	Page    int
+	Limit   int
+	Count   int
+	Files   int
+	HasNext bool
 }
 
 // Reviews lists one page of the reviews of a pull request with its next marker.
@@ -264,13 +303,30 @@ func (s *Service) Review(ctx context.Context, in ReviewRef) (*model.PullReview, 
 	return review, nil
 }
 
-// ReviewComments lists the inline comments of a review.
-func (s *Service) ReviewComments(ctx context.Context, in ReviewRef) ([]*model.PullReviewComment, error) {
-	comments, err := s.port.ListPullReviewComments(ctx, in.Owner, in.Repo, in.Index, in.ID)
+// ReviewComments returns one page of the inline comments of a review. Forgejo
+// does not page this listing, so the whole list is read and cut here. The
+// page's comments are never nil; no total is reported.
+func (s *Service) ReviewComments(ctx context.Context, in ReviewRef, p Paging) (model.PullReviewCommentPage, error) {
+	c := s.ceiling(ctx)
+	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultLimit, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.PullReviewComment], error) {
+			all, err := s.port.ListPullReviewComments(ctx, in.Owner, in.Repo, in.Index, in.ID)
+			if err != nil {
+				return list.Batch[*model.PullReviewComment]{}, fmt.Errorf("list pull review comments err: %w", err)
+			}
+			rows, _ := list.Cut(all, q)
+			return list.Batch[*model.PullReviewComment]{Items: rows, Total: ptr.To(len(all))}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list pull review comments err: %w", err)
+		return model.PullReviewCommentPage{}, err
 	}
-	return comments, nil
+	rows := page.Items
+	if rows == nil {
+		rows = []*model.PullReviewComment{}
+	}
+	meta := model.PageMetaOf(page)
+	meta.TotalCount = nil
+	return model.PullReviewCommentPage{Comments: rows, PageMeta: meta}, nil
 }
 
 // CreateReview creates a review, with inline comments when in.Comments is a
