@@ -620,6 +620,7 @@ You can configure the server using command-line arguments or environment variabl
 | `--allow-operator-token-fallback` | `FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK` | On `sse`/`http`, serve requests with no `Authorization` header using this server's own token. Off by default |
 | `--auth-mode` | `FORGEJO_MCP_AUTH_MODE` | `passthrough` (default) or `resource-server`; see [Remote operation as an OAuth resource server](#remote-operation-as-an-oauth-resource-server) |
 | `--authorization-server` | `FORGEJO_MCP_AUTHORIZATION_SERVER` | `resource-server` mode: issuer URL of the OpenID Connect provider, compared byte for byte |
+| `--authorization-server-tls-ca` | `FORGEJO_MCP_AUTHORIZATION_SERVER_TLS_CA` | `resource-server` mode: PEM file of CA certificates trusted for the identity provider's discovery and key lookups, added to the system roots. Separate from `--tls-ca`; the server refuses to start if the file cannot be read or holds no PEM certificates |
 | `--resource` | `FORGEJO_MCP_RESOURCE` | `resource-server` mode: canonical URI of the MCP endpoint, for example `https://mcp.example.org/mcp`; its path must be `/mcp` |
 | `--resource-audience` | `FORGEJO_MCP_RESOURCE_AUDIENCE` | `resource-server` mode: value an access token's `aud` must contain (default: the value of `--resource`) |
 | `--scopes-supported` | `FORGEJO_MCP_SCOPES_SUPPORTED` | `resource-server` mode: space-separated scopes published in the metadata and the `401` challenge (default: none published) |
@@ -648,7 +649,7 @@ If your Forgejo instance uses a private CA or a self-signed certificate, the ser
 
 The risk of skip-verify: the server no longer checks who it is talking to. Anyone who can intercept traffic between the server and Forgejo can read and alter it, including the access token the server sends. Use it only for a throwaway instance on a network you trust. Do not use it against a production instance.
 
-Both settings apply to every request the server makes to Forgejo, through the SDK client and the raw-HTTP paths alike (JSON, raw, multipart and download). They do not affect OAuth provider lookups in `resource-server` mode.
+Both settings apply to every request the server makes to Forgejo, through the SDK client and the raw-HTTP paths alike (JSON, raw, multipart and download). They do not affect the identity provider's lookups in `resource-server` mode; those have their own setting, `--authorization-server-tls-ca` (see [Remote operation as an OAuth resource server](#remote-operation-as-an-oauth-resource-server)). Skip-verify has no provider counterpart.
 
 ### Uploading attachments from the host filesystem
 

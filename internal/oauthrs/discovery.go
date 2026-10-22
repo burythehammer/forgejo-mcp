@@ -31,7 +31,7 @@ func DiscoverProvider(ctx context.Context, client *http.Client, issuer string) (
 		return nil, fmt.Errorf("provider issuer %q is not an absolute URL", issuer)
 	}
 	if client == nil {
-		client = newHTTPClient()
+		client = NewHTTPClient(nil)
 	}
 
 	var failures []error

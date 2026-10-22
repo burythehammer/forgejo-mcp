@@ -16,17 +16,27 @@ func loadTLS(caFile string, skipVerify bool) (TLS, error) {
 	if caFile == "" {
 		return t, nil
 	}
-	pemData, err := os.ReadFile(caFile)
+	pool, err := loadCAPool("--tls-ca", caFile)
 	if err != nil {
-		return TLS{}, fmt.Errorf("refusing to start: --tls-ca %q cannot be read: %w", caFile, err)
-	}
-	pool, err := x509.SystemCertPool()
-	if err != nil {
-		return TLS{}, fmt.Errorf("refusing to start: cannot load the system certificate roots: %w", err)
-	}
-	if !pool.AppendCertsFromPEM(pemData) {
-		return TLS{}, fmt.Errorf("refusing to start: --tls-ca %q holds no valid PEM certificates", caFile)
+		return TLS{}, err
 	}
 	t.CAPool = pool
 	return t, nil
+}
+
+// loadCAPool reads a PEM bundle and returns the system roots with its
+// certificates appended. setting names the flag in a refusal to start.
+func loadCAPool(setting, caFile string) (*x509.CertPool, error) {
+	pemData, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("refusing to start: %s %q cannot be read: %w", setting, caFile, err)
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("refusing to start: cannot load the system certificate roots: %w", err)
+	}
+	if !pool.AppendCertsFromPEM(pemData) {
+		return nil, fmt.Errorf("refusing to start: %s %q holds no valid PEM certificates", setting, caFile)
+	}
+	return pool, nil
 }
