@@ -52,7 +52,11 @@ func (a *Adapter) GetContents(ctx context.Context, owner, repo, ref, path string
 	for _, s := range strings.Split(strings.TrimPrefix(path, "/"), "/") {
 		segs = append(segs, s)
 	}
-	resp, err := a.raw.doAPIRaw(ctx, forge.APIPath(segs...)+"?ref="+url.QueryEscape(ref), "application/json", "", contentsBodyCap)
+	apiPath, err := forge.APIPath(segs...)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := a.raw.doAPIRaw(ctx, apiPath+"?ref="+url.QueryEscape(ref), "application/json", "", contentsBodyCap)
 	if err != nil {
 		return nil, err
 	}
