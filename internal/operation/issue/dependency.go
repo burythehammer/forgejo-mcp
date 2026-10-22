@@ -106,15 +106,15 @@ type removeDependencyArgs struct {
 
 func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueDependenciesFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Dependencies(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
-			apppissue.Paging{Page: decode.IntOr(a.Page, 1), Limit: int(a.Limit)}))
+		return mcpresult.Render(dependencyPage(s.Dependencies(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			apppissue.Paging{Page: decode.IntOr(a.Page, 1), Limit: int(a.Limit)})))
 	})
 }
 
 func (h handlers) ListIssueDependentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueDependentsFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Dependents(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
-			apppissue.Paging{Page: decode.IntOr(a.Page, 1), Limit: int(a.Limit)}))
+		return mcpresult.Render(dependencyPage(s.Dependents(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			apppissue.Paging{Page: decode.IntOr(a.Page, 1), Limit: int(a.Limit)})))
 	})
 }
 

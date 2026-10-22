@@ -24,37 +24,13 @@ type LabelPage struct {
 	Total  *int
 }
 
-// LabelList is one label list read: the labels, each with its scope, and what
-// the server reported past the page of the catalogue it paged. Page and Limit
-// are the paging the read used, after the default and the ceiling.
-type LabelList struct {
-	Labels []model.ScopedLabel
-	More   bool
-	Total  *int
-	Page   int
-	Limit  int
-}
-
-// Envelope is the response of the label list tools: the labels with the paging
-// used. HasNext is the server's own report of rows past the page, and TotalCount
-// is the server's grand total when it reported one.
-func (l LabelList) Envelope() model.ScopedLabelPage {
-	return model.ScopedLabelPage{
-		Labels: l.Labels,
-		PageMeta: model.PageMeta{
-			PageWindow: model.PageWindow{Page: l.Page, Limit: l.Limit, Count: len(l.Labels)},
-			PageNext:   model.PageNext{HasNext: l.More},
-			PageTotal:  model.PageTotal{TotalCount: l.Total},
-		},
-	}
-}
-
 // ReadRepoLabels is the one read behind the list_repo_labels tool and the
 // forgejo://repo/{owner}/{repo}/labels resource. IncludeOrg appends the owner's
 // organization labels after the repository's own; the tool asks for them by
-// default and the resource does not. More and Total describe the repository's
-// own rows only, because the organization's labels are not paged here.
-func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (LabelList, error) {
+// default and the resource does not. HasNext and Total describe the
+// repository's own rows only, because the organization's labels are not paged
+// here. Each label carries its scope.
+func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (list.Bounded[model.ScopedLabel], error) {
 	bounded, err := list.Window(ctx, s.port, list.Paging(in.Paging), labelsDefaultLimit,
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Label], error) {
 			got, err := s.port.ListRepoLabelsPage(ctx, in.Owner, in.Repo, Paging(p))
@@ -64,27 +40,26 @@ func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (Label
 			return list.Batch[*model.Label]{Items: got.Labels, Total: got.Total, More: got.More}, nil
 		})
 	if err != nil {
-		return LabelList{}, err
+		return list.Bounded[model.ScopedLabel]{}, err
 	}
-	merged := make([]model.ScopedLabel, 0, len(bounded.Items))
-	for _, l := range bounded.Items {
-		merged = append(merged, model.ScopedLabel{Label: *l, Scope: "repo"})
+	repo := list.Map(bounded, func(l *model.Label) model.ScopedLabel {
+		return model.ScopedLabel{Label: *l, Scope: "repo"}
+	})
+	if !in.IncludeOrg {
+		return repo, nil
 	}
-	if in.IncludeOrg {
-		orgs, err := s.ReadOrgLabels(ctx, in.Owner, in.Paging)
-		// A user owner has no organization labels; the repository already read.
-		if err != nil && !errors.Is(err, ErrOrgNotFound) {
-			return LabelList{}, err
-		}
-		merged = append(merged, orgs.Labels...)
+	orgs, err := s.ReadOrgLabels(ctx, in.Owner, in.Paging)
+	// A user owner has no organization labels; the repository already read.
+	if err != nil && !errors.Is(err, ErrOrgNotFound) {
+		return list.Bounded[model.ScopedLabel]{}, err
 	}
-	return LabelList{Labels: merged, More: bounded.HasNext, Total: bounded.Total, Page: bounded.Page, Limit: bounded.Limit}, nil
+	return repo.Extend(orgs.Items...), nil
 }
 
 // ReadOrgLabels is the one read behind the list_org_labels tool and the
 // forgejo://org/{org}/labels resource. Each label is tagged with scope "org". A
 // page below 1 reads as page 1 and a limit below 1 as the default of 100.
-func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (LabelList, error) {
+func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (list.Bounded[model.ScopedLabel], error) {
 	if p.Page < 1 {
 		p.Page = 1
 	}
@@ -97,11 +72,9 @@ func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (Labe
 			return list.Batch[*model.Label]{Items: got.Labels, Total: got.Total, More: got.More}, nil
 		})
 	if err != nil {
-		return LabelList{}, err
+		return list.Bounded[model.ScopedLabel]{}, err
 	}
-	out := make([]model.ScopedLabel, 0, len(bounded.Items))
-	for _, l := range bounded.Items {
-		out = append(out, model.ScopedLabel{Label: *l, Scope: "org"})
-	}
-	return LabelList{Labels: out, More: bounded.HasNext, Total: bounded.Total, Page: bounded.Page, Limit: bounded.Limit}, nil
+	return list.Map(bounded, func(l *model.Label) model.ScopedLabel {
+		return model.ScopedLabel{Label: *l, Scope: "org"}
+	}), nil
 }

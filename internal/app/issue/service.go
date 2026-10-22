@@ -87,15 +87,15 @@ type RepoLabelsInput struct {
 
 // List returns a repository's issues. The owner and repository are required,
 // and sort, when given, must be one of Forgejo's sort orders.
-func (s *Service) List(ctx context.Context, in ListInput) (model.IssuePage, error) {
+func (s *Service) List(ctx context.Context, in ListInput) (list.Bounded[*model.Issue], error) {
 	if in.Owner == "" {
-		return model.IssuePage{}, fmt.Errorf("owner is required")
+		return list.Bounded[*model.Issue]{}, fmt.Errorf("owner is required")
 	}
 	if in.Repo == "" {
-		return model.IssuePage{}, fmt.Errorf("repo is required; for owner-wide listing across repositories use search_issues instead")
+		return list.Bounded[*model.Issue]{}, fmt.Errorf("repo is required; for owner-wide listing across repositories use search_issues instead")
 	}
 	if in.Sort != "" && !isValidSort(in.Sort) {
-		return model.IssuePage{}, fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
+		return list.Bounded[*model.Issue]{}, fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
@@ -112,11 +112,9 @@ func (s *Service) List(ctx context.Context, in ListInput) (model.IssuePage, erro
 			return list.Batch[*model.Issue]{Items: issues}, nil
 		})
 	if err != nil {
-		return model.IssuePage{}, err
+		return list.Bounded[*model.Issue]{}, err
 	}
-	return model.IssuePage{
-		Issues: page.Items, PageMeta: model.PageMetaOf(page),
-	}, nil
+	return page, nil
 }
 
 // defaultLimit is the page size a list or search uses when the caller gives none.
@@ -167,9 +165,9 @@ func splitRaw(s string) []string {
 // claims a limit larger than the one applied. has_next is true when a full
 // page came back; when the ceiling is unknown it asks Forgejo for the next page
 // at the same size.
-func (s *Service) Search(ctx context.Context, in SearchInput) (model.IssueSearchPage, error) {
+func (s *Service) Search(ctx context.Context, in SearchInput) (list.Bounded[*model.Issue], error) {
 	if in.Owner == "" {
-		return model.IssueSearchPage{}, fmt.Errorf("owner is required")
+		return list.Bounded[*model.Issue]{}, fmt.Errorf("owner is required")
 	}
 	state := in.State
 	if state == "" {
@@ -191,9 +189,9 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (model.IssueSearch
 			return list.Batch[*model.Issue]{Items: issues, Total: total}, nil
 		})
 	if err != nil {
-		return model.IssueSearchPage{}, err
+		return list.Bounded[*model.Issue]{}, err
 	}
-	return model.IssueSearchPage{Issues: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // Create opens an issue. Labels resolve before the POST, not after it: a typo
@@ -328,7 +326,7 @@ func (s *Service) ChangeState(ctx context.Context, t Target, state string) (*mod
 }
 
 // Milestones lists a repository's milestones. State defaults to open.
-func (s *Service) Milestones(ctx context.Context, owner, repo string, m MilestoneList) (model.MilestonePage, error) {
+func (s *Service) Milestones(ctx context.Context, owner, repo string, m MilestoneList) (list.Bounded[*model.Milestone], error) {
 	if m.State == "" {
 		m.State = "open"
 	}
@@ -343,11 +341,9 @@ func (s *Service) Milestones(ctx context.Context, owner, repo string, m Mileston
 			return milestones, nil
 		})
 	if err != nil {
-		return model.MilestonePage{}, err
+		return list.Bounded[*model.Milestone]{}, err
 	}
-	return model.MilestonePage{
-		Milestones: page.Items, PageMeta: model.PageMetaOf(page),
-	}, nil
+	return page, nil
 }
 
 // milestoneDefaultLimit is the page size a milestone list uses when the caller

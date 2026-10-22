@@ -201,7 +201,8 @@ func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRe
 		page, err := s.List(ctx, apppull.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: a.State, Sort: a.Sort, Milestone: a.Milestone, Page: int(a.Page), Limit: int(a.Limit),
 		})
-		return compact.RenderPullList(page, err, a.Verbose)
+		envelope, err := pullListPage(page, err)
+		return compact.RenderPullList(envelope, err, a.Verbose)
 	})
 }
 
@@ -224,7 +225,7 @@ func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolReque
 
 func (h handlers) ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullReviewsFn", func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)}))
+		return mcpresult.Render(reviewPage(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)})))
 	})
 }
 
@@ -238,10 +239,10 @@ func (h handlers) GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) 
 func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullReviewCommentsFn", func(ctx context.Context, s *apppull.Service, a reviewCommentsArgs) (*mcp.CallToolResult, error) {
 		ref := reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index, ID: a.ID})
-		return mcpresult.Render(s.ReviewComments(ctx, ref, apppull.Paging{
+		return mcpresult.Render(reviewCommentPage(s.ReviewComments(ctx, ref, apppull.Paging{
 			Page:  decode.PageOr(a.Page, 1),
 			Limit: decode.IntOr(a.Limit, 0),
-		}))
+		})))
 	})
 }
 
@@ -262,7 +263,7 @@ func (h handlers) MergePullRequestFn(ctx context.Context, req mcp.CallToolReques
 
 func (h handlers) ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListPullRequestFilesFn", func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)}))
+		return mcpresult.Render(filesPage(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, Page: int(a.Page), Limit: int(a.Limit)})))
 	})
 }
 
