@@ -26,8 +26,14 @@ import (
 type Factory struct {
 	cfg config.Forgejo
 	ua  string
-	hc  *http.Client    // raw-HTTP client
-	tr  *http.Transport // TLS transport shared with the SDK client; nil for the default
+	// hc is the request client: the SDK clients and the raw client share it,
+	// so every Forgejo call gives up after the same RequestTimeout.
+	hc *http.Client
+	// up is the upload client. It carries the same transport as hc, with the
+	// longer uploadRequestTimeout bound, so a large upload is not cut off by the
+	// request timeout.
+	up *http.Client
+	tr *http.Transport // TLS transport shared with the SDK client; nil for the default
 
 	// serverVersion is the Forgejo version read at startup, or nothing. Every
 	// SDK client built afterwards is told it, and so skips the version request
@@ -54,20 +60,23 @@ func NewFactory(cfg config.Forgejo, version string) *Factory {
 			log.Errorf("Forgejo URL is not a valid URL: %v", err)
 		}
 	}
-	// One TLS setting serves both the SDK client and the raw client. Built here,
-	// once per factory; the default keeps the shared client and its keep-alives.
+	// One TLS setting serves the SDK client, the raw client and the upload
+	// client. Built here, once per factory, so keep-alives are shared across
+	// tool calls.
 	tr := tlsTransport(cfg.TLS)
-	hc := sharedHTTPClient
-	if tr != nil {
-		hc = &http.Client{Timeout: sharedHTTPClient.Timeout, Transport: tr}
+	timeout := cfg.RequestTimeout
+	if timeout <= 0 {
+		timeout = config.DefaultRequestTimeout
 	}
+	hc := newHTTPClient(timeout, tr)
+	up := newHTTPClient(uploadRequestTimeout, tr)
 	if cfg.TLS.SkipVerify {
 		log.Warn("TLS certificate verification is OFF for the Forgejo instance (--tls-skip-verify); "+
 			"the server does not check who it is talking to",
 			log.SanitizedURLField("url", cfg.URL),
 		)
 	}
-	return &Factory{cfg: cfg, ua: ua, hc: hc, tr: tr, settings: &settings{}}
+	return &Factory{cfg: cfg, ua: ua, hc: hc, up: up, tr: tr, settings: &settings{}}
 }
 
 // BaseURL is the Forgejo instance the factory serves.
@@ -84,11 +93,9 @@ func (f *Factory) newClient(token string) (*forgejo_sdk.Client, error) {
 	opts := []forgejo_sdk.ClientOption{
 		forgejo_sdk.SetToken(token),
 		forgejo_sdk.SetUserAgent(f.ua),
-	}
-	if f.tr != nil {
-		// No timeout here: the SDK's default client has none, and this only
-		// changes the transport.
-		opts = append(opts, forgejo_sdk.SetHTTPClient(&http.Client{Transport: f.tr}))
+		// The shared request client: same transport and RequestTimeout as the
+		// raw client, so a stalled Forgejo cannot hang an SDK-backed call.
+		forgejo_sdk.SetHTTPClient(f.hc),
 	}
 	if v := f.knownServerVersion(); v != "" {
 		opts = append(opts, forgejo_sdk.SetForgejoVersion(v))
@@ -158,7 +165,7 @@ func (f *Factory) For(ctx context.Context) (forge.Forgejo, error) {
 func (f *Factory) adapter(c *forgejo_sdk.Client, token string) *Adapter {
 	return &Adapter{
 		client:   c,
-		raw:      &rawClient{base: f.cfg.URL, token: token, ua: f.ua, hc: f.hc},
+		raw:      &rawClient{base: f.cfg.URL, token: token, ua: f.ua, hc: f.hc, up: f.up},
 		settings: f.settings,
 	}
 }

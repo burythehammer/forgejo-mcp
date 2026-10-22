@@ -4,7 +4,10 @@
 // Config: explicit flag, then environment variable, then default.
 package config
 
-import "crypto/x509"
+import (
+	"crypto/x509"
+	"time"
+)
 
 // Mode is how the process runs.
 type Mode string
@@ -56,8 +59,16 @@ type Forgejo struct {
 	URL       string
 	Token     Secret
 	UserAgent string
-	TLS       TLS
+	// RequestTimeout bounds one request to Forgejo, including reading its
+	// response. Uploads have their own, longer bound. Zero means
+	// DefaultRequestTimeout.
+	RequestTimeout time.Duration
+	TLS            TLS
 }
+
+// DefaultRequestTimeout is how long one request to Forgejo may take when
+// --request-timeout (FORGEJO_REQUEST_TIMEOUT) is not set.
+const DefaultRequestTimeout = 60 * time.Second
 
 // TLS holds how the server verifies a Forgejo certificate. The zero value
 // verifies against the system roots only.

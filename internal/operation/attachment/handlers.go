@@ -23,7 +23,7 @@ import (
 // defaultAttachmentUploadTimeout bounds one issue or comment upload, so a stuck
 // network path fails with a clear, specific error well inside the caller's
 // patience. It is not applied to release assets, which may legitimately be
-// much larger; those rely on the HTTP client's own timeout.
+// much larger; those are bounded by the upload client's uploadRequestTimeout.
 const defaultAttachmentUploadTimeout = 45 * time.Second
 
 // attachmentUploadTimeout is a var so tests can shrink it; production never

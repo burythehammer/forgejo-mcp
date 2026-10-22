@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/textproto"
 	"strings"
 	"time"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
@@ -54,19 +56,38 @@ type rawClient struct {
 	base  string // Forgejo URL, without /api/v1
 	token string // the request's credential, as the factory resolved it
 	ua    string
-	hc    *http.Client
+	hc    *http.Client // every request except an upload, bounded by RequestTimeout
+	up    *http.Client // uploads, bounded by uploadRequestTimeout
 }
 
 const defaultUserAgent = "forgejo-mcp/"
 
-// sharedHTTPClient is shared so keep-alives work across tool calls.
-var sharedHTTPClient = &http.Client{Timeout: 60 * time.Second}
+// uploadRequestTimeout bounds one upload (a multipart POST, which can stream a
+// release asset of many megabytes). It is longer than the request timeout
+// because a large upload over a slow link legitimately outlasts it. A stalled
+// upload still ends here, so nothing waits forever.
+const uploadRequestTimeout = 10 * time.Minute
+
+// newHTTPClient builds a client that gives up after timeout. tr is the TLS
+// transport; nil means the default transport, so keep-alives are kept.
+func newHTTPClient(timeout time.Duration, tr *http.Transport) *http.Client {
+	if tr == nil {
+		return &http.Client{Timeout: timeout}
+	}
+	return &http.Client{Timeout: timeout, Transport: tr}
+}
 
 func newRawClient(base, token, ua string) *rawClient {
 	if ua == "" {
 		ua = defaultUserAgent
 	}
-	return &rawClient{base: base, token: token, ua: ua, hc: sharedHTTPClient}
+	return &rawClient{
+		base:  base,
+		token: token,
+		ua:    ua,
+		hc:    newHTTPClient(config.DefaultRequestTimeout, nil),
+		up:    newHTTPClient(uploadRequestTimeout, nil),
+	}
 }
 
 // withBase is a copy of the client aimed at another instance.
@@ -119,8 +140,17 @@ func (r *rawClient) setCommonHeaders(req *http.Request) {
 
 // doRequest sends req and returns the response. Caller owns response body close.
 func (r *rawClient) doRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+	return r.send(ctx, r.hc, req)
+}
+
+// sendUpload is doRequest on the upload client, for multipart POSTs.
+func (r *rawClient) sendUpload(ctx context.Context, req *http.Request) (*http.Response, error) {
+	return r.send(ctx, r.up, req)
+}
+
+func (r *rawClient) send(ctx context.Context, hc *http.Client, req *http.Request) (*http.Response, error) {
 	start := time.Now()
-	resp, err := r.hc.Do(req)
+	resp, err := hc.Do(req)
 	duration := time.Since(start)
 	endpoint := req.URL.Path
 	if req.URL.RawQuery != "" {
@@ -128,10 +158,21 @@ func (r *rawClient) doRequest(ctx context.Context, req *http.Request) (*http.Res
 	}
 	if err != nil {
 		forge.LogAPICall(ctx, req.Method, endpoint, duration, 0, err)
-		return nil, fmt.Errorf("%s %s: %w", req.Method, req.URL.String(), err)
+		return nil, fmt.Errorf("%s %s: %w", req.Method, req.URL.String(), deadlineErr(err))
 	}
 	forge.LogAPICall(ctx, req.Method, endpoint, duration, resp.StatusCode, nil)
 	return resp, nil
+}
+
+// deadlineErr names a request that ran out of time, so the caller reads "Forgejo
+// is not answering" rather than a bare client timeout. Any other error comes
+// back unchanged, and the original stays wrapped, so errors.Is still works.
+func deadlineErr(err error) error {
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return fmt.Errorf("forgejo did not respond in time: %w", err)
+	}
+	return err
 }
 
 // readBodySnippet reads up to 1 KiB of the body for inclusion in errors.
@@ -352,7 +393,7 @@ func (r *rawClient) doMultipart(ctx context.Context, method, pathOrURL, fieldNam
 
 	r.setCommonHeaders(req)
 	req.Header.Set("Content-Type", contentType)
-	resp, err := r.doRequest(ctx, req)
+	resp, err := r.sendUpload(ctx, req)
 	_ = pipeReader.Close()
 	if err != nil {
 		return err
