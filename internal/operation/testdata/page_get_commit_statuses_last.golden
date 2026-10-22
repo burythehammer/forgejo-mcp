@@ -1,1 +1,1 @@
-{"Result":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","statuses":[{"context":"ci/5","state":"success","target_url":"https://ci.example/ci/5","description":"ok","created_at":"2026-01-02T03:04:05Z"}],"page":3,"limit":2,"count":1,"total_count":5}}
+{"Result":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","statuses":[{"context":"ci/5","state":"success","target_url":"https://ci.example/ci/5","description":"ok","created_at":"2026-01-02T03:04:05Z"}],"page":3,"limit":2,"count":1,"has_next":false,"total_count":5}}

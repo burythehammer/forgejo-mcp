@@ -25,7 +25,6 @@ const ceilingItems = 2
 var ceilingExempt = map[string]string{
 	tracking.ListMyStopwatchesToolName: "no page or limit, so there is no client bound for the ceiling to apply to",
 	wiki.GetWikiRevisionsToolName:      "the revision history is deliberately not held to the ceiling (see wiki.Service.Revisions)",
-	repo.GetCommitStatusesToolName:     "clamps its own limit to 50 rather than calling the list module, so the ceiling is never read",
 	repo.GetRepoTreeToolName:           "passes page and limit to the tree endpoint and does not call the list module, so the ceiling is never read",
 }
 

@@ -220,17 +220,6 @@ func (s *AdminService) DeleteRepoTopic(ctx context.Context, owner, repo, raw str
 	return name, nil
 }
 
-// GetCommitStatuses returns one page of the statuses of a full 40-character
-// commit SHA. A page below 1 is 1; a limit below 1 is the default, and above
-// the maximum it is the maximum.
-func (s *AdminService) GetCommitStatuses(ctx context.Context, owner, repo, sha string, page, limit int) (model.CommitStatuses, error) {
-	read, err := s.ReadCommitStatuses(ctx, owner, repo, sha, page, limit)
-	if err != nil {
-		return model.CommitStatuses{}, err
-	}
-	return read.CommitStatuses, nil
-}
-
 // any reports whether an edit changes at least one setting.
 func (e RepoEdit) any() bool {
 	return e.Name != nil || e.Description != nil || e.Website != nil || e.DefaultBranch != nil ||
