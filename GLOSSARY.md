@@ -25,6 +25,10 @@ _Avoid_: backend, driver, real adapter (say "Forgejo adapter")
 The package-level translator (`internal/forge/<domain>adapter/`) that makes a Forgejo port satisfy a use case's own port: it converts the use case's inputs to SDK options and the SDK results back to repo-owned types. It is the only place SDK and repo-owned types meet. It is not a Forgejo adapter: it implements no Forgejo operation, it calls one.
 _Avoid_: adapter (unqualified), Bridge in prose
 
+**Tool**:
+An MCP tool the server offers, standing for exactly one Forgejo operation. A sequence of operations that serves a workflow is not a tool; it belongs to a skill.
+_Avoid_: workflow tool, compound tool, macro
+
 **Use case**:
 The MCP-free unit of application logic behind one tool: takes plain inputs, reaches Forgejo only through the Forgejo port, and returns a repo-owned result type. It lives under `internal/app/<domain>/`, where `service.go` holds the domain's use cases as methods on a `Service` type. "Service" is that Go type name only; the concept is the use case.
 _Avoid_: handler, service, operation
