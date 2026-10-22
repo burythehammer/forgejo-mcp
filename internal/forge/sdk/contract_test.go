@@ -111,3 +111,8 @@ func TestErrorsContract(t *testing.T) {
 	t.Parallel()
 	forgetest.RunErrors(t, harness)
 }
+
+func TestMissingVersusEmptyContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunMissingVersusEmpty(t, harness)
+}

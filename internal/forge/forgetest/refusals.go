@@ -66,6 +66,11 @@ func RunRefusals(t *testing.T, newHarness func(t *testing.T) Harness) {
 				_, err := h.Port.DeleteBranch(ctx, Owner, Repo, "feat")
 				return err
 			}},
+		{"a 500 whose message says not found is an upstream failure", "DeleteBranch", 500, "branch not found", forge.ErrUpstream,
+			func(h Harness) error {
+				_, err := h.Port.DeleteBranch(ctx, Owner, Repo, "feat")
+				return err
+			}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -81,6 +86,9 @@ func RunRefusals(t *testing.T, newHarness func(t *testing.T) Harness) {
 			}
 			if forge.StatusCode(err) != c.status {
 				t.Fatalf("%s: got status %d, want %d (%v)", c.op, forge.StatusCode(err), c.status, err)
+			}
+			if !errors.Is(c.kind, forge.ErrNotFound) && forge.IsNotFound(err) {
+				t.Fatalf("%s: got %v, which reads as not found; only a typed 404 may", c.op, err)
 			}
 			if c.message != "" && !strings.Contains(err.Error(), c.message) {
 				t.Fatalf("%s: got %q, want Forgejo's message %q in it", c.op, err.Error(), c.message)
