@@ -101,9 +101,10 @@ func (a adapter) ListPullRequestComments(ctx context.Context, owner, repo string
 	return bridge.Convert[[]*model.Comment](comments, err)
 }
 
-func (a adapter) ListPullReviews(ctx context.Context, owner, repo string, index int64, p apppull.Paging) ([]*model.PullReview, error) {
-	reviews, err := a.p.ListPullReviews(ctx, owner, repo, index, forgejo_sdk.ListPullReviewsOptions{ListOptions: listOptions(p)})
-	return bridge.Convert[[]*model.PullReview](reviews, err)
+func (a adapter) ListPullReviews(ctx context.Context, owner, repo string, index int64, p apppull.Paging) (apppull.ReviewPage, error) {
+	reviews, info, err := a.p.ListPullReviews(ctx, owner, repo, index, forgejo_sdk.ListPullReviewsOptions{ListOptions: listOptions(p)})
+	out, err := bridge.Convert[[]*model.PullReview](reviews, err)
+	return apppull.ReviewPage{Reviews: out, Total: info.TotalCount, TotalKnown: info.TotalKnown}, err
 }
 
 func (a adapter) GetPullReview(ctx context.Context, owner, repo string, index, id int64) (*model.PullReview, error) {

@@ -264,7 +264,7 @@ func RunPulls(t *testing.T, newHarness func(t *testing.T) Harness) {
 			if got.Body != "looks odd" || got.State != forgejo_sdk.ReviewStateComment {
 				t.Fatalf("got body=%q state=%q", got.Body, got.State)
 			}
-			list, err := h.Port.ListPullReviews(ctx, Owner, Repo, pr.Index, forgejo_sdk.ListPullReviewsOptions{})
+			list, _, err := h.Port.ListPullReviews(ctx, Owner, Repo, pr.Index, forgejo_sdk.ListPullReviewsOptions{})
 			must(t, err)
 			if len(list) != 1 || list[0].ID != created.ID {
 				t.Fatalf("list got %+v", list)
@@ -326,17 +326,33 @@ func RunPulls(t *testing.T, newHarness func(t *testing.T) Harness) {
 			wantNotFound(t, err)
 			wantNotFound(t, h.Port.DeletePullReview(ctx, Owner, Repo, pr.Index, rev.ID))
 		}},
+		{"review listing reports the total beyond one page", func(t *testing.T, h Harness) {
+			pr := newPR(t, h, "rt", "frt")
+			for range 2 {
+				_, err := h.Port.CreatePullReview(ctx, Owner, Repo, pr.Index, forgejo_sdk.CreatePullReviewOptions{
+					State: forgejo_sdk.ReviewStateComment, Body: "r",
+				})
+				must(t, err)
+			}
+			list, info, err := h.Port.ListPullReviews(ctx, Owner, Repo, pr.Index, forgejo_sdk.ListPullReviewsOptions{
+				ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: 1},
+			})
+			must(t, err)
+			if len(list) != 1 || !info.HasNext || !info.TotalKnown || info.TotalCount != 2 {
+				t.Fatalf("page=%d info=%+v; want one review, has next, total 2", len(list), info)
+			}
+		}},
 		{"review requests appear as requested reviews and can be cancelled", func(t *testing.T, h Harness) {
 			pr := newPR(t, h, "r", "fr")
 			opt := forgejo_sdk.PullReviewRequestOptions{Reviewers: []string{"bob"}}
 			must(t, h.Port.CreateReviewRequests(ctx, Owner, Repo, pr.Index, opt))
-			list, err := h.Port.ListPullReviews(ctx, Owner, Repo, pr.Index, forgejo_sdk.ListPullReviewsOptions{})
+			list, _, err := h.Port.ListPullReviews(ctx, Owner, Repo, pr.Index, forgejo_sdk.ListPullReviewsOptions{})
 			must(t, err)
 			if len(list) != 1 || list[0].State != forgejo_sdk.ReviewStateRequestReview || list[0].Reviewer == nil || list[0].Reviewer.UserName != "bob" {
 				t.Fatalf("after request: %+v", list)
 			}
 			must(t, h.Port.DeleteReviewRequests(ctx, Owner, Repo, pr.Index, opt))
-			list, err = h.Port.ListPullReviews(ctx, Owner, Repo, pr.Index, forgejo_sdk.ListPullReviewsOptions{})
+			list, _, err = h.Port.ListPullReviews(ctx, Owner, Repo, pr.Index, forgejo_sdk.ListPullReviewsOptions{})
 			must(t, err)
 			if len(list) != 0 {
 				t.Fatalf("after cancel: %+v", list)

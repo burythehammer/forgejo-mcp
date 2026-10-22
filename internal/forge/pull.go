@@ -29,7 +29,9 @@ type Pulls interface {
 	// keeps on the issue-comments endpoint.
 	ListPullRequestComments(ctx context.Context, owner, repo string, index int64, opt forgejo_sdk.ListOptions) ([]*forgejo_sdk.Comment, error)
 
-	ListPullReviews(ctx context.Context, owner, repo string, index int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, error)
+	// ListPullReviews returns one page of reviews; its PageInfo carries the
+	// server's total when Forgejo reports X-Total-Count.
+	ListPullReviews(ctx context.Context, owner, repo string, index int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, PageInfo, error)
 	GetPullReview(ctx context.Context, owner, repo string, index, id int64) (*forgejo_sdk.PullReview, error)
 	ListPullReviewComments(ctx context.Context, owner, repo string, index, id int64) ([]*forgejo_sdk.PullReviewComment, error)
 	CreatePullReview(ctx context.Context, owner, repo string, index int64, opt forgejo_sdk.CreatePullReviewOptions) (*forgejo_sdk.PullReview, error)

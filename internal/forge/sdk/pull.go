@@ -67,9 +67,9 @@ func (a *Adapter) ListPullRequestComments(_ context.Context, owner, repo string,
 	return comments, statusErr(resp, err)
 }
 
-func (a *Adapter) ListPullReviews(_ context.Context, owner, repo string, index int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, error) {
+func (a *Adapter) ListPullReviews(_ context.Context, owner, repo string, index int64, opt forgejo_sdk.ListPullReviewsOptions) ([]*forgejo_sdk.PullReview, forge.PageInfo, error) {
 	reviews, resp, err := a.client.ListPullReviews(owner, repo, index, opt)
-	return reviews, statusErr(resp, err)
+	return reviews, pageInfo(resp), statusErr(resp, err)
 }
 
 func (a *Adapter) GetPullReview(_ context.Context, owner, repo string, index, id int64) (*forgejo_sdk.PullReview, error) {
