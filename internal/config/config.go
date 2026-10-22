@@ -41,6 +41,11 @@ type Config struct {
 	Debug     bool
 	CLI       CLI // set in ModeCLI only
 
+	// Toolsets and Tools are the operator's tool selection, validated by Load.
+	// Both empty means every tool is offered.
+	Toolsets []string
+	Tools    []string
+
 	// suppliedResourceServer names the resource-server-only settings given at
 	// all, as a flag or an environment variable. Only validation reads it.
 	suppliedResourceServer []string

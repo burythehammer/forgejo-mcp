@@ -358,25 +358,29 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | **Issues** | |
 | `list_repo_issues` | List issues in a repository (page/limit); returns `{issues,page,limit,count,has_next}`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues. Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |
 | `search_issues` | Search issues across every repository of one owner (page/limit); returns `{issues,page,limit,count,has_next,total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues |
-| `get_issue_by_index` | Get a specific issue. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, body, closed_at, ref, comments); `verbose=true` returns the full issue |
-| `create_issue` | Create a new issue. Optional `labels` (comma-separated names or IDs), `assignees` (comma-separated usernames) and `milestone` (numeric ID) are applied by the same request that creates the issue. Optional `ref` links the issue to a branch (Forgejo's issue `ref` field, passed through as given). Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
-| `add_issue_labels` | Add labels to an issue. `labels` takes comma-separated label names or numeric IDs; an unrecognised name is an error and nothing is applied. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
+| `create_issue` | Create a new issue. Optional `labels` (comma-separated names or IDs; two exclusive labels from one scope are refused and no issue is created), `assignees` (comma-separated usernames) and `milestone` (numeric ID) are applied by the same request that creates the issue. Optional `ref` links the issue to a branch (Forgejo's issue `ref` field, passed through as given). Returns a compact result by default (number, url, title, state, label names, assignee logins, milestone, updated_at, and `body_sha256` when a body was sent: the hash of the body the server stored); `verbose=true` returns the full issue. |
+| `get_issue_by_index` | Get a specific issue. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, body, closed_at, ref, comments); `verbose=true` returns the full issue. Optional `type=issues` refuses a pull request's index and `type=pulls` refuses an issue's, each with an error naming the other tool; omit `type` to accept either |
+| `add_issue_labels` | Add labels to an issue. `labels` takes comma-separated label names or numeric IDs; an unrecognised name is an error, and two labels from one exclusive scope are refused; nothing is applied in either case. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
 | `remove_issue_labels` | Remove labels from an issue. `labels` takes comma-separated label names or numeric IDs. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issue. |
-| `update_issue` | Update an existing issue (requires numeric milestone ID). `due_date` sets the deadline (RFC3339); `clear_due_date=true` removes it. The two are mutually exclusive — setting both is an error, and omitting both leaves the deadline unchanged. `set_labels` replaces the issue's entire label set (names or IDs); an empty string clears every label. `ref` sets the branch the issue is linked to (passed through as given); omitting it leaves it unchanged and an empty string clears it. Returns a compact result by default (the submitted body is not echoed back); `verbose=true` returns the full issue. |
+| `update_issue` | Update an existing issue (requires numeric milestone ID). `due_date` sets the deadline (RFC3339); `clear_due_date=true` removes it. The two are mutually exclusive — setting both is an error, and omitting both leaves the deadline unchanged. `set_labels` replaces the issue's entire label set (names or IDs); an empty string clears every label; two exclusive labels from one scope are refused and nothing is applied. `ref` sets the branch the issue is linked to (passed through as given); omitting it leaves it unchanged and an empty string clears it. Returns a compact result by default (number, url, title, state, label names, assignee logins, milestone, updated_at; the submitted body is not echoed back, but `body_sha256` is the hash of the stored body when one was sent); `verbose=true` returns the full issue. |
+| `replace_issue_body_line` | Replace one exact piece of an issue's body on the server, without sending the whole body. `old` is a case-sensitive substring (it may span a whole line), must not be empty, and must occur exactly once: zero matches or several refuse with the body unchanged (several report the count). `new` may be empty to delete. Pull request indexes are refused. Returns a compact result (number, url, title, state, label names, assignee logins, updated_at), `body_sha256` of the stored body, and the `old` and `new` text. Limitation: Forgejo has no compare-and-swap for issue edits, so an edit made between the read and the write can be lost; compare `updated_at` to detect it. |
 | `issue_state_change` | Open or close an issue. Returns a compact result by default; `verbose=true` returns the full issue |
 | `list_issue_dependencies` | List issues the given issue depends on (page/limit); returns `{issues,page,limit,count,has_next}` |
 | `list_issue_dependents` | List issues that depend on the given issue (page/limit); returns `{issues,page,limit,count,has_next}` |
 | `add_issue_dependency` | Make one issue depend on another. The dependency may live in a different repository: optional `depends_on_owner`/`depends_on_repo` default to `owner`/`repo`. |
 | `remove_issue_dependency` | Remove a dependency from an issue. For a cross-repo dependency, optional `dependency_owner`/`dependency_repo` default to `owner`/`repo`. |
 | `list_repo_milestones` | List milestones with their IDs (use with `update_issue`) (page/limit); returns `{milestones,page,limit,count,has_next}` |
-| `list_repo_labels` | List labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`). |
-| `list_org_labels` | List organization-level labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
-| `create_repo_label` | Create a repository label (`name`, `color` as 6-digit hex, optional `description`). Returns the numeric `id`; `add_issue_labels` also takes the name. |
-| `edit_repo_label` | Edit a repository label (PATCH — only supplied fields change: `name`, `color`, `description`). |
+| `create_milestone` | Create an open milestone (`title` required; optional `description` and `due_date`, RFC3339). Returns the milestone as stored: `id`, `title`, `description`, `state`, `due_date`, `open_issues`, `closed_issues`. |
+| `edit_milestone` | Edit a milestone by numeric `id`. Only the fields given change: `title`, `description`, `state` (`open` or `closed`, which closes or reopens it) and `due_date` (RFC3339). A due date cannot be cleared. Returns the milestone as stored. |
+| `get_milestone` | Get one milestone by numeric `id`, in the same shape as the write tools. A missing id is an error. |
+| `list_repo_labels` | List labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`) and an `exclusive` flag. |
+| `list_org_labels` | List organization-level labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`, each with an `exclusive` flag. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
+| `create_repo_label` | Create a repository label (`name`, `color` as 6-digit hex, optional `description`, optional `exclusive`). Returns the numeric `id`; `add_issue_labels` also takes the name. `exclusive=true` marks the label's scope (the name before the last `/`, e.g. `status` in `status/ready`) as exclusive: one write may not name two of its labels. A label the issue already carries is not counted. The result reports the stored `exclusive`; if Forgejo does not store it, the call fails. |
+| `edit_repo_label` | Edit a repository label (PATCH — only supplied fields change: `name`, `color`, `description`, `exclusive`). Omitting `exclusive` leaves the stored value unchanged. |
 | `delete_repo_label` | Delete a repository label. Refuses by default when the label is in use (reports count); set `delete_mode=force` to override. |
 | `get_repo_label` | Get a single repository label by numeric `id`. |
-| `create_org_label` | Create an organization-level label. Same fields as `create_repo_label`. |
-| `edit_org_label` | Edit an organization-level label (PATCH semantics). |
+| `create_org_label` | Create an organization-level label. Same fields as `create_repo_label`, including `exclusive`. |
+| `edit_org_label` | Edit an organization-level label (PATCH semantics; `exclusive` is optional and omitting it leaves it unchanged). |
 | `delete_org_label` | Delete an organization-level label. In-use guard counts across visible org repos (best-effort); `delete_mode=force` overrides. |
 | `get_org_label` | Get a single organization-level label by numeric `id`. |
 | **Comments** | |
@@ -489,6 +493,65 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | **Server** | |
 | `get_forgejo_mcp_server_version` | Get the MCP server version |
 
+### Toolsets: choosing which tools load
+
+Every tool a client sees costs context on every request. By default the server offers all of them. To offer fewer, name toolsets (groups of related tools), individual tools, or both:
+
+| Setting | Flag | Environment variable |
+|---|---|---|
+| Toolsets to load | `--toolsets` | `FORGEJO_MCP_TOOLSETS` |
+| Individual tools to load | `--tools` | `FORGEJO_MCP_TOOLS` |
+
+- With neither set, every tool and resource template registers (the default, unchanged).
+- With toolsets only, the tools of those toolsets register, and their resource templates too.
+- With tools only, just the named tools register. No resource templates register.
+- With both, the result is the union. The flag wins over the environment variable.
+- An unknown toolset or tool name stops the server at startup, and the error lists the valid names.
+- An unselected tool is absent from `tools/list`, not disabled. Selection applies to the server, not to `--cli` mode.
+
+`--help` prints every toolset with the tools it holds. The table below is the same catalogue, with the standing cost of each toolset. Tools are assigned to toolsets in `internal/toolset/toolset.go`.
+
+Example, the issue-tracking selection:
+
+```bash
+forgejo-mcp --toolsets issues,labels,milestones,dependencies,user
+```
+
+**Standing cost.** Estimated as bytes of the `tools/list` JSON-RPC response divided by 4, measured on this build with the fake forge. It is an estimate, not a model tokenizer count, and it is not the `/context` figure from a fresh session.
+
+| Selection | Tools | Bytes | ~Tokens | Resource templates, ~tokens |
+|---|---:|---:|---:|---:|
+| Default (no selection) | 167 | 126,572 | 31,643 | 1,896 |
+| `issues,labels,milestones,dependencies,user` | 39 | 31,752 | 7,938 | 813 |
+
+The selection above costs about 25% of the default. It misses the ticket target of well under 5,000 tokens. Most of the cost is tool descriptions and input schemas, about 760 to 820 bytes per tool, so shortening them is the next lever. That is a follow-up, not part of toolset selection.
+
+Per-toolset figures below are the same measure for a selection of that one toolset. They do not sum to the totals, because each response carries its own envelope.
+
+#### Toolsets and their tools
+
+| Toolset | Tools | ~Tokens | Tool names |
+|---|---:|---:|---|
+| `user` | 7 | 857 | `check_notifications`, `get_my_user_info`, `get_notification_thread`, `list_repo_notifications`, `mark_all_notifications_read`, `mark_notification_read`, `mark_repo_notifications_read` |
+| `repos` | 21 | 4522 | `add_repo_topic`, `change_files`, `create_branch`, `create_file`, `create_repo`, `delete_branch`, `delete_file`, `delete_repo_topic`, `edit_repo`, `fork_repo`, `get_commit_statuses`, `get_file_content`, `get_repo`, `get_repo_tree`, `list_branches`, `list_my_repos`, `list_repo_commits`, `list_repo_contents`, `list_repo_topics`, `set_repo_topics`, `update_file` |
+| `issues` | 12 | 3066 | `create_issue`, `create_issue_comment`, `delete_issue_comment`, `edit_issue_comment`, `get_issue_by_index`, `get_issue_comment`, `issue_state_change`, `list_issue_comments`, `list_repo_issues`, `replace_issue_body_line`, `search_issues`, `update_issue` |
+| `labels` | 12 | 2336 | `add_issue_labels`, `create_org_label`, `create_repo_label`, `delete_org_label`, `delete_repo_label`, `edit_org_label`, `edit_repo_label`, `get_org_label`, `get_repo_label`, `list_org_labels`, `list_repo_labels`, `remove_issue_labels` |
+| `milestones` | 4 | 742 | `create_milestone`, `edit_milestone`, `get_milestone`, `list_repo_milestones` |
+| `dependencies` | 4 | 982 | `add_issue_dependency`, `list_issue_dependencies`, `list_issue_dependents`, `remove_issue_dependency` |
+| `pulls` | 16 | 2967 | `create_pull_request`, `create_pull_review`, `create_review_requests`, `delete_pull_review`, `delete_review_requests`, `dismiss_pull_review`, `get_pull_request_by_index`, `get_pull_request_diff`, `get_pull_review`, `list_pull_request_files`, `list_pull_review_comments`, `list_pull_reviews`, `list_repo_pull_requests`, `merge_pull_request`, `submit_pull_review`, `update_pull_request` |
+| `search` | 3 | 506 | `search_org_teams`, `search_repos`, `search_users` |
+| `orgs` | 15 | 1875 | `add_team_member`, `add_team_repo`, `check_org_membership`, `create_org`, `create_org_team`, `delete_org`, `edit_org`, `get_org`, `list_my_orgs`, `list_org_members`, `list_org_teams`, `list_user_orgs`, `remove_org_member`, `remove_team_member`, `remove_team_repo` |
+| `packages` | 4 | 994 | `delete_package`, `get_package`, `list_package_files`, `list_packages` |
+| `releases` | 14 | 2491 | `create_release`, `create_release_attachment`, `delete_release`, `delete_release_attachment`, `delete_release_by_tag`, `download_release_attachment`, `edit_release`, `edit_release_attachment`, `get_latest_release`, `get_release_attachment`, `get_release_by_id`, `get_release_by_tag`, `list_release_attachments`, `list_releases` |
+| `actions` | 15 | 2813 | `cancel_workflow_run`, `create_or_update_org_action_secret`, `create_or_update_repo_action_secret`, `delete_org_action_secret`, `delete_repo_action_secret`, `delete_workflow_run`, `dispatch_workflow`, `get_action_artifact`, `get_action_job_logs`, `get_workflow_run`, `list_action_run_artifacts`, `list_action_run_jobs`, `list_org_action_secrets`, `list_repo_action_secrets`, `list_workflow_runs` |
+| `attachments` | 12 | 2253 | `create_comment_attachment`, `create_issue_attachment`, `delete_comment_attachment`, `delete_issue_attachment`, `download_comment_attachment`, `download_issue_attachment`, `edit_comment_attachment`, `edit_issue_attachment`, `get_comment_attachment`, `get_issue_attachment`, `list_comment_attachments`, `list_issue_attachments` |
+| `tracking` | 10 | 1694 | `add_issue_time`, `cancel_issue_stopwatch`, `delete_issue_time_entry`, `list_issue_tracked_times`, `list_my_stopwatches`, `list_my_tracked_times`, `list_repo_tracked_times`, `reset_issue_time`, `start_issue_stopwatch`, `stop_issue_stopwatch` |
+| `branch-protection` | 5 | 1383 | `create_branch_protection`, `delete_branch_protection`, `edit_branch_protection`, `get_branch_protection`, `list_branch_protections` |
+| `webhooks` | 6 | 1218 | `create_repo_hook`, `delete_repo_hook`, `edit_repo_hook`, `get_repo_hook`, `list_repo_hooks`, `test_repo_hook` |
+| `wiki` | 6 | 1058 | `create_wiki_page`, `delete_wiki_page`, `get_wiki_page`, `get_wiki_revisions`, `list_wiki_pages`, `update_wiki_page` |
+| `version` | 1 | 73 | `get_forgejo_mcp_server_version` |
+
+
 ## Resources
 
 MCP resource templates expose Forgejo entities as URI-addressable resources using the `forgejo://` scheme. The URI scheme is instance-portable — the same URI form works against any Forgejo instance — and does not collide with Forgejo web links. Clients that support `resources/templates/list` and `resources/read` (Claude Code, Claude Desktop, Codex, Cursor) can resolve these URIs directly. Clients without resource-template support continue to use the tools above — no functionality is removed.
@@ -514,9 +577,9 @@ Resources that embed a list (issue, pr) cap the embedded array at 30 items. When
 | `forgejo://repo/{owner}/{repo}/branch_protection/{rule}` | application/json | Single branch protection rule. Rule names are branch patterns, so encode a literal `/` as `%2F` and spaces as `%20` (`release%2Fv1`); a raw `/` does not resolve. |
 | `forgejo://repo/{owner}/{repo}/hooks{?page,limit}` | application/json | Bounded list of repository webhooks (page/limit client-controlled, cap 30, sentinel names `list_repo_hooks`). The secret is never returned. |
 | `forgejo://repo/{owner}/{repo}/hook/{id}` | application/json | Single repository webhook by id. The secret is never returned. |
-| `forgejo://repo/{owner}/{repo}/label/{id}` | application/json | Single repository label by numeric id. |
-| `forgejo://repo/{owner}/{repo}/labels{?page,limit}` | application/json | Bounded list of repository labels (cap 30, sentinel names `list_repo_labels`). |
-| `forgejo://org/{org}/labels{?page,limit}` | application/json | Bounded list of organization-level labels (cap 30, sentinel names `list_org_labels`). |
+| `forgejo://repo/{owner}/{repo}/label/{id}` | application/json | Single repository label by numeric id, with its `exclusive` flag. |
+| `forgejo://repo/{owner}/{repo}/labels{?page,limit}` | application/json | Bounded list of repository labels, each with its `exclusive` flag (cap 30, sentinel names `list_repo_labels`). |
+| `forgejo://org/{org}/labels{?page,limit}` | application/json | Bounded list of organization-level labels, each with its `exclusive` flag (cap 30, sentinel names `list_org_labels`). |
 | `forgejo://repo/{owner}/{repo}/wiki/{pageName}` | application/json (+ text/markdown sidecar) | Wiki page with bounded revisions and Markdown capped at 1 MiB. Use the returned normalized `page_name`; encode a literal `/` as `%2F` and spaces as `%20` in the URI (do not double-encode an already normalized name). |
 
 Slash-separated titles such as `Guides/Setup` are useful as a subpage naming convention,
@@ -630,6 +693,8 @@ You can configure the server using command-line arguments or environment variabl
 | `--shutdown-grace` | `FORGEJO_MCP_SHUTDOWN_GRACE` | On SIGINT or SIGTERM, how long in-flight `sse`/`http` requests may run before open connections are closed (default: `8s`; any positive Go duration such as `30s` or `2m`, validated at startup). At the deadline, open event streams are closed, so clients see the stream end and should reconnect; the server then exits with status 0 and logs a warning. Set it below your orchestrator's termination timeout |
 | `--host` | `FORGEJO_MCP_HOST` | Address the `sse` and `http` transports bind to (default: `localhost`, reachable from this machine only, binding both `127.0.0.1` and `::1`; pass one of those addresses to bind that family alone) |
 | `--allowed-hosts` | `FORGEJO_MCP_ALLOWED_HOSTS` | Comma-separated `Host` names this server answers to; required when `--host` is not loopback |
+| `--toolsets` | `FORGEJO_MCP_TOOLSETS` | Comma-separated toolsets to load; unset loads every tool. See [Toolsets](#toolsets-choosing-which-tools-load) |
+| `--tools` | `FORGEJO_MCP_TOOLS` | Comma-separated individual tool names to load, added to any `--toolsets` |
 | `--allowed-origins` | `FORGEJO_MCP_ALLOWED_ORIGINS` | Comma-separated web origins allowed to send an `Origin` header, as full origins (`https://console.example.org`). Empty by default |
 | `--allow-operator-token-fallback` | `FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK` | On `sse`/`http`, serve requests with no `Authorization` header using this server's own token. Off by default |
 | `--max-request-body-bytes` | `FORGEJO_MCP_MAX_REQUEST_BODY_BYTES` | On `sse`/`http`, the largest request body read, in bytes; a larger one gets `413`. Must be positive. Default `100663296` (96 MiB), which clears the largest attachment upload (90 MiB of base64) plus its envelope |

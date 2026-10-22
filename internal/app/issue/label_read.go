@@ -19,7 +19,7 @@ const labelsDefaultLimit = 100
 // true when the server reported rows past this page; Total is the server's
 // count of all rows, known only when the server reported one.
 type LabelPage struct {
-	Labels []*model.Label
+	Labels []*model.CatalogLabel
 	More   bool
 	Total  *int
 }
@@ -32,18 +32,18 @@ type LabelPage struct {
 // here. Each label carries its scope.
 func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (list.Bounded[model.ScopedLabel], error) {
 	bounded, err := list.Window(ctx, s.port, list.NewRequest(list.Paging(in.Paging), labelsDefaultLimit),
-		func(ctx context.Context, p list.Paging) (list.Batch[*model.Label], error) {
+		func(ctx context.Context, p list.Paging) (list.Batch[*model.CatalogLabel], error) {
 			got, err := s.port.ListRepoLabelsPage(ctx, in.Owner, in.Repo, Paging(p))
 			if err != nil {
-				return list.Batch[*model.Label]{}, fmt.Errorf("list repo labels err: %w", err)
+				return list.Batch[*model.CatalogLabel]{}, fmt.Errorf("list repo labels err: %w", err)
 			}
-			return list.Batch[*model.Label]{Items: got.Labels, Total: got.Total, More: got.More}, nil
+			return list.Batch[*model.CatalogLabel]{Items: got.Labels, Total: got.Total, More: got.More}, nil
 		})
 	if err != nil {
 		return list.Bounded[model.ScopedLabel]{}, err
 	}
-	repo := list.Map(bounded, func(l *model.Label) model.ScopedLabel {
-		return model.ScopedLabel{Label: *l, Scope: "repo"}
+	repo := list.Map(bounded, func(l *model.CatalogLabel) model.ScopedLabel {
+		return model.ScopedLabel{CatalogLabel: *l, Scope: "repo"}
 	})
 	if !in.IncludeOrg {
 		return repo, nil
@@ -61,17 +61,17 @@ func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (list.
 // limit below 1 takes the default of 100; the page is passed on as given.
 func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (list.Bounded[model.ScopedLabel], error) {
 	bounded, err := list.Window(ctx, s.port, list.NewRequest(list.Paging(p), labelsDefaultLimit),
-		func(ctx context.Context, q list.Paging) (list.Batch[*model.Label], error) {
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.CatalogLabel], error) {
 			got, err := s.port.ListOrgLabelsPage(ctx, org, Paging(q))
 			if err != nil {
-				return list.Batch[*model.Label]{}, fmt.Errorf("list org labels err: %w", err)
+				return list.Batch[*model.CatalogLabel]{}, fmt.Errorf("list org labels err: %w", err)
 			}
-			return list.Batch[*model.Label]{Items: got.Labels, Total: got.Total, More: got.More}, nil
+			return list.Batch[*model.CatalogLabel]{Items: got.Labels, Total: got.Total, More: got.More}, nil
 		})
 	if err != nil {
 		return list.Bounded[model.ScopedLabel]{}, err
 	}
-	return list.Map(bounded, func(l *model.Label) model.ScopedLabel {
-		return model.ScopedLabel{Label: *l, Scope: "org"}
+	return list.Map(bounded, func(l *model.CatalogLabel) model.ScopedLabel {
+		return model.ScopedLabel{CatalogLabel: *l, Scope: "org"}
 	}), nil
 }

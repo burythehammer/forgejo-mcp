@@ -180,4 +180,27 @@ func (s *Stub) mountIssues(mux *http.ServeMux) {
 			forgejo_sdk.ListMilestoneOption{ListOptions: listOptions(r), State: forgejo_sdk.StateType(r.URL.Query().Get("state"))})
 		reply(w, out, err)
 	})
+
+	mux.HandleFunc("POST /api/v1/repos/{owner}/{repo}/milestones", func(w http.ResponseWriter, r *http.Request) {
+		var opt forgejo_sdk.CreateMilestoneOption
+		if !decode(w, r, &opt) {
+			return
+		}
+		out, err := f.CreateMilestone(r.Context(), r.PathValue("owner"), r.PathValue("repo"), opt)
+		replyStatus(w, http.StatusCreated, out, err)
+	})
+
+	mux.HandleFunc("GET /api/v1/repos/{owner}/{repo}/milestones/{id}", func(w http.ResponseWriter, r *http.Request) {
+		out, err := f.GetMilestone(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "id"))
+		reply(w, out, err)
+	})
+
+	mux.HandleFunc("PATCH /api/v1/repos/{owner}/{repo}/milestones/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var opt forgejo_sdk.EditMilestoneOption
+		if !decode(w, r, &opt) {
+			return
+		}
+		out, err := f.EditMilestone(r.Context(), r.PathValue("owner"), r.PathValue("repo"), pathIndex(r, "id"), opt)
+		reply(w, out, err)
+	})
 }

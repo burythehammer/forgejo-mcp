@@ -1,4 +1,4 @@
-{"Result":{"labels":[{"id":3,"name":"bug","color":"ff0000","description":"broken","url":"https://f.example/l/3","scope":"repo"},{"id":4,"name":"ui","color":"00ff00","description":"look","url":"https://f.example/l/4","scope":"repo"}],"page":1,"limit":50,"limit_requested":100,"count":2,"has_next":false}}
+{"Result":{"labels":[{"id":3,"name":"bug","color":"ff0000","description":"broken","url":"https://f.example/l/3","exclusive":false,"scope":"repo"},{"id":4,"name":"ui","color":"00ff00","description":"look","url":"https://f.example/l/4","exclusive":false,"scope":"repo"}],"page":1,"limit":50,"limit_requested":100,"count":2,"has_next":false}}
 -- port calls --
-ListRepoLabels ["octo","hello",{"Page":1,"PageSize":50}]
+ListRepoLabels ["octo","hello",1,50]
 ListOrgLabels ["octo",1,50]

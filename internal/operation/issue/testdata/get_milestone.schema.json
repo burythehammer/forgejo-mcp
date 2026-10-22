@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get one repository milestone by ID. Returns the milestone as the server stored it. A missing ID is an error, not an empty result.",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Milestone ID (a positive integer)",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "id"
+    ],
+    "type": "object"
+  },
+  "name": "get_milestone"
+}

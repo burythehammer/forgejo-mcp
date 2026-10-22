@@ -340,7 +340,7 @@ func TestRepoLabel_EditNeedsAField(t *testing.T) {
 	s, f := fixture(t)
 	id := f.SeedIssueLabel(owner, repo, "a")
 	_, err := s.EditRepoLabel(context.Background(), owner, repo, id, apppissue.LabelEdit{Tool: "edit_repo_label"})
-	if want := "edit_repo_label: at least one of name, color, description must be provided"; errText(err) != want {
+	if want := "edit_repo_label: at least one of name, color, description, exclusive must be provided"; errText(err) != want {
 		t.Fatalf("error = %q, want %q", errText(err), want)
 	}
 }

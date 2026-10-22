@@ -4,6 +4,8 @@ package issue
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
@@ -32,22 +34,23 @@ func labelsArgDescription(lead string) string {
 }
 
 const (
-	GetIssueByIndexToolName    = "get_issue_by_index"
-	ListRepoIssuesToolName     = "list_repo_issues"
-	CreateIssueToolName        = "create_issue"
-	CreateIssueCommentToolName = "create_issue_comment"
-	UpdateIssueToolName        = "update_issue"
-	AddIssueLabelsToolName     = "add_issue_labels"
-	RemoveIssueLabelsToolName  = "remove_issue_labels"
-	IssueStateChangeToolName   = "issue_state_change"
-	ListIssueCommentsToolName  = "list_issue_comments"
-	GetIssueCommentToolName    = "get_issue_comment"
-	EditIssueCommentToolName   = "edit_issue_comment"
-	DeleteIssueCommentToolName = "delete_issue_comment"
-	ListRepoMilestonesToolName = "list_repo_milestones"
-	ListRepoLabelsToolName     = "list_repo_labels"
-	ListOrgLabelsToolName      = "list_org_labels"
-	SearchIssuesToolName       = "search_issues"
+	GetIssueByIndexToolName      = "get_issue_by_index"
+	ListRepoIssuesToolName       = "list_repo_issues"
+	CreateIssueToolName          = "create_issue"
+	CreateIssueCommentToolName   = "create_issue_comment"
+	UpdateIssueToolName          = "update_issue"
+	ReplaceIssueBodyLineToolName = "replace_issue_body_line"
+	AddIssueLabelsToolName       = "add_issue_labels"
+	RemoveIssueLabelsToolName    = "remove_issue_labels"
+	IssueStateChangeToolName     = "issue_state_change"
+	ListIssueCommentsToolName    = "list_issue_comments"
+	GetIssueCommentToolName      = "get_issue_comment"
+	EditIssueCommentToolName     = "edit_issue_comment"
+	DeleteIssueCommentToolName   = "delete_issue_comment"
+	ListRepoMilestonesToolName   = "list_repo_milestones"
+	ListRepoLabelsToolName       = "list_repo_labels"
+	ListOrgLabelsToolName        = "list_org_labels"
+	SearchIssuesToolName         = "search_issues"
 )
 
 var (
@@ -57,6 +60,7 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
+		mcp.WithString("type", mcp.Description("Type (issues|pulls). 'issues' refuses a pull request's index and 'pulls' refuses an issue's index, with an error that names the tool for the other kind. Omit to accept either kind.")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
@@ -115,6 +119,16 @@ var (
 		mcp.WithString("set_labels", mcp.Description(labelsArgDescription("Replace the issue's entire label set")+" Pass an empty string to remove every label. To add or drop individual labels without restating the set, use add_issue_labels or remove_issue_labels.")),
 		mcp.WithString("ref", mcp.Description(refArgDescription+" Omit to leave it unchanged; pass an empty string to clear it.")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
+	)
+
+	ReplaceIssueBodyLineTool = mcp.NewTool(
+		ReplaceIssueBodyLineToolName,
+		mcp.WithDescription("Replace one exact piece of an issue's body on the server, without sending the whole body. 'old' is matched as a case-sensitive substring (it may span a whole line) and must occur exactly once: zero matches or several refuse with the body left unchanged, and several report the count. 'old' must not be empty. Pull request indexes are refused. Limitation: Forgejo has no compare-and-swap for issue edits, so an edit made between this call's read and write can be lost; compare updated_at in the result to detect that."),
+		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
+		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
+		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
+		mcp.WithString("old", mcp.Required(), mcp.Description("Exact text to find in the body (case-sensitive, non-empty). Must occur exactly once.")),
+		mcp.WithString("new", mcp.Required(), mcp.Description("Text that replaces 'old'. May be empty to delete it.")),
 	)
 
 	AddIssueLabelsTools = mcp.NewTool(
@@ -247,6 +261,7 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(CreateIssueTool, h.CreateIssueFn)
 	s.AddTool(CreateIssueCommentTool, h.CreateIssueCommentFn)
 	s.AddTool(UpdateIssueTool, h.UpdateIssueFn)
+	s.AddTool(ReplaceIssueBodyLineTool, h.ReplaceIssueBodyLineFn)
 	s.AddTool(AddIssueLabelsTools, h.AddIssueLabelsFn)
 	s.AddTool(RemoveIssueLabelsTools, h.RemoveIssueLabelsFn)
 	s.AddTool(IssueStateChangeTool, h.IssueStateChangeFn)
@@ -259,6 +274,7 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(ListOrgLabelsTool, h.ListOrgLabelsFn)
 	s.AddTool(SearchIssuesTool, h.SearchIssuesFn)
 	h.registerLabelTools(s)
+	h.registerMilestoneTools(s)
 	h.registerDependencyTools(s)
 }
 
@@ -278,6 +294,7 @@ type getIssueArgs struct {
 	Owner   string  `json:"owner" required:"true"`
 	Repo    string  `json:"repo" required:"true"`
 	Index   float64 `json:"index" required:"true"`
+	Type    string  `json:"type"`
 	Verbose bool    `json:"verbose"`
 }
 
@@ -328,6 +345,23 @@ type updateIssueArgs struct {
 	SetLabels    *string `json:"set_labels"`
 	Ref          *string `json:"ref"`
 	Verbose      bool    `json:"verbose"`
+}
+
+type replaceBodyLineArgs struct {
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index float64 `json:"index" required:"true"`
+	Old   string  `json:"old" required:"true"`
+	New   string  `json:"new" required:"true"`
+}
+
+// replacedBodyLine is the result of replace_issue_body_line: the compact issue
+// write, with the body hash taken from the stored body, plus the text that was
+// replaced and its replacement.
+type replacedBodyLine struct {
+	compact.IssueWrite
+	Old string `json:"old"`
+	New string `json:"new"`
 }
 
 type labelsArgs struct {
@@ -419,10 +453,27 @@ func target(a issueRefArgs) apppissue.Target {
 	return apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}
 }
 
+// kindRefusal names the tool for the other kind, so a caller that asked for
+// issues and got a pull request knows where to read it.
+func kindRefusal(e *apppissue.KindError) error {
+	if e.Want == apppissue.KindPulls {
+		return fmt.Errorf("%s; use get_issue_by_index to read it", e.Error())
+	}
+	return fmt.Errorf("%s; use get_pull_request_by_index to read it", e.Error())
+}
+
 func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetIssueByIndexFn", func(ctx context.Context, s *apppissue.Service, a getIssueArgs) (*mcp.CallToolResult, error) {
-		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), apppissue.ReadOptions{})
+		kind, err := apppissue.ParseKind(a.Type)
 		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), apppissue.ReadOptions{Kind: kind})
+		if err != nil {
+			var refused *apppissue.KindError
+			if errors.As(err, &refused) {
+				return mcpresult.Fail(kindRefusal(refused))
+			}
 			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, int64(a.Index)), err)
 		}
 		return compact.RenderIssueRead(read.Issue, a.Verbose)
@@ -465,7 +516,7 @@ func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 			Owner: a.Owner, Repo: a.Repo, Title: a.Title, Body: a.Body, Ref: a.Ref,
 			Labels: a.Labels, Assignees: a.Assignees, Milestone: a.Milestone,
 		})
-		return compact.RenderIssue(iss, err, a.Verbose)
+		return compact.RenderIssueWrite(iss, err, a.Verbose, a.Body != "")
 	})
 }
 
@@ -483,7 +534,24 @@ func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 			Title:  a.Title, Body: a.Body, Assignee: a.Assignee, Assignees: a.Assignees, Ref: a.Ref,
 			Milestone: a.Milestone, DueDate: a.DueDate, ClearDueDate: a.ClearDueDate, SetLabels: a.SetLabels,
 		})
-		return compact.RenderIssue(iss, err, a.Verbose)
+		return compact.RenderIssueWrite(iss, err, a.Verbose, a.Body != "")
+	})
+}
+
+func (h handlers) ReplaceIssueBodyLineFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return run(ctx, h, req, "ReplaceIssueBodyLineFn", func(ctx context.Context, s *apppissue.Service, a replaceBodyLineArgs) (*mcp.CallToolResult, error) {
+		iss, err := s.ReplaceBodyLine(ctx, apppissue.ReplaceBodyLineInput{
+			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			Old:    a.Old, New: a.New,
+		})
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return mcpresult.Render(replacedBodyLine{
+			IssueWrite: compact.IssueWrite{Issue: compact.OfIssue(iss), BodySHA256: compact.BodySHA256(iss.Body)},
+			Old:        a.Old,
+			New:        a.New,
+		}, nil)
 	})
 }
 

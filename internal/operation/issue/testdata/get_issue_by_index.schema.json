@@ -20,6 +20,10 @@
         "description": "Repository name",
         "type": "string"
       },
+      "type": {
+        "description": "Type (issues|pulls). 'issues' refuses a pull request's index and 'pulls' refuses an issue's index, with an error that names the tool for the other kind. Omit to accept either kind.",
+        "type": "string"
+      },
       "verbose": {
         "description": "Return the full entity instead of the compact summary. Default false.",
         "type": "boolean"

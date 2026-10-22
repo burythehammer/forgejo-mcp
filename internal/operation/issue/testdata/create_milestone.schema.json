@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Create an open repository milestone. Returns the milestone as the server stored it: id, title, description, state, due_date, open_issues, closed_issues.",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "Milestone description",
+        "type": "string"
+      },
+      "due_date": {
+        "description": "Due date as an RFC3339 timestamp, e.g. 2026-12-01T00:00:00Z",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "Milestone title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "create_milestone"
+}

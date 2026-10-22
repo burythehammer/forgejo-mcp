@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"reflect"
 	"strings"
 	"testing"
@@ -13,7 +14,6 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
 
-	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -52,7 +52,7 @@ func TestLabelReadParity_RepoLabel(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	ctx := context.Background()
-	created, err := f.CreateRepoLabel(ctx, testOwner, testRepo, forgejo_sdk.CreateLabelOption{
+	created, err := f.CreateRepoLabel(ctx, testOwner, testRepo, forge.LabelCreate{
 		Name: "bug", Color: "#ff0000", Description: "broken",
 	})
 	if err != nil {

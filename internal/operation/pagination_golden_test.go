@@ -163,14 +163,14 @@ var pageToolsTable = []pageTool{
 	{tool: issue.ListRepoLabelsToolName, args: repoArgs(nil), seed: func(t *testing.T, f *fake.Forgejo, n int) {
 		seedRepo(t, f)
 		for i := 1; i <= n; i++ {
-			_, err := f.CreateRepoLabel(context.Background(), pageOwner, pageRepo, forgejo_sdk.CreateLabelOption{Name: fmt.Sprintf("label %d", i), Color: "00ff00"})
+			_, err := f.CreateRepoLabel(context.Background(), pageOwner, pageRepo, forge.LabelCreate{Name: fmt.Sprintf("label %d", i), Color: "00ff00"})
 			must(t, err)
 		}
 	}},
 	{tool: issue.ListOrgLabelsToolName, args: map[string]any{"org": "acme"}, seed: func(t *testing.T, f *fake.Forgejo, n int) {
 		for i := 1; i <= n; i++ {
 			seedOrg(t, f, "acme")
-			_, err := f.CreateOrgLabel(context.Background(), "acme", forgejo_sdk.CreateLabelOption{Name: fmt.Sprintf("org label %d", i), Color: "0000ff"})
+			_, err := f.CreateOrgLabel(context.Background(), "acme", forge.LabelCreate{Name: fmt.Sprintf("org label %d", i), Color: "0000ff"})
 			must(t, err)
 		}
 	}},

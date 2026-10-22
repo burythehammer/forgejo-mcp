@@ -41,20 +41,23 @@ type Port interface {
 	EditIssueComment(ctx context.Context, owner, repo string, id int64, body string) (*model.Comment, error)
 	DeleteIssueComment(ctx context.Context, owner, repo string, id int64) error
 	ListRepoMilestones(ctx context.Context, owner, repo string, m MilestoneList) ([]*model.Milestone, error)
+	GetMilestone(ctx context.Context, owner, repo string, id int64) (*model.Milestone, error)
+	CreateMilestone(ctx context.Context, owner, repo string, in MilestoneNew) (*model.Milestone, error)
+	EditMilestone(ctx context.Context, owner, repo string, id int64, in MilestoneEdit) (*model.Milestone, error)
 
-	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.Label, error)
-	GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*model.Label, error)
-	CreateRepoLabel(ctx context.Context, owner, repo string, in LabelNew) (*model.Label, error)
-	EditRepoLabel(ctx context.Context, owner, repo string, id int64, in LabelEdit) (*model.Label, error)
+	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.CatalogLabel, error)
+	GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*model.CatalogLabel, error)
+	CreateRepoLabel(ctx context.Context, owner, repo string, in LabelNew) (*model.CatalogLabel, error)
+	EditRepoLabel(ctx context.Context, owner, repo string, id int64, in LabelEdit) (*model.CatalogLabel, error)
 	DeleteRepoLabel(ctx context.Context, owner, repo string, id int64) error
-	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.Label, error)
+	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.CatalogLabel, error)
 	// ListRepoLabelsPage and ListOrgLabelsPage are the label list reads: one
 	// page, with what the server reported about rows past it.
 	ListRepoLabelsPage(ctx context.Context, owner, repo string, p Paging) (LabelPage, error)
 	ListOrgLabelsPage(ctx context.Context, org string, p Paging) (LabelPage, error)
-	GetOrgLabel(ctx context.Context, org string, id int64) (*model.Label, error)
-	CreateOrgLabel(ctx context.Context, org string, in LabelNew) (*model.Label, error)
-	EditOrgLabel(ctx context.Context, org string, id int64, in LabelEdit) (*model.Label, error)
+	GetOrgLabel(ctx context.Context, org string, id int64) (*model.CatalogLabel, error)
+	CreateOrgLabel(ctx context.Context, org string, in LabelNew) (*model.CatalogLabel, error)
+	EditOrgLabel(ctx context.Context, org string, id int64, in LabelEdit) (*model.CatalogLabel, error)
 	DeleteOrgLabel(ctx context.Context, org string, id int64) error
 	// ListOrgRepoNames pages the names of an organization's repositories. A
 	// page past the end is empty.
@@ -132,12 +135,35 @@ type MilestoneList struct {
 	Paging
 }
 
-// LabelNew is a label to create.
-type LabelNew struct{ Name, Color, Description string }
+// MilestoneNew is a milestone to create. Due is nil when the milestone has no
+// deadline.
+type MilestoneNew struct {
+	Title, Description string
+	Due                *time.Time
+}
+
+// MilestoneEdit is a partial milestone update: a nil field is left alone. Tool
+// names the tool the edit came from, for the error when nothing is supplied.
+// Due cannot be cleared.
+type MilestoneEdit struct {
+	Tool        string
+	Title       *string
+	Description *string
+	State       *string
+	Due         *time.Time
+}
+
+// LabelNew is a label to create. Exclusive marks its scope as exclusive: one
+// write may not name two of its labels.
+type LabelNew struct {
+	Name, Color, Description string
+	Exclusive                bool
+}
 
 // LabelEdit is a partial label update: a nil field is left alone. Tool names
 // the tool the edit came from, for the error when nothing is supplied.
 type LabelEdit struct {
 	Tool                     string
 	Name, Color, Description *string
+	Exclusive                *bool
 }

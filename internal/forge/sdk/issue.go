@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 
@@ -129,4 +130,38 @@ func (a *Adapter) DeleteIssueComment(_ context.Context, owner, repo string, id i
 func (a *Adapter) ListRepoMilestones(_ context.Context, owner, repo string, opt forgejo_sdk.ListMilestoneOption) ([]*forgejo_sdk.Milestone, error) {
 	ms, resp, err := a.client.ListRepoMilestones(owner, repo, opt)
 	return ms, statusErr(resp, err)
+}
+
+func (a *Adapter) GetMilestone(_ context.Context, owner, repo string, id int64) (*forgejo_sdk.Milestone, error) {
+	m, resp, err := a.client.GetMilestone(owner, repo, id)
+	return m, statusErr(resp, err)
+}
+
+func (a *Adapter) CreateMilestone(_ context.Context, owner, repo string, opt forgejo_sdk.CreateMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	m, resp, err := a.client.CreateMilestone(owner, repo, opt)
+	return m, statusErr(resp, err)
+}
+
+// milestonePatch is the PATCH body for a milestone. The SDK's
+// EditMilestoneOption has no omitempty on its title or due date, so an unset
+// title went out as "title":"" and an unset due date as "due_on":null. An
+// absent key is what means "leave alone", so this body omits every unset field.
+type milestonePatch struct {
+	Title       string                 `json:"title,omitempty"`
+	Description *string                `json:"description,omitempty"`
+	State       *forgejo_sdk.StateType `json:"state,omitempty"`
+	Deadline    *time.Time             `json:"due_on,omitempty"`
+}
+
+func (a *Adapter) EditMilestone(ctx context.Context, owner, repo string, id int64, opt forgejo_sdk.EditMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	path, err := forge.APIPath("repos", owner, repo, "milestones", id)
+	if err != nil {
+		return nil, err
+	}
+	body := milestonePatch{Title: opt.Title, Description: opt.Description, State: opt.State, Deadline: opt.Deadline}
+	var m forgejo_sdk.Milestone
+	if err := a.rawDo(ctx, http.MethodPatch, path, body, &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
 }

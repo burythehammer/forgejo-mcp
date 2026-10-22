@@ -1,3 +1,3 @@
-{"Result":{"id":3,"name":"bug","color":"ff0000","description":"broken","url":"https://f.example/l/3"}}
+{"Result":{"id":3,"name":"bug","color":"ff0000","description":"broken","url":"https://f.example/l/3","exclusive":false}}
 -- port calls --
-EditRepoLabel ["octo","hello",3,{"name":"x","color":"#00ff00","description":null}]
+EditRepoLabel ["octo","hello",3,{"name":"x","color":"#00ff00"}]

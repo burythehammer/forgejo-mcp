@@ -198,7 +198,7 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (list.Bounded[*mod
 func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Issue, error) {
 	opt := NewIssue{Title: in.Title, Body: in.Body, Ref: in.Ref}
 	if in.Labels != nil {
-		ids, err := s.labels.Resolve(ctx, in.Owner, in.Repo, *in.Labels)
+		ids, err := s.resolveApplied(ctx, in.Owner, in.Repo, *in.Labels)
 		if err != nil {
 			return nil, err
 		}
@@ -274,7 +274,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (*model.Issue, err
 		if len(split.CSV(*in.SetLabels)) == 0 {
 			clearLabels = true
 		} else {
-			ids, err := s.labels.Resolve(ctx, in.Owner, in.Repo, *in.SetLabels)
+			ids, err := s.resolveApplied(ctx, in.Owner, in.Repo, *in.SetLabels)
 			if err != nil {
 				return nil, err
 			}
