@@ -430,7 +430,7 @@ List all my repositories
 | **Time Tracking** | |
 | `list_issue_tracked_times` | List tracked time entries on an issue or PR (page/limit); returns `{times, page, limit, count, has_next}` |
 | `list_repo_tracked_times` | List tracked time entries across a repository (page/limit); returns `{times, page, limit, count, has_next}` |
-| `list_my_tracked_times` | List your own tracked time entries |
+| `list_my_tracked_times` | List your own tracked time entries, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `add_issue_time` | Log time against an issue or PR (accepts seconds or duration like `15m`) |
 | `reset_issue_time` | Delete ALL tracked time entries on an issue or PR (destructive) |
 | `delete_issue_time_entry` | Delete a single tracked time entry by ID |

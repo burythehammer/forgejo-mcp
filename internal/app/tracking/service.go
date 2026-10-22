@@ -9,6 +9,7 @@ import (
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
 )
 
 // Service runs the time-tracking use cases. It holds only its Source; the port
@@ -130,17 +131,34 @@ func timePage(page list.Page[*model.TrackedTime]) model.TrackedTimePage {
 	return model.TrackedTimePage{Times: times, PageMeta: model.PageMetaOf(page)}
 }
 
-// MyTimes returns the tracked times of the authenticated user.
-func (s *Service) MyTimes(ctx context.Context) ([]*model.TrackedTime, error) {
+// MyTimesInput pages the authenticated user's tracked times. Page and Limit are
+// 1-based; a zero Limit takes the default.
+type MyTimesInput struct{ Page, Limit int }
+
+// MyTimes returns one page of the tracked times of the authenticated user with
+// its next marker. The port reads the whole list, so it is cut here, and no
+// total is reported.
+func (s *Service) MyTimes(ctx context.Context, in MyTimesInput) (model.TrackedTimePage, error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.TrackedTimePage{}, err
 	}
-	times, err := p.ListMyTrackedTimes(ctx)
+	c := ceiling(ctx, p)
+	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
+			all, err := p.ListMyTrackedTimes(ctx)
+			if err != nil {
+				return list.Batch[*model.TrackedTime]{}, fmt.Errorf("list my tracked times err: %w", err)
+			}
+			rows, _ := list.Cut(all, q)
+			return list.Batch[*model.TrackedTime]{Items: rows, Total: ptr.To(len(all))}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list my tracked times err: %w", err)
+		return model.TrackedTimePage{}, err
 	}
-	return times, nil
+	out := timePage(page)
+	out.TotalCount = nil
+	return out, nil
 }
 
 // AddTime logs time against an issue and returns the entry.

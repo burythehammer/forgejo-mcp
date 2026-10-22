@@ -24,9 +24,8 @@ const ceilingItems = 2
 // bound for the ceiling to apply to. Giving them one changes a tool schema,
 // which this ticket does not do, so they are left as they are.
 var unpagedListTools = map[string]bool{
-	repo.ListMyReposToolName:            true,
-	tracking.ListMyStopwatchesToolName:  true,
-	tracking.ListMyTrackedTimesToolName: true,
+	repo.ListMyReposToolName:           true,
+	tracking.ListMyStopwatchesToolName: true,
 }
 
 // TestCeilingListTools pins the instance ceiling on every paged list tool: a
