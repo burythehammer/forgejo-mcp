@@ -46,7 +46,7 @@ func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent
 			if err != nil && !errors.Is(err, ErrNotFound) {
 				return list.Batch[*model.Attachment]{}, fmt.Errorf("list %s attachments err: %w", sc.label(), err)
 			}
-			rows, _ := list.Cut(all, q)
+			rows := list.Cut(all, q).Items
 			return list.Batch[*model.Attachment]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {

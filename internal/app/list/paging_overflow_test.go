@@ -26,7 +26,8 @@ func TestCut_HugePageOrLimitDoesNotOverflow(t *testing.T) {
 		{"huge limit on page 1", 1, math.MaxInt, "[1 2 3 4 5]"},
 	}
 	for _, c := range cases {
-		items, next := Cut(corpus(5), Paging{Page: c.page, Limit: c.limit})
+		cut := Cut(corpus(5), Paging{Page: c.page, Limit: c.limit})
+		items, next := cut.Items, cut.HasNext
 		if fmt.Sprint(items) != c.want || next {
 			t.Errorf("%s: got %v next %v, want %s next false", c.name, items, next, c.want)
 		}

@@ -161,7 +161,7 @@ func (s *Service) ListAttachments(ctx context.Context, owner, repo string, relea
 			if err != nil {
 				return list.Batch[*model.Attachment]{}, fmt.Errorf("list release attachments err: %w", err)
 			}
-			rows, _ := list.Cut(all, q)
+			rows := list.Cut(all, q).Items
 			return list.Batch[*model.Attachment]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {

@@ -141,7 +141,7 @@ func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64,
 			if err != nil {
 				return list.Batch[model.ActionRunJob]{}, fmt.Errorf("list action run jobs: %w", err)
 			}
-			rows, _ := list.Cut(all, q)
+			rows := list.Cut(all, q).Items
 			return list.Batch[model.ActionRunJob]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {

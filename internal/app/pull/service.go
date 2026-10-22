@@ -249,7 +249,7 @@ func (s *Service) Diff(ctx context.Context, in DiffInput) (DiffPage, error) {
 	files := diff.Files(body)
 	page, err := list.Run(ctx, list.Given(list.Paging{Page: in.Page, Limit: in.Limit}, defaultDiffLimit, c), c,
 		func(_ context.Context, p list.Paging) (list.Batch[string], error) {
-			rows, _ := list.Cut(files, p)
+			rows := list.Cut(files, p).Items
 			return list.Batch[string]{Items: rows, Total: ptr.To(len(files))}, nil
 		})
 	if err != nil {
@@ -314,7 +314,7 @@ func (s *Service) ReviewComments(ctx context.Context, in ReviewRef, p Paging) (m
 			if err != nil {
 				return list.Batch[*model.PullReviewComment]{}, fmt.Errorf("list pull review comments err: %w", err)
 			}
-			rows, _ := list.Cut(all, q)
+			rows := list.Cut(all, q).Items
 			return list.Batch[*model.PullReviewComment]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {

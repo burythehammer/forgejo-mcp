@@ -98,7 +98,7 @@ func (s *Service) ListFiles(ctx context.Context, r ListFilesRequest) (model.List
 		}
 		// Forgejo does not page the listing, so the window is cut here. The whole
 		// listing is the grand total, so has_next needs no probe.
-		rows, _ := list.Cut(all, q)
+		rows := list.Cut(all, q).Items
 		return list.Batch[model.PackageFileView]{Items: rows, Total: ptr.To(len(all))}, nil
 	})
 	if err != nil {

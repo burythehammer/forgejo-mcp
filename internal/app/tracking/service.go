@@ -150,7 +150,7 @@ func (s *Service) MyTimes(ctx context.Context, in MyTimesInput) (model.TrackedTi
 			if err != nil {
 				return list.Batch[*model.TrackedTime]{}, fmt.Errorf("list my tracked times err: %w", err)
 			}
-			rows, _ := list.Cut(all, q)
+			rows := list.Cut(all, q).Items
 			return list.Batch[*model.TrackedTime]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {

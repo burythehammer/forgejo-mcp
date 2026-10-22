@@ -72,7 +72,8 @@ func marshalBoundedCommit(c *model.Commit, pg list.Paging, next string) ([]byte,
 		extra = append(extra, `"message_truncated":true`)
 	}
 	total := len(cp.Files)
-	rows, hasNext := list.Cut(cp.Files, pg)
+	bounded := list.Cut(cp.Files, pg)
+	rows, hasNext := bounded.Items, bounded.HasNext
 	cut := hasNext || pg.Page > 1
 	cp.Files = rows
 	b, err := json.Marshal(&cp)

@@ -100,7 +100,7 @@ func (s *GitService) ListContents(ctx context.Context, owner, repo, ref, path st
 			if err != nil {
 				return list.Batch[*model.ContentsResponse]{}, fmt.Errorf("list repo contents err: %w", err)
 			}
-			rows, _ := list.Cut(all, q)
+			rows := list.Cut(all, q).Items
 			return list.Batch[*model.ContentsResponse]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {

@@ -55,21 +55,19 @@ func (l LabelList) Envelope() model.ScopedLabelPage {
 // default and the resource does not. More and Total describe the repository's
 // own rows only, because the organization's labels are not paged here.
 func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (LabelList, error) {
-	var page LabelPage
-	labels, used, err := list.Window(ctx, s.port, list.Paging(in.Paging), labelsDefaultLimit,
-		func(ctx context.Context, p list.Paging) ([]*model.Label, error) {
+	bounded, err := list.Window(ctx, s.port, list.Paging(in.Paging), labelsDefaultLimit,
+		func(ctx context.Context, p list.Paging) (list.Batch[*model.Label], error) {
 			got, err := s.port.ListRepoLabelsPage(ctx, in.Owner, in.Repo, Paging(p))
 			if err != nil {
-				return nil, fmt.Errorf("list repo labels err: %w", err)
+				return list.Batch[*model.Label]{}, fmt.Errorf("list repo labels err: %w", err)
 			}
-			page = got
-			return got.Labels, nil
+			return list.Batch[*model.Label]{Items: got.Labels, Total: got.Total, More: got.More}, nil
 		})
 	if err != nil {
 		return LabelList{}, err
 	}
-	merged := make([]model.ScopedLabel, 0, len(labels))
-	for _, l := range labels {
+	merged := make([]model.ScopedLabel, 0, len(bounded.Items))
+	for _, l := range bounded.Items {
 		merged = append(merged, model.ScopedLabel{Label: *l, Scope: "repo"})
 	}
 	if in.IncludeOrg {
@@ -80,7 +78,7 @@ func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (Label
 		}
 		merged = append(merged, orgs.Labels...)
 	}
-	return LabelList{Labels: merged, More: page.More, Total: page.Total, Page: used.Page, Limit: used.Limit}, nil
+	return LabelList{Labels: merged, More: bounded.HasNext, Total: bounded.Total, Page: bounded.Page, Limit: bounded.Limit}, nil
 }
 
 // ReadOrgLabels is the one read behind the list_org_labels tool and the
@@ -90,22 +88,20 @@ func (s *Service) ReadOrgLabels(ctx context.Context, org string, p Paging) (Labe
 	if p.Page < 1 {
 		p.Page = 1
 	}
-	var page LabelPage
-	labels, used, err := list.Window(ctx, s.port, list.Paging(p), labelsDefaultLimit,
-		func(ctx context.Context, q list.Paging) ([]*model.Label, error) {
+	bounded, err := list.Window(ctx, s.port, list.Paging(p), labelsDefaultLimit,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.Label], error) {
 			got, err := s.port.ListOrgLabelsPage(ctx, org, Paging(q))
 			if err != nil {
-				return nil, fmt.Errorf("list org labels err: %w", err)
+				return list.Batch[*model.Label]{}, fmt.Errorf("list org labels err: %w", err)
 			}
-			page = got
-			return got.Labels, nil
+			return list.Batch[*model.Label]{Items: got.Labels, Total: got.Total, More: got.More}, nil
 		})
 	if err != nil {
 		return LabelList{}, err
 	}
-	out := make([]model.ScopedLabel, 0, len(labels))
-	for _, l := range labels {
+	out := make([]model.ScopedLabel, 0, len(bounded.Items))
+	for _, l := range bounded.Items {
 		out = append(out, model.ScopedLabel{Label: *l, Scope: "org"})
 	}
-	return LabelList{Labels: out, More: page.More, Total: page.Total, Page: used.Page, Limit: used.Limit}, nil
+	return LabelList{Labels: out, More: bounded.HasNext, Total: bounded.Total, Page: bounded.Page, Limit: bounded.Limit}, nil
 }
