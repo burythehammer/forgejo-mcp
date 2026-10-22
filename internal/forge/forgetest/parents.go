@@ -16,7 +16,7 @@ import (
 // says "not found" is still not a miss: only the typed 404 status is.
 //
 // The list used is issue dependencies (the parent is an issue), which every
-// driver serves.
+// Forgejo adapter serves.
 func RunParents(t *testing.T, newHarness func(t *testing.T) Harness) {
 	cases := []struct {
 		name  string
