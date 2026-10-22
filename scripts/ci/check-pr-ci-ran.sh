@@ -43,12 +43,14 @@
 #   scripts/ci/check-pr-ci-ran.sh --sha <commit-sha> [owner/repo]
 #
 # Environment:
-#   FORGEJO_URL    forge base URL   (default https://git.b4mad.industries)
-#   FORGEJO_TOKEN  optional; only needed for private repos
+#   FORGEJO_URL    forge base URL, required (no default host)
+#   FORGEJO_TOKEN  optional; only needed for private repos. Sent to FORGEJO_URL
+#                  only.
 #
 # Exit codes:
 #   0  every reported pipeline context succeeded
 #   1  CI never ran, is still awaiting /ok-to-test, is pending, or failed
+#   2  usage error, or FORGEJO_URL is not set (refused before any request)
 #   0  (with a warning) when curl or jq is absent — contributors without the
 #      tools are not blocked, the same convention openspec-validate.sh uses
 #
@@ -57,7 +59,13 @@
 
 set -eu
 
-FORGE="${FORGEJO_URL:-https://git.b4mad.industries}"
+if [ -z "${FORGEJO_URL:-}" ]; then
+  echo "check-pr-ci-ran: FORGEJO_URL is not set. Set it to the forge to check," >&2
+  echo "  e.g. FORGEJO_URL=https://forgejo.burythehammer.com. There is no default host." >&2
+  exit 2
+fi
+
+FORGE="$FORGEJO_URL"
 DEFAULT_REPO="agentic-forges/forgejo-mcp"
 
 # PaC's gating context. Real PipelineRuns report under "<this> / <run-name>".
