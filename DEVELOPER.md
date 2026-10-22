@@ -326,8 +326,12 @@ whole number. It is MCP-free and SDK-free, so a use case may import it, though
 the adapter does the conversion and the use case receives `int` or `int64`.
 
 - An ID, index or count that must name something: `numarg.RequiredPositiveInt`
-  (wording "<name> is required" / "<name> must be a positive integer"), or
-  `numarg.PositiveID` where the optional form is needed.
+  (wording "<name> is required" / "<name> must be a positive integer"). Use it
+  for new code. `numarg.PositiveID` asks the same question (a required value from
+  1 to the largest int64) but its range error reads "<name> must be an integer
+  between 1 and 9223372036854775807"; the pull and issue adapters keep it because
+  their goldens pin that wording. Do not use it where the optional form
+  is needed: `numarg.PositiveInt` (absent is not an error) is that form.
 - A bounded value (a page size, a byte count): `numarg.IntDefault(name, raw, def,
   numarg.Bounds{Min, Max})`, wording "<name> must be an integer between <min> and <max>".
 - A non-negative value where zero means "none": `numarg.NonNegativeInt`.
