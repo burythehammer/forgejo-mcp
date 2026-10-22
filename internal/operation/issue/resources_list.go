@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/split"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
@@ -306,13 +307,16 @@ func (h handlers) issueCommentsResourceHandler(ctx context.Context, req mcp.Read
 	// on page N>1 returns at most total-(N-1)*limit rows, which is strictly
 	// fewer than total, so the equality can only hold for a server that ignored
 	// the offset. On page 1 the offset is 0 and the slice is a no-op either way.
+	//
+	// The window is cut by list.Cut, which computes the offset without
+	// multiplying past the row count: a huge page (page-1)*limit used to wrap
+	// negative and panic the slice.
 	window := rawComments
-	offset := 0
 	total := info.TotalCount
 	serverIgnoredBounds := len(rawComments) > limit || (total > 0 && len(rawComments) == total)
+	cutMore := false
 	if serverIgnoredBounds {
-		offset = min((page-1)*limit, len(rawComments))
-		window = rawComments[offset:min(offset+limit, len(rawComments))]
+		window, cutMore = list.Cut(rawComments, list.Paging{Page: page, Limit: limit})
 	}
 
 	items := make([]string, len(window))
@@ -323,7 +327,7 @@ func (h handlers) issueCommentsResourceHandler(ctx context.Context, req mcp.Read
 	switch {
 	case serverIgnoredBounds:
 		// Everything is in hand, so the row count is the authoritative total.
-		if offset+len(window) < len(rawComments) {
+		if cutMore {
 			bounded = bounded.WithMoreRemaining(len(rawComments))
 		}
 	case info.HasNext:
