@@ -58,7 +58,7 @@ func (s *Service) Notifications(ctx context.Context, in NotificationsInput) (lis
 	}
 	ceiling, known := p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page, err := list.Run(ctx, list.Normalize(list.Paging{Page: q.Page, Limit: q.Limit}, list.DefaultLimit(20, c)), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: q.Page, Limit: q.Limit}, 20), c,
 		func(ctx context.Context, lp list.Paging) (list.Batch[*model.NotificationThread], error) {
 			qq := q
 			qq.Page, qq.Limit = lp.Page, lp.Limit
@@ -87,7 +87,7 @@ func (s *Service) RepoNotifications(ctx context.Context, in RepoNotificationsInp
 	}
 	ceiling, known := p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page, err := list.Run(ctx, list.Normalize(list.Paging{Page: q.Page, Limit: q.Limit}, list.DefaultLimit(20, c)), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: q.Page, Limit: q.Limit}, 20), c,
 		func(ctx context.Context, lp list.Paging) (list.Batch[*model.NotificationThread], error) {
 			qq := q
 			qq.Page, qq.Limit = lp.Page, lp.Limit

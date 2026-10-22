@@ -40,7 +40,7 @@ const defaultLimit = 20
 func (s *Service) List(ctx context.Context, owner, repo string, sc Scope, parent int64, p Paging) (list.Bounded[*model.Attachment], error) {
 	max, known := s.p.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: max, Known: known}
-	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultLimit, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Attachment], error) {
 			all, err := s.p.List(ctx, owner, repo, sc, parent)
 			if err != nil && !errors.Is(err, ErrNotFound) {

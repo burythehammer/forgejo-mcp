@@ -63,7 +63,7 @@ func TestRun_DefaultAndExplicitPage(t *testing.T) {
 	items := corpus(5)
 	ctx := context.Background()
 
-	page, err := Run(ctx, Paging{Page: 1, Limit: 2}, Ceiling{}, fetchFrom(items, nil))
+	page, err := Run(ctx, Request{Page: 1, Limit: 2}, Ceiling{}, fetchFrom(items, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestRun_DefaultAndExplicitPage(t *testing.T) {
 		t.Fatalf("page 1 = %+v", page)
 	}
 
-	page, err = Run(ctx, Paging{Page: 2, Limit: 2}, Ceiling{}, fetchFrom(items, nil))
+	page, err = Run(ctx, Request{Page: 2, Limit: 2}, Ceiling{}, fetchFrom(items, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestRun_DefaultAndExplicitPage(t *testing.T) {
 
 func TestRun_LastPageHasNoNext(t *testing.T) {
 	items := corpus(5)
-	page, err := Run(context.Background(), Paging{Page: 3, Limit: 2}, Ceiling{Max: 100, Known: true}, fetchFrom(items, nil))
+	page, err := Run(context.Background(), Request{Page: 3, Limit: 2}, Ceiling{Max: 100, Known: true}, fetchFrom(items, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestRun_LastPageHasNoNext(t *testing.T) {
 }
 
 func TestRun_PastTheEndIsEmptyAndHasNoNext(t *testing.T) {
-	page, err := Run(context.Background(), Paging{Page: 9, Limit: 2}, Ceiling{}, fetchFrom(corpus(5), nil))
+	page, err := Run(context.Background(), Request{Page: 9, Limit: 2}, Ceiling{}, fetchFrom(corpus(5), nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestRun_KnownCeilingFullPageProbesOnce(t *testing.T) {
 	// A full page could be the last one: an exact multiple of the limit. The
 	// next page is probed once at the same size, so has_next is exact.
 	var calls []Paging
-	page, err := Run(context.Background(), Paging{Page: 1, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(4), &calls))
+	page, err := Run(context.Background(), Request{Page: 1, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(4), &calls))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestRun_KnownCeilingFullPageProbesOnce(t *testing.T) {
 func TestRun_KnownCeilingExactMultipleLastPageHasNoNext(t *testing.T) {
 	// The last page is full, so the probe finds nothing and has_next is false.
 	var calls []Paging
-	page, err := Run(context.Background(), Paging{Page: 2, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(4), &calls))
+	page, err := Run(context.Background(), Request{Page: 2, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(4), &calls))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestRun_KnownCeilingExactMultipleLastPageHasNoNext(t *testing.T) {
 func TestRun_KnownCeilingShortPageMakesNoProbe(t *testing.T) {
 	// A page shorter than the limit is the end under a known ceiling: no probe.
 	var calls []Paging
-	page, err := Run(context.Background(), Paging{Page: 3, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(5), &calls))
+	page, err := Run(context.Background(), Request{Page: 3, Limit: 2}, Ceiling{Max: 10, Known: true}, fetchFrom(corpus(5), &calls))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestRun_KnownCeilingShortPageMakesNoProbe(t *testing.T) {
 
 func TestRun_UnknownCeilingProbesNextPageAtSameSize(t *testing.T) {
 	var calls []Paging
-	page, err := Run(context.Background(), Paging{Page: 1, Limit: 2}, Ceiling{}, fetchFrom(corpus(5), &calls))
+	page, err := Run(context.Background(), Request{Page: 1, Limit: 2}, Ceiling{}, fetchFrom(corpus(5), &calls))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestRun_UnknownCeilingProbesNextPageAtSameSize(t *testing.T) {
 }
 
 func TestRun_UnknownCeilingLastPageHasNoNext(t *testing.T) {
-	page, err := Run(context.Background(), Paging{Page: 3, Limit: 2}, Ceiling{}, fetchFrom(corpus(5), nil))
+	page, err := Run(context.Background(), Request{Page: 3, Limit: 2}, Ceiling{}, fetchFrom(corpus(5), nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestRun_UnknownCeilingLastPageHasNoNext(t *testing.T) {
 
 func TestRun_OverKnownCeilingRejectsBeforeFetching(t *testing.T) {
 	var calls []Paging
-	_, err := Run(context.Background(), Paging{Page: 1, Limit: 3}, Ceiling{Max: 2, Known: true}, fetchFrom(corpus(5), &calls))
+	_, err := Run(context.Background(), Request{Page: 1, Limit: 3}, Ceiling{Max: 2, Known: true}, fetchFrom(corpus(5), &calls))
 	var over *OverCeilingError
 	if !errors.As(err, &over) {
 		t.Fatalf("err = %v, want *OverCeilingError", err)
@@ -194,7 +194,7 @@ func TestRun_OverKnownCeilingRejectsBeforeFetching(t *testing.T) {
 
 func TestRun_UnknownCeilingNeverRejects(t *testing.T) {
 	// An unknown ceiling is not a ceiling of zero.
-	page, err := Run(context.Background(), Paging{Page: 1, Limit: 50}, Ceiling{Max: 0, Known: false}, fetchFrom(corpus(5), nil))
+	page, err := Run(context.Background(), Request{Page: 1, Limit: 50}, Ceiling{Max: 0, Known: false}, fetchFrom(corpus(5), nil))
 	if err != nil {
 		t.Fatalf("unknown ceiling rejected a limit: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestRun_PassesTotalThrough(t *testing.T) {
 	fetch := func(context.Context, Paging) (Batch[int], error) {
 		return Batch[int]{Items: []int{1}, Total: ptr.To(42)}, nil
 	}
-	page, err := Run(context.Background(), Paging{Page: 1, Limit: 1}, Ceiling{Max: 10, Known: true}, fetch)
+	page, err := Run(context.Background(), Request{Page: 1, Limit: 1}, Ceiling{Max: 10, Known: true}, fetch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,14 +231,14 @@ func TestRun_KnownTotalDecidesHasNextWithoutProbe(t *testing.T) {
 	// this page exist, and no probe is made.
 	cases := []struct {
 		name    string
-		page    Paging
+		page    Request
 		total   int
 		hasNext bool
 	}{
-		{"first page of more", Paging{Page: 1, Limit: 2}, 42, true},
-		{"last page short of total", Paging{Page: 21, Limit: 2}, 42, false},
-		{"exact multiple last page", Paging{Page: 2, Limit: 2}, 4, false},
-		{"full page before exact end", Paging{Page: 1, Limit: 2}, 4, true},
+		{"first page of more", Request{Page: 1, Limit: 2}, 42, true},
+		{"last page short of total", Request{Page: 21, Limit: 2}, 42, false},
+		{"exact multiple last page", Request{Page: 2, Limit: 2}, 4, false},
+		{"full page before exact end", Request{Page: 1, Limit: 2}, 4, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -264,7 +264,7 @@ func TestRun_KnownTotalDecidesHasNextWithoutProbe(t *testing.T) {
 func TestRun_FetchErrorSurfaces(t *testing.T) {
 	boom := errors.New("upstream down")
 	fetch := func(context.Context, Paging) (Batch[int], error) { return Batch[int]{}, boom }
-	if _, err := Run(context.Background(), Paging{Page: 1, Limit: 2}, Ceiling{}, fetch); !errors.Is(err, boom) {
+	if _, err := Run(context.Background(), Request{Page: 1, Limit: 2}, Ceiling{}, fetch); !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want upstream error", err)
 	}
 }
@@ -323,5 +323,54 @@ func TestGiven_PageBelowOneIsPageOne(t *testing.T) {
 		if got != (Paging{Page: 1, Limit: 20}) {
 			t.Fatalf("Given(page %d) = %+v, want page 1 limit 20", pg, got)
 		}
+	}
+}
+
+func TestRun_LimitRequested(t *testing.T) {
+	cases := []struct {
+		name string
+		req  Request
+		c    Ceiling
+		want int
+		lim  int
+	}{
+		{"explicit limit within ceiling", Request{Page: 1, Limit: 5, Def: 30}, Ceiling{Max: 10, Known: true}, 0, 5},
+		{"default within ceiling", Request{Page: 1, Def: 30}, Ceiling{Max: 100, Known: true}, 0, 30},
+		{"default lowered to ceiling", Request{Page: 1, Def: 30}, Ceiling{Max: 20, Known: true}, 30, 20},
+		{"default under unknown ceiling", Request{Page: 1, Def: 30}, Ceiling{}, 0, 30},
+		{"limit equal to default", Request{Page: 1, Limit: 30, Def: 30}, Ceiling{Max: 100, Known: true}, 0, 30},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := Run(context.Background(), tc.req, tc.c, fetchFrom(corpus(3), nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Limit != tc.lim || got.LimitRequested != tc.want {
+				t.Fatalf("limit %d requested %d, want %d and %d", got.Limit, got.LimitRequested, tc.lim, tc.want)
+			}
+		})
+	}
+}
+
+func TestWindow_LimitRequestedWhenDefaultLowered(t *testing.T) {
+	got, err := Window(context.Background(), ceilingOf{max: 20, known: true}, Request{Page: 1, Def: 30},
+		func(_ context.Context, p Paging) (Batch[int], error) { return Batch[int]{Items: corpus(1)}, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Limit != 20 || got.LimitRequested != 30 {
+		t.Fatalf("limit %d requested %d, want 20 and 30", got.Limit, got.LimitRequested)
+	}
+}
+
+func TestFetchPage_LimitRequestedWhenDefaultLowered(t *testing.T) {
+	got, err := FetchPage(context.Background(), ceilingOf{max: 20, known: true}, Request{Page: 1, Def: 30},
+		func(_ context.Context, p Paging) ([]int, error) { return corpus(1), nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Limit != 20 || got.LimitRequested != 30 {
+		t.Fatalf("limit %d requested %d, want 20 and 30", got.Limit, got.LimitRequested)
 	}
 }

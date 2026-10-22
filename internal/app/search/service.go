@@ -22,7 +22,7 @@ const defaultLimit = 100
 
 // Users returns one page of the users matching q.
 func (s *Service) Users(ctx context.Context, q UserQuery) (list.Bounded[*model.User], error) {
-	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.User, error) {
+	page, err := list.FetchPage(ctx, s.port, list.NewRequest(q.Paging, defaultLimit), func(ctx context.Context, p list.Paging) ([]*model.User, error) {
 		q.Paging = p
 		users, err := s.port.SearchUsers(ctx, q)
 		if err != nil {
@@ -38,7 +38,7 @@ func (s *Service) Users(ctx context.Context, q UserQuery) (list.Bounded[*model.U
 
 // OrgTeams returns one page of the teams of org matching q.
 func (s *Service) OrgTeams(ctx context.Context, org string, q TeamQuery) (list.Bounded[*model.Team], error) {
-	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.Team, error) {
+	page, err := list.FetchPage(ctx, s.port, list.NewRequest(q.Paging, defaultLimit), func(ctx context.Context, p list.Paging) ([]*model.Team, error) {
 		q.Paging = p
 		teams, err := s.port.SearchOrgTeams(ctx, org, q)
 		if err != nil {
@@ -54,7 +54,7 @@ func (s *Service) OrgTeams(ctx context.Context, org string, q TeamQuery) (list.B
 
 // Repos returns one page of the repositories matching q.
 func (s *Service) Repos(ctx context.Context, q RepoQuery) (list.Bounded[*model.Repository], error) {
-	page, err := list.FetchPage(ctx, s.port, q.Paging, defaultLimit, func(ctx context.Context, p list.Paging) ([]*model.Repository, error) {
+	page, err := list.FetchPage(ctx, s.port, list.NewRequest(q.Paging, defaultLimit), func(ctx context.Context, p list.Paging) ([]*model.Repository, error) {
 		q.Paging = p
 		repos, err := s.port.SearchRepos(ctx, q)
 		if err != nil {

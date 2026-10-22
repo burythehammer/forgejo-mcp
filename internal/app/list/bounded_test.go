@@ -60,7 +60,7 @@ func TestBounded_Run_Boundaries(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := Run(context.Background(), Paging{Page: 1, Limit: 3},
+			got, err := Run(context.Background(), Request{Page: 1, Limit: 3},
 				Ceiling{Max: 100, Known: c.known}, fetchFrom(c.items, nil))
 			if err != nil {
 				t.Fatal(err)
@@ -75,7 +75,7 @@ func TestBounded_Run_Boundaries(t *testing.T) {
 
 func TestBounded_Run_ReportedTotalIsKept(t *testing.T) {
 	t.Parallel()
-	got, err := Run(context.Background(), Paging{Page: 1, Limit: 3}, Ceiling{},
+	got, err := Run(context.Background(), Request{Page: 1, Limit: 3}, Ceiling{},
 		withTotal(corpus(4), 4))
 	if err != nil {
 		t.Fatal(err)
@@ -105,7 +105,7 @@ func TestBounded_Window_Boundaries(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			var calls int
-			got, err := Window(context.Background(), ceilingOf{}, Paging{Page: 1, Limit: 3}, 10,
+			got, err := Window(context.Background(), ceilingOf{}, Request{Page: 1, Limit: 3, Def: 10},
 				func(_ context.Context, p Paging) (Batch[int], error) {
 					calls++
 					return Batch[int]{Items: c.items[:min(len(c.items), p.Limit)], Total: c.total, More: c.more}, nil

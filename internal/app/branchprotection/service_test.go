@@ -78,13 +78,13 @@ func TestListDefaultsToPageOneOf100(t *testing.T) {
 func TestListFractionTruncatesAfterDefault(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
-	// A page of 0.5 is not the zero default, so it truncates to 0 as it always did.
+	// A page of 0.5 truncates to 0, which the list module reads as page 1.
 	got, err := s.List(context.Background(), appbp.ListRequest{Owner: owner, Repo: repo, Page: 0.5, Limit: 3.9})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Page != 0 || got.Limit != 3 {
-		t.Fatalf("got page %d limit %d, want 0 and 3", got.Page, got.Limit)
+	if got.Page != 1 || got.Limit != 3 {
+		t.Fatalf("got page %d limit %d, want 1 and 3", got.Page, got.Limit)
 	}
 }
 

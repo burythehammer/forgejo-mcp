@@ -15,7 +15,7 @@ import (
 // behind the hooks collection resource at the page and limit the caller names;
 // p.Limit must be positive. The grand total is the server's when it reports one.
 func (s *Service) ReadCollection(ctx context.Context, owner, repo string, p list.Paging) (list.Bounded[model.HookPayload], error) {
-	return list.Run(ctx, p, list.Ceiling{},
+	return list.Run(ctx, list.Request{Page: p.Page, Limit: p.Limit}, list.Ceiling{},
 		func(ctx context.Context, q list.Paging) (list.Batch[model.HookPayload], error) {
 			hooks, err := s.port.ListRepoHooks(ctx, owner, repo, Paging{Page: q.Page, Limit: q.Limit})
 			if err != nil {

@@ -72,10 +72,14 @@ type deleteEntryArgs struct {
 	TimeID float64 `json:"time_id" required:"true"`
 }
 
-type noArgs struct{}
-
 // myTimesArgs are list_my_tracked_times' arguments: the page to read.
 type myTimesArgs struct {
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
+}
+
+// myStopwatchesArgs are list_my_stopwatches' arguments: the page to read.
+type myStopwatchesArgs struct {
 	Page  float64 `json:"page"`
 	Limit float64 `json:"limit"`
 }
@@ -197,7 +201,8 @@ func (h handlers) CancelIssueStopwatchFn(ctx context.Context, req mcp.CallToolRe
 }
 
 func (h handlers) ListMyStopwatchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListMyStopwatchesFn", func(ctx context.Context, s *apptracking.Service, _ noArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.MyStopwatches(ctx))
+	return run(ctx, h, req, "ListMyStopwatchesFn", func(ctx context.Context, s *apptracking.Service, a myStopwatchesArgs) (*mcp.CallToolResult, error) {
+		page, limit := paging(a.Page, a.Limit)
+		return mcpresult.Render(s.MyStopwatches(ctx, apptracking.MyStopwatchesInput{Page: page, Limit: limit}))
 	})
 }

@@ -16,6 +16,13 @@ type TopicPage struct {
 	PageMeta
 }
 
+// RepoPage is one page of the repositories the caller owns, as list_my_repos
+// renders it.
+type RepoPage struct {
+	Repositories []*Repository `json:"repositories"`
+	PageMeta
+}
+
 // StatusItem is one per-context commit status. The commit status resource
 // shares this shape.
 type StatusItem struct {
@@ -27,12 +34,9 @@ type StatusItem struct {
 }
 
 // CommitStatuses is one page of a commit's statuses, as get_commit_statuses
-// renders it.
+// renders it. The continuation metadata is the standard page envelope.
 type CommitStatuses struct {
-	SHA        string       `json:"sha"`
-	Statuses   []StatusItem `json:"statuses"`
-	Page       int          `json:"page"`
-	Limit      int          `json:"limit"`
-	Count      int          `json:"count"`
-	TotalCount *int         `json:"total_count,omitempty"`
+	SHA      string       `json:"sha"`
+	Statuses []StatusItem `json:"statuses"`
+	PageMeta
 }

@@ -69,16 +69,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[*model.
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page := r.Page
-	if page == 0 {
-		page = 1
-	}
-	limit := r.Limit
-	if limit == 0 {
-		limit = float64(list.DefaultLimit(100, c))
-	}
-	p := list.Paging{Page: int(page), Limit: int(limit)}
-	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
+	return list.Run(ctx, list.Request{Page: int(r.Page), Limit: int(r.Limit), Def: 100}, c, func(ctx context.Context, q list.Paging) (list.Batch[*model.BranchProtection], error) {
 		rules, err := s.port.ListBranchProtections(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[*model.BranchProtection]{}, fmt.Errorf("list branch protections err: %w", err)

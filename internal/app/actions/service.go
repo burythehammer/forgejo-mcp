@@ -39,18 +39,12 @@ func (s *Service) ceiling(ctx context.Context) list.Ceiling {
 	return list.Ceiling{Max: max, Known: known}
 }
 
-// pageOf is the paging a list fetches with: a page below 1 is page 1, and a
-// limit below 1 takes def, lowered to a known ceiling.
-func pageOf(p list.Paging, def int, c list.Ceiling) list.Paging {
-	return list.Given(list.Normalize(p, 0), def, c)
-}
-
 // ListRuns returns one page of workflow runs with its next marker. Forgejo's
 // X-Total-Count is the grand total; a zero total beside rows means the header
 // was absent, so the total is then unknown and the next page is probed.
 func (s *Service) ListRuns(ctx context.Context, owner, repo string, q RunQuery) (list.Bounded[model.WorkflowRunRow], error) {
 	c := s.ceiling(ctx)
-	return list.Run(ctx, pageOf(list.Paging(q.Paging), defaultRunsLimit, c), c,
+	return list.Run(ctx, list.NewRequest(list.Paging(q.Paging), defaultRunsLimit), c,
 		func(ctx context.Context, p list.Paging) (list.Batch[model.WorkflowRunRow], error) {
 			qq := q
 			qq.Paging = Paging(p)
@@ -125,7 +119,7 @@ func (s *Service) DeleteRun(ctx context.Context, owner, repo string, runID int64
 // the page is cut here, and the full count is the grand total.
 func (s *Service) ListJobs(ctx context.Context, owner, repo string, runID int64, p Paging) (list.Bounded[model.ActionRunJob], error) {
 	c := s.ceiling(ctx)
-	return list.Run(ctx, pageOf(list.Paging(p), defaultJobsLimit, c), c,
+	return list.Run(ctx, list.NewRequest(list.Paging(p), defaultJobsLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[model.ActionRunJob], error) {
 			all, err := s.p.ListRunJobs(ctx, owner, repo, runID)
 			if err != nil {
@@ -191,7 +185,7 @@ func (s *Service) JobLog(ctx context.Context, owner, repo string, q JobLogQuery)
 // ListArtifacts returns one page of a run's artifacts with its next marker.
 func (s *Service) ListArtifacts(ctx context.Context, owner, repo string, runID int64, q ArtifactQuery) (list.Bounded[model.ActionArtifact], error) {
 	c := s.ceiling(ctx)
-	return list.Run(ctx, pageOf(list.Paging(q.Paging), defaultArtifactsLimit, c), c,
+	return list.Run(ctx, list.NewRequest(list.Paging(q.Paging), defaultArtifactsLimit), c,
 		func(ctx context.Context, p list.Paging) (list.Batch[model.ActionArtifact], error) {
 			qq := q
 			qq.Paging = Paging(p)
@@ -216,7 +210,7 @@ func (s *Service) GetArtifact(ctx context.Context, owner, repo string, artifactI
 // marker. Forgejo reports no total for secrets, so the next page is probed.
 func (s *Service) ListRepoSecrets(ctx context.Context, owner, repo string, p Paging) (list.Bounded[model.SecretSummary], error) {
 	c := s.ceiling(ctx)
-	return list.Run(ctx, pageOf(list.Paging(p), defaultSecretsLimit, c), c,
+	return list.Run(ctx, list.NewRequest(list.Paging(p), defaultSecretsLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[model.SecretSummary], error) {
 			got, err := s.p.ListRepoSecrets(ctx, owner, repo, Paging(q))
 			if err != nil {
@@ -246,7 +240,7 @@ func (s *Service) DeleteRepoSecret(ctx context.Context, owner, repo, name string
 // next marker. Forgejo reports no total for secrets, so the next page is probed.
 func (s *Service) ListOrgSecrets(ctx context.Context, org string, p Paging) (list.Bounded[model.SecretSummary], error) {
 	c := s.ceiling(ctx)
-	return list.Run(ctx, pageOf(list.Paging(p), defaultSecretsLimit, c), c,
+	return list.Run(ctx, list.NewRequest(list.Paging(p), defaultSecretsLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[model.SecretSummary], error) {
 			got, err := s.p.ListOrgSecrets(ctx, org, Paging(q))
 			if err != nil {

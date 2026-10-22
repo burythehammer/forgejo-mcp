@@ -302,6 +302,8 @@ List all my repositories
 
 ## Available Tools
 
+Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` and, when the server reports one, `total_count`. When the applied `limit` differs from the one asked for or defaulted to (for example a default lowered to the instance maximum), the envelope also carries `limit_requested`.
+
 | Tool | Description |
 |------|-------------|
 | **User** | |
@@ -314,7 +316,7 @@ List all my repositories
 | `mark_repo_notifications_read` | Mark all notifications in a specific repo as read |
 | `search_users` | Search for users (page/limit); returns `{users,page,limit,count,has_next}` |
 | **Repositories** | |
-| `list_my_repos` | List repositories you own, one page at a time (`page`/`limit`, default 100, capped at the instance maximum). Returns a bare array: a full page may be followed by more, a short page is the last. |
+| `list_my_repos` | List repositories you own, one page at a time (`page`/`limit`, default 100, capped at the instance maximum). Returns `{repositories,page,limit,count,has_next}`; `has_next` true means a further page exists. |
 | `get_repo` | Get a single repository by owner and name |
 | `create_repo` | Create a new repository |
 | `fork_repo` | Fork a repository |
@@ -345,14 +347,14 @@ List all my repositories
 | **Files** | |
 | `get_file_content` | Get the content of a file. Optional `start_line`/`end_line` request a 1-indexed inclusive line range (clamps to file extent; with `with_metadata=true` the range replaces the content and keeps the metadata). A whole file or range over 1 MiB of text is refused with a message asking for a narrower range. |
 | `list_repo_contents` | List files and directories at a path. `path=""` lists the repository root. Returns one level, one page at a time (`page`/`limit`, default 100 entries) with `has_next`; for a full tree use `get_repo_tree` with `recursive=true`. |
-| `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. `page`/`limit` (default 1000) select one page of the entries. |
+| `get_repo_tree` | Get the Git tree. `recursive=true` returns the complete file tree in one response (subject to the server's tree-endpoint size cap); `recursive=false` (default) returns one level. `page`/`limit` (default 1000) select one page of the entries, under `tree`, with `has_next` saying whether more follow. |
 | `create_file` | Create a new file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `update_file` | Update an existing file. Supply exactly one of plain-text `content` or binary-safe `content_base64` (strict standard Base64). |
 | `delete_file` | Delete a file |
 | `change_files` | Atomically create, update, and delete multiple files in one native Forgejo commit; create/update operations accept `content` or `content_base64`. |
 | **Commits** | |
 | `list_repo_commits` | List commits in a repository (page/limit); returns `{commits,page,limit,count,has_next}` |
-| `get_commit_statuses` | List per-context commit statuses for a full 40-character SHA. Bounded by `page` (default 1) + `limit` (default 30, maximum 50); returns `{sha, statuses, page, limit, count, total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Combined aggregate stays on the commit status resource. Not Actions runs (`list_workflow_runs`). |
+| `get_commit_statuses` | List per-context commit statuses for a full 40-character SHA. Bounded by `page` (default 1) + `limit` (default 30, lowered to the instance ceiling; a limit above a known ceiling is refused); returns `{sha, statuses, page, limit, count, has_next, total_count}` — `has_next` is true when a further page may exist, and `total_count` is present only when Forgejo reports `X-Total-Count`. Combined aggregate stays on the commit status resource. Not Actions runs (`list_workflow_runs`). |
 | **Issues** | |
 | `list_repo_issues` | List issues in a repository (page/limit); returns `{issues,page,limit,count,has_next}`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues. Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). |
 | `search_issues` | Search issues across every repository of one owner (page/limit); returns `{issues,page,limit,count,has_next,total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues |
@@ -452,7 +454,7 @@ List all my repositories
 | `start_issue_stopwatch` | Start a stopwatch on an issue or PR |
 | `stop_issue_stopwatch` | Stop a running stopwatch and record the elapsed time |
 | `cancel_issue_stopwatch` | Cancel a running stopwatch without recording |
-| `list_my_stopwatches` | List currently running stopwatches |
+| `list_my_stopwatches` | List your currently running stopwatches, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | **Attachments** | |
 | `list_issue_attachments` | List attachments on an issue or PR, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `get_issue_attachment` | Get metadata for a single issue/PR attachment |

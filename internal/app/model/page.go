@@ -9,7 +9,11 @@ import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list
 type PageWindow struct {
 	Page  int `json:"page"`
 	Limit int `json:"limit"`
-	Count int `json:"count"`
+	// LimitRequested is set only when the limit applied differs from the one
+	// asked for (or defaulted to), for example a default lowered to the
+	// instance ceiling.
+	LimitRequested int `json:"limit_requested,omitempty"`
+	Count          int `json:"count"`
 }
 
 // PageNext is the continuation signal of a paged list response.
@@ -39,7 +43,7 @@ type PageMeta struct {
 // PageMetaOf is the one place a list.Bounded becomes its response metadata.
 func PageMetaOf[T any](p list.Bounded[T]) PageMeta {
 	return PageMeta{
-		PageWindow: PageWindow{Page: p.Page, Limit: p.Limit, Count: p.Count},
+		PageWindow: PageWindow{Page: p.Page, Limit: p.Limit, LimitRequested: p.LimitRequested, Count: p.Count},
 		PageNext:   PageNext{HasNext: p.HasNext},
 		PageTotal:  PageTotal{TotalCount: p.Total},
 	}

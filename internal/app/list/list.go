@@ -17,6 +17,17 @@ import (
 // list tool names.
 type Paging struct{ Page, Limit int }
 
+// Request is what the agent asked for plus the tool's default limit. The list
+// module sees the raw request so it can report when the limit it applied
+// differs from the one asked for or defaulted to. Page and Limit are as sent
+// (zero when omitted); Def is the tool's default limit.
+type Request struct{ Page, Limit, Def int }
+
+// NewRequest is the Request for a raw paging and the tool's default limit.
+func NewRequest(p Paging, def int) Request {
+	return Request{Page: p.Page, Limit: p.Limit, Def: def}
+}
+
 // Normalize applies the shared defaults: a page below 1 is page 1, and a limit
 // below 1 is def. Callers pass the tool's default limit as def.
 func Normalize(p Paging, def int) Paging {
@@ -104,7 +115,8 @@ type Fetch[T any] func(ctx context.Context, p Paging) (Batch[T], error)
 // other case the next page is probed once at the same limit: a full page may
 // be the last, and the size never changes, because Forgejo derives page
 // offsets from it. So a call makes at most one request beyond its page.
-func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Bounded[T], error) {
+func Run[T any](ctx context.Context, req Request, c Ceiling, fetch Fetch[T]) (Bounded[T], error) {
+	p := Given(Paging{Page: req.Page, Limit: req.Limit}, req.Def, c)
 	if err := check(p, c); err != nil {
 		return Bounded[T]{}, err
 	}
@@ -125,7 +137,7 @@ func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Bound
 		}
 		hasNext = len(next.Items) > 0
 	}
-	return newBounded(b.Items, p, b.Total, hasNext), nil
+	return newBounded(b.Items, p, req.requested(), b.Total, hasNext), nil
 }
 
 func check(p Paging, c Ceiling) error {
@@ -133,4 +145,13 @@ func check(p Paging, c Ceiling) error {
 		return &OverCeilingError{Limit: p.Limit, Max: c.Max}
 	}
 	return nil
+}
+
+// requested is the limit the caller asked for, or the default when none was
+// given. It is what newBounded compares the applied limit against.
+func (r Request) requested() int {
+	if r.Limit >= 1 {
+		return r.Limit
+	}
+	return r.Def
 }

@@ -16,6 +16,13 @@ type ContentsPage struct {
 	PageMeta
 }
 
+// TreePage is the response of get_repo_tree: one page of the entries of a Git
+// tree. Forgejo's truncation report is the has_next of the envelope.
+type TreePage struct {
+	Tree []GitEntry `json:"tree"`
+	PageMeta
+}
+
 // CommitPage is the response of list_repo_commits: one page of commits.
 type CommitPage struct {
 	Commits []*Commit `json:"commits"`

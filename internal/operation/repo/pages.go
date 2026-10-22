@@ -40,6 +40,32 @@ func contentsPage(b list.Bounded[*model.ContentsResponse], err error) (model.Con
 	return model.ContentsPage{Contents: rows, PageMeta: meta}, nil
 }
 
+// treePage renders one page of a Git tree's entries; an empty page is an empty
+// list.
+func treePage(b list.Bounded[model.GitEntry], err error) (model.TreePage, error) {
+	if err != nil {
+		return model.TreePage{}, err
+	}
+	tree := b.Items
+	if tree == nil {
+		tree = []model.GitEntry{}
+	}
+	return model.TreePage{Tree: tree, PageMeta: model.PageMetaOf(b)}, nil
+}
+
+// statusPage renders one page of a commit's statuses under the sha it was asked
+// for; an empty page is an empty list.
+func statusPage(sha string, b list.Bounded[model.StatusItem], err error) (model.CommitStatuses, error) {
+	if err != nil {
+		return model.CommitStatuses{}, err
+	}
+	items := b.Items
+	if items == nil {
+		items = []model.StatusItem{}
+	}
+	return model.CommitStatuses{SHA: sha, Statuses: items, PageMeta: model.PageMetaOf(b)}, nil
+}
+
 // topicPage renders one page of a repository's topics; an empty page is an
 // empty list.
 func topicPage(b list.Bounded[string], err error) (model.TopicPage, error) {
@@ -53,10 +79,11 @@ func topicPage(b list.Bounded[string], err error) (model.TopicPage, error) {
 	return model.TopicPage{Topics: topics, PageMeta: model.PageMetaOf(b)}, nil
 }
 
-// repoRows is the bare array list_my_repos has always returned.
-func repoRows(b list.Bounded[*model.Repository], err error) ([]*model.Repository, error) {
+// repoPage renders one page of the caller's repositories as list_my_repos
+// returns it.
+func repoPage(b list.Bounded[*model.Repository], err error) (model.RepoPage, error) {
 	if err != nil {
-		return nil, err
+		return model.RepoPage{}, err
 	}
-	return b.Items, nil
+	return model.RepoPage{Repositories: b.Items, PageMeta: model.PageMetaOf(b)}, nil
 }

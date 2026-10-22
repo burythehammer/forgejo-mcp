@@ -221,7 +221,7 @@ func TestListRepoTopicsNeedsOwnerAndRepo(t *testing.T) {
 	}
 }
 
-func TestCommitStatusesPageAndLimitAreClamped(t *testing.T) {
+func TestCommitStatusesPageAndLimitDefaults(t *testing.T) {
 	t.Parallel()
 	s, f := newAdmin(t)
 	ctx := context.Background()
@@ -235,16 +235,33 @@ func TestCommitStatusesPageAndLimitAreClamped(t *testing.T) {
 	}{
 		{"zero takes defaults", 0, 0, 1, 30},
 		{"negative takes defaults", -4, -4, 1, 30},
-		{"above the maximum is clamped", 2, 999, 2, 50},
 		{"in range is kept", 3, 7, 3, 7},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := s.GetCommitStatuses(ctx, owner, repo, sha, c.page, c.limit)
-			if err != nil || got.Page != c.wantPage || got.Limit != c.wantLimit || got.Count != 0 || got.Statuses == nil || got.SHA != sha {
+			got, err := s.GetCommitStatuses(ctx, owner, repo, sha, apprepo.AdminPaging{Page: c.page, Limit: c.limit})
+			if err != nil || got.Page != c.wantPage || got.Limit != c.wantLimit || got.Count != 0 || got.Items == nil {
 				t.Fatalf("got %+v, %v", got, err)
 			}
 		})
+	}
+}
+
+func TestCommitStatusesRefuseALimitAboveTheCeiling(t *testing.T) {
+	t.Parallel()
+	s, f := newAdmin(t)
+	ctx := context.Background()
+	if err := f.AddCommit(owner, repo, sha, "msg"); err != nil {
+		t.Fatal(err)
+	}
+	f.SetMaxResponseItems(20)
+	_, err := s.GetCommitStatuses(ctx, owner, repo, sha, apprepo.AdminPaging{Page: 1, Limit: 21})
+	if err == nil || !strings.Contains(err.Error(), "max_response_items") {
+		t.Fatalf("limit above ceiling: got %v, want the ceiling named", err)
+	}
+	got, err := s.GetCommitStatuses(ctx, owner, repo, sha, apprepo.AdminPaging{})
+	if err != nil || got.Limit != 20 {
+		t.Fatalf("default under ceiling: limit %d, %v; want 20", got.Limit, err)
 	}
 }
 
@@ -252,15 +269,15 @@ func TestCommitStatusesValidatesTheSHAAfterTheRepo(t *testing.T) {
 	t.Parallel()
 	s, _ := newAdmin(t)
 	ctx := context.Background()
-	_, err := s.GetCommitStatuses(ctx, owner, repo, "abc", 1, 30)
+	_, err := s.GetCommitStatuses(ctx, owner, repo, "abc", apprepo.AdminPaging{Page: 1, Limit: 30})
 	if err == nil || err.Error() != "invalid params: sha must be exactly 40 hex characters, got 3" {
 		t.Fatalf("short: %v", err)
 	}
-	_, err = s.GetCommitStatuses(ctx, owner, repo, strings.Repeat("g", 40), 1, 30)
+	_, err = s.GetCommitStatuses(ctx, owner, repo, strings.Repeat("g", 40), apprepo.AdminPaging{Page: 1, Limit: 30})
 	if err == nil || err.Error() != `invalid params: sha contains invalid character 'g'` {
 		t.Fatalf("bad char: %v", err)
 	}
-	_, err = s.GetCommitStatuses(ctx, "", repo, "abc", 1, 30)
+	_, err = s.GetCommitStatuses(ctx, "", repo, "abc", apprepo.AdminPaging{Page: 1, Limit: 30})
 	if err == nil || err.Error() != "owner and repo are required" {
 		t.Fatalf("order: %v", err)
 	}
@@ -269,7 +286,7 @@ func TestCommitStatusesValidatesTheSHAAfterTheRepo(t *testing.T) {
 func TestCommitStatusesUnknownCommitIsWrapped(t *testing.T) {
 	t.Parallel()
 	s, _ := newAdmin(t)
-	_, err := s.GetCommitStatuses(context.Background(), owner, repo, sha, 1, 30)
+	_, err := s.GetCommitStatuses(context.Background(), owner, repo, sha, apprepo.AdminPaging{Page: 1, Limit: 30})
 	wantErr(t, err, "get commit statuses: ")
 }
 

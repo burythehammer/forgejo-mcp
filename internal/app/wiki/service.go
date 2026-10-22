@@ -82,11 +82,7 @@ func paging(page, limit float64) (int, int) {
 func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.WikiPageSummary], error) {
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page, limit := paging(r.Page, r.Limit)
-	if r.Limit <= 0 {
-		limit = list.DefaultLimit(defaultLimit, c)
-	}
-	return list.Run(ctx, list.Paging{Page: page, Limit: limit}, c,
+	return list.Run(ctx, list.Request{Page: int(r.Page), Limit: int(r.Limit), Def: defaultLimit}, c,
 		func(ctx context.Context, p list.Paging) (list.Batch[model.WikiPageSummary], error) {
 			listed, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, p.Page, p.Limit)
 			if err != nil {
@@ -150,7 +146,7 @@ func (s *Service) Revisions(ctx context.Context, r RevisionsRequest) (list.Bound
 	page, limit := paging(r.Page, r.Limit)
 	// The history has never been held to the instance ceiling, so the window
 	// reads through a source that reports none.
-	return list.Window(ctx, noCeiling{}, list.Paging{Page: page, Limit: limit}, limit,
+	return list.Window(ctx, noCeiling{}, list.NewRequest(list.Paging{Page: page, Limit: limit}, limit),
 		func(ctx context.Context, q list.Paging) (list.Batch[model.WikiRevisionSummary], error) {
 			revisions, err := s.port.GetWikiPageRevisions(ctx, r.Owner, r.Repo, r.PageName, q.Page, q.Limit)
 			if err != nil {

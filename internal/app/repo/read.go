@@ -61,11 +61,6 @@ func (s *AdminService) ReadRepo(ctx context.Context, owner, repo string, opt Rep
 	return read, nil
 }
 
-// CommitStatusRead is one page of a commit's statuses.
-type CommitStatusRead struct {
-	model.CommitStatuses
-}
-
 // maxStatusPages bounds how many pages CommitStatusSummary reads. At
 // maxStatusesLimit a page, a summary sees at most maxStatusPages*maxStatusesLimit
 // statuses.
@@ -117,43 +112,35 @@ func (s *AdminService) CommitStatusSummary(ctx context.Context, owner, repo, sha
 	return sum, nil
 }
 
-// ReadCommitStatuses returns one page of a commit's per-context statuses. Its
-// state is not aggregated here: use CommitStatusSummary for that. A page below 1 is 1; a limit below 1 is the default, and
-// above the maximum it is the maximum.
-func (s *AdminService) ReadCommitStatuses(ctx context.Context, owner, repo, sha string, page, limit int) (CommitStatusRead, error) {
+// GetCommitStatuses returns one page of a full 40-character commit SHA's
+// per-context statuses, read through the list module: a limit above the
+// instance ceiling is refused, a missing or zero limit takes the default
+// lowered to the ceiling, and a page below 1 is page 1. The page reports
+// whether rows follow. Its state is not aggregated here: use CommitStatusSummary
+// for that.
+func (s *AdminService) GetCommitStatuses(ctx context.Context, owner, repo, sha string, p AdminPaging) (list.Bounded[model.StatusItem], error) {
 	if owner == "" || repo == "" {
-		return CommitStatusRead{}, errors.New("owner and repo are required")
+		return list.Bounded[model.StatusItem]{}, errors.New("owner and repo are required")
 	}
 	if err := validateSHA(sha); err != nil {
-		return CommitStatusRead{}, err
+		return list.Bounded[model.StatusItem]{}, err
 	}
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = defaultStatusesLimit
-	}
-	if limit > maxStatusesLimit {
-		limit = maxStatusesLimit
-	}
-	res, err := s.port.ListCommitStatuses(ctx, owner, repo, sha, AdminPaging{Page: page, Limit: limit})
+	c := ceiling(ctx, s.port)
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultStatusesLimit), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[model.StatusItem], error) {
+			res, err := s.port.ListCommitStatuses(ctx, owner, repo, sha, AdminPaging(q))
+			if err != nil {
+				return list.Batch[model.StatusItem]{}, fmt.Errorf("get commit statuses: %w", err)
+			}
+			return list.Batch[model.StatusItem]{Items: res.Items, Total: res.TotalCount}, nil
+		})
 	if err != nil {
-		return CommitStatusRead{}, fmt.Errorf("get commit statuses: %w", err)
+		return list.Bounded[model.StatusItem]{}, err
 	}
-	items := res.Items
-	if items == nil {
-		items = []model.StatusItem{}
+	if page.Items == nil {
+		page.Items = []model.StatusItem{}
 	}
-	return CommitStatusRead{
-		CommitStatuses: model.CommitStatuses{
-			SHA:        sha,
-			Statuses:   items,
-			Page:       page,
-			Limit:      limit,
-			Count:      len(items),
-			TotalCount: res.TotalCount,
-		},
-	}, nil
+	return page, nil
 }
 
 // AggregateState is the combined state of a commit's statuses: failure when any

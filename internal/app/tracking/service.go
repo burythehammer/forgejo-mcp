@@ -65,7 +65,7 @@ func (s *Service) IssueTimes(ctx context.Context, in IssueTimesInput) (model.Tra
 		return model.TrackedTimePage{}, err
 	}
 	c := ceiling(ctx, p)
-	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
 			times, err := p.ListIssueTrackedTimes(ctx, in.Owner, in.Repo, in.Index, TimeQuery{Since: since, Before: before, Page: q.Page, Limit: q.Limit})
 			if err != nil {
@@ -95,7 +95,7 @@ func (s *Service) RepoTimes(ctx context.Context, in RepoTimesInput) (model.Track
 		return model.TrackedTimePage{}, err
 	}
 	c := ceiling(ctx, p)
-	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
 			times, err := p.ListRepoTrackedTimes(ctx, in.Owner, in.Repo, TimeQuery{Since: since, Before: before, User: in.User, Page: q.Page, Limit: q.Limit})
 			if err != nil {
@@ -114,12 +114,6 @@ func (s *Service) RepoTimes(ctx context.Context, in RepoTimesInput) (model.Track
 func ceiling(ctx context.Context, src list.CeilingSource) list.Ceiling {
 	max, known := src.MaxResponseItems(ctx)
 	return list.Ceiling{Max: max, Known: known}
-}
-
-// pageOf is the paging a tracked-time list fetches with: a page below 1 is page
-// 1, and a limit below 1 takes defaultLimit, lowered to a known ceiling.
-func pageOf(p list.Paging, c list.Ceiling) list.Paging {
-	return list.Given(list.Normalize(p, 0), defaultLimit, c)
 }
 
 // timePage renders one fetched page; an empty page is an empty list, not null.
@@ -144,7 +138,7 @@ func (s *Service) MyTimes(ctx context.Context, in MyTimesInput) (model.TrackedTi
 		return model.TrackedTimePage{}, err
 	}
 	c := ceiling(ctx, p)
-	page, err := list.Run(ctx, pageOf(list.Paging{Page: in.Page, Limit: in.Limit}, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.TrackedTime], error) {
 			all, err := p.ListMyTrackedTimes(ctx)
 			if err != nil {
@@ -244,17 +238,41 @@ func (s *Service) CancelStopwatch(ctx context.Context, ref IssueRef) error {
 	return nil
 }
 
-// MyStopwatches returns the running stopwatches of the authenticated user.
-func (s *Service) MyStopwatches(ctx context.Context) ([]*model.StopWatch, error) {
+// MyStopwatchesInput pages the authenticated user's running stopwatches. Page
+// and Limit are 1-based; a zero Limit takes the default.
+type MyStopwatchesInput struct{ Page, Limit int }
+
+// MyStopwatches returns one page of the running stopwatches of the
+// authenticated user with its next marker. Forgejo does not page the endpoint,
+// so the list is cut here and its length is the grand total.
+func (s *Service) MyStopwatches(ctx context.Context, in MyStopwatchesInput) (model.StopWatchPage, error) {
 	p, err := s.port(ctx)
 	if err != nil {
-		return nil, err
+		return model.StopWatchPage{}, err
 	}
-	watches, err := p.ListMyStopwatches(ctx)
+	c := ceiling(ctx, p)
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit), c,
+		func(ctx context.Context, q list.Paging) (list.Batch[*model.StopWatch], error) {
+			all, err := p.ListMyStopwatches(ctx)
+			if err != nil {
+				return list.Batch[*model.StopWatch]{}, fmt.Errorf("list my stopwatches err: %w", err)
+			}
+			rows := list.Cut(all, q).Items
+			return list.Batch[*model.StopWatch]{Items: rows, Total: ptr.To(len(all))}, nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("list my stopwatches err: %w", err)
+		return model.StopWatchPage{}, err
 	}
-	return watches, nil
+	watches := page.Items
+	if watches == nil {
+		watches = []*model.StopWatch{}
+	}
+	out := model.StopWatchPage{Stopwatches: watches, PageMeta: model.PageMetaOf(page)}
+	// Batch.Total above is a local count that only lets list.Run decide has_next.
+	// It is not the server's grand total (the endpoint sends no X-Total-Count),
+	// and total_count is reserved for that grand total, so it stays omitted.
+	out.TotalCount = nil
+	return out, nil
 }
 
 func (s *Service) port(ctx context.Context) (Port, error) { return s.src(ctx) }

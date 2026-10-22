@@ -60,16 +60,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.H
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page := r.Page
-	if page == 0 {
-		page = 1
-	}
-	limit := r.Limit
-	if limit == 0 {
-		limit = float64(list.DefaultLimit(30, c))
-	}
-	p := list.Paging{Page: int(page), Limit: int(limit)}
-	return list.Run(ctx, p, c, func(ctx context.Context, q list.Paging) (list.Batch[model.HookPayload], error) {
+	return list.Run(ctx, list.Request{Page: int(r.Page), Limit: int(r.Limit), Def: 30}, c, func(ctx context.Context, q list.Paging) (list.Batch[model.HookPayload], error) {
 		hooks, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[model.HookPayload]{}, fmt.Errorf("list repo hooks: %w", err)

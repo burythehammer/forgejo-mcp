@@ -148,7 +148,7 @@ func (s *Service) List(ctx context.Context, in ListInput) (list.Bounded[*model.P
 	if q.Milestone, err = milestoneID(in.Milestone); err != nil {
 		return list.Bounded[*model.PullRequest]{}, err
 	}
-	page, err := list.Run(ctx, list.Paging(q.Paging), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullRequest], error) {
+	page, err := list.Run(ctx, list.Request{Page: in.Page, Limit: in.Limit, Def: defaultLimit}, c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullRequest], error) {
 		qq := q
 		qq.Paging = Paging(p)
 		prs, err := s.port.ListPullRequests(ctx, in.Owner, in.Repo, qq)
@@ -216,7 +216,7 @@ func (s *Service) Merge(ctx context.Context, in MergeRequest) (MergeResult, erro
 // Files lists one page of the changed files of a pull request with its next marker.
 func (s *Service) Files(ctx context.Context, in PagedPR) (list.Bounded[*model.ChangedFile], error) {
 	c := s.ceiling(ctx)
-	page, err := list.Run(ctx, list.Paging(paging(in.Page, in.Limit, defaultFilesLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.ChangedFile], error) {
+	page, err := list.Run(ctx, list.Request{Page: in.Page, Limit: in.Limit, Def: defaultFilesLimit}, c, func(ctx context.Context, p list.Paging) (list.Batch[*model.ChangedFile], error) {
 		files, err := s.port.ListPullRequestFiles(ctx, in.Owner, in.Repo, in.Index, Paging(p))
 		if err != nil {
 			return list.Batch[*model.ChangedFile]{}, fmt.Errorf("list pull request files err: %w", err)
@@ -247,7 +247,7 @@ func (s *Service) Diff(ctx context.Context, in DiffInput) (DiffPage, error) {
 	}
 	c := s.ceiling(ctx)
 	files := diff.Files(body)
-	page, err := list.Run(ctx, list.Given(list.Paging{Page: in.Page, Limit: in.Limit}, defaultDiffLimit, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultDiffLimit), c,
 		func(_ context.Context, p list.Paging) (list.Batch[string], error) {
 			rows := list.Cut(files, p).Items
 			return list.Batch[string]{Items: rows, Total: ptr.To(len(files))}, nil
@@ -281,7 +281,7 @@ type DiffPage struct {
 // Reviews lists one page of the reviews of a pull request with its next marker.
 func (s *Service) Reviews(ctx context.Context, in PagedPR) (list.Bounded[*model.PullReview], error) {
 	c := s.ceiling(ctx)
-	page, err := list.Run(ctx, list.Paging(paging(in.Page, in.Limit, defaultLimit, c)), c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullReview], error) {
+	page, err := list.Run(ctx, list.Request{Page: in.Page, Limit: in.Limit, Def: defaultLimit}, c, func(ctx context.Context, p list.Paging) (list.Batch[*model.PullReview], error) {
 		page, err := s.port.ListPullReviews(ctx, in.Owner, in.Repo, in.Index, Paging(p))
 		if err != nil {
 			return list.Batch[*model.PullReview]{}, fmt.Errorf("list pull reviews err: %w", err)
@@ -309,7 +309,7 @@ func (s *Service) Review(ctx context.Context, in ReviewRef) (*model.PullReview, 
 // it: the review-comment endpoint has never reported one.
 func (s *Service) ReviewComments(ctx context.Context, in ReviewRef, p Paging) (list.Bounded[*model.PullReviewComment], error) {
 	c := s.ceiling(ctx)
-	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultLimit, c), c,
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(p), defaultLimit), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.PullReviewComment], error) {
 			all, err := s.port.ListPullReviewComments(ctx, in.Owner, in.Repo, in.Index, in.ID)
 			if err != nil {

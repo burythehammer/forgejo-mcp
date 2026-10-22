@@ -43,7 +43,7 @@ func TestCut_WindowsAndReportsNext(t *testing.T) {
 func TestWindow_DefaultLimitIsLoweredToAKnownCeiling(t *testing.T) {
 	t.Parallel()
 	var got Paging
-	b, err := Window(context.Background(), ceilingOf{max: 3, known: true}, Paging{Page: 1}, 10,
+	b, err := Window(context.Background(), ceilingOf{max: 3, known: true}, Request{Page: 1, Def: 10},
 		func(_ context.Context, p Paging) (Batch[int], error) {
 			got = p
 			return Batch[int]{}, nil
@@ -59,7 +59,7 @@ func TestWindow_DefaultLimitIsLoweredToAKnownCeiling(t *testing.T) {
 func TestWindow_PassesPageZeroThroughAsGiven(t *testing.T) {
 	t.Parallel()
 	var got Paging
-	b, err := Window(context.Background(), ceilingOf{}, Paging{Page: 0}, 10,
+	b, err := Window(context.Background(), ceilingOf{}, Request{Page: 0, Def: 10},
 		func(_ context.Context, p Paging) (Batch[int], error) {
 			got = p
 			return Batch[int]{}, nil
@@ -75,7 +75,7 @@ func TestWindow_PassesPageZeroThroughAsGiven(t *testing.T) {
 func TestWindow_OverKnownCeilingRefuses(t *testing.T) {
 	t.Parallel()
 	called := false
-	_, err := Window(context.Background(), ceilingOf{max: 3, known: true}, Paging{Page: 1, Limit: 4}, 10,
+	_, err := Window(context.Background(), ceilingOf{max: 3, known: true}, Request{Page: 1, Limit: 4, Def: 10},
 		func(context.Context, Paging) (Batch[int], error) {
 			called = true
 			return Batch[int]{}, nil
@@ -94,7 +94,7 @@ func TestWindow_OverKnownCeilingRefuses(t *testing.T) {
 func TestWindow_MakesNoProbe(t *testing.T) {
 	t.Parallel()
 	var calls int
-	b, err := Window(context.Background(), ceilingOf{}, Paging{Page: 1, Limit: 2}, 10,
+	b, err := Window(context.Background(), ceilingOf{}, Request{Page: 1, Limit: 2, Def: 10},
 		func(_ context.Context, p Paging) (Batch[int], error) {
 			calls++
 			return Batch[int]{Items: []int{1, 2}}, nil

@@ -128,33 +128,20 @@ func TestGetCommitStatusesFn_Paginates(t *testing.T) {
 	}
 }
 
-func TestGetCommitStatusesFn_LimitClamp(t *testing.T) {
+func TestGetCommitStatusesFn_UnderMinTakesTheDefault(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name  string
-		limit float64
-		echo  int
-	}{
-		{name: "over_max", limit: 999, echo: 50},
-		{name: "under_min", limit: 0, echo: 30},
+	h, f := newFilesFixture(t)
+	knownCommit(t, f)
+	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(map[string]any{"limit": float64(0)}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("list failed: err=%v res=%+v", err, res)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			h, f := newFilesFixture(t)
-			knownCommit(t, f)
-			res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(map[string]any{"limit": tc.limit}))
-			if err != nil || res == nil || res.IsError {
-				t.Fatalf("list failed: err=%v res=%+v", err, res)
-			}
-			if got := decodeStatuses(t, res); got.Limit != tc.echo {
-				t.Errorf("limit: got %d, want %d", got.Limit, tc.echo)
-			}
-		})
+	if got := decodeStatuses(t, res); got.Limit != 30 {
+		t.Errorf("limit: got %d, want 30", got.Limit)
 	}
 }
 
-func TestGetCommitStatusesFn_LimitClampBoundsThePage(t *testing.T) {
+func TestGetCommitStatusesFn_PageReportsHasNext(t *testing.T) {
 	t.Parallel()
 	h, f := newFilesFixture(t)
 	states := make([]forgejo_sdk.StatusState, 60)
@@ -163,12 +150,32 @@ func TestGetCommitStatusesFn_LimitClampBoundsThePage(t *testing.T) {
 	}
 	seedStatuses(t, f, states...)
 
-	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(map[string]any{"limit": float64(999)}))
+	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(map[string]any{"limit": float64(50)}))
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("list failed: err=%v res=%+v", err, res)
 	}
 	got := decodeStatuses(t, res)
-	if got.Count != 50 || got.TotalCount == nil || *got.TotalCount != 60 {
-		t.Errorf("count=%d total=%v, want 50 of 60", got.Count, got.TotalCount)
+	if got.Count != 50 || got.TotalCount == nil || *got.TotalCount != 60 || !got.HasNext {
+		t.Errorf("count=%d total=%v has_next=%v, want 50 of 60 with has_next", got.Count, got.TotalCount, got.HasNext)
+	}
+}
+
+func TestGetCommitStatusesFn_OverCeilingIsRefused(t *testing.T) {
+	t.Parallel()
+	h, f := newFilesFixture(t)
+	knownCommit(t, f)
+	f.SetMaxResponseItems(20)
+	res, err := h.GetCommitStatusesFn(context.Background(), statusesReq(map[string]any{"limit": float64(21)}))
+	if err == nil && (res == nil || !res.IsError) {
+		t.Fatalf("limit above the ceiling was not refused: %v", res)
+	}
+	text := ""
+	if err != nil {
+		text = err.Error()
+	} else {
+		text = extractText(t, res)
+	}
+	if !strings.Contains(text, "max_response_items") {
+		t.Errorf("refusal does not name the ceiling: %s", text)
 	}
 }

@@ -266,7 +266,7 @@ var adminCases = []adminCase{
 	// get_commit_statuses
 	{name: "admin_statuses", tool: GetCommitStatusesToolName, args: repoArgs(map[string]any{"sha": adminSHA}), stub: func(s *stubAdmin) { s.statuses = adminStatuses() }},
 	{name: "admin_statuses_paged", tool: GetCommitStatusesToolName, args: repoArgs(map[string]any{"sha": adminSHA, "page": float64(2), "limit": float64(2)}), stub: func(s *stubAdmin) { s.statuses = adminStatuses() }},
-	{name: "admin_statuses_limit_clamped", tool: GetCommitStatusesToolName, args: repoArgs(map[string]any{"sha": adminSHA, "limit": float64(999)}), stub: func(s *stubAdmin) { s.statuses = adminStatuses() }},
+	{name: "admin_statuses_large_limit", tool: GetCommitStatusesToolName, args: repoArgs(map[string]any{"sha": adminSHA, "limit": float64(999)}), stub: func(s *stubAdmin) { s.statuses = adminStatuses() }},
 	{name: "admin_statuses_zero_paging", tool: GetCommitStatusesToolName, args: repoArgs(map[string]any{"sha": adminSHA, "page": float64(0), "limit": float64(0)}), stub: func(s *stubAdmin) { s.statuses = adminStatuses() }},
 	{name: "admin_statuses_fractional_limit", tool: GetCommitStatusesToolName, args: repoArgs(map[string]any{"sha": adminSHA, "limit": 2.5}), stub: func(s *stubAdmin) { s.statuses = adminStatuses() }},
 	{name: "admin_statuses_no_total", tool: GetCommitStatusesToolName, args: repoArgs(map[string]any{"sha": adminSHA}), stub: func(s *stubAdmin) {

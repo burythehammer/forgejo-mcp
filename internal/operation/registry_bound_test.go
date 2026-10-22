@@ -15,8 +15,6 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/hook"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pull"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/tracking"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -52,17 +50,7 @@ var textListTools = map[string]textShape{
 
 // skippedListTools are list tools the bound cannot hold yet. Each runs as a
 // subtest that skips with its reason, so the gap shows in every run.
-var skippedListTools = map[string]string{
-	tracking.ListMyStopwatchesToolName: "no page or limit: the tool returns the whole list. " +
-		"Adding them changes the output shape, which the output-bounding design files as its own issue",
-}
-
-// fullPageContinuation are list tools whose payload is a bare array with no
-// has_next. ADR 0003 freezes that rendering, so a caller reads a full page as
-// "more may follow" and a short page as the last. The test holds them to that.
-var fullPageContinuation = map[string]bool{
-	repo.ListMyReposToolName: true,
-}
+var skippedListTools = map[string]string{}
 
 // listResourceFixture is one list resource template: a concrete URI that reads
 // it and the seed that fills the fake behind that URI.
@@ -359,14 +347,10 @@ func checkListResource(t *testing.T, fx listResourceFixture, tpl wireTemplate) {
 }
 
 // follows reports whether rows follow a page. A payload that names has_next
-// decides; one that names only total_count is read against the rows seen so far;
-// a bare array (fullPageContinuation) is read by the page's size. A payload with
-// none of these cannot say, which the test reports.
+// decides; one that names only total_count is read against the rows seen so far.
+// A payload with neither cannot say, which the test reports.
 func follows(t *testing.T, name string, body map[string]any, pageRows, limit, seen int) bool {
 	t.Helper()
-	if fullPageContinuation[name] {
-		return pageRows == limit
-	}
 	if v, ok := body["has_next"].(bool); ok {
 		return v
 	}
