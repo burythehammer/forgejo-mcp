@@ -151,13 +151,13 @@ func (h handlers) repoLabelsResourceHandler(ctx context.Context, req mcp.ReadRes
 		return nil, mapErr(uri, err)
 	}
 
-	bounded := resource.Bounded(labelIDs(list.Labels), limit, ListRepoLabelsToolName)
-	if list.More {
+	bounded := resource.Bounded(labelIDs(list.Items), limit, ListRepoLabelsToolName)
+	if list.HasNext {
 		bounded = bounded.WithMoreRemaining(ptr.Deref(list.Total, 0))
 	}
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
-	for _, l := range list.Labels[:len(bounded.Items)] {
+	for _, l := range list.Items[:len(bounded.Items)] {
 		labels = append(labels, labelPayloadOf(l.Label))
 	}
 
@@ -212,13 +212,13 @@ func (h handlers) orgLabelsResourceHandler(ctx context.Context, req mcp.ReadReso
 		return nil, mapErr(uri, err)
 	}
 
-	bounded := resource.Bounded(labelIDs(list.Labels), limit, ListOrgLabelsToolName)
-	if list.More {
+	bounded := resource.Bounded(labelIDs(list.Items), limit, ListOrgLabelsToolName)
+	if list.HasNext {
 		bounded = bounded.WithMoreRemaining(ptr.Deref(list.Total, 0))
 	}
 
 	labels := make([]labelResourcePayload, 0, len(bounded.Items))
-	for _, l := range list.Labels[:len(bounded.Items)] {
+	for _, l := range list.Items[:len(bounded.Items)] {
 		labels = append(labels, labelPayloadOf(l.Label))
 	}
 

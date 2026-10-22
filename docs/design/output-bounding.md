@@ -154,15 +154,19 @@ An undocumented cap is the same trap as no cap.
 
 ## Checklist for new tools
 
-When adding a tool in `internal/operation/{domain}/`, answer in the PR description:
+The registry test (`internal/operation/registry_bound_test.go`) holds every list
+tool and list resource template to the bound: a default call is a full page, the
+payload says whether rows follow, paging reads every row once, and `page` and
+`limit` are documented. A new list tool is covered once it has one seed row in
+`pageToolsTable`. Code cannot answer the rest, so the PR description does:
 
-- [ ] Is output size bounded by the tool's own semantics (one fixed-shape
-      object)? If yes, exempt — note this and skip the rest.
-- [ ] If no: which bound parameter(s) does the tool expose?
+- [ ] Is the output one fixed-shape object? If yes, exempt and say so.
 - [ ] Which sub-rule 2 row matches the data type?
-- [ ] How does the caller resume / fetch the remainder?
-- [ ] Are bound parameters documented in the tool description and the README
-      tool table?
+- [ ] If the tool reports `total_count`, does the upstream endpoint send
+      `X-Total-Count`? The fake cannot show that; check the handler or a live
+      response.
+- [ ] If the change adds an entry to a test exemption map (`skippedListTools`,
+      `ceilingExempt`, `fullPageContinuation`), is its reason true?
 
 If any answer is "none" or "unclear", the tool is not ready to merge.
 
@@ -182,3 +186,9 @@ says so.
    [#596](https://git.b4mad.industries/agentic-forges/forgejo-mcp/issues/596)
    is the worked example: `list_repo_pull_requests` still embeds a complete
    `Repository` twice per row through `PRBranchInfo` (`internal/app/model/model.go`).
+
+Gaps the registry test records as exemptions, not failures: `list_my_stopwatches`
+has no `page`/`limit` (shape 1 above). `list_my_repos` renders a bare array with
+no `has_next`, a rendering ADR 0003 freezes, so a full page means more. The
+instance ceiling does not reach `get_commit_statuses`, `get_repo_tree` or
+`get_wiki_revisions` (`ceilingExempt` in `pagination_ceiling_test.go`).

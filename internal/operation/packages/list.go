@@ -7,6 +7,8 @@ import (
 	"errors"
 	"math"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/packages"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/packagesadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
@@ -48,7 +50,7 @@ func (h handlers) ListPackagesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return mcpresult.Render(apppkg.New(packagesadapter.New(port)).List(ctx, apppkg.ListRequest{
+	return listPackagesResult(apppkg.New(packagesadapter.New(port)).List(ctx, apppkg.ListRequest{
 		Owner: a.Owner, Type: a.Type, Query: a.Q, Page: page, Limit: limit,
 	}))
 }
@@ -66,4 +68,20 @@ func pageAndLimit(page, limit decode.Arg) (int, int, error) {
 		return 0, 0, err
 	}
 	return p, l, nil
+}
+
+// listPackagesResult renders one page of package versions in the list tool's wire form.
+func listPackagesResult(b list.Bounded[model.PackageView], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.ListPackagesResult{Packages: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
+}
+
+// listPackageFilesResult renders one page of a version's files in the files tool's wire form.
+func listPackageFilesResult(b list.Bounded[model.PackageFileView], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.ListPackageFilesResult{Files: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
 }

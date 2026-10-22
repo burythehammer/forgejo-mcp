@@ -2,6 +2,8 @@
 
 package model
 
+import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+
 // ReleasePage is the response of list_releases: one page of releases with the
 // continuation signal of docs/design/output-bounding.md.
 type ReleasePage struct {
@@ -13,4 +15,13 @@ type ReleasePage struct {
 type AttachmentPage struct {
 	Attachments []*Attachment `json:"attachments"`
 	PageMeta
+}
+
+// AttachmentPageOf is the one place a list of attachments becomes its response.
+// Forgejo reports no total for an attachment listing, so the wire form carries
+// none, even though the whole list is read to page it.
+func AttachmentPageOf(b list.Bounded[*Attachment]) AttachmentPage {
+	meta := PageMetaOf(b)
+	meta.TotalCount = nil
+	return AttachmentPage{Attachments: b.Items, PageMeta: meta}
 }

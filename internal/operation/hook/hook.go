@@ -195,7 +195,12 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 
 func (h handlers) ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoHooksFn", func(ctx context.Context, s *apphook.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.List(ctx, apphook.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
+		got, err := s.List(ctx, apphook.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit})
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		meta := model.PageMetaOf(got)
+		return mcpresult.Render(model.HookListResult{Hooks: got.Items, PageWindow: meta.PageWindow, PageTotal: meta.PageTotal, PageNext: meta.PageNext}, nil)
 	})
 }
 

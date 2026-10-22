@@ -67,14 +67,14 @@ func TestUseCaseThroughTheBridgeAndFake(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list.WorkflowRuns) != 1 || list.WorkflowRuns[0].ID != run.ID || list.WorkflowRuns[0].Title != "CI" {
+	if len(list.Items) != 1 || list.Items[0].ID != run.ID || list.Items[0].Title != "CI" {
 		t.Fatalf("runs through the bridge: %+v", list)
 	}
 	jobs, err := svc.ListJobs(ctx, "o", "r", run.ID, app.Paging{Page: 1, Limit: 30})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if jobs.TotalCount == nil || *jobs.TotalCount != 1 || jobs.Jobs[0].Name != "build" {
+	if jobs.Total == nil || *jobs.Total != 1 || jobs.Items[0].Name != "build" {
 		t.Fatalf("jobs through the bridge: %+v", jobs)
 	}
 	if _, err := svc.GetRun(ctx, "o", "r", 9999); err == nil {

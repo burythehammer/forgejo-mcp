@@ -106,15 +106,15 @@ func TestListJobsPagesTheFullList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.TotalCount == nil || *page.TotalCount != 3 || len(page.Jobs) != 2 || !page.HasNext || page.NextPage != 2 {
+	if page.Total == nil || *page.Total != 3 || len(page.Items) != 2 || !page.HasNext || page.Page+1 != 2 {
 		t.Fatalf("first page: %+v", page)
 	}
 	last, _ := svc.ListJobs(context.Background(), "o", "r", 9, app.Paging{Page: 2, Limit: 2})
-	if len(last.Jobs) != 1 || last.Jobs[0].ID != 3 || last.HasNext || last.NextPage != 0 {
+	if len(last.Items) != 1 || last.Items[0].ID != 3 || last.HasNext {
 		t.Fatalf("last page: %+v", last)
 	}
 	beyond, _ := svc.ListJobs(context.Background(), "o", "r", 9, app.Paging{Page: 9, Limit: 2})
-	if len(beyond.Jobs) != 0 || beyond.HasNext {
+	if len(beyond.Items) != 0 || beyond.HasNext {
 		t.Fatalf("beyond the end: %+v", beyond)
 	}
 }
@@ -174,8 +174,8 @@ func TestRepoSecretsCarryNamesAndTimesOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.Count != 2 || page.Secrets[0].CreatedAt != "2026-01-02T03:04:05Z" || page.Secrets[1].CreatedAt != "" {
-		t.Fatalf("summaries: %+v", page.Secrets)
+	if page.Count != 2 || page.Items[0].CreatedAt != "2026-01-02T03:04:05Z" || page.Items[1].CreatedAt != "" {
+		t.Fatalf("summaries: %+v", page.Items)
 	}
 }
 
@@ -226,8 +226,8 @@ func TestRunsEnvelopeWithReportedTotal(t *testing.T) {
 				t.Fatal(err)
 			}
 			checkEnvelope(t, tc, page.Count, page.HasNext, page.Page, page.Limit)
-			if len(page.WorkflowRuns) != tc.count {
-				t.Fatalf("rows %d, want %d", len(page.WorkflowRuns), tc.count)
+			if len(page.Items) != tc.count {
+				t.Fatalf("rows %d, want %d", len(page.Items), tc.count)
 			}
 		})
 	}
@@ -257,14 +257,14 @@ func TestJobsEnvelopeExactMultiple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Count != 2 || !first.HasNext || first.TotalCount == nil || *first.TotalCount != 4 {
+	if first.Count != 2 || !first.HasNext || first.Total == nil || *first.Total != 4 {
 		t.Fatalf("first page: %+v", first)
 	}
 	last, err := svc.ListJobs(context.Background(), "o", "r", 9, app.Paging{Page: 2, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if last.Count != 2 || last.HasNext || last.NextPage != 0 {
+	if last.Count != 2 || last.HasNext {
 		t.Fatalf("exact-multiple last page: %+v", last)
 	}
 }

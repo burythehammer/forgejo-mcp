@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	appsearch "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/search"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/searchadapter"
@@ -79,7 +81,7 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 
 func (h handlers) SearchUserFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchUserFn", func(ctx context.Context, s *appsearch.Service, a usersArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Users(ctx, appsearch.UserQuery{Keyword: a.Keyword, Paging: paging(a.Page, a.Limit)}))
+		return userSearchPage(s.Users(ctx, appsearch.UserQuery{Keyword: a.Keyword, Paging: paging(a.Page, a.Limit)}))
 	})
 }
 
@@ -99,14 +101,38 @@ func (h handlers) SearchOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest)
 	if err != nil {
 		return mcpresult.Fail(err)
 	}
-	return mcpresult.Render(appsearch.New(searchadapter.New(port)).OrgTeams(ctx, *a.Org,
+	return teamSearchPage(appsearch.New(searchadapter.New(port)).OrgTeams(ctx, *a.Org,
 		appsearch.TeamQuery{Keyword: a.Keyword, Paging: paging(a.Page, a.Limit)}))
 }
 
 func (h handlers) SearchReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchReposFn", func(ctx context.Context, s *appsearch.Service, a reposArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Repos(ctx, appsearch.RepoQuery{
+		return repositoryPage(s.Repos(ctx, appsearch.RepoQuery{
 			Keyword: a.Keyword, Sort: a.Sort, Order: a.Order, Paging: paging(a.Page, a.Limit),
 		}))
 	})
+}
+
+// userSearchPage renders one page of matching users in its wire form.
+func userSearchPage(b list.Bounded[*model.User], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.UserSearchPage{Users: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
+}
+
+// teamSearchPage renders one page of matching teams in its wire form.
+func teamSearchPage(b list.Bounded[*model.Team], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.TeamSearchPage{Teams: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
+}
+
+// repositoryPage renders one page of matching repositories in its wire form.
+func repositoryPage(b list.Bounded[*model.Repository], err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.RepositoryPage{Repositories: b.Items, PageMeta: model.PageMetaOf(b)}, nil)
 }

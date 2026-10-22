@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	appbp "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/branchprotection"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/branchprotectionadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
@@ -183,7 +184,11 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 
 func (h handlers) ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListBranchProtectionsFn", func(ctx context.Context, s *appbp.Service, a listArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit}))
+		got, err := s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit})
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return mcpresult.Render(model.BranchProtectionList{BranchProtections: got.Items, PageMeta: model.PageMetaOf(got)}, nil)
 	})
 }
 

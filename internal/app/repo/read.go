@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 )
 
@@ -94,36 +95,24 @@ func (s *AdminService) CommitStatusSummary(ctx context.Context, owner, repo, sha
 	if err := validateSHA(sha); err != nil {
 		return CommitStatusSummary{}, err
 	}
-	var all []model.StatusItem
-	total, known, complete := 0, false, false
-	for page := 1; page <= maxStatusPages; page++ {
-		res, err := s.port.ListCommitStatuses(ctx, owner, repo, sha, AdminPaging{Page: page, Limit: maxStatusesLimit})
-		if err != nil {
-			return CommitStatusSummary{}, fmt.Errorf("get commit statuses: %w", err)
-		}
-		all = append(all, res.Items...)
-		if res.TotalCount != nil {
-			total, known = *res.TotalCount, true
-		}
-		if known {
-			if len(all) >= total {
-				complete = true
-				break
+	every, err := list.All(ctx, maxStatusesLimit, maxStatusPages,
+		func(ctx context.Context, q list.Paging) (list.Batch[model.StatusItem], error) {
+			res, err := s.port.ListCommitStatuses(ctx, owner, repo, sha, AdminPaging(q))
+			if err != nil {
+				return list.Batch[model.StatusItem]{}, fmt.Errorf("get commit statuses: %w", err)
 			}
-			if len(res.Items) == 0 {
-				break
-			}
-		} else if len(res.Items) < maxStatusesLimit {
-			complete = true
-			break
-		}
+			return list.Batch[model.StatusItem]{Items: res.Items, Total: res.TotalCount}, nil
+		})
+	if err != nil {
+		return CommitStatusSummary{}, err
 	}
-	if !known {
-		total = len(all)
+	total := len(every.Items)
+	if every.Total != nil {
+		total = *every.Total
 	}
-	sum := CommitStatusSummary{Statuses: all, TotalCount: total, Complete: complete, State: "unknown"}
-	if complete {
-		sum.State = AggregateState(all)
+	sum := CommitStatusSummary{Statuses: every.Items, TotalCount: total, Complete: every.Complete, State: "unknown"}
+	if every.Complete {
+		sum.State = AggregateState(every.Items)
 	}
 	return sum, nil
 }

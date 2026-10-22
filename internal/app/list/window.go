@@ -12,11 +12,11 @@ type CeilingSource interface {
 
 // Window reads one page of a list through the ceiling of src. The page is
 // passed on as given, so a caller that needs page 0 to reach the server keeps
-// it; a limit below 1 takes def, lowered to a known ceiling. It returns the
-// paging the fetch used, so the caller can report it.
+// it; a limit below 1 takes def, lowered to a known ceiling. The fetch's More
+// report becomes HasNext, and no probe is made.
 func Window[T any](ctx context.Context, src CeilingSource, pg Paging, def int,
-	fetch func(context.Context, Paging) ([]T, error),
-) ([]T, Paging, error) {
+	fetch Fetch[T],
+) (Bounded[T], error) {
 	ceiling, known := src.MaxResponseItems(ctx)
 	c := Ceiling{Max: ceiling, Known: known}
 	p := pg
@@ -24,16 +24,20 @@ func Window[T any](ctx context.Context, src CeilingSource, pg Paging, def int,
 		p.Limit = DefaultLimit(def, c)
 	}
 	if err := check(p, c); err != nil {
-		return nil, p, err
+		return Bounded[T]{}, err
 	}
-	items, err := fetch(ctx, p)
-	return items, p, err
+	b, err := fetch(ctx, p)
+	if err != nil {
+		return Bounded[T]{}, err
+	}
+	return newBounded(b.Items, p, b.Total, b.More), nil
 }
 
-// Cut returns the rows of all that page p names, and whether rows follow them.
+// Cut returns the rows of all that page p names, with whether rows follow them.
 // It is for a list Forgejo does not page: the whole list is fetched, then cut
-// here. A page past the end is empty and has no next page.
-func Cut[T any](all []T, p Paging) ([]T, bool) {
+// here, so the grand total is known: it is len(all). A page past the end is
+// empty and has no next page.
+func Cut[T any](all []T, p Paging) Bounded[T] {
 	start := Start(p, len(all))
 	end := start
 	if p.Limit > 0 {
@@ -42,7 +46,7 @@ func Cut[T any](all []T, p Paging) ([]T, bool) {
 			end = start + p.Limit
 		}
 	}
-	return all[start:end], end < len(all)
+	return newBounded(all[start:end], p, Reported(len(all), true), end < len(all))
 }
 
 // Start is the index of the first row of page p in a list of n rows, clamped

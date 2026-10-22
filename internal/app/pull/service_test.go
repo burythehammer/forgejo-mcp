@@ -60,15 +60,15 @@ func TestListDefaultsToOpenAndPaginates(t *testing.T) {
 	}
 
 	got, err := s.List(context.Background(), apppull.ListInput{Owner: owner, Repo: repo})
-	if err != nil || len(got.PullRequests) != 2 {
+	if err != nil || len(got.Items) != 2 {
 		t.Fatalf("default list: %+v, %v", got, err)
 	}
 	got, _ = s.List(context.Background(), apppull.ListInput{Owner: owner, Repo: repo, Limit: 1})
-	if len(got.PullRequests) != 1 || got.PullRequests[0].Title != "open two" {
+	if len(got.Items) != 1 || got.Items[0].Title != "open two" {
 		t.Fatalf("limit 1 should be the newest: %+v", got)
 	}
 	got, _ = s.List(context.Background(), apppull.ListInput{Owner: owner, Repo: repo, State: "all"})
-	if len(got.PullRequests) != 3 {
+	if len(got.Items) != 3 {
 		t.Fatalf("state=all: %+v", got)
 	}
 }
@@ -81,7 +81,7 @@ func TestListEnvelopeNamesTheNextPage(t *testing.T) {
 		open(t, s, title)
 	}
 	first, err := s.List(ctx, apppull.ListInput{Owner: owner, Repo: repo, Page: 1, Limit: 2})
-	if err != nil || len(first.PullRequests) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
+	if err != nil || len(first.Items) != 2 || first.Count != 2 || first.Page != 1 || first.Limit != 2 || !first.HasNext {
 		t.Fatalf("page 1 of four: %+v, %v", first, err)
 	}
 	// Four rows at limit 2: page 2 is full and is the last, so the probe
@@ -201,7 +201,7 @@ func TestReviewLifecycle(t *testing.T) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 	list, err := s.Reviews(ctx, apppull.PagedPR{PR: pr(i)})
-	if err != nil || len(list.Reviews) != 1 {
+	if err != nil || len(list.Items) != 1 {
 		t.Fatalf("list: %+v, %v", list, err)
 	}
 	if err := s.DeleteReview(ctx, apppull.ReviewRef{PR: pr(i), ID: rev.ID}); err != nil {
@@ -246,7 +246,7 @@ func TestInlineCommentsSubmitAndDismiss(t *testing.T) {
 		t.Fatal(err)
 	}
 	comments, err := s.ReviewComments(ctx, apppull.ReviewRef{PR: pr(i), ID: rev.ID}, apppull.Paging{})
-	if err != nil || len(comments.Comments) != 1 || comments.Comments[0].Body != "why?" || comments.Comments[0].Path != "a.go" {
+	if err != nil || len(comments.Items) != 1 || comments.Items[0].Body != "why?" || comments.Items[0].Path != "a.go" {
 		t.Fatalf("comments: %+v, %v", comments, err)
 	}
 	sub, err := s.SubmitReview(ctx, apppull.SubmitReviewRequest{ReviewRef: apppull.ReviewRef{PR: pr(i), ID: rev.ID}, State: "APPROVED"})
@@ -280,7 +280,7 @@ func TestReviewRequestsSplitAndTrimTheLists(t *testing.T) {
 		t.Fatal(err)
 	}
 	reqs, err := s.Reviews(ctx, apppull.PagedPR{PR: pr(i)})
-	if err != nil || len(reqs.Reviews) != 2 {
+	if err != nil || len(reqs.Items) != 2 {
 		t.Fatalf("want two requested reviews, got %+v, %v", reqs, err)
 	}
 	if err := s.CancelReviewRequests(ctx, apppull.ReviewersInput{PR: pr(i), Reviewers: "a"}); err != nil {

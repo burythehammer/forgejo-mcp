@@ -44,14 +44,14 @@ func TestListPagesAndFollowsTheProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first.Pages) != 2 || !first.HasNext || first.Page != 1 {
+	if len(first.Items) != 2 || !first.HasNext || first.Page != 1 {
 		t.Fatalf("page 1: got %+v", first)
 	}
 	last, err := s.List(context.Background(), appwiki.ListRequest{Owner: owner, Repo: repo, Page: 2, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(last.Pages) != 1 || last.HasNext {
+	if len(last.Items) != 1 || last.HasNext {
 		t.Fatalf("page 2: got %+v", last)
 	}
 }
@@ -62,7 +62,7 @@ func TestListDefaultsToPageOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Page != 1 || got.HasNext || len(got.Pages) != 0 {
+	if got.Page != 1 || got.HasNext || len(got.Items) != 0 {
 		t.Fatalf("got %+v", got)
 	}
 }
@@ -161,7 +161,7 @@ func TestRevisionsReportTheTotalAndPaging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Revisions) != 1 || !got.HasNext || got.TotalCount != 2 {
+	if len(got.Items) != 1 || !got.HasNext || got.Total == nil || *got.Total != 2 {
 		t.Fatalf("got %+v", got)
 	}
 }

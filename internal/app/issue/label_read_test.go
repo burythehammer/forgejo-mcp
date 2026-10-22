@@ -74,10 +74,10 @@ func TestReadRepoLabels_RepoOnlyUnlessIncludeOrg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"repo-1", "repo-2"}; fmt.Sprint(labelNamesOf(repoOnly.Labels)) != fmt.Sprint(want) {
-		t.Fatalf("repo only: got %v, want %v", labelNamesOf(repoOnly.Labels), want)
+	if want := []string{"repo-1", "repo-2"}; fmt.Sprint(labelNamesOf(repoOnly.Items)) != fmt.Sprint(want) {
+		t.Fatalf("repo only: got %v, want %v", labelNamesOf(repoOnly.Items), want)
 	}
-	for _, l := range repoOnly.Labels {
+	for _, l := range repoOnly.Items {
 		if l.Scope != "repo" {
 			t.Fatalf("repo-only read carries scope %q", l.Scope)
 		}
@@ -98,11 +98,11 @@ func TestReadRepoLabels_IncludeOrgAppendsOrgLabelsWithScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"repo-1", "org-1"}; fmt.Sprint(labelNamesOf(got.Labels)) != fmt.Sprint(want) {
-		t.Fatalf("merged names: got %v, want %v", labelNamesOf(got.Labels), want)
+	if want := []string{"repo-1", "org-1"}; fmt.Sprint(labelNamesOf(got.Items)) != fmt.Sprint(want) {
+		t.Fatalf("merged names: got %v, want %v", labelNamesOf(got.Items), want)
 	}
-	if got.Labels[0].Scope != "repo" || got.Labels[1].Scope != "org" {
-		t.Fatalf("scopes: %q %q", got.Labels[0].Scope, got.Labels[1].Scope)
+	if got.Items[0].Scope != "repo" || got.Items[1].Scope != "org" {
+		t.Fatalf("scopes: %q %q", got.Items[0].Scope, got.Items[1].Scope)
 	}
 }
 
@@ -118,8 +118,8 @@ func TestReadRepoLabels_ReportsMoreRowsOfTheRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first.Labels) != 2 || !first.More {
-		t.Fatalf("page 1: %d labels, more=%v; want 2, true", len(first.Labels), first.More)
+	if len(first.Items) != 2 || !first.HasNext {
+		t.Fatalf("page 1: %d labels, more=%v; want 2, true", len(first.Items), first.HasNext)
 	}
 	if first.Total == nil || *first.Total != 5 {
 		t.Fatalf("page 1 total: %v; want known 5", first.Total)
@@ -131,8 +131,8 @@ func TestReadRepoLabels_ReportsMoreRowsOfTheRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(last.Labels) != 1 || last.More {
-		t.Fatalf("page 3: %d labels, more=%v; want 1, false", len(last.Labels), last.More)
+	if len(last.Items) != 1 || last.HasNext {
+		t.Fatalf("page 3: %d labels, more=%v; want 1, false", len(last.Items), last.HasNext)
 	}
 }
 
@@ -146,10 +146,10 @@ func TestReadOrgLabels_PagesAndReportsMore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Labels) != 2 || !page.More {
-		t.Fatalf("org page 1: %d labels, more=%v; want 2, true", len(page.Labels), page.More)
+	if len(page.Items) != 2 || !page.HasNext {
+		t.Fatalf("org page 1: %d labels, more=%v; want 2, true", len(page.Items), page.HasNext)
 	}
-	for _, l := range page.Labels {
+	for _, l := range page.Items {
 		if l.Scope != "org" {
 			t.Fatalf("org read carries scope %q", l.Scope)
 		}

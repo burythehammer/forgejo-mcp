@@ -22,7 +22,7 @@ type GitService struct{ port GitPort }
 func NewGitService(p GitPort) *GitService { return &GitService{port: p} }
 
 // ListBranches returns one page of a repository's branches with its next marker.
-func (s *GitService) ListBranches(ctx context.Context, owner, repo string, p GitPage) (model.BranchPage, error) {
+func (s *GitService) ListBranches(ctx context.Context, owner, repo string, p GitPage) (list.Bounded[*model.Branch], error) {
 	c := ceiling(ctx, s.port)
 	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.Branch], error) {
@@ -33,9 +33,9 @@ func (s *GitService) ListBranches(ctx context.Context, owner, repo string, p Git
 			return list.Batch[*model.Branch]{Items: out}, nil
 		})
 	if err != nil {
-		return model.BranchPage{}, err
+		return list.Bounded[*model.Branch]{}, err
 	}
-	return model.BranchPage{Branches: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // defaultListLimit is the page size a repository list uses when the caller gives
@@ -70,7 +70,7 @@ func (s *GitService) DeleteBranch(ctx context.Context, owner, repo, branch strin
 
 // ListCommits returns one page of a repository's commits, newest first, with
 // its next marker.
-func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q ListCommitsInput) (model.CommitPage, error) {
+func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q ListCommitsInput) (list.Bounded[*model.Commit], error) {
 	c := ceiling(ctx, s.port)
 	page, err := list.Run(ctx, list.Given(list.Paging(q.Page), defaultListLimit, c), c,
 		func(ctx context.Context, p list.Paging) (list.Batch[*model.Commit], error) {
@@ -83,16 +83,16 @@ func (s *GitService) ListCommits(ctx context.Context, owner, repo string, q List
 			return list.Batch[*model.Commit]{Items: out}, nil
 		})
 	if err != nil {
-		return model.CommitPage{}, err
+		return list.Bounded[*model.Commit]{}, err
 	}
-	return model.CommitPage{Commits: page.Items, PageMeta: model.PageMetaOf(page)}, nil
+	return page, nil
 }
 
 // ListContents returns one page of the entries of one directory level of a
 // repository at a ref. Forgejo does not page this listing, so the whole level
-// is read and cut here; the whole count is not reported as TotalCount, since
-// Forgejo does not report it.
-func (s *GitService) ListContents(ctx context.Context, owner, repo, ref, path string, p GitPage) (model.ContentsPage, error) {
+// is read and cut here. The total is the length of that level; the adapter
+// decides whether to show it, since Forgejo does not report one.
+func (s *GitService) ListContents(ctx context.Context, owner, repo, ref, path string, p GitPage) (list.Bounded[*model.ContentsResponse], error) {
 	c := ceiling(ctx, s.port)
 	page, err := list.Run(ctx, list.Given(list.Paging(p), defaultListLimit, c), c,
 		func(ctx context.Context, q list.Paging) (list.Batch[*model.ContentsResponse], error) {
@@ -100,19 +100,13 @@ func (s *GitService) ListContents(ctx context.Context, owner, repo, ref, path st
 			if err != nil {
 				return list.Batch[*model.ContentsResponse]{}, fmt.Errorf("list repo contents err: %w", err)
 			}
-			rows, _ := list.Cut(all, q)
+			rows := list.Cut(all, q).Items
 			return list.Batch[*model.ContentsResponse]{Items: rows, Total: ptr.To(len(all))}, nil
 		})
 	if err != nil {
-		return model.ContentsPage{}, err
+		return list.Bounded[*model.ContentsResponse]{}, err
 	}
-	rows := page.Items
-	if rows == nil {
-		rows = []*model.ContentsResponse{}
-	}
-	meta := model.PageMetaOf(page)
-	meta.TotalCount = nil
-	return model.ContentsPage{Contents: rows, PageMeta: meta}, nil
+	return page, nil
 }
 
 // GetTree returns the Git tree of a repository at a ref.

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"strings"
 	"testing"
 
@@ -28,12 +29,12 @@ func TestReadCollection_CapsAndFlagsMore(t *testing.T) {
 	s := newService(t)
 	seedHooks(t, s, 3)
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 2)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Hooks) != 2 || !got.Truncated {
-		t.Errorf("shown=%d truncated=%v, want 2 and true", len(got.Hooks), got.Truncated)
+	if len(got.Items) != 2 || !got.HasNext {
+		t.Errorf("shown=%d has_next=%v, want 2 and true", len(got.Items), got.HasNext)
 	}
 }
 
@@ -42,12 +43,12 @@ func TestReadCollection_ExactlyTheCapIsNotTruncated(t *testing.T) {
 	s := newService(t)
 	seedHooks(t, s, 2)
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 2)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Hooks) != 2 || got.Truncated {
-		t.Errorf("shown=%d truncated=%v, want 2 and false", len(got.Hooks), got.Truncated)
+	if len(got.Items) != 2 || got.HasNext {
+		t.Errorf("shown=%d has_next=%v, want 2 and false", len(got.Items), got.HasNext)
 	}
 }
 
@@ -56,7 +57,7 @@ func TestReadCollection_NeverCarriesTheSecret(t *testing.T) {
 	s := newService(t)
 	seedHooks(t, s, 2)
 
-	got, err := s.ReadCollection(context.Background(), owner, repo, 1)
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,13 +77,27 @@ func (failingList) ListRepoHooks(context.Context, string, string, apphook.Paging
 	return model.HookList{}, errors.New("list boom")
 }
 
+func TestReadCollection_CarriesTheGrandTotalNotTheCap(t *testing.T) {
+	t.Parallel()
+	s := newService(t)
+	seedHooks(t, s, 3)
+
+	got, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Items) != 2 || got.Total == nil || *got.Total != 3 {
+		t.Fatalf("shown=%d total=%v, want 2 shown of a total of 3", len(got.Items), got.Total)
+	}
+}
+
 func TestReadCollection_ListFailureIsWrapped(t *testing.T) {
 	t.Parallel()
 	f := fake.New()
 	f.AddRepo(owner, repo)
 	s := apphook.New(failingList{hookadapter.New(f)})
 
-	_, err := s.ReadCollection(context.Background(), owner, repo, 5)
+	_, err := s.ReadCollection(context.Background(), owner, repo, list.Paging{Page: 1, Limit: 5})
 	if err == nil || !strings.Contains(err.Error(), "list boom") {
 		t.Fatalf("want the listing failure, got %v", err)
 	}

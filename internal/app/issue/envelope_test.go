@@ -140,7 +140,7 @@ var envelopeFamilies = []envelopeFamily{
 			if err != nil {
 				t.Fatal(err)
 			}
-			env := got.Envelope()
+			env := got
 			return envelope{Page: env.Page, Limit: env.Limit, Count: env.Count, HasNext: env.HasNext}
 		},
 	},
@@ -154,7 +154,7 @@ var envelopeFamilies = []envelopeFamily{
 			if err != nil {
 				t.Fatal(err)
 			}
-			env := got.Envelope()
+			env := got
 			return envelope{Page: env.Page, Limit: env.Limit, Count: env.Count, HasNext: env.HasNext}
 		},
 	},

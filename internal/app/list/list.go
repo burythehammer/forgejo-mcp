@@ -80,6 +80,9 @@ func (e *OverCeilingError) Error() string {
 type Batch[T any] struct {
 	Items []T
 	Total *int
+	// More is the port's own report that rows follow the page. Window reads it;
+	// Run decides from Total or probes and ignores it.
+	More bool
 }
 
 // Reported is the grand total of a list when the server reported one, nil when
@@ -94,18 +97,6 @@ func Reported(count int, known bool) *int {
 // Fetch reads one page of a list. It is called with a normalized Paging.
 type Fetch[T any] func(ctx context.Context, p Paging) (Batch[T], error)
 
-// Page is one bounded page with its continuation marker.
-type Page[T any] struct {
-	Items []T
-	Page  int
-	Limit int
-	Count int
-	// HasNext reports that more rows follow this page.
-	HasNext bool
-	// Total is the grand total the fetch reported, nil when it reported none.
-	Total *int
-}
-
 // Run fetches one page and reports whether a next page exists. A known
 // ceiling is checked before any fetch. When the fetch reports a grand total,
 // that total decides and no probe is made. Otherwise a page shorter than the
@@ -113,13 +104,13 @@ type Page[T any] struct {
 // other case the next page is probed once at the same limit: a full page may
 // be the last, and the size never changes, because Forgejo derives page
 // offsets from it. So a call makes at most one request beyond its page.
-func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Page[T], error) {
+func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Bounded[T], error) {
 	if err := check(p, c); err != nil {
-		return Page[T]{}, err
+		return Bounded[T]{}, err
 	}
 	b, err := fetch(ctx, p)
 	if err != nil {
-		return Page[T]{}, err
+		return Bounded[T]{}, err
 	}
 	count := len(b.Items)
 	var hasNext bool
@@ -130,14 +121,11 @@ func Run[T any](ctx context.Context, p Paging, c Ceiling, fetch Fetch[T]) (Page[
 	} else if !c.Known || count >= p.Limit {
 		next, err := fetch(ctx, Paging{Page: p.Page + 1, Limit: p.Limit})
 		if err != nil {
-			return Page[T]{}, err
+			return Bounded[T]{}, err
 		}
 		hasNext = len(next.Items) > 0
 	}
-	return Page[T]{
-		Items: b.Items, Page: p.Page, Limit: p.Limit, Count: count,
-		HasNext: hasNext, Total: b.Total,
-	}, nil
+	return newBounded(b.Items, p, b.Total, hasNext), nil
 }
 
 func check(p Paging, c Ceiling) error {

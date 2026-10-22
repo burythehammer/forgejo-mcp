@@ -9,7 +9,6 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/packagesadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
@@ -47,7 +46,7 @@ func (h handlers) ListPackageFilesFn(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return mcpresult.Render(apppkg.New(packagesadapter.New(port)).ListFiles(ctx, apppkg.ListFilesRequest{
+	return listPackageFilesResult(apppkg.New(packagesadapter.New(port)).ListFiles(ctx, apppkg.ListFilesRequest{
 		Coords: c,
 		Page:   page,
 		Limit:  limit,
