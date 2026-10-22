@@ -114,11 +114,13 @@ var (
 
 	GetPullRequestDiffTool = mcp.NewTool(
 		GetPullRequestDiffToolName,
-		mcp.WithDescription("Get the unified diff of a pull request. Pass an optional file_path to receive only the hunks for that file (match is exact on either the pre- or post-rename path). Use list_pull_request_files first to discover the file paths in the PR."),
+		mcp.WithDescription("Get the unified diff of a pull request, one page of whole files at a time (page, limit; default 50 files, so a pull request of ordinary size comes back whole). When files follow the page, the output ends with a truncation marker naming the next page. Pass an optional file_path to receive only the hunks for that file (match is exact on either the pre- or post-rename path); file_path ignores page and limit. Use list_pull_request_files first to discover the file paths in the PR."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.PRIndex)),
-		mcp.WithString("file_path", mcp.Description("Optional. Return only the diff section for this file (matched on the diff --git boundary). Omit for the full diff.")),
+		mcp.WithString("file_path", mcp.Description("Optional. Return only the diff section for this file (matched on the diff --git boundary). Omit for the page of files.")),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
+		mcp.WithNumber("limit", mcp.Description("Files per page (default 50; a larger limit than the instance maximum is refused)."), mcp.DefaultNumber(50)),
 	)
 
 	MergePullRequestTool = mcp.NewTool(

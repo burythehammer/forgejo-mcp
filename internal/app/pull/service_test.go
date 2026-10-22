@@ -172,12 +172,12 @@ func TestDiffWholeOrOneFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := s.Diff(context.Background(), apppull.DiffInput{PR: pr(i)})
-	if err != nil || got != diff {
-		t.Fatalf("whole: %q, %v", got, err)
+	if err != nil || got.Text != diff {
+		t.Fatalf("whole: %+v, %v", got, err)
 	}
 	got, err = s.Diff(context.Background(), apppull.DiffInput{PR: pr(i), FilePath: "b.go"})
-	if err != nil || strings.Contains(got, "a.go") || !strings.Contains(got, "b.go") {
-		t.Fatalf("slice: %q, %v", got, err)
+	if err != nil || strings.Contains(got.Text, "a.go") || !strings.Contains(got.Text, "b.go") {
+		t.Fatalf("slice: %+v, %v", got, err)
 	}
 	_, err = s.Diff(context.Background(), apppull.DiffInput{PR: pr(i), FilePath: "nope.go"})
 	var missing *apppull.DiffFileNotFoundError

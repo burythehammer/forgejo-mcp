@@ -4,6 +4,8 @@ package pull
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/pull"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
@@ -108,6 +110,8 @@ type diffArgs struct {
 	Repo     string  `json:"repo" required:"true"`
 	Index    float64 `json:"index" required:"true"`
 	FilePath string  `json:"file_path"`
+	Page     float64 `json:"page"`
+	Limit    float64 `json:"limit"`
 }
 
 type createReviewArgs struct {
@@ -249,9 +253,43 @@ func (h handlers) ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetPullRequestDiffFn", func(ctx context.Context, s *apppull.Service, a diffArgs) (*mcp.CallToolResult, error) {
-		body, err := s.Diff(ctx, apppull.DiffInput{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, FilePath: a.FilePath})
-		return message(body, err)
+		page, err := s.Diff(ctx, apppull.DiffInput{
+			PR:       apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)},
+			FilePath: a.FilePath,
+			Page:     decode.PageOr(a.Page, 1),
+			Limit:    decode.IntOr(a.Limit, 0),
+		})
+		if err != nil {
+			return message("", err)
+		}
+		return message(diffWithMarker(page), nil)
 	})
+}
+
+// diffWithMarker is the diff page as text, followed by a truncation marker
+// when files follow it or the page is past the last file. A diff that fits in
+// one page comes back as the bare diff, as it always has.
+func diffWithMarker(p apppull.DiffPage) string {
+	switch {
+	case p.HasNext:
+		first := (p.Page-1)*p.Limit + 1
+		marker := fmt.Sprintf("[diff truncated: files %d-%d of %d shown; call get_pull_request_diff with page=%d and limit=%d for the next part, or pass file_path for one file]",
+			first, first+p.Count-1, p.Files, p.Page+1, p.Limit)
+		return withMarker(p.Text, marker)
+	case p.Page > 0 && p.Count == 0 && p.Files > 0:
+		return fmt.Sprintf("[no files on page %d: the diff has %d files]", p.Page, p.Files)
+	}
+	return p.Text
+}
+
+func withMarker(text, marker string) string {
+	if text == "" {
+		return marker
+	}
+	if !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	return text + "\n" + marker
 }
 
 func (h handlers) CreatePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
