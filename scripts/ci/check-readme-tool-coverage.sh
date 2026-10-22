@@ -89,7 +89,7 @@ echo "check-readme-coverage: ${tools_total} tool(s), ${res_total} resource templ
 
 if [ "$errors" -gt 0 ]; then
   echo "" >&2
-  echo "Add a row to the matching table in README.md. See AGENTS.md, 'Adding a New Tool'." >&2
+  echo "Add a row to the matching table in README.md. See docs/agents/adding-a-tool.md." >&2
   exit 1
 fi
 exit 0
