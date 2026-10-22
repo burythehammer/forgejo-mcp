@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -20,7 +21,8 @@ type Service struct{ port Port }
 func New(port Port) *Service { return &Service{port: port} }
 
 // HookRef names one webhook of a repository. ID is the number as the caller
-// gave it: zero is a missing ID, and a fraction truncates after that check.
+// gave it. It must be a positive whole number: zero, a negative number and a
+// fraction are all refused with ErrRequired before any request is made.
 type HookRef struct {
 	Owner, Repo string
 	ID          float64
@@ -213,8 +215,11 @@ func (s *Service) Test(ctx context.Context, r HookRef) error {
 // repo or id. An adapter can tell it apart from a Forgejo failure.
 var ErrRequired = errors.New("owner, repo and id are required")
 
+// check accepts only a positive whole number as the hook ID. A fraction is
+// refused rather than truncated, so the call never acts on a hook other than
+// the one named. The comparisons are written so NaN and values past int64 fail.
 func (r HookRef) check() error {
-	if r.Owner == "" || r.Repo == "" || r.ID == 0 {
+	if r.Owner == "" || r.Repo == "" || !(r.ID >= 1 && r.ID == math.Trunc(r.ID) && r.ID <= math.MaxInt64) {
 		return ErrRequired
 	}
 	return nil

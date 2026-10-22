@@ -124,6 +124,76 @@ func TestGetAndDeleteNeedAnID(t *testing.T) {
 	}
 }
 
+// countingPort counts the calls that reach Forgejo, so a test can show that a
+// bad hook ID was refused before any request was made.
+type countingPort struct {
+	stubPort
+	calls int
+}
+
+func (p *countingPort) GetRepoHook(ctx context.Context, o, r string, id int64) (*model.Hook, error) {
+	p.calls++
+	return p.stubPort.GetRepoHook(ctx, o, r, id)
+}
+
+func (p *countingPort) EditRepoHook(ctx context.Context, o, r string, id int64, in apphook.EditInput) error {
+	p.calls++
+	return p.stubPort.EditRepoHook(ctx, o, r, id, in)
+}
+
+func (p *countingPort) DeleteRepoHook(ctx context.Context, o, r string, id int64) error {
+	p.calls++
+	return p.stubPort.DeleteRepoHook(ctx, o, r, id)
+}
+
+func (p *countingPort) TestRepoHook(ctx context.Context, o, r string, id int64) error {
+	p.calls++
+	return p.stubPort.TestRepoHook(ctx, o, r, id)
+}
+
+// hookOps runs each hook use case against id, so one table covers get, edit,
+// delete and test.
+func hookOps(s *apphook.Service, id float64) map[string]func() error {
+	ctx := context.Background()
+	return map[string]func() error{
+		"get": func() error { _, err := s.Get(ctx, ref(id)); return err },
+		"edit": func() error {
+			_, err := s.Edit(ctx, apphook.EditRequest{HookRef: ref(id), URL: strp("https://x")})
+			return err
+		},
+		"delete": func() error { return s.Delete(ctx, ref(id)) },
+		"test":   func() error { return s.Test(ctx, ref(id)) },
+	}
+}
+
+func TestHookIDMustBeAPositiveWholeNumber(t *testing.T) {
+	t.Parallel()
+	for _, id := range []float64{0, 0.5, -1, 2.5} {
+		port := &countingPort{}
+		for name, op := range hookOps(apphook.New(port), id) {
+			if err := op(); !errors.Is(err, apphook.ErrRequired) {
+				t.Errorf("%s id %v: got %v, want ErrRequired", name, id, err)
+			}
+		}
+		if port.calls != 0 {
+			t.Errorf("id %v: %d calls reached the port, want 0", id, port.calls)
+		}
+	}
+}
+
+func TestPositiveHookIDStillReachesTheHook(t *testing.T) {
+	t.Parallel()
+	port := &countingPort{}
+	for name, op := range hookOps(apphook.New(port), 7) {
+		if err := op(); err != nil {
+			t.Errorf("%s id 7: got %v", name, err)
+		}
+	}
+	if port.calls == 0 {
+		t.Error("a valid id never reached the port")
+	}
+}
+
 func TestDeleteRemovesTheHook(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
