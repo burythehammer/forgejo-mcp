@@ -100,6 +100,9 @@ var catalogue = []Toolset{
 	{
 		Name: "milestones",
 		Tools: []string{
+			"create_milestone",
+			"edit_milestone",
+			"get_milestone",
 			"list_repo_milestones",
 		},
 	},

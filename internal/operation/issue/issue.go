@@ -259,6 +259,7 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(ListOrgLabelsTool, h.ListOrgLabelsFn)
 	s.AddTool(SearchIssuesTool, h.SearchIssuesFn)
 	h.registerLabelTools(s)
+	h.registerMilestoneTools(s)
 	h.registerDependencyTools(s)
 }
 

@@ -643,3 +643,99 @@ func (f *Forgejo) ListRepoMilestones(_ context.Context, owner, repo string, opt 
 	lo, hi := page(opt.ListOptions, len(out))
 	return out[lo:hi], nil
 }
+
+// milestoneRec finds a milestone of the repository by ID. The caller holds the
+// issue lock.
+func (r *issueRepo) milestoneRec(id int64) (*forgejo_sdk.Milestone, error) {
+	for _, m := range r.milestones {
+		if m.ID == id {
+			return m, nil
+		}
+	}
+	return nil, notFound("milestone")
+}
+
+// milestoneView is a copy of a milestone as the server reports it: its issue
+// counts are worked out from the repository's issues. The caller holds the
+// issue lock.
+func (r *issueRepo) milestoneView(m *forgejo_sdk.Milestone) *forgejo_sdk.Milestone {
+	cp := *m
+	cp.OpenIssues, cp.ClosedIssues = 0, 0
+	for _, rec := range r.issues {
+		if rec.issue.Milestone == nil || rec.issue.Milestone.ID != m.ID {
+			continue
+		}
+		if rec.issue.State == forgejo_sdk.StateClosed {
+			cp.ClosedIssues++
+		} else {
+			cp.OpenIssues++
+		}
+	}
+	return &cp
+}
+
+func (f *Forgejo) GetMilestone(_ context.Context, owner, repo string, id int64) (*forgejo_sdk.Milestone, error) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	m, err := r.milestoneRec(id)
+	if err != nil {
+		return nil, err
+	}
+	return r.milestoneView(m), nil
+}
+
+func (f *Forgejo) CreateMilestone(_ context.Context, owner, repo string, opt forgejo_sdk.CreateMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(opt.Title) == "" {
+		return nil, fmt.Errorf("title is empty")
+	}
+	r.nextMS++
+	m := &forgejo_sdk.Milestone{ID: r.nextMS, Title: opt.Title, Description: opt.Description,
+		State: forgejo_sdk.StateOpen, Created: f.Now(), Deadline: opt.Deadline}
+	r.milestones = append(r.milestones, m)
+	return r.milestoneView(m), nil
+}
+
+func (f *Forgejo) EditMilestone(_ context.Context, owner, repo string, id int64, opt forgejo_sdk.EditMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	m, err := r.milestoneRec(id)
+	if err != nil {
+		return nil, err
+	}
+	if opt.State != nil && *opt.State != forgejo_sdk.StateOpen && *opt.State != forgejo_sdk.StateClosed {
+		return nil, statusErr(http.StatusUnprocessableEntity, "state must be open or closed")
+	}
+	now := f.Now()
+	if opt.Title != "" {
+		m.Title = opt.Title
+	}
+	if opt.Description != nil {
+		m.Description = *opt.Description
+	}
+	if opt.State != nil && *opt.State != m.State {
+		m.State = *opt.State
+		m.Closed = nil
+		if m.State == forgejo_sdk.StateClosed {
+			m.Closed = &now
+		}
+	}
+	if opt.Deadline != nil {
+		m.Deadline = opt.Deadline
+	}
+	m.Updated = &now
+	return r.milestoneView(m), nil
+}

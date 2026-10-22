@@ -130,3 +130,18 @@ func (a *Adapter) ListRepoMilestones(_ context.Context, owner, repo string, opt 
 	ms, resp, err := a.client.ListRepoMilestones(owner, repo, opt)
 	return ms, statusErr(resp, err)
 }
+
+func (a *Adapter) GetMilestone(_ context.Context, owner, repo string, id int64) (*forgejo_sdk.Milestone, error) {
+	m, resp, err := a.client.GetMilestone(owner, repo, id)
+	return m, statusErr(resp, err)
+}
+
+func (a *Adapter) CreateMilestone(_ context.Context, owner, repo string, opt forgejo_sdk.CreateMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	m, resp, err := a.client.CreateMilestone(owner, repo, opt)
+	return m, statusErr(resp, err)
+}
+
+func (a *Adapter) EditMilestone(_ context.Context, owner, repo string, id int64, opt forgejo_sdk.EditMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	m, resp, err := a.client.EditMilestone(owner, repo, id, opt)
+	return m, statusErr(resp, err)
+}

@@ -367,6 +367,9 @@ List all my repositories
 | `add_issue_dependency` | Make one issue depend on another. The dependency may live in a different repository: optional `depends_on_owner`/`depends_on_repo` default to `owner`/`repo`. |
 | `remove_issue_dependency` | Remove a dependency from an issue. For a cross-repo dependency, optional `dependency_owner`/`dependency_repo` default to `owner`/`repo`. |
 | `list_repo_milestones` | List milestones with their IDs (use with `update_issue`) (page/limit); returns `{milestones,page,limit,count,has_next}` |
+| `create_milestone` | Create an open milestone (`title` required; optional `description` and `due_date`, RFC3339). Returns the milestone as stored: `id`, `title`, `description`, `state`, `due_date`, `open_issues`, `closed_issues`. |
+| `edit_milestone` | Edit a milestone by numeric `id`. Only the fields given change: `title`, `description`, `state` (`open` or `closed`, which closes or reopens it) and `due_date` (RFC3339). A due date cannot be cleared. Returns the milestone as stored. |
+| `get_milestone` | Get one milestone by numeric `id`, in the same shape as the write tools. A missing id is an error. |
 | `list_repo_labels` | List labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. Merges org-level labels for org-owned repos (set `include_org_labels=false` to opt out). Each entry carries a `scope` field (`"repo"` or `"org"`). |
 | `list_org_labels` | List organization-level labels with their IDs (page/limit); returns `{labels,page,limit,count,has_next,total_count}`. The assignment tools accept label names directly, so this is for discovery and for the rare name that exists in both the repo and the org scope. |
 | `create_repo_label` | Create a repository label (`name`, `color` as 6-digit hex, optional `description`). Returns the numeric `id`; `add_issue_labels` also takes the name. |
@@ -530,7 +533,7 @@ Per-toolset figures below are the same measure for a selection of that one tools
 | `repos` | 21 | 4522 | `add_repo_topic`, `change_files`, `create_branch`, `create_file`, `create_repo`, `delete_branch`, `delete_file`, `delete_repo_topic`, `edit_repo`, `fork_repo`, `get_commit_statuses`, `get_file_content`, `get_repo`, `get_repo_tree`, `list_branches`, `list_my_repos`, `list_repo_commits`, `list_repo_contents`, `list_repo_topics`, `set_repo_topics`, `update_file` |
 | `issues` | 11 | 2721 | `create_issue`, `create_issue_comment`, `delete_issue_comment`, `edit_issue_comment`, `get_issue_by_index`, `get_issue_comment`, `issue_state_change`, `list_issue_comments`, `list_repo_issues`, `search_issues`, `update_issue` |
 | `labels` | 12 | 2089 | `add_issue_labels`, `create_org_label`, `create_repo_label`, `delete_org_label`, `delete_repo_label`, `edit_org_label`, `edit_repo_label`, `get_org_label`, `get_repo_label`, `list_org_labels`, `list_repo_labels`, `remove_issue_labels` |
-| `milestones` | 1 | 205 | `list_repo_milestones` |
+| `milestones` | 4 | 205 | `create_milestone`, `edit_milestone`, `get_milestone`, `list_repo_milestones` |
 | `dependencies` | 4 | 982 | `add_issue_dependency`, `list_issue_dependencies`, `list_issue_dependents`, `remove_issue_dependency` |
 | `pulls` | 16 | 2967 | `create_pull_request`, `create_pull_review`, `create_review_requests`, `delete_pull_review`, `delete_review_requests`, `dismiss_pull_review`, `get_pull_request_by_index`, `get_pull_request_diff`, `get_pull_review`, `list_pull_request_files`, `list_pull_review_comments`, `list_pull_reviews`, `list_repo_pull_requests`, `merge_pull_request`, `submit_pull_review`, `update_pull_request` |
 | `search` | 3 | 506 | `search_org_teams`, `search_repos`, `search_users` |

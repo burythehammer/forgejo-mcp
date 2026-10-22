@@ -308,6 +308,48 @@ func RunIssues(t *testing.T, newHarness func(t *testing.T) Harness) {
 			_, err = h.Port.ListRepoMilestones(ctx, "nobody", "nothing", forgejo_sdk.ListMilestoneOption{})
 			wantNotFound(t, err)
 		}},
+		{"milestone create, edit, close, reopen and get", func(t *testing.T, h Harness) {
+			h.Seed.AddRepo(Owner, Repo)
+			due := time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)
+			created, err := h.Port.CreateMilestone(ctx, Owner, Repo, forgejo_sdk.CreateMilestoneOption{Title: "set 1", Description: "first", Deadline: &due})
+			must(t, err)
+			if created.ID == 0 || created.Title != "set 1" || created.Description != "first" || created.State != forgejo_sdk.StateOpen || created.Deadline == nil {
+				t.Fatalf("created: %+v", created)
+			}
+
+			desc := "fixed"
+			edited, err := h.Port.EditMilestone(ctx, Owner, Repo, created.ID, forgejo_sdk.EditMilestoneOption{Description: &desc})
+			must(t, err)
+			if edited.Title != "set 1" || edited.Description != "fixed" || edited.Deadline == nil {
+				t.Fatalf("partial edit must keep title and due date: %+v", edited)
+			}
+
+			closed := forgejo_sdk.StateClosed
+			edited, err = h.Port.EditMilestone(ctx, Owner, Repo, created.ID, forgejo_sdk.EditMilestoneOption{State: &closed})
+			must(t, err)
+			if edited.State != forgejo_sdk.StateClosed || edited.Description != "fixed" {
+				t.Fatalf("close: %+v", edited)
+			}
+			got, err := h.Port.GetMilestone(ctx, Owner, Repo, created.ID)
+			must(t, err)
+			if got.State != forgejo_sdk.StateClosed || got.Title != "set 1" {
+				t.Fatalf("get after close: %+v", got)
+			}
+
+			open := forgejo_sdk.StateOpen
+			_, err = h.Port.EditMilestone(ctx, Owner, Repo, created.ID, forgejo_sdk.EditMilestoneOption{State: &open})
+			must(t, err)
+			got, err = h.Port.GetMilestone(ctx, Owner, Repo, created.ID)
+			must(t, err)
+			if got.State != forgejo_sdk.StateOpen {
+				t.Fatalf("get after reopen: %+v", got)
+			}
+
+			_, err = h.Port.GetMilestone(ctx, Owner, Repo, 999)
+			wantNotFound(t, err)
+			_, err = h.Port.EditMilestone(ctx, Owner, Repo, 999, forgejo_sdk.EditMilestoneOption{Description: &desc})
+			wantNotFound(t, err)
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

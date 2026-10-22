@@ -41,6 +41,9 @@ type Port interface {
 	EditIssueComment(ctx context.Context, owner, repo string, id int64, body string) (*model.Comment, error)
 	DeleteIssueComment(ctx context.Context, owner, repo string, id int64) error
 	ListRepoMilestones(ctx context.Context, owner, repo string, m MilestoneList) ([]*model.Milestone, error)
+	GetMilestone(ctx context.Context, owner, repo string, id int64) (*model.Milestone, error)
+	CreateMilestone(ctx context.Context, owner, repo string, in MilestoneNew) (*model.Milestone, error)
+	EditMilestone(ctx context.Context, owner, repo string, id int64, in MilestoneEdit) (*model.Milestone, error)
 
 	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.Label, error)
 	GetRepoLabel(ctx context.Context, owner, repo string, id int64) (*model.Label, error)
@@ -130,6 +133,24 @@ type CommentList struct {
 type MilestoneList struct {
 	State string
 	Paging
+}
+
+// MilestoneNew is a milestone to create. Due is nil when the milestone has no
+// deadline.
+type MilestoneNew struct {
+	Title, Description string
+	Due                *time.Time
+}
+
+// MilestoneEdit is a partial milestone update: a nil field is left alone. Tool
+// names the tool the edit came from, for the error when nothing is supplied.
+// Due cannot be cleared.
+type MilestoneEdit struct {
+	Tool        string
+	Title       *string
+	Description *string
+	State       *string
+	Due         *time.Time
 }
 
 // LabelNew is a label to create.

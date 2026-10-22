@@ -12,6 +12,7 @@ package issueadapter
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	appissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
@@ -162,6 +163,40 @@ func (a adapter) ListRepoMilestones(ctx context.Context, owner, repo string, m a
 		State:       forgejo_sdk.StateType(m.State),
 	})
 	return bridge.Convert[[]*model.Milestone](milestones, err)
+}
+
+func (a adapter) GetMilestone(ctx context.Context, owner, repo string, id int64) (*model.Milestone, error) {
+	m, err := a.s.GetMilestone(ctx, owner, repo, id)
+	if forge.IsNotFound(err) {
+		return nil, &appissue.NotFoundError{Err: fmt.Errorf("milestone %d not found", id)}
+	}
+	return bridge.Convert[*model.Milestone](m, err)
+}
+
+func (a adapter) CreateMilestone(ctx context.Context, owner, repo string, in appissue.MilestoneNew) (*model.Milestone, error) {
+	opt := forgejo_sdk.CreateMilestoneOption{Title: in.Title, Description: in.Description, Deadline: in.Due}
+	m, err := a.s.CreateMilestone(ctx, owner, repo, opt)
+	return bridge.Convert[*model.Milestone](m, err)
+}
+
+func (a adapter) EditMilestone(ctx context.Context, owner, repo string, id int64, in appissue.MilestoneEdit) (*model.Milestone, error) {
+	opt := forgejo_sdk.EditMilestoneOption{Deadline: in.Due}
+	if in.Title != nil {
+		opt.Title = *in.Title
+	}
+	if in.Description != nil {
+		desc := *in.Description
+		opt.Description = &desc
+	}
+	if in.State != nil {
+		state := forgejo_sdk.StateType(*in.State)
+		opt.State = &state
+	}
+	m, err := a.s.EditMilestone(ctx, owner, repo, id, opt)
+	if forge.IsNotFound(err) {
+		return nil, &appissue.NotFoundError{Err: fmt.Errorf("milestone %d not found", id)}
+	}
+	return bridge.Convert[*model.Milestone](m, err)
 }
 
 func (a adapter) ListRepoLabels(ctx context.Context, owner, repo string, p appissue.Paging) ([]*model.Label, error) {

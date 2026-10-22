@@ -31,7 +31,8 @@ var goldenAllTools = []mcp.Tool{
 	GetIssueByIndexTool, ListRepoIssuesTool, CreateIssueTool, CreateIssueCommentTool,
 	UpdateIssueTool, AddIssueLabelsTools, RemoveIssueLabelsTools, IssueStateChangeTool,
 	ListIssueCommentsTool, GetIssueCommentTool, EditIssueCommentTool, DeleteIssueCommentTool,
-	ListRepoMilestonesTool, ListRepoLabelsTool, ListOrgLabelsTool, SearchIssuesTool,
+	ListRepoMilestonesTool, CreateMilestoneTool, EditMilestoneTool, GetMilestoneTool,
+	ListRepoLabelsTool, ListOrgLabelsTool, SearchIssuesTool,
 	CreateRepoLabelTool, EditRepoLabelTool, DeleteRepoLabelTool, GetRepoLabelTool,
 	CreateOrgLabelTool, EditOrgLabelTool, DeleteOrgLabelTool, GetOrgLabelTool,
 	ListIssueDependenciesTool, ListIssueDependentsTool, AddIssueDependencyTool, RemoveIssueDependencyTool,
@@ -42,6 +43,15 @@ func TestSchemaSnapshots(t *testing.T) {
 	for _, tool := range goldenAllTools {
 		t.Run(tool.Name, func(t *testing.T) { mcptest.SchemaSnapshot(t, tool) })
 	}
+}
+
+// TestMilestoneArgsMatchSchemas keeps the milestone tools' argument structs in
+// step with their schemas.
+func TestMilestoneArgsMatchSchemas(t *testing.T) {
+	t.Parallel()
+	mcptest.ArgsMatchSchema(t, CreateMilestoneTool, createMilestoneArgs{})
+	mcptest.ArgsMatchSchema(t, EditMilestoneTool, editMilestoneArgs{})
+	mcptest.ArgsMatchSchema(t, GetMilestoneTool, getMilestoneArgs{})
 }
 
 // TestCompactWriteArgsMatchSchemas keeps the write tools' argument structs,
@@ -178,6 +188,39 @@ func (s *goldenStub) DeleteIssueComment(_ context.Context, o, r string, id int64
 
 func (s *goldenStub) ListRepoMilestones(_ context.Context, o, r string, opt forgejo_sdk.ListMilestoneOption) ([]*forgejo_sdk.Milestone, error) {
 	return []*forgejo_sdk.Milestone{{ID: 4, Title: "v1", Created: gT0}}, s.rec("ListRepoMilestones", o, r, opt)
+}
+
+// goldenMilestone is milestone 4 as the server holds it. The write methods
+// return it with the fields they were given applied, as Forgejo does.
+func goldenMilestone() *forgejo_sdk.Milestone {
+	return &forgejo_sdk.Milestone{ID: 4, Title: "v1", Description: "first", State: forgejo_sdk.StateOpen, OpenIssues: 2, ClosedIssues: 1, Created: gT0}
+}
+
+func (s *goldenStub) GetMilestone(_ context.Context, o, r string, id int64) (*forgejo_sdk.Milestone, error) {
+	return goldenMilestone(), s.rec("GetMilestone", o, r, id)
+}
+
+func (s *goldenStub) CreateMilestone(_ context.Context, o, r string, opt forgejo_sdk.CreateMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	m := goldenMilestone()
+	m.Title, m.Description, m.Deadline = opt.Title, opt.Description, opt.Deadline
+	return m, s.rec("CreateMilestone", o, r, opt)
+}
+
+func (s *goldenStub) EditMilestone(_ context.Context, o, r string, id int64, opt forgejo_sdk.EditMilestoneOption) (*forgejo_sdk.Milestone, error) {
+	m := goldenMilestone()
+	if opt.Title != "" {
+		m.Title = opt.Title
+	}
+	if opt.Description != nil {
+		m.Description = *opt.Description
+	}
+	if opt.State != nil {
+		m.State = *opt.State
+	}
+	if opt.Deadline != nil {
+		m.Deadline = opt.Deadline
+	}
+	return m, s.rec("EditMilestone", o, r, id, opt)
 }
 
 // repoLabels are the labels of every repository: "bug" and "ui".
@@ -434,6 +477,24 @@ var goldenCases = []goldenCase{
 	{name: "list_milestones_closed_paged", tool: ListRepoMilestonesToolName, args: map[string]any{"state": "closed", "page": float64(2), "limit": float64(10)}},
 	{name: "list_milestones_empty_state", tool: ListRepoMilestonesToolName, args: map[string]any{"state": ""}},
 	{name: "list_milestones_port_error", tool: ListRepoMilestonesToolName, stub: failing("ListRepoMilestones", errBoom)},
+
+	// create_milestone, edit_milestone, get_milestone
+	{name: "create_milestone", tool: CreateMilestoneToolName, args: map[string]any{"title": "v2", "description": "second", "due_date": "2026-12-01T00:00:00Z"}},
+	{name: "create_milestone_no_due", tool: CreateMilestoneToolName, args: map[string]any{"title": "v2"}},
+	{name: "create_milestone_blank_title", tool: CreateMilestoneToolName, args: map[string]any{"title": "  "}},
+	{name: "create_milestone_bad_due", tool: CreateMilestoneToolName, args: map[string]any{"title": "v2", "due_date": "tomorrow"}},
+	{name: "create_milestone_port_error", tool: CreateMilestoneToolName, args: map[string]any{"title": "v2"}, stub: failing("CreateMilestone", errBoom)},
+	{name: "edit_milestone_close", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4), "state": "closed"}},
+	{name: "edit_milestone_partial", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4), "description": "fixed"}},
+	{name: "edit_milestone_rename_and_due", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4), "title": "v1.1", "due_date": "2027-01-02T03:04:05Z"}},
+	{name: "edit_milestone_no_fields", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4)}},
+	{name: "edit_milestone_bad_state", tool: EditMilestoneToolName, args: map[string]any{"id": float64(4), "state": "archived"}},
+	{name: "edit_milestone_bad_id", tool: EditMilestoneToolName, args: map[string]any{"id": float64(2.5), "state": "closed"}},
+	{name: "edit_milestone_not_found", tool: EditMilestoneToolName, args: map[string]any{"id": float64(99), "state": "closed"}, stub: failing("EditMilestone", goldenStatus(http.StatusNotFound))},
+	{name: "get_milestone", tool: GetMilestoneToolName, args: map[string]any{"id": float64(4)}},
+	{name: "get_milestone_zero_id", tool: GetMilestoneToolName, args: map[string]any{"id": float64(0)}},
+	{name: "get_milestone_not_found", tool: GetMilestoneToolName, args: map[string]any{"id": float64(99)}, stub: failing("GetMilestone", goldenStatus(http.StatusNotFound))},
+	{name: "get_milestone_port_error", tool: GetMilestoneToolName, args: map[string]any{"id": float64(4)}, stub: failing("GetMilestone", errBoom)},
 
 	// list_repo_labels, list_org_labels
 	{name: "list_repo_labels_user_owner", tool: ListRepoLabelsToolName},
