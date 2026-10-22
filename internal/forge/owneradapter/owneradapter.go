@@ -2,8 +2,8 @@
 
 // Package owneradapter implements the owner use case's port (internal/app/owner.Port)
 // over the Forgejo port (forge.Users and forge.Orgs). It translates SDK results
-// into internal/app/model values and a Forgejo not-found into owner.ErrNotFound, so the
-// use case never sees an SDK type or a status code.
+// into internal/app/model values and passes a Forgejo not-found on as forge.ErrNotFound,
+// so the use case never sees an SDK type or a status code.
 package owneradapter
 
 import (
@@ -30,7 +30,7 @@ func (a adapter) GetUser(ctx context.Context, login string) (*model.User, error)
 	u, err := a.u.GetUserInfo(ctx, login)
 	if err != nil {
 		if forge.IsNotFound(err) {
-			return nil, fmt.Errorf("%w: user %s", appowner.ErrNotFound, login)
+			return nil, fmt.Errorf("%w: user %s", forge.ErrNotFound, login)
 		}
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (a adapter) GetOrg(ctx context.Context, name string) (*model.Organization, 
 	org, err := a.o.GetOrg(ctx, name)
 	if err != nil {
 		if forge.IsNotFound(err) {
-			return nil, fmt.Errorf("%w: org %s", appowner.ErrNotFound, name)
+			return nil, fmt.Errorf("%w: org %s", forge.ErrNotFound, name)
 		}
 		return nil, err
 	}

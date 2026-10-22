@@ -226,7 +226,7 @@ func (a adapter) DeleteRepoLabel(ctx context.Context, owner, repo string, id int
 
 func (a adapter) ListOrgLabels(ctx context.Context, org string, p appissue.Paging) ([]*model.CatalogLabel, error) {
 	labels, _, err := a.s.ListOrgLabels(ctx, org, p.Page, p.Limit)
-	return bridge.Convert[[]*model.CatalogLabel](labels, orgLabelsErr(err))
+	return bridge.Convert[[]*model.CatalogLabel](labels, err)
 }
 
 func (a adapter) ListRepoLabelsPage(ctx context.Context, owner, repo string, p appissue.Paging) (appissue.LabelPage, error) {
@@ -236,19 +236,11 @@ func (a adapter) ListRepoLabelsPage(ctx context.Context, owner, repo string, p a
 
 func (a adapter) ListOrgLabelsPage(ctx context.Context, org string, p appissue.Paging) (appissue.LabelPage, error) {
 	labels, info, err := a.s.ListOrgLabels(ctx, org, p.Page, p.Limit)
-	return labelPage(labels, info, orgLabelsErr(err))
+	return labelPage(labels, info, err)
 }
 
 // labelPage converts one label page and carries what the server reported past
 // it. The total is kept only when the server reported one.
-// orgLabelsErr marks a forge not-found on an organization's labels as
-// appissue.ErrOrgNotFound, keeping the forge kind for the renderers.
-func orgLabelsErr(err error) error {
-	if forge.IsNotFound(err) {
-		return appissue.AsOrgNotFound(err)
-	}
-	return err
-}
 
 func labelPage(labels []*forge.Label, info forge.PageInfo, err error) (appissue.LabelPage, error) {
 	out, err := bridge.Convert[[]*model.CatalogLabel](labels, err)
