@@ -629,6 +629,7 @@ You can configure the server using command-line arguments or environment variabl
 | `--forgejo-jwt-published-key-files` | `FORGEJO_MCP_FORGEJO_JWT_PUBLISHED_KEY_FILES` | `resource-server` mode: comma-separated PEM keys published next to the signing key, for key rotation |
 | `--cli` | - | Enter CLI mode for direct tool invocation |
 | `--user-agent` | `FORGEJO_USER_AGENT` | HTTP User-Agent header (default: `forgejo-mcp/<version>`) |
+| `--request-timeout` | `FORGEJO_REQUEST_TIMEOUT` | Longest wait for one Forgejo request, as a Go duration such as `30s` (default: `60s`). A stalled Forgejo fails the call with a "did not respond in time" error. Uploads have their own bound of 10 minutes |
 | `--tls-ca` | `FORGEJO_TLS_CA` | PEM file of CA certificates to trust for the Forgejo instance, added to the system roots (see [Private or self-signed Forgejo certificates](#private-or-self-signed-forgejo-certificates)) |
 | `--tls-skip-verify` | `FORGEJO_TLS_SKIP_VERIFY` | Turn off TLS certificate verification for the Forgejo instance. Off by default; logs a warning at startup (see [Private or self-signed Forgejo certificates](#private-or-self-signed-forgejo-certificates)) |
 | - | `FORGEJO_MCP_ALLOW_FILE_PATH_UPLOAD` | Allow `file_path` attachment uploads to read the host filesystem (`1`/`true`/`yes`/`on`; off by default) |
