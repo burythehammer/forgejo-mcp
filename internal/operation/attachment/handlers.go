@@ -13,6 +13,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/attachmentadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/upload"
@@ -145,13 +146,11 @@ type commentEditArgs struct {
 	Name         string `json:"name" required:"true"`
 }
 
-// number reads a required numeric argument, with the tool's error text.
+// number reads a required ID through the numeric-argument module: a missing one
+// is "<name> is required", a zero, negative or fractional one is "<name> must
+// be a positive integer".
 func number(v any, name string) (int64, error) {
-	f, err := to.Float64(v)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", name, err)
-	}
-	return int64(f), nil
+	return numarg.RequiredPositiveInt(name, v)
 }
 
 // --- Issue-scoped handlers --------------------------------------------------

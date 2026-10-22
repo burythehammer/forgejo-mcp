@@ -4,7 +4,6 @@ package actions
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
@@ -74,12 +73,12 @@ func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolReques
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	// The optional numbers are silently defaulted when they cannot be read,
-	// as they always were.
-	var runNumber int64
-	if rn, ok := number(a.RunNumber); ok {
-		runNumber = int64(rn)
+	runNumber, _, err := optionalNonNegativeIntegerArg(a.RunNumber, "run_number")
+	if err != nil {
+		return to.ErrorResult(err)
 	}
+	// page and limit are still read here, silently defaulted, until the
+	// page/limit migration (#244) moves them to the module.
 	page := 1
 	if p, ok := number(a.Page); ok {
 		page = int(p)
@@ -113,14 +112,9 @@ func (h handlers) GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest)
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	// Any run_id that is not a number, absent ones included, is "required".
-	runIDFloat, ok := number(a.RunID)
-	if !ok {
-		return to.ErrorResult(errors.New("run_id is required"))
-	}
-	runID := int64(runIDFloat)
-	if runID <= 0 {
-		return to.ErrorResult(errors.New("run_id must be a positive integer"))
+	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
+	if err != nil {
+		return to.ErrorResult(err)
 	}
 
 	svc, err := useCases(ctx, h)
