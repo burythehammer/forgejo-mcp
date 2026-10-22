@@ -29,4 +29,11 @@ Tool functions in `operation/*` read MCP arguments, call Forgejo, and format MCP
 
 Note (issue #12): `app/` and `operation/` now live under `internal/`, and the depguard rules in `.golangci.yml` replace `scripts/ci/check-app-boundary.sh`.
 
-Amendment (2026-10-22, issue #294): the "wire contract is frozen" rule no longer holds for `list_my_repos`. Its output was a bare array, which left a caller unable to tell whether rows followed a full page. It now returns the list envelope `{repositories, page, limit, count, has_next}` through `list.Run`, and the instance ceiling applies to it. That is a deliberate output-shape change, called out in the PR that made it; every other tool's bytes stay frozen by this ADR.
+Amendment (2026-10-22, spec #141, issue #294): the "wire contract is frozen" rule no longer holds for the bounded-list tools that spec changed. Each change is a deliberate output-shape change, called out in the PR that made it:
+
+- `list_my_repos`: its output was a bare array, which left a caller unable to tell whether rows followed a full page. It now returns the list envelope `{repositories, page, limit, count, has_next}` through `list.Run`, and the instance ceiling applies to it. `page` and `limit` are optional (defaults 1 and 100).
+- `list_my_stopwatches`: its output was a bare array. It now returns the envelope `{stopwatches, page, limit, count, has_next}` with `page`/`limit` inputs.
+- `get_repo_tree`: its output was an object carrying `sha`, `url` and `truncated`. It is now the list envelope over its entries; `sha`, `url` and `truncated` are dropped.
+- `get_commit_statuses`: `has_next` is added to the output, and a `limit` above 50 is no longer clamped to 50; it is held to the instance ceiling instead.
+
+Every other tool's bytes stay frozen by this ADR.

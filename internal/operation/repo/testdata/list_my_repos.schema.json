@@ -21,10 +21,7 @@
         "type": "number"
       }
     },
-    "required": [
-      "page",
-      "limit"
-    ],
+    "required": [],
     "type": "object"
   },
   "name": "list_my_repos"

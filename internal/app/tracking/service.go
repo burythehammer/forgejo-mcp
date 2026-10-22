@@ -268,7 +268,9 @@ func (s *Service) MyStopwatches(ctx context.Context, in MyStopwatchesInput) (mod
 		watches = []*model.StopWatch{}
 	}
 	out := model.StopWatchPage{Stopwatches: watches, PageMeta: model.PageMetaOf(page)}
-	// The endpoint sends no X-Total-Count, so the total is not reported to callers.
+	// Batch.Total above is a local count that only lets list.Run decide has_next.
+	// It is not the server's grand total (the endpoint sends no X-Total-Count),
+	// and total_count is reserved for that grand total, so it stays omitted.
 	out.TotalCount = nil
 	return out, nil
 }

@@ -196,12 +196,18 @@ says so.
    `Repository` twice per row through `PRBranchInfo` (`internal/app/model/model.go`).
 
 Retrofit status as of the #141 close-out. The shape 1 gap is closed for every list
-tool that had it: `list_my_stopwatches` takes `page`/`limit` and returns the
-`has_next` envelope (#296), `get_repo_tree` takes `page`/`limit` over its entries
-(#293), and `get_commit_statuses` returns the bounded envelope under the instance
-ceiling (#295). `list_my_repos` was once a bare array that ADR 0003 froze; it now
-returns the `has_next` envelope through `list.Run` (issue #294, a dated amendment to
-ADR 0003).
+tool that had it. Each change below is an output-shape change that ADR 0003's
+amendment (spec #141) records:
+
+- `list_my_stopwatches` takes `page`/`limit` and returns the `has_next` envelope
+  `{stopwatches, page, limit, count, has_next}` (#296); its bare array is gone.
+- `get_repo_tree` takes `page`/`limit` over its entries (#293). Its object output
+  becomes the list envelope; `sha`, `url` and `truncated` are dropped.
+- `get_commit_statuses` returns the bounded envelope under the instance ceiling
+  (#295). It adds `has_next`, and a `limit` above 50 is no longer clamped to 50.
+- `list_my_repos` was once a bare array that ADR 0003 froze; it now returns the
+  `has_next` envelope through `list.Run` (issue #294, a dated amendment to ADR 0003).
+  `page` and `limit` are optional, defaulting to 1 and 100.
 
 The exemption maps as they stand:
 

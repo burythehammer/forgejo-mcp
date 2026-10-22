@@ -53,8 +53,8 @@ var (
 	ListMyReposTool = mcp.NewTool(
 		ListMyReposToolName,
 		mcp.WithDescription("List my repos, one page at a time: page (default 1) and limit (default 100, capped at the instance maximum) select the page. Returns {repositories, page, limit, count, has_next}; has_next true means a further page exists."),
-		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
-		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
 	)
 )
 
@@ -134,8 +134,8 @@ func (h handlers) ForkRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp
 }
 
 type listMyReposArgs struct {
-	Page  float64 `json:"page" required:"true"`
-	Limit float64 `json:"limit" required:"true"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
 }
 
 func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
