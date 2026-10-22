@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/attachment"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pull"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/tracking"
@@ -26,12 +25,10 @@ const ceilingItems = 2
 // bound for the ceiling to apply to. Giving them one changes a tool schema,
 // which this ticket does not do, so they are left as they are.
 var unpagedListTools = map[string]bool{
-	attachment.ListIssueAttachmentsToolName:   true,
-	attachment.ListCommentAttachmentsToolName: true,
-	repo.ListMyReposToolName:                  true,
-	tracking.ListMyStopwatchesToolName:        true,
-	tracking.ListMyTrackedTimesToolName:       true,
-	pull.ListPullReviewCommentsToolName:       true,
+	repo.ListMyReposToolName:            true,
+	tracking.ListMyStopwatchesToolName:  true,
+	tracking.ListMyTrackedTimesToolName: true,
+	pull.ListPullReviewCommentsToolName: true,
 }
 
 // TestCeilingListTools pins the instance ceiling on every paged list tool: a

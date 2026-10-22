@@ -75,15 +75,19 @@ func useCases(ctx context.Context, h handlers) (*appattachment.Service, error) {
 // which decode.Lax would otherwise hide as zero.
 
 type issueRefArgs struct {
-	Owner string `json:"owner" required:"true"`
-	Repo  string `json:"repo" required:"true"`
-	Index any    `json:"index" required:"true" schema:"number"`
+	Owner string  `json:"owner" required:"true"`
+	Repo  string  `json:"repo" required:"true"`
+	Index any     `json:"index" required:"true" schema:"number"`
+	Page  float64 `json:"page"`
+	Limit float64 `json:"limit"`
 }
 
 type commentRefArgs struct {
-	Owner     string `json:"owner" required:"true"`
-	Repo      string `json:"repo" required:"true"`
-	CommentID any    `json:"comment_id" required:"true" schema:"number"`
+	Owner     string  `json:"owner" required:"true"`
+	Repo      string  `json:"repo" required:"true"`
+	CommentID any     `json:"comment_id" required:"true" schema:"number"`
+	Page      float64 `json:"page"`
+	Limit     float64 `json:"limit"`
 }
 
 type issueAttachmentArgs struct {
@@ -158,7 +162,7 @@ func (h handlers) ListIssueAttachmentsFn(ctx context.Context, req mcp.CallToolRe
 	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	return h.list(ctx, a.Owner, a.Repo, appattachment.ScopeIssue, a.Index)
+	return h.list(ctx, a.Owner, a.Repo, appattachment.ScopeIssue, a.Index, a.Page, a.Limit)
 }
 
 func (h handlers) GetIssueAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -214,7 +218,7 @@ func (h handlers) ListCommentAttachmentsFn(ctx context.Context, req mcp.CallTool
 	if err := decode.Lax(req, &a); err != nil {
 		return to.ErrorResult(err)
 	}
-	return h.list(ctx, a.Owner, a.Repo, appattachment.ScopeComment, a.CommentID)
+	return h.list(ctx, a.Owner, a.Repo, appattachment.ScopeComment, a.CommentID, a.Page, a.Limit)
 }
 
 func (h handlers) GetCommentAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -269,7 +273,7 @@ func (h handlers) DeleteCommentAttachmentFn(ctx context.Context, req mcp.CallToo
 // are read in the order the handlers always read them, so the first failure
 // is the one the client sees.
 
-func (h handlers) list(ctx context.Context, owner, repo string, sc appattachment.Scope, parent any) (*mcp.CallToolResult, error) {
+func (h handlers) list(ctx context.Context, owner, repo string, sc appattachment.Scope, parent any, page, limit float64) (*mcp.CallToolResult, error) {
 	p, err := number(parent, parentName(sc))
 	if err != nil {
 		return to.ErrorResult(err)
@@ -278,7 +282,10 @@ func (h handlers) list(ctx context.Context, owner, repo string, sc appattachment
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	out, err := svc.List(ctx, owner, repo, sc, p)
+	out, err := svc.List(ctx, owner, repo, sc, p, appattachment.Paging{
+		Page:  decode.PageOr(page, 1),
+		Limit: decode.IntOr(limit, 0),
+	})
 	if err != nil {
 		return to.ErrorResult(err)
 	}

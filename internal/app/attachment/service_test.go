@@ -29,6 +29,7 @@ type stubPort struct {
 func (s *stubPort) List(context.Context, string, string, attachment.Scope, int64) ([]*model.Attachment, error) {
 	return nil, s.listErr
 }
+func (s *stubPort) MaxResponseItems(context.Context) (int, bool) { return 0, false }
 func (s *stubPort) Get(context.Context, string, string, attachment.Scope, int64, int64) (model.Attachment, error) {
 	return s.att, s.err
 }
@@ -52,15 +53,15 @@ func (s *stubPort) Download(context.Context, string) (model.AttachmentBody, erro
 
 func TestListNotFoundIsAnEmptyList(t *testing.T) {
 	t.Parallel()
-	out, err := attachment.New(&stubPort{listErr: attachment.ErrNotFound}, time.Minute).List(context.Background(), "o", "r", attachment.ScopeIssue, 4)
-	if err != nil || out == nil || len(out) != 0 {
-		t.Fatalf("got %v, %v", out, err)
+	out, err := attachment.New(&stubPort{listErr: attachment.ErrNotFound}, time.Minute).List(context.Background(), "o", "r", attachment.ScopeIssue, 4, attachment.Paging{Page: 1, Limit: 20})
+	if err != nil || out.Attachments == nil || len(out.Attachments) != 0 {
+		t.Fatalf("got %+v, %v", out, err)
 	}
 }
 
 func TestListErrorsNameTheScope(t *testing.T) {
 	t.Parallel()
-	_, err := attachment.New(&stubPort{listErr: errors.New("boom")}, time.Minute).List(context.Background(), "o", "r", attachment.ScopeComment, 4)
+	_, err := attachment.New(&stubPort{listErr: errors.New("boom")}, time.Minute).List(context.Background(), "o", "r", attachment.ScopeComment, 4, attachment.Paging{Page: 1, Limit: 20})
 	if err == nil || err.Error() != "list comment attachments err: boom" {
 		t.Fatalf("got %v", err)
 	}

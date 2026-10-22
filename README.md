@@ -439,13 +439,13 @@ List all my repositories
 | `cancel_issue_stopwatch` | Cancel a running stopwatch without recording |
 | `list_my_stopwatches` | List currently running stopwatches |
 | **Attachments** | |
-| `list_issue_attachments` | List attachments on an issue or PR |
+| `list_issue_attachments` | List attachments on an issue or PR, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `get_issue_attachment` | Get metadata for a single issue/PR attachment |
 | `download_issue_attachment` | Download an issue/PR attachment (inline if < 1 MiB; metadata + URL otherwise) |
 | `create_issue_attachment` | Upload a new attachment to an issue or PR (base64 content or a file path on the MCP host) |
 | `edit_issue_attachment` | Rename an issue/PR attachment |
 | `delete_issue_attachment` | Delete an issue/PR attachment |
-| `list_comment_attachments` | List attachments on an issue/PR comment |
+| `list_comment_attachments` | List attachments on an issue/PR comment, one page at a time (`page`/`limit`, default 20) with `has_next` |
 | `get_comment_attachment` | Get metadata for a single comment attachment |
 | `download_comment_attachment` | Download a comment attachment (inline if < 1 MiB; metadata + URL otherwise) |
 | `create_comment_attachment` | Upload a new attachment to an issue/PR comment (base64 content or a file path on the MCP host) |

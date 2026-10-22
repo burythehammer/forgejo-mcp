@@ -32,10 +32,12 @@ const (
 var (
 	ListIssueAttachmentsTool = mcp.NewTool(
 		ListIssueAttachmentsToolName,
-		mcp.WithDescription("List attachments on an issue or pull request."),
+		mcp.WithDescription("List attachments on an issue or pull request, one page at a time (page, limit; default 20). The response's has_next says whether more follow."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.Index)),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 	)
 
 	GetIssueAttachmentTool = mcp.NewTool(
@@ -89,10 +91,12 @@ var (
 
 	ListCommentAttachmentsTool = mcp.NewTool(
 		ListCommentAttachmentsToolName,
-		mcp.WithDescription("List attachments on an issue/PR comment."),
+		mcp.WithDescription("List attachments on an issue/PR comment, one page at a time (page, limit; default 20). The response's has_next says whether more follow."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("comment_id", mcp.Required(), mcp.Description(params.CommentID)),
+		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
+		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 	)
 
 	GetCommentAttachmentTool = mcp.NewTool(
