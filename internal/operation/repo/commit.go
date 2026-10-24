@@ -7,6 +7,7 @@ import (
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -20,6 +21,7 @@ const (
 
 var ListRepoCommitsTool = mcp.NewTool(
 	ListRepoCommitsToolName,
+	annotate.Read(),
 	mcp.WithDescription("List repo commits. Returns a response envelope {commits, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

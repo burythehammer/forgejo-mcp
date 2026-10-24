@@ -6,6 +6,7 @@
 package attachment
 
 import (
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -32,6 +33,7 @@ const (
 var (
 	ListIssueAttachmentsTool = mcp.NewTool(
 		ListIssueAttachmentsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List attachments on an issue or pull request, one page at a time (page, limit; default 20). The response's has_next says whether more follow."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -42,6 +44,7 @@ var (
 
 	GetIssueAttachmentTool = mcp.NewTool(
 		GetIssueAttachmentToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get metadata for a single issue/PR attachment."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -51,6 +54,7 @@ var (
 
 	DownloadIssueAttachmentTool = mcp.NewTool(
 		DownloadIssueAttachmentToolName,
+		annotate.Read(),
 		mcp.WithDescription("Download an issue/PR attachment. Files at or above the inline cap return metadata + browser_download_url only; the caller is expected to fetch that URL with the same auth token."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -60,6 +64,7 @@ var (
 
 	CreateIssueAttachmentTool = mcp.NewTool(
 		CreateIssueAttachmentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Upload a new attachment to an issue or pull request from exactly one of base64 content or a file path on the forgejo-mcp host."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -72,6 +77,7 @@ var (
 
 	EditIssueAttachmentTool = mcp.NewTool(
 		EditIssueAttachmentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Rename an issue/PR attachment."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -82,6 +88,7 @@ var (
 
 	DeleteIssueAttachmentTool = mcp.NewTool(
 		DeleteIssueAttachmentToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete an issue/PR attachment."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -91,6 +98,7 @@ var (
 
 	ListCommentAttachmentsTool = mcp.NewTool(
 		ListCommentAttachmentsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List attachments on an issue/PR comment, one page at a time (page, limit; default 20). The response's has_next says whether more follow."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -101,6 +109,7 @@ var (
 
 	GetCommentAttachmentTool = mcp.NewTool(
 		GetCommentAttachmentToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get metadata for a single comment attachment."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -110,6 +119,7 @@ var (
 
 	DownloadCommentAttachmentTool = mcp.NewTool(
 		DownloadCommentAttachmentToolName,
+		annotate.Read(),
 		mcp.WithDescription("Download a comment attachment. Files at or above the inline cap return metadata + browser_download_url only; the caller is expected to fetch that URL with the same auth token."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -119,6 +129,7 @@ var (
 
 	CreateCommentAttachmentTool = mcp.NewTool(
 		CreateCommentAttachmentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Upload a new attachment to an issue/PR comment from exactly one of base64 content or a file path on the forgejo-mcp host."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -131,6 +142,7 @@ var (
 
 	EditCommentAttachmentTool = mcp.NewTool(
 		EditCommentAttachmentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Rename a comment attachment."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -141,6 +153,7 @@ var (
 
 	DeleteCommentAttachmentTool = mcp.NewTool(
 		DeleteCommentAttachmentToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a comment attachment."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

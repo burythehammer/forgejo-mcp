@@ -6,6 +6,7 @@
 | pre-commit (`.pre-commit-config.yaml`) | gitleaks, gofmt rewrite, and the `scripts/ci` guardrails whose files changed | each commit |
 | `make check` | build, vet, gofmt check, every `scripts/ci/*.sh` (minus the skips named in the `Makefile`), golangci-lint, `go test -race -shuffle=on` | by hand, before pushing; the done-gate for a ticket |
 | Forgejo Actions (`.forgejo/workflows/ci.yaml`) | `make check` | PRs to `main` and pushes to `main` |
+| Forgejo Actions (`.forgejo/workflows/nightly-live.yaml`) | live contract suite and `test/e2e/attachments.sh` against Forgejo 16.0.3 and 16.0.6 in a service container; failure comments on #263 | nightly and manual dispatch; not the PR gate |
 
 CI calls `make check`, so the `Makefile` is the one list of steps. Its header
 names what it deliberately leaves out (mod-tidy, govulncheck, licence check;

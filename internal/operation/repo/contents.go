@@ -7,6 +7,7 @@ import (
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -22,6 +23,7 @@ const (
 var (
 	ListRepoContentsTool = mcp.NewTool(
 		ListRepoContentsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List the files and directories at a given path in a repository. Use path=\"\" to list the repository root. Returns one level of entries at the specified path, one page at a time: page and limit (default 100 entries) select the page, and the response carries has_next to say whether more entries follow. For a full recursive file tree use get_repo_tree with recursive=true."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -33,6 +35,7 @@ var (
 
 	GetRepoTreeTool = mcp.NewTool(
 		GetRepoTreeToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get the Git tree of a repository. With recursive=true, returns the complete file tree in a single response (subject to the server's tree-endpoint size cap); use this when you need all paths at once. With recursive=false (default), returns only the top-level entries of the tree. page and limit (default 1000) select one page of those entries, and the response carries has_next to say whether more entries follow."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

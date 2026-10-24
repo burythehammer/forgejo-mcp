@@ -8,6 +8,7 @@ import (
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -25,6 +26,7 @@ const (
 var (
 	GetFileContentTool = mcp.NewTool(
 		GetFileToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get file content as plain text by default. Set `with_metadata=true` for binary files, or when you need the SHA/encoding/links from the full `ContentsResponse` (e.g. before a follow-up `update_file` call). Optional `start_line` and `end_line` request a 1-indexed inclusive line range; out-of-range values clamp to the file extent. With `with_metadata=true` the range replaces the content with that slice and keeps the metadata. A whole file, or a range, over 1 MiB of text is refused with a message asking for a narrower `start_line`/`end_line`."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -37,6 +39,7 @@ var (
 
 	CreateFileTool = mcp.NewTool(
 		CreateFileToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create file. Supply exactly one of `content` (plain text) or `content_base64` (strict standard Base64 representing exact bytes)."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -50,6 +53,7 @@ var (
 
 	UpdateFileTool = mcp.NewTool(
 		UpdateFileToolName,
+		annotate.Write(),
 		mcp.WithDescription("Update file. Supply exactly one of `content` (plain text) or `content_base64` (strict standard Base64 representing exact bytes)."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -64,6 +68,7 @@ var (
 
 	DeleteFileTool = mcp.NewTool(
 		DeleteFileToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete file"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

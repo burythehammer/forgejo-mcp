@@ -193,7 +193,7 @@ type goldenCase struct {
 
 var goldenCases = []goldenCase{
 	{name: "issue_list", tool: ListIssueAttachmentsToolName, args: map[string]any{"index": float64(4)}},
-	{name: "issue_list_not_found_is_empty", tool: ListIssueAttachmentsToolName, args: map[string]any{"index": float64(4)}, stub: func(s *stubAttach) { s.notFound = true }},
+	{name: "issue_list_not_found_is_not_found", tool: ListIssueAttachmentsToolName, args: map[string]any{"index": float64(4)}, stub: func(s *stubAttach) { s.notFound = true }},
 	{name: "issue_list_missing_index", tool: ListIssueAttachmentsToolName, args: map[string]any{"index": nil}},
 	{name: "issue_list_port_error", tool: ListIssueAttachmentsToolName, args: map[string]any{"index": float64(4)}, stub: func(s *stubAttach) { s.fail = errors.New("boom") }},
 	{name: "issue_get", tool: GetIssueAttachmentToolName, args: map[string]any{"index": float64(4), "attachment_id": float64(7)}},
@@ -218,7 +218,7 @@ var goldenCases = []goldenCase{
 	{name: "issue_delete_port_error", tool: DeleteIssueAttachmentToolName, args: map[string]any{"index": float64(4), "attachment_id": float64(7)}, stub: func(s *stubAttach) { s.fail = errors.New("boom") }},
 
 	{name: "comment_list", tool: ListCommentAttachmentsToolName, args: map[string]any{"comment_id": float64(9)}},
-	{name: "comment_list_not_found_is_empty", tool: ListCommentAttachmentsToolName, args: map[string]any{"comment_id": float64(9)}, stub: func(s *stubAttach) { s.notFound = true }},
+	{name: "comment_list_not_found_is_not_found", tool: ListCommentAttachmentsToolName, args: map[string]any{"comment_id": float64(9)}, stub: func(s *stubAttach) { s.notFound = true }},
 	{name: "comment_list_missing_id", tool: ListCommentAttachmentsToolName, args: map[string]any{"comment_id": nil}},
 	{name: "comment_list_port_error", tool: ListCommentAttachmentsToolName, args: map[string]any{"comment_id": float64(9)}, stub: func(s *stubAttach) { s.fail = errors.New("boom") }},
 	{name: "comment_get", tool: GetCommentAttachmentToolName, args: map[string]any{"comment_id": float64(9), "attachment_id": float64(7)}},

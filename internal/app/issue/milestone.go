@@ -11,7 +11,7 @@ import (
 )
 
 // GetMilestone returns one milestone by its ID. A missing ID is a
-// *NotFoundError, never an empty result.
+// forge.ErrNotFound, never an empty result.
 func (s *Service) GetMilestone(ctx context.Context, owner, repo string, id int64) (*model.Milestone, error) {
 	m, err := s.port.GetMilestone(ctx, owner, repo, id)
 	if err != nil {

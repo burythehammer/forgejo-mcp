@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -24,6 +25,7 @@ const (
 var (
 	ListRepoTopicsTool = mcp.NewTool(
 		ListRepoTopicsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List a repository's topics. Bounded by page (default 1) and limit (default 100); returns a response envelope {topics, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -33,6 +35,7 @@ var (
 
 	SetRepoTopicsTool = mcp.NewTool(
 		SetRepoTopicsToolName,
+		annotate.Write(),
 		mcp.WithDescription("Replace all repository topics (comma-separated). The topics key is required; an empty string clears every topic. Names are lowercased. At most 25 topics, each matching ^[a-z0-9][-.a-z0-9]*$ and at most 35 characters."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -41,6 +44,7 @@ var (
 
 	AddRepoTopicTool = mcp.NewTool(
 		AddRepoTopicToolName,
+		annotate.Write(),
 		mcp.WithDescription("Add one topic to a repository. The name is lowercased and must match Forgejo's topic rules."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -49,6 +53,7 @@ var (
 
 	DeleteRepoTopicTool = mcp.NewTool(
 		DeleteRepoTopicToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete one topic from a repository."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

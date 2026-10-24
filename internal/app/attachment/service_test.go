@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/attachment"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/download"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // stubPort is an in-memory attachment.Port. The fields say what it does.
@@ -51,11 +53,13 @@ func (s *stubPort) Download(context.Context, string) (model.AttachmentBody, erro
 	return s.body, s.fetchErr
 }
 
-func TestListNotFoundIsAnEmptyList(t *testing.T) {
+// A list under a missing parent is the shared not-found outcome, not an empty list.
+func TestListNotFoundIsNotFound(t *testing.T) {
 	t.Parallel()
-	out, err := attachment.New(&stubPort{listErr: attachment.ErrNotFound}, time.Minute).List(context.Background(), "o", "r", attachment.ScopeIssue, 4, attachment.Paging{Page: 1, Limit: 20})
-	if err != nil || out.Items == nil || len(out.Items) != 0 {
-		t.Fatalf("got %+v, %v", out, err)
+	missing := &forge.StatusError{StatusCode: http.StatusNotFound, Err: errors.New("issue 4 not found")}
+	_, err := attachment.New(&stubPort{listErr: missing}, time.Minute).List(context.Background(), "o", "r", attachment.ScopeIssue, 4, attachment.Paging{Page: 1, Limit: 20})
+	if !errors.Is(err, forge.ErrNotFound) {
+		t.Fatalf("got %v, want forge.ErrNotFound", err)
 	}
 }
 

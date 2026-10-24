@@ -7,6 +7,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -27,6 +28,7 @@ type workflowRunControlResult struct {
 var (
 	CancelWorkflowRunTool = mcp.NewTool(
 		CancelWorkflowRunToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Cancel a pending or running workflow run. Forgejo also returns 204 for a run that has already finished and leaves that run unchanged; that is success, not an error. Same Actions write as dispatch_workflow; a read-only token returns 403."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -35,6 +37,7 @@ var (
 
 	DeleteWorkflowRunTool = mcp.NewTool(
 		DeleteWorkflowRunToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a completed workflow run (succeeded, failed, or cancelled). The run is removed, its job logs become unreadable, and Forgejo marks that run's artifacts deleted (storage reclaimed later). A live run is an API error (never mapped to success). No preflight GET. Same Actions write as dispatch_workflow; a read-only token returns 403."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

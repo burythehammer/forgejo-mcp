@@ -9,6 +9,7 @@ import (
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -48,6 +49,7 @@ const (
 var (
 	ListActionRunJobsTool = mcp.NewTool(
 		ListActionRunJobsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List jobs for a Forgejo v16+ workflow run. Results are paged client-side because Forgejo returns the full job list. Returns a response envelope {run_id, jobs, page, limit, count, total_count, has_next, next_page}; has_next true means a further page may exist; re-issue the call with page incremented (next_page) to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -58,6 +60,7 @@ var (
 
 	GetActionJobLogsTool = mcp.NewTool(
 		GetActionJobLogsToolName,
+		annotate.Read(),
 		mcp.WithDescription("Read a bounded byte range from a Forgejo v16+ workflow job's plaintext log. Omitting offset returns the tail. Continue backward with previous_offset and previous_max_bytes, or forward with next_offset."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

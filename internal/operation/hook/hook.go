@@ -15,6 +15,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/hookadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -36,6 +37,7 @@ const (
 var (
 	ListRepoHooksTool = mcp.NewTool(
 		ListRepoHooksToolName,
+		annotate.Read(),
 		mcp.WithDescription("List repository webhooks. page/limit control pagination (default: page 1, limit 30); a limit above this instance's max_response_items is refused, not clamped. Returns a response envelope {hooks, page, limit, count, total_count, has_next}; total_count appears only when Forgejo reports X-Total-Count. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -45,6 +47,7 @@ var (
 
 	GetRepoHookTool = mcp.NewTool(
 		GetRepoHookToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get a single repository webhook by ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -53,6 +56,7 @@ var (
 
 	CreateRepoHookTool = mcp.NewTool(
 		CreateRepoHookToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create a repository webhook. The secret is accepted but never echoed in the response."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -68,6 +72,7 @@ var (
 
 	EditRepoHookTool = mcp.NewTool(
 		EditRepoHookToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit a repository webhook. Only fields you pass are changed; omitted fields are left untouched."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -83,6 +88,7 @@ var (
 
 	DeleteRepoHookTool = mcp.NewTool(
 		DeleteRepoHookToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete a repository webhook by ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -91,6 +97,7 @@ var (
 
 	TestRepoHookTool = mcp.NewTool(
 		TestRepoHookToolName,
+		annotate.Write(),
 		mcp.WithDescription("Trigger a test delivery for a repository webhook. WARNING: each call triggers a live HTTP delivery to the webhook URL."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

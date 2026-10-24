@@ -519,6 +519,7 @@ var goldenCases = []goldenCase{
 	{name: "list_org_labels_defaults", tool: ListOrgLabelsToolName, args: map[string]any{"org": "acme"}},
 	{name: "list_org_labels_user_is_empty", tool: ListOrgLabelsToolName, args: map[string]any{"org": "octo"}},
 	{name: "list_org_labels_forbidden", tool: ListOrgLabelsToolName, args: map[string]any{"org": "denied"}},
+	{name: "list_org_labels_missing_org", tool: ListOrgLabelsToolName, args: map[string]any{"org": "nothing"}, stub: failing("ListOrgLabels", goldenStatus(http.StatusNotFound))},
 
 	// add_issue_labels, remove_issue_labels
 	{name: "add_issue_labels_names", tool: AddIssueLabelsToolName, args: map[string]any{"index": float64(7), "labels": "bug,ui"}},

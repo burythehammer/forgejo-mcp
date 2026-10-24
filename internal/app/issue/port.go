@@ -18,7 +18,7 @@ import (
 // need them, in repo-owned types. internal/forge/issueadapter implements it over the
 // Forgejo port (forge.Issues, forge.Labels, forge.Dependencies). Failures from
 // Forgejo come back as ordinary errors for the use case to wrap; a 404 comes
-// back as a *NotFoundError.
+// back as forge.ErrNotFound.
 type Port interface {
 	GetIssue(ctx context.Context, owner, repo string, index int64) (*model.Issue, error)
 	ListIssues(ctx context.Context, owner, repo string, q IssueList) ([]*model.Issue, error)

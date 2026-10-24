@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -22,6 +23,7 @@ const (
 
 var GetCommitStatusesTool = mcp.NewTool(
 	GetCommitStatusesToolName,
+	annotate.Read(),
 	mcp.WithDescription("List per-context commit statuses for a full 40-character SHA. Bounded by page (default 1) and limit (default 30, lowered to the instance ceiling when that is lower; a limit above a known ceiling is refused). Returns the envelope {sha, statuses, page, limit, count, has_next, total_count}; has_next true means a further page may exist, so re-issue the call with page incremented. total_count is present only when Forgejo reports X-Total-Count. Combined aggregate stays on forgejo://repo/{owner}/{repo}/commit/{sha}/status. Commit statuses are CI context checks, not Actions workflow runs (list_workflow_runs)."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

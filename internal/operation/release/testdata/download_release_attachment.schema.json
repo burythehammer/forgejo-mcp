@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "readOnlyHint": false,
-    "destructiveHint": true,
+    "readOnlyHint": true,
+    "destructiveHint": false,
     "idempotentHint": false,
     "openWorldHint": true
   },

@@ -8,6 +8,7 @@ import (
 
 	appversion "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/version"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
@@ -21,6 +22,7 @@ const (
 
 var GetForgejoMCPServerVersionTool = mcp.NewTool(
 	GetForgejoMCPServerVersion,
+	annotate.Read(),
 	mcp.WithDescription("Get MCP server version"),
 )
 

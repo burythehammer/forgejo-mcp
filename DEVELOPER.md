@@ -125,6 +125,8 @@ domain has:
    (`forgetest/stub_<domain>.go`, a thin translation onto `Stub.Fake`) and call
    `RunXxx` from `fake/contract_test.go` and `sdk/contract_test.go`. The stub
    answers the SDK startup probe in one place, `forgetest.WriteVersion`.
+   To run the same cases against a real Forgejo (opt-in, needs a token the
+   human supplies), see [docs/agents/live-contract.md](docs/agents/live-contract.md).
 5. **MCP adapters take the factory.** `RegisterTool(s, f forge.Factory)` /
    `RegisterResource(s, f)`, a `handlers{forge: f}` struct (in each `internal/operation/<domain>/handlers.go`) whose methods call
    `h.forge.For(ctx)` per request (so each request gets its own credential), and
@@ -163,10 +165,13 @@ in `internal/app/issue`. Per domain:
    are frozen.
 2. **Use case** (`internal/app/<domain>`): a `Port` interface in repo-owned types
    (`port.go`), a `Service` with one method per tool taking a typed input
-   (`service.go`; defaults and parsing live here), and the few typed error
-   kinds callers can act on (`errors.go`; text must stay what the tool said,
-   Forgejo failures are wrapped `fmt.Errorf("<op> err: %w", err)`). Results come
-   from `internal/app/model`; add the wire-shaped types a domain needs there.
+   (`service.go`; defaults and parsing live here). Failures a caller can act on
+   are the shared `forge` kinds (`forge.ErrNotFound`, matched with
+   `forge.IsNotFound` or `errors.Is`); a domain error type in `errors.go` is
+   only for an outcome those kinds cannot carry (ADR 0006). Text must stay what
+   the tool said, and Forgejo failures are wrapped `fmt.Errorf("<op> err: %w", err)`.
+   Results come from `internal/app/model`; add the wire-shaped types a domain
+   needs there.
 3. **Port bridge** (`internal/forge/<domain>adapter`): `New(forge.<Domain>) app.Port`
    translates inputs to SDK options and converts SDK results to `internal/app/model`
    values through JSON. `shape_test.go` there fails if an SDK upgrade changes a
@@ -263,8 +268,9 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]model.Thing, error)
 ```
 
 Results are types from `internal/app/model`; add wire-shaped types for a new domain in
-`internal/app/model/<domain>.go`. Failures the caller can act on are typed errors in
-`errors.go`. A new Forgejo call needs a method on the use case's `Port`, a
+`internal/app/model/<domain>.go`. Failures the caller can act on are the shared
+`forge` kinds (ADR 0006: a missing parent is `forge.ErrNotFound`, an empty list is
+an empty result, never an error), not a per-domain not-found type. A new Forgejo call needs a method on the use case's `Port`, a
 method in `internal/forge/<domain>adapter`, and (if the port itself is new) the
 steps in "The Forgejo port and migrating a domain" above.
 

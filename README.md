@@ -493,6 +493,25 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | **Server** | |
 | `get_forgejo_mcp_server_version` | Get the MCP server version |
 
+### Lean mode: terse tool text
+
+Each tool definition sends a description and a property description for every argument, and mcp-go adds annotations to every tool. `--lean` (or `FORGEJO_MCP_LEAN=1`; the flag wins over the variable) serves the same tools with terse text:
+
+- each tool description is cut to its first sentence;
+- a property description is kept only where the argument has a format, an allowed-value list, or a rule its name and type do not show (comma-separated lists, RFC3339 times, `state`, `sort`, and similar); the rest are removed. `verbose` keeps its argument and loses its description;
+- annotations are sent as an empty object.
+
+Tool names, argument names and required lists are unchanged, so a prompt or script written for the full text still works. Lean mode is a rewrite at registration (`internal/lean/`), not a second set of descriptions.
+
+Measured by running the server over stdio on this build, for the whole catalogue of 167 tools:
+
+| Text | Bytes of the `tools/list` response | ~Tokens |
+|---|---:|---:|
+| Full (default) | 127,243 | 31,811 |
+| `--lean` | 59,033 | 14,758 |
+
+The estimate is bytes divided by 4, as in the standing-cost table below.
+
 ### Toolsets: choosing which tools load
 
 Every tool a client sees costs context on every request. By default the server offers all of them. To offer fewer, name toolsets (groups of related tools), individual tools, or both:
@@ -501,12 +520,14 @@ Every tool a client sees costs context on every request. By default the server o
 |---|---|---|
 | Toolsets to load | `--toolsets` | `FORGEJO_MCP_TOOLSETS` |
 | Individual tools to load | `--tools` | `FORGEJO_MCP_TOOLS` |
+| Named preset to load | `--preset` | `FORGEJO_MCP_PRESET` |
 
-- With neither set, every tool and resource template registers (the default, unchanged).
+- With none set, every tool and resource template registers (the default, unchanged).
 - With toolsets only, the tools of those toolsets register, and their resource templates too.
 - With tools only, just the named tools register. No resource templates register.
-- With both, the result is the union. The flag wins over the environment variable.
-- An unknown toolset or tool name stops the server at startup, and the error lists the valid names.
+- With a preset, its tools register. No resource templates register for it.
+- With more than one of them, the result is the union. The flag wins over the environment variable.
+- An unknown toolset, tool or preset name stops the server at startup, and the error lists the valid names.
 - An unselected tool is absent from `tools/list`, not disabled. Selection applies to the server, not to `--cli` mode.
 
 `--help` prints every toolset with the tools it holds. The table below is the same catalogue, with the standing cost of each toolset. Tools are assigned to toolsets in `internal/toolset/toolset.go`.
@@ -517,14 +538,34 @@ Example, the issue-tracking selection:
 forgejo-mcp --toolsets issues,labels,milestones,dependencies,user
 ```
 
+#### Presets
+
+A preset is a named selection of individual tools that may cross domains. It is not a toolset: each tool still belongs to exactly one toolset, and a preset registers no resource templates. `--help` prints every preset with the tools it holds.
+
+`tracker-core` is the set an issue-tracking client needs, 24 tools across issues, labels, milestones and dependencies, plus `get_my_user_info`:
+
+```bash
+forgejo-mcp --preset tracker-core
+```
+
+| Preset | Tools |
+|---|---|
+| `tracker-core` | `get_my_user_info`; `get_issue_by_index`, `list_repo_issues`, `search_issues`, `create_issue`, `update_issue`, `replace_issue_body_line`, `issue_state_change`; `create_issue_comment`, `list_issue_comments`; `add_issue_labels`, `remove_issue_labels`, `list_repo_labels`, `get_repo_label`, `create_repo_label`, `edit_repo_label`; `list_repo_milestones`, `get_milestone`, `create_milestone`, `edit_milestone`; `add_issue_dependency`, `remove_issue_dependency`, `list_issue_dependencies`, `list_issue_dependents` |
+
+The list was inferred from the tfuk-specflow ticket texts, not from its code, so confirm it before relying on it.
+
 **Standing cost.** Estimated as bytes of the `tools/list` JSON-RPC response divided by 4, measured on this build with the fake forge. It is an estimate, not a model tokenizer count, and it is not the `/context` figure from a fresh session.
 
 | Selection | Tools | Bytes | ~Tokens | Resource templates, ~tokens |
 |---|---:|---:|---:|---:|
-| Default (no selection) | 167 | 126,572 | 31,643 | 1,896 |
+| Default (no selection) | 167 | 127,243 | 31,811 | 1,896 |
 | `issues,labels,milestones,dependencies,user` | 39 | 31,752 | 7,938 | 813 |
+| `--preset tracker-core` | 24 | 22,897 | 5,724 | 0 |
+| `--preset tracker-core --lean` | 24 | 10,852 | 2,713 | 0 |
 
 The selection above costs about 25% of the default. It misses the ticket target of well under 5,000 tokens. Most of the cost is tool descriptions and input schemas, about 760 to 820 bytes per tool, so shortening them is the next lever. That is a follow-up, not part of toolset selection.
+
+The `tracker-core` rows are measured the same way, on this build with the fake forge. The lean row is the figure the budget test guards (`TestTrackerCoreLeanStaysWithinBudget`, budget 11,000 bytes). Against the design target of about 8 KB (about 2k tokens), the lean preset is about 2.8 KB over, roughly 36%. The largest remaining lean tools are `update_issue` (939 bytes), `search_issues` (803), `list_repo_issues` (775), `replace_issue_body_line` (688) and `create_issue` (599). Those are the next lever for shrinking the preset.
 
 Per-toolset figures below are the same measure for a selection of that one toolset. They do not sum to the totals, because each response carries its own envelope.
 
@@ -695,6 +736,8 @@ You can configure the server using command-line arguments or environment variabl
 | `--allowed-hosts` | `FORGEJO_MCP_ALLOWED_HOSTS` | Comma-separated `Host` names this server answers to; required when `--host` is not loopback |
 | `--toolsets` | `FORGEJO_MCP_TOOLSETS` | Comma-separated toolsets to load; unset loads every tool. See [Toolsets](#toolsets-choosing-which-tools-load) |
 | `--tools` | `FORGEJO_MCP_TOOLS` | Comma-separated individual tool names to load, added to any `--toolsets` |
+| `--preset` | `FORGEJO_MCP_PRESET` | Named cross-domain tool selection, added to any `--toolsets` and `--tools`. The only preset is `tracker-core`; see [Presets](#presets) |
+| `--lean` | `FORGEJO_MCP_LEAN` | Serve terse tool text with the same tool and argument names; see [Lean mode](#lean-mode-terse-tool-text) |
 | `--allowed-origins` | `FORGEJO_MCP_ALLOWED_ORIGINS` | Comma-separated web origins allowed to send an `Origin` header, as full origins (`https://console.example.org`). Empty by default |
 | `--allow-operator-token-fallback` | `FORGEJO_MCP_ALLOW_OPERATOR_TOKEN_FALLBACK` | On `sse`/`http`, serve requests with no `Authorization` header using this server's own token. Off by default |
 | `--max-request-body-bytes` | `FORGEJO_MCP_MAX_REQUEST_BODY_BYTES` | On `sse`/`http`, the largest request body read, in bytes; a larger one gets `413`. Must be positive. Default `100663296` (96 MiB), which clears the largest attachment upload (90 MiB of base64) plus its envelope |

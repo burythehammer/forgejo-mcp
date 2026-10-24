@@ -12,6 +12,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/wikiadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -31,6 +32,7 @@ const (
 )
 
 var ListWikiPagesTool = mcp.NewTool(ListWikiPagesToolName,
+	annotate.Read(),
 	mcp.WithDescription("List wiki pages with page/limit pagination. Returns a response envelope {pages, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -39,6 +41,7 @@ var ListWikiPagesTool = mcp.NewTool(ListWikiPagesToolName,
 )
 
 var GetWikiPageTool = mcp.NewTool(GetWikiPageToolName,
+	annotate.Read(),
 	mcp.WithDescription("Get one wiki page as decoded Markdown. Optional start_line/end_line bound content; total_lines is always returned."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -48,6 +51,7 @@ var GetWikiPageTool = mcp.NewTool(GetWikiPageToolName,
 )
 
 var GetWikiRevisionsTool = mcp.NewTool(GetWikiRevisionsToolName,
+	annotate.Read(),
 	mcp.WithDescription("Get a wiki page's revision history with page/limit pagination; returns has_next and total_count, the page's total number of revisions as reported in the response body."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -57,6 +61,7 @@ var GetWikiRevisionsTool = mcp.NewTool(GetWikiRevisionsToolName,
 )
 
 var CreateWikiPageTool = mcp.NewTool(CreateWikiPageToolName,
+	annotate.Write(),
 	mcp.WithDescription("Create a wiki page. Slash-separated titles such as Parent/Child are a flat naming convention: Forgejo stores no parent-child relationship and does not create a parent page automatically. Creating an existing title overwrites it. Use the returned page_name verbatim; never derive it from title."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -66,6 +71,7 @@ var CreateWikiPageTool = mcp.NewTool(CreateWikiPageToolName,
 )
 
 var UpdateWikiPageTool = mcp.NewTool(UpdateWikiPageToolName,
+	annotate.Write(),
 	mcp.WithDescription("Update a wiki page. Writes are last-writer-wins; Forgejo provides no optimistic concurrency precondition."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -76,6 +82,7 @@ var UpdateWikiPageTool = mcp.NewTool(UpdateWikiPageToolName,
 )
 
 var DeleteWikiPageTool = mcp.NewTool(DeleteWikiPageToolName,
+	annotate.Destructive(),
 	mcp.WithDescription("Delete one wiki page by its server-normalized page_name."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

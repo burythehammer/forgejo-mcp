@@ -7,6 +7,7 @@ import (
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -23,6 +24,7 @@ const (
 var (
 	CreateBranchTool = mcp.NewTool(
 		CreateBranchToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create branch"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -32,6 +34,7 @@ var (
 
 	DeleteBranchTool = mcp.NewTool(
 		DeleteBranchToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete branch"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -40,6 +43,7 @@ var (
 
 	ListBranchesTool = mcp.NewTool(
 		ListBranchesToolName,
+		annotate.Read(),
 		mcp.WithDescription("List branches. Returns a response envelope {branches, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
