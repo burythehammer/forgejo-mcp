@@ -4,10 +4,10 @@ package owner
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // Kind says whether an owner is a user or an organization.
@@ -40,13 +40,13 @@ func (s *Service) Read(ctx context.Context, login string) (Owner, error) {
 	if userErr == nil && u != nil {
 		return Owner{Kind: KindUser, User: u}, nil
 	}
-	if userErr != nil && !errors.Is(userErr, ErrNotFound) {
+	if userErr != nil && !forge.IsNotFound(userErr) {
 		return Owner{}, fmt.Errorf("get user: %w", userErr)
 	}
 
 	org, orgErr := s.port.GetOrg(ctx, login)
 	if orgErr != nil {
-		if errors.Is(orgErr, ErrNotFound) {
+		if forge.IsNotFound(orgErr) {
 			return Owner{}, ErrOwnerNotFound
 		}
 		return Owner{}, fmt.Errorf("get org: %w", orgErr)

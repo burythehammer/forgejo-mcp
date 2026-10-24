@@ -10,6 +10,7 @@ import (
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	appowner "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/owner"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // stub is a Port whose lookups return fixed results and record whether the
@@ -43,7 +44,7 @@ func TestRead_UserWinsAndOrgIsNotAsked(t *testing.T) {
 
 func TestRead_NotAUserFallsBackToOrg(t *testing.T) {
 	t.Parallel()
-	s := &stub{userErr: appowner.ErrNotFound, org: &model.Organization{UserName: "acme"}}
+	s := &stub{userErr: forge.ErrNotFound, org: &model.Organization{UserName: "acme"}}
 	got, err := appowner.New(s).Read(context.Background(), "acme")
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +56,7 @@ func TestRead_NotAUserFallsBackToOrg(t *testing.T) {
 
 func TestRead_NeitherIsOwnerNotFound(t *testing.T) {
 	t.Parallel()
-	s := &stub{userErr: appowner.ErrNotFound, orgErr: appowner.ErrNotFound}
+	s := &stub{userErr: forge.ErrNotFound, orgErr: forge.ErrNotFound}
 	_, err := appowner.New(s).Read(context.Background(), "ghost")
 	if !errors.Is(err, appowner.ErrOwnerNotFound) {
 		t.Fatalf("want ErrOwnerNotFound, got %v", err)
@@ -73,7 +74,7 @@ func TestRead_UserForbiddenIsNotMaskedByTheFallback(t *testing.T) {
 
 func TestRead_OrgServerErrorSurfaces(t *testing.T) {
 	t.Parallel()
-	s := &stub{userErr: appowner.ErrNotFound, orgErr: errors.New("500 boom")}
+	s := &stub{userErr: forge.ErrNotFound, orgErr: errors.New("500 boom")}
 	_, err := appowner.New(s).Read(context.Background(), "flaky")
 	if err == nil || errors.Is(err, appowner.ErrOwnerNotFound) || !strings.Contains(err.Error(), "500") {
 		t.Fatalf("want the org failure, got %v", err)

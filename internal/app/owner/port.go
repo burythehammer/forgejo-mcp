@@ -16,17 +16,14 @@ import (
 
 // Port is the user and organization lookup the owner read needs.
 // internal/forge/owneradapter implements it over forge.Users and forge.Orgs. A
-// login Forgejo does not know is ErrNotFound, wrapped or not; any other failure
-// is an ordinary error for the use case to wrap.
+// login Forgejo does not know is forge.ErrNotFound, wrapped or not; any other
+// failure is an ordinary error for the use case to wrap.
 type Port interface {
 	GetUser(ctx context.Context, login string) (*model.User, error)
 	GetOrg(ctx context.Context, name string) (*model.Organization, error)
 }
 
-// ErrNotFound is what a Port returns, wrapped or not, when Forgejo has no user
-// or organization of that name.
-var ErrNotFound = errors.New("not found")
-
 // ErrOwnerNotFound is returned when the login is neither a user nor an
-// organization.
+// organization. It is the owner read's own outcome, not a second not-found kind:
+// the resource layer maps it to the owner-specific message.
 var ErrOwnerNotFound = errors.New("owner not found")

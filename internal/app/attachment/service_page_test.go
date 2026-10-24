@@ -4,12 +4,15 @@ package attachment_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/attachment"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // listedPort is a stubPort whose List answers a fixed attachment list.
@@ -62,11 +65,12 @@ func TestListDefaultLimitIsTwentyAndPastTheEndIsEmpty(t *testing.T) {
 	}
 }
 
-func TestListNotFoundPagesAsAnEmptyList(t *testing.T) {
+func TestListNotFoundIsNotFoundWhenPaged(t *testing.T) {
 	t.Parallel()
-	svc := attachment.New(listedPort{stubPort: &stubPort{listErr: attachment.ErrNotFound}}, time.Minute)
-	page, err := svc.List(context.Background(), "o", "r", attachment.ScopeIssue, 4, attachment.Paging{Page: 1, Limit: 5})
-	if err != nil || page.Items == nil || len(page.Items) != 0 || page.HasNext {
-		t.Fatalf("got %+v, %v", page, err)
+	missing := &forge.StatusError{StatusCode: http.StatusNotFound, Err: errors.New("issue 4 not found")}
+	svc := attachment.New(listedPort{stubPort: &stubPort{listErr: missing}}, time.Minute)
+	_, err := svc.List(context.Background(), "o", "r", attachment.ScopeIssue, 4, attachment.Paging{Page: 1, Limit: 5})
+	if !errors.Is(err, forge.ErrNotFound) {
+		t.Fatalf("got %v, want forge.ErrNotFound", err)
 	}
 }

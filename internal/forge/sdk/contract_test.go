@@ -111,3 +111,16 @@ func TestErrorsContract(t *testing.T) {
 	t.Parallel()
 	forgetest.RunErrors(t, harness)
 }
+
+func TestMissingVersusEmptyContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunMissingVersusEmpty(t, harness)
+}
+
+func TestParentsContract(t *testing.T) {
+	t.Parallel()
+	forgetest.RunParents(t, func(t *testing.T) forgetest.Harness {
+		stub := forgetest.NewStub(t)
+		return forgetest.Harness{Port: NewAdapter(stub.NewClient(t)).WithRawBaseURL(stub.URL), Seed: stub.Fake}
+	})
+}
