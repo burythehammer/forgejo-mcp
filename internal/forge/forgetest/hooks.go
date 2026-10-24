@@ -15,8 +15,8 @@ import (
 func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 	newHookWithFilter := func(t *testing.T, h Harness, url, branchFilter string) *forgejo_sdk.Hook {
 		t.Helper()
-		h.Seed.AddRepo(Owner, Repo)
-		hook, err := h.Port.CreateRepoHook(ctx, Owner, Repo, forgejo_sdk.CreateHookOption{
+		h.Seed.AddRepo(h.owner(), h.repo())
+		hook, err := h.Port.CreateRepoHook(ctx, h.owner(), h.repo(), forgejo_sdk.CreateHookOption{
 			Type: forgejo_sdk.HookTypeForgejo, Config: map[string]string{"url": url, "content_type": "json"},
 			Events: []string{"push"}, Active: true, BranchFilter: branchFilter,
 		})
@@ -25,7 +25,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 	}
 	readHook := func(t *testing.T, h Harness, id int64) *forgejo_sdk.Hook {
 		t.Helper()
-		got, err := h.Port.GetRepoHook(ctx, Owner, Repo, id)
+		got, err := h.Port.GetRepoHook(ctx, h.owner(), h.repo(), id)
 		must(t, err)
 		return got
 	}
@@ -40,15 +40,15 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		{"unknown repository and hook are not found", func(t *testing.T, h Harness) {
 			_, err := h.Port.ListRepoHooks(ctx, "nobody", "nothing", forgejo_sdk.ListHooksOptions{})
 			wantNotFound(t, err)
-			h.Seed.AddRepo(Owner, Repo)
-			_, err = h.Port.GetRepoHook(ctx, Owner, Repo, 99)
+			h.Seed.AddRepo(h.owner(), h.repo())
+			_, err = h.Port.GetRepoHook(ctx, h.owner(), h.repo(), 99)
 			wantNotFound(t, err)
-			wantNotFound(t, h.Port.DeleteRepoHook(ctx, Owner, Repo, 99))
-			wantNotFound(t, h.Port.EditRepoHook(ctx, Owner, Repo, 99, forge.HookEdit{}))
+			wantNotFound(t, h.Port.DeleteRepoHook(ctx, h.owner(), h.repo(), 99))
+			wantNotFound(t, h.Port.EditRepoHook(ctx, h.owner(), h.repo(), 99, forge.HookEdit{}))
 		}},
 		{"created hook reads back", func(t *testing.T, h Harness) {
 			created := newHook(t, h, "https://example.test/a")
-			got, err := h.Port.GetRepoHook(ctx, Owner, Repo, created.ID)
+			got, err := h.Port.GetRepoHook(ctx, h.owner(), h.repo(), created.ID)
 			must(t, err)
 			if got.ID != created.ID || got.Type != "forgejo" || !got.Active || got.Config["url"] != "https://example.test/a" ||
 				len(got.Events) != 1 || got.Events[0] != "push" {
@@ -56,8 +56,8 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 			}
 		}},
 		{"create without a type is rejected", func(t *testing.T, h Harness) {
-			h.Seed.AddRepo(Owner, Repo)
-			_, err := h.Port.CreateRepoHook(ctx, Owner, Repo, forgejo_sdk.CreateHookOption{Config: map[string]string{"url": "u"}})
+			h.Seed.AddRepo(h.owner(), h.repo())
+			_, err := h.Port.CreateRepoHook(ctx, h.owner(), h.repo(), forgejo_sdk.CreateHookOption{Config: map[string]string{"url": "u"}})
 			if err == nil {
 				t.Fatal("want an error")
 			}
@@ -65,11 +65,11 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		{"edit changes the fields it sets", func(t *testing.T, h Harness) {
 			created := newHook(t, h, "https://example.test/a")
 			off := false
-			must(t, h.Port.EditRepoHook(ctx, Owner, Repo, created.ID, forge.HookEdit{
+			must(t, h.Port.EditRepoHook(ctx, h.owner(), h.repo(), created.ID, forge.HookEdit{
 				Config: map[string]string{"url": "https://example.test/b", "content_type": "json"},
 				Active: &off,
 			}))
-			got, err := h.Port.GetRepoHook(ctx, Owner, Repo, created.ID)
+			got, err := h.Port.GetRepoHook(ctx, h.owner(), h.repo(), created.ID)
 			must(t, err)
 			if got.Active || got.Config["url"] != "https://example.test/b" || len(got.Events) != 1 {
 				t.Fatalf("after edit: %+v", got)
@@ -77,7 +77,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		}},
 		{"editing only the config leaves events, active and branch filter unchanged", func(t *testing.T, h Harness) {
 			created := newHookWithFilter(t, h, "https://example.test/a", "main")
-			must(t, h.Port.EditRepoHook(ctx, Owner, Repo, created.ID, forge.HookEdit{
+			must(t, h.Port.EditRepoHook(ctx, h.owner(), h.repo(), created.ID, forge.HookEdit{
 				Config: map[string]string{"url": "https://example.test/b", "content_type": "json", "branch_filter": "main"},
 			}))
 			got := readHook(t, h, created.ID)
@@ -88,7 +88,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		}},
 		{"editing only the events leaves config, active and branch filter unchanged", func(t *testing.T, h Harness) {
 			created := newHookWithFilter(t, h, "https://example.test/a", "main")
-			must(t, h.Port.EditRepoHook(ctx, Owner, Repo, created.ID, forge.HookEdit{
+			must(t, h.Port.EditRepoHook(ctx, h.owner(), h.repo(), created.ID, forge.HookEdit{
 				Events: []string{"pull_request"},
 			}))
 			got := readHook(t, h, created.ID)
@@ -100,7 +100,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		{"editing only the branch filter leaves config, events and active unchanged", func(t *testing.T, h Harness) {
 			created := newHookWithFilter(t, h, "https://example.test/a", "main")
 			release := "release/*"
-			must(t, h.Port.EditRepoHook(ctx, Owner, Repo, created.ID, forge.HookEdit{BranchFilter: &release}))
+			must(t, h.Port.EditRepoHook(ctx, h.owner(), h.repo(), created.ID, forge.HookEdit{BranchFilter: &release}))
 			got := readHook(t, h, created.ID)
 			if got.Config["branch_filter"] != "release/*" || got.Config["url"] != "https://example.test/a" ||
 				!sameEvents(got.Events, "push") || !got.Active {
@@ -110,7 +110,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		{"editing only active leaves config, events and branch filter unchanged", func(t *testing.T, h Harness) {
 			created := newHookWithFilter(t, h, "https://example.test/a", "main")
 			off := false
-			must(t, h.Port.EditRepoHook(ctx, Owner, Repo, created.ID, forge.HookEdit{Active: &off}))
+			must(t, h.Port.EditRepoHook(ctx, h.owner(), h.repo(), created.ID, forge.HookEdit{Active: &off}))
 			got := readHook(t, h, created.ID)
 			if got.Active || got.Config["url"] != "https://example.test/a" || got.Config["branch_filter"] != "main" ||
 				!sameEvents(got.Events, "push") {
@@ -120,7 +120,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		{"an explicit empty branch filter clears it", func(t *testing.T, h Harness) {
 			created := newHookWithFilter(t, h, "https://example.test/a", "main")
 			empty := ""
-			must(t, h.Port.EditRepoHook(ctx, Owner, Repo, created.ID, forge.HookEdit{BranchFilter: &empty}))
+			must(t, h.Port.EditRepoHook(ctx, h.owner(), h.repo(), created.ID, forge.HookEdit{BranchFilter: &empty}))
 			got := readHook(t, h, created.ID)
 			if v, ok := got.Config["branch_filter"]; ok && v != "" {
 				t.Fatalf("branch filter = %q after clearing, want empty", v)
@@ -134,8 +134,8 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 			if got := readHook(t, h, created.ID); got.Config["branch_filter"] != "main" {
 				t.Fatalf("get: branch filter = %q, want main", got.Config["branch_filter"])
 			}
-			h.Seed.AddRepo(Owner, Repo)
-			listed, err := h.Port.ListRepoHooks(ctx, Owner, Repo, forgejo_sdk.ListHooksOptions{})
+			h.Seed.AddRepo(h.owner(), h.repo())
+			listed, err := h.Port.ListRepoHooks(ctx, h.owner(), h.repo(), forgejo_sdk.ListHooksOptions{})
 			must(t, err)
 			if len(listed.Hooks) != 1 || listed.Hooks[0].Config["branch_filter"] != "main" {
 				t.Fatalf("list: %+v, want the branch filter main", listed.Hooks)
@@ -143,7 +143,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		}},
 		{"an edit that sets only the config keeps the branch filter", func(t *testing.T, h Harness) {
 			created := newHookWithFilter(t, h, "https://example.test/a", "main")
-			must(t, h.Port.EditRepoHook(ctx, Owner, Repo, created.ID, forge.HookEdit{
+			must(t, h.Port.EditRepoHook(ctx, h.owner(), h.repo(), created.ID, forge.HookEdit{
 				Config: map[string]string{"url": "https://example.test/b", "content_type": "json"},
 			}))
 			got := readHook(t, h, created.ID)
@@ -153,17 +153,17 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		}},
 		{"a deleted hook is gone", func(t *testing.T, h Harness) {
 			created := newHook(t, h, "https://example.test/a")
-			must(t, h.Port.DeleteRepoHook(ctx, Owner, Repo, created.ID))
-			_, err := h.Port.GetRepoHook(ctx, Owner, Repo, created.ID)
+			must(t, h.Port.DeleteRepoHook(ctx, h.owner(), h.repo(), created.ID))
+			_, err := h.Port.GetRepoHook(ctx, h.owner(), h.repo(), created.ID)
 			wantNotFound(t, err)
 		}},
 		{"list paginates and reports the total", func(t *testing.T, h Harness) {
 			a := newHook(t, h, "https://example.test/a")
 			b := newHook(t, h, "https://example.test/b")
 			c := newHook(t, h, "https://example.test/c")
-			p1, err := h.Port.ListRepoHooks(ctx, Owner, Repo, forgejo_sdk.ListHooksOptions{ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: 2}})
+			p1, err := h.Port.ListRepoHooks(ctx, h.owner(), h.repo(), forgejo_sdk.ListHooksOptions{ListOptions: forgejo_sdk.ListOptions{Page: 1, PageSize: 2}})
 			must(t, err)
-			p2, err := h.Port.ListRepoHooks(ctx, Owner, Repo, forgejo_sdk.ListHooksOptions{ListOptions: forgejo_sdk.ListOptions{Page: 2, PageSize: 2}})
+			p2, err := h.Port.ListRepoHooks(ctx, h.owner(), h.repo(), forgejo_sdk.ListHooksOptions{ListOptions: forgejo_sdk.ListOptions{Page: 2, PageSize: 2}})
 			must(t, err)
 			if len(p1.Hooks) != 2 || len(p2.Hooks) != 1 || p1.Hooks[0].ID != a.ID || p1.Hooks[1].ID != b.ID || p2.Hooks[0].ID != c.ID {
 				t.Fatalf("page1=%v page2=%v", p1.Hooks, p2.Hooks)
@@ -175,8 +175,8 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 		{"a test delivery of a known hook succeeds, of an unknown one is not found", func(t *testing.T, h Harness) {
 			created := newHook(t, h, "https://example.test/a")
 			tctx := ctx
-			must(t, h.Port.TestRepoHook(tctx, Owner, Repo, created.ID))
-			wantNotFound(t, h.Port.TestRepoHook(tctx, Owner, Repo, 99))
+			must(t, h.Port.TestRepoHook(tctx, h.owner(), h.repo(), created.ID))
+			wantNotFound(t, h.Port.TestRepoHook(tctx, h.owner(), h.repo(), 99))
 		}},
 	}
 	for _, tc := range cases {

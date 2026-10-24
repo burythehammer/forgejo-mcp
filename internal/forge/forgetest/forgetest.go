@@ -28,6 +28,25 @@ type Harness struct {
 	// *fake.Forgejo implements it directly, and Stub.Fake is what the real
 	// adapter's stub reads.
 	Seed Seeder
+	// Owner and Repo name the repository a case works in. Empty means the
+	// package constants, which the fake and the stub use; a live run sets a
+	// throwaway repository of its own.
+	Owner, Repo string
+}
+
+// owner and repo are the repository the case works in.
+func (h Harness) owner() string {
+	if h.Owner != "" {
+		return h.Owner
+	}
+	return Owner
+}
+
+func (h Harness) repo() string {
+	if h.Repo != "" {
+		return h.Repo
+	}
+	return Repo
 }
 
 // Seeder is the out-of-band way to put data in front of the port. Each domain

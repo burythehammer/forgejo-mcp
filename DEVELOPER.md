@@ -125,6 +125,8 @@ domain has:
    (`forgetest/stub_<domain>.go`, a thin translation onto `Stub.Fake`) and call
    `RunXxx` from `fake/contract_test.go` and `sdk/contract_test.go`. The stub
    answers the SDK startup probe in one place, `forgetest.WriteVersion`.
+   To run the same cases against a real Forgejo (opt-in, needs a token the
+   human supplies), see [docs/agents/live-contract.md](docs/agents/live-contract.md).
 5. **MCP adapters take the factory.** `RegisterTool(s, f forge.Factory)` /
    `RegisterResource(s, f)`, a `handlers{forge: f}` struct (in each `internal/operation/<domain>/handlers.go`) whose methods call
    `h.forge.For(ctx)` per request (so each request gets its own credential), and
