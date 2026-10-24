@@ -8,6 +8,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/attachment"
@@ -175,13 +176,14 @@ func RegisterWikiTool(s *server.MCPServer, f forge.Factory) {
 // it to the transport package to serve on cfg.Transport. version is the build
 // version, which is build information and so not part of cfg.
 func Run(ctx context.Context, cfg config.Config, version string) error {
-	sel, err := toolset.Parse(cfg.Toolsets, cfg.Tools)
+	sel, err := toolset.ParseWithPreset(cfg.Preset, cfg.Toolsets, cfg.Tools)
 	if err != nil {
 		return err
 	}
 	mcpServer := newMCPServer(version)
 	factory := newFactory(cfg, version)
 	RegisterSelectedTool(mcpServer, version, factory, sel)
+	lean.Finish(mcpServer, cfg.Lean)
 	RegisterSelectedResources(mcpServer, factory, sel)
 	return transport.Serve(ctx, cfg, mcpServer, factory)
 }

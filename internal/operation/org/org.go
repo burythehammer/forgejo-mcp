@@ -4,6 +4,7 @@ package org
 
 import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -22,6 +23,7 @@ const (
 var (
 	CreateOrgTool = mcp.NewTool(
 		CreateOrgToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create an organization"),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Organization username")),
 		mcp.WithString("full_name", mcp.Description("Display name")),
@@ -33,12 +35,14 @@ var (
 
 	GetOrgTool = mcp.NewTool(
 		GetOrgToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get organization details"),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 	)
 
 	ListMyOrgsTool = mcp.NewTool(
 		ListMyOrgsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List my organizations. Returns a response envelope {organizations, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
 		mcp.WithNumber("limit", mcp.Required(), mcp.Description(params.Limit), mcp.DefaultNumber(100), mcp.Min(1)),
@@ -46,6 +50,7 @@ var (
 
 	ListUserOrgsTool = mcp.NewTool(
 		ListUserOrgsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List a user's organizations. Returns a response envelope {organizations, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("user", mcp.Required(), mcp.Description(params.User)),
 		mcp.WithNumber("page", mcp.Required(), mcp.Description(params.Page), mcp.DefaultNumber(1), mcp.Min(1)),
@@ -54,6 +59,7 @@ var (
 
 	EditOrgTool = mcp.NewTool(
 		EditOrgToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit organization settings"),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 		mcp.WithString("full_name", mcp.Description("Display name")),
@@ -65,6 +71,7 @@ var (
 
 	DeleteOrgTool = mcp.NewTool(
 		DeleteOrgToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete an organization. WARNING: This is destructive and irreversible — all repos, teams, and data will be permanently removed"),
 		mcp.WithString("org", mcp.Required(), mcp.Description(params.Org)),
 	)

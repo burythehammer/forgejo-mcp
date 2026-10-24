@@ -86,6 +86,8 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		tlsCA                                string
 		tlsSkipVerify                        bool
 		toolsets, tools                      string
+		preset                               string
+		lean                                 bool
 	)
 	resource := make(map[string]*string, len(resourceSettings))
 
@@ -141,6 +143,10 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	fs.StringVar(&tools, "tools", "",
 		"Comma-separated names of individual tools to load, in addition to any -toolsets "+
 			"(env: FORGEJO_MCP_TOOLS)")
+	fs.StringVar(&preset, "preset", "", "(env: FORGEJO_MCP_PRESET) "+toolset.PresetFlagHelp())
+	fs.BoolVar(&lean, "lean", false,
+		"Serve terse tool text: each description cut to its first sentence, most property descriptions removed, "+
+			"annotations empty; the same tool and argument names (env: FORGEJO_MCP_LEAN)")
 	for _, s := range resourceSettings {
 		p := new(string)
 		resource[s.flagName] = p
@@ -245,7 +251,14 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 
 	cfg.Toolsets = splitList(resolve(toolsets, "FORGEJO_MCP_TOOLSETS", "toolsets"))
 	cfg.Tools = splitList(resolve(tools, "FORGEJO_MCP_TOOLS", "tools"))
-	if _, err := toolset.Parse(cfg.Toolsets, cfg.Tools); err != nil {
+	cfg.Preset = strings.TrimSpace(resolve(preset, "FORGEJO_MCP_PRESET", "preset"))
+	cfg.Lean = lean
+	if !passed["lean"] {
+		if v := getenv("FORGEJO_MCP_LEAN"); v != "" {
+			cfg.Lean = isTruthy(v)
+		}
+	}
+	if _, err := toolset.ParseWithPreset(cfg.Preset, cfg.Toolsets, cfg.Tools); err != nil {
 		return Config{}, warns, fmt.Errorf("refusing to start: %w", err)
 	}
 

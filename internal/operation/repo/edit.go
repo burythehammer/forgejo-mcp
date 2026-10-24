@@ -6,6 +6,7 @@ import (
 	"context"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 
@@ -15,6 +16,7 @@ import (
 var (
 	GetRepoTool = mcp.NewTool(
 		GetRepoToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get a single repository by owner and name."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -22,6 +24,7 @@ var (
 
 	EditRepoTool = mcp.NewTool(
 		EditRepoToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit repository settings (PATCH — only supplied fields change). Providing no fields is an error. name renames the repository; subsequent calls must use the new name. Does not change topics (those use a separate API)."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

@@ -318,16 +318,32 @@ func Everything() Selection {
 	return Selection{full: true}
 }
 
-// Parse resolves the operator's toolset and tool names into a Selection. With
-// neither list given it selects everything. Otherwise it selects the tools of
-// the named toolsets together with the named tools. Resource templates follow
-// the named toolsets only, so a tools-only selection registers none. An unknown
-// name is an error that lists the valid names.
+// Parse resolves the operator's toolset and tool names into a Selection. It is
+// ParseWithPreset with no preset.
 func Parse(toolsets, tools []string) (Selection, error) {
-	if len(toolsets) == 0 && len(tools) == 0 {
+	return ParseWithPreset("", toolsets, tools)
+}
+
+// ParseWithPreset resolves the operator's preset, toolset and tool names into a
+// Selection. With none given it selects everything. Otherwise it selects the
+// union of the preset's tools, the tools of the named toolsets and the named
+// tools. Resource templates follow the named toolsets only, so a preset or a
+// tools-only selection registers none. An unknown name is an error that lists
+// the valid names.
+func ParseWithPreset(preset string, toolsets, tools []string) (Selection, error) {
+	if preset == "" && len(toolsets) == 0 && len(tools) == 0 {
 		return Everything(), nil
 	}
 	sel := Selection{toolsets: map[string]bool{}, tools: map[string]bool{}}
+	if preset != "" {
+		presetTools, ok := PresetTools(preset)
+		if !ok {
+			return Selection{}, fmt.Errorf("unknown preset %q; valid presets: %s", preset, strings.Join(PresetNames(), ", "))
+		}
+		for _, t := range presetTools {
+			sel.tools[t] = true
+		}
+	}
 	byName := make(map[string]Toolset, len(catalogue))
 	for _, ts := range catalogue {
 		byName[ts.Name] = ts

@@ -9,6 +9,8 @@ import (
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
@@ -56,24 +58,26 @@ const (
 var (
 	GetIssueByIndexTool = mcp.NewTool(
 		GetIssueByIndexToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get issue by index"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
-		mcp.WithString("type", mcp.Description("Type (issues|pulls). 'issues' refuses a pull request's index and 'pulls' refuses an issue's index, with an error that names the tool for the other kind. Omit to accept either kind.")),
+		mcp.WithString("type", mcp.Description("Type (issues|pulls). 'issues' refuses a pull request's index and 'pulls' refuses an issue's index, with an error that names the tool for the other kind. Omit to accept either kind."), lean.Keep("issues or pulls; omit to accept either")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ListRepoIssuesTool = mcp.NewTool(
 		ListRepoIssuesToolName,
+		annotate.Read(),
 		mcp.WithDescription("List repo issues (page/limit). Returns a response envelope {issues, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
-		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open")),
-		mcp.WithString("type", mcp.Description("Type (issues|pulls)")),
-		mcp.WithString("milestones", mcp.Description("Milestone names/IDs (comma-separated)")),
-		mcp.WithString("labels", mcp.Description("Labels (comma-separated)")),
-		mcp.WithString("sort", mcp.Description("Server-side sort order. One of: relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate. Default is the API's own default (latest).")),
+		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open"), lean.Keep("open, closed or all")),
+		mcp.WithString("type", mcp.Description("Type (issues|pulls)"), lean.Keep("issues or pulls")),
+		mcp.WithString("milestones", mcp.Description("Milestone names/IDs (comma-separated)"), lean.Keep("comma-separated milestone names or IDs")),
+		mcp.WithString("labels", mcp.Description("Labels (comma-separated)"), lean.Keep("comma-separated label names or IDs")),
+		mcp.WithString("sort", mcp.Description("Server-side sort order. One of: relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate. Default is the API's own default (latest)."), lean.Keep("one of relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
@@ -81,20 +85,22 @@ var (
 
 	CreateIssueTool = mcp.NewTool(
 		CreateIssueToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create issue, optionally with labels (by name or ID), assignees and a milestone in the same call"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("title", mcp.Required(), mcp.Description(params.Title)),
 		mcp.WithString("body", mcp.Description(params.Body)),
-		mcp.WithString("labels", mcp.Description(labelsArgDescription("Labels for the new issue"))),
-		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated)")),
+		mcp.WithString("labels", mcp.Description(labelsArgDescription("Labels for the new issue")), lean.Keep("comma-separated label names or IDs")),
+		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated)"), lean.Keep("comma-separated usernames")),
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
-		mcp.WithString("ref", mcp.Description(refArgDescription)),
+		mcp.WithString("ref", mcp.Description(refArgDescription), lean.Keep("branch name")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	CreateIssueCommentTool = mcp.NewTool(
 		CreateIssueCommentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create issue comment"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -105,6 +111,7 @@ var (
 
 	UpdateIssueTool = mcp.NewTool(
 		UpdateIssueToolName,
+		annotate.Write(),
 		mcp.WithDescription("Update issue. 'set_labels' replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -112,69 +119,75 @@ var (
 		mcp.WithString("title", mcp.Description(params.Title)),
 		mcp.WithString("body", mcp.Description(params.Body)),
 		mcp.WithString("assignee", mcp.Description("Assignee username (convenience for a single user; equivalent to a one-element 'assignees')")),
-		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated). Overrides 'assignee' if both are set. Pass an empty string to clear all assignees.")),
+		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated). Overrides 'assignee' if both are set. Pass an empty string to clear all assignees."), lean.Keep("comma-separated usernames, empty clears them")),
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
-		mcp.WithString("due_date", mcp.Description("Set the issue's due date (RFC3339, e.g. 2026-08-20T00:00:00Z). Mutually exclusive with 'clear_due_date'; setting both is an error.")),
-		mcp.WithBoolean("clear_due_date", mcp.Description("Clear the issue's due date. Mutually exclusive with 'due_date'.")),
-		mcp.WithString("set_labels", mcp.Description(labelsArgDescription("Replace the issue's entire label set")+" Pass an empty string to remove every label. To add or drop individual labels without restating the set, use add_issue_labels or remove_issue_labels.")),
-		mcp.WithString("ref", mcp.Description(refArgDescription+" Omit to leave it unchanged; pass an empty string to clear it.")),
+		mcp.WithString("due_date", mcp.Description("Set the issue's due date (RFC3339, e.g. 2026-08-20T00:00:00Z). Mutually exclusive with 'clear_due_date'; setting both is an error."), lean.Keep("RFC3339 time, e.g. 2026-08-20T00:00:00Z")),
+		mcp.WithBoolean("clear_due_date", mcp.Description("Clear the issue's due date. Mutually exclusive with 'due_date'."), lean.Keep("true clears the due date, exclusive with due_date")),
+		mcp.WithString("set_labels", mcp.Description(labelsArgDescription("Replace the issue's entire label set")+" Pass an empty string to remove every label. To add or drop individual labels without restating the set, use add_issue_labels or remove_issue_labels."), lean.Keep("comma-separated label names or IDs, empty removes all")),
+		mcp.WithString("ref", mcp.Description(refArgDescription+" Omit to leave it unchanged; pass an empty string to clear it."), lean.Keep("branch name, empty clears it")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ReplaceIssueBodyLineTool = mcp.NewTool(
 		ReplaceIssueBodyLineToolName,
+		annotate.Write(),
 		mcp.WithDescription("Replace one exact piece of an issue's body on the server, without sending the whole body. 'old' is matched as a case-sensitive substring (it may span a whole line) and must occur exactly once: zero matches or several refuse with the body left unchanged, and several report the count. 'old' must not be empty. Pull request indexes are refused. Limitation: Forgejo has no compare-and-swap for issue edits, so an edit made between this call's read and write can be lost; compare updated_at in the result to detect that."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
-		mcp.WithString("old", mcp.Required(), mcp.Description("Exact text to find in the body (case-sensitive, non-empty). Must occur exactly once.")),
-		mcp.WithString("new", mcp.Required(), mcp.Description("Text that replaces 'old'. May be empty to delete it.")),
+		mcp.WithString("old", mcp.Required(), mcp.Description("Exact text to find in the body (case-sensitive, non-empty). Must occur exactly once."), lean.Keep("must occur exactly once in the body")),
+		mcp.WithString("new", mcp.Required(), mcp.Description("Text that replaces 'old'. May be empty to delete it."), lean.Keep("empty deletes the match")),
 	)
 
 	AddIssueLabelsTools = mcp.NewTool(
 		AddIssueLabelsToolName,
+		annotate.Write(),
 		mcp.WithDescription("Add labels to issue, by label name or numeric ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
-		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to add"))),
+		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to add")), lean.Keep("comma-separated label names or IDs")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	RemoveIssueLabelsTools = mcp.NewTool(
 		RemoveIssueLabelsToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Remove labels from issue, by label name or numeric ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
-		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to remove"))),
+		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to remove")), lean.Keep("comma-separated label names or IDs")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	IssueStateChangeTool = mcp.NewTool(
 		IssueStateChangeToolName,
+		annotate.Write(),
 		mcp.WithDescription("Change issue state"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
-		mcp.WithString("state", mcp.Required(), mcp.Description("State (open|closed)")),
+		mcp.WithString("state", mcp.Required(), mcp.Description("State (open|closed)"), lean.Keep("open or closed")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	ListIssueCommentsTool = mcp.NewTool(
 		ListIssueCommentsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List issue/PR comments. Returns a response envelope {comments, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.Index)),
-		mcp.WithString("since", mcp.Description(params.Since)),
-		mcp.WithString("before", mcp.Description(params.Before)),
+		mcp.WithString("since", mcp.Description(params.Since), lean.Keep("RFC3339 time, e.g. 2026-08-20T00:00:00Z")),
+		mcp.WithString("before", mcp.Description(params.Before), lean.Keep("RFC3339 time, e.g. 2026-08-20T00:00:00Z")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 	)
 
 	GetIssueCommentTool = mcp.NewTool(
 		GetIssueCommentToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get comment by ID"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -184,6 +197,7 @@ var (
 
 	EditIssueCommentTool = mcp.NewTool(
 		EditIssueCommentToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit issue/PR comment"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -194,6 +208,7 @@ var (
 
 	DeleteIssueCommentTool = mcp.NewTool(
 		DeleteIssueCommentToolName,
+		annotate.Destructive(),
 		mcp.WithDescription("Delete issue/PR comment"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -202,16 +217,18 @@ var (
 
 	ListRepoMilestonesTool = mcp.NewTool(
 		ListRepoMilestonesToolName,
+		annotate.Read(),
 		mcp.WithDescription("List repository milestones. Returns a response envelope {milestones, page, limit, count, has_next}. has_next true means a further page may exist; re-issue the call with page incremented to fetch it."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(100)),
-		mcp.WithString("state", mcp.Description("Milestone state (open|closed|all)"), mcp.DefaultString("open")),
+		mcp.WithString("state", mcp.Description("Milestone state (open|closed|all)"), mcp.DefaultString("open"), lean.Keep("open, closed or all")),
 	)
 
 	ListRepoLabelsTool = mcp.NewTool(
 		ListRepoLabelsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List repository labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. When the owner is an organization and include_org_labels is true (default), org-level labels are merged into the labels list; count includes them, while has_next and total_count describe the repository labels only. Each label carries a scope field of \"repo\" or \"org\"."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
@@ -222,6 +239,7 @@ var (
 
 	ListOrgLabelsTool = mcp.NewTool(
 		ListOrgLabelsToolName,
+		annotate.Read(),
 		mcp.WithDescription("List organization-level labels. Returns a response envelope {labels, page, limit, count, has_next, total_count}; has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count is the server grand total, omitted when unknown. Each label carries a scope field of \"org\"."),
 		mcp.WithString("org", mcp.Required(), mcp.Description("Organization name")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
@@ -230,6 +248,7 @@ var (
 
 	SearchIssuesTool = mcp.NewTool(
 		SearchIssuesToolName,
+		annotate.Read(),
 		mcp.WithDescription("Search issues across every repository belonging to one owner (organization or user), without naming a repo. "+
 			"Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. "+
 			"has_next true means a further page may exist; re-issue the call with page incremented to fetch it. "+
@@ -237,10 +256,10 @@ var (
 			"Each issue identifies its source repository only via its html_url/url field; there is no separate repository field. "+
 			"Use list_repo_issues instead when the repo is already known."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
-		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open")),
-		mcp.WithString("type", mcp.Description("Type (issues|pulls)")),
-		mcp.WithString("labels", mcp.Description("Labels (comma-separated); OR semantics — an issue matching any listed label is returned")),
-		mcp.WithString("milestones", mcp.Description("Milestone names/IDs (comma-separated)")),
+		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open"), lean.Keep("open, closed or all")),
+		mcp.WithString("type", mcp.Description("Type (issues|pulls)"), lean.Keep("issues or pulls")),
+		mcp.WithString("labels", mcp.Description("Labels (comma-separated); OR semantics — an issue matching any listed label is returned"), lean.Keep("comma-separated, an issue with any listed label matches")),
+		mcp.WithString("milestones", mcp.Description("Milestone names/IDs (comma-separated)"), lean.Keep("comma-separated milestone names or IDs")),
 		mcp.WithString("q", mcp.Description(params.Keyword+" (matches issue title, body, and comments)")),
 		mcp.WithString("created_by", mcp.Description("Filter by creator username")),
 		mcp.WithString("assigned_by", mcp.Description("Filter by assignee username")),

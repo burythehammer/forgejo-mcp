@@ -11,6 +11,8 @@ import (
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -29,28 +31,31 @@ const (
 var (
 	CreateMilestoneTool = mcp.NewTool(
 		CreateMilestoneToolName,
+		annotate.Write(),
 		mcp.WithDescription("Create an open repository milestone. Returns the milestone as the server stored it: id, title, description, state, due_date, open_issues, closed_issues."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("title", mcp.Required(), mcp.Description("Milestone title")),
 		mcp.WithString("description", mcp.Description("Milestone description")),
-		mcp.WithString("due_date", mcp.Description("Due date as an RFC3339 timestamp, e.g. 2026-12-01T00:00:00Z")),
+		mcp.WithString("due_date", mcp.Description("Due date as an RFC3339 timestamp, e.g. 2026-12-01T00:00:00Z"), lean.Keep("RFC3339 time, e.g. 2026-12-01T00:00:00Z")),
 	)
 
 	EditMilestoneTool = mcp.NewTool(
 		EditMilestoneToolName,
+		annotate.Write(),
 		mcp.WithDescription("Edit a repository milestone. Only the fields given change. Set state to closed to close a milestone, or open to reopen it. Returns the milestone as the server stored it. A due date cannot be cleared."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("id", mcp.Required(), mcp.Description("Milestone ID (a positive integer)")),
 		mcp.WithString("title", mcp.Description("New title")),
 		mcp.WithString("description", mcp.Description("New description")),
-		mcp.WithString("state", mcp.Description("open or closed")),
-		mcp.WithString("due_date", mcp.Description("New due date as an RFC3339 timestamp")),
+		mcp.WithString("state", mcp.Description("open or closed"), lean.Keep("open or closed")),
+		mcp.WithString("due_date", mcp.Description("New due date as an RFC3339 timestamp"), lean.Keep("RFC3339 time")),
 	)
 
 	GetMilestoneTool = mcp.NewTool(
 		GetMilestoneToolName,
+		annotate.Read(),
 		mcp.WithDescription("Get one repository milestone by ID. Returns the milestone as the server stored it. A missing ID is an error, not an empty result."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),

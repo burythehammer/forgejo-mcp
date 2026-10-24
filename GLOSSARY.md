@@ -29,6 +29,14 @@ _Avoid_: adapter (unqualified), Bridge in prose
 An MCP tool the server offers, standing for exactly one Forgejo operation. A sequence of operations that serves a workflow is not a tool; it belongs to a skill.
 _Avoid_: workflow tool, compound tool, macro
 
+**Toolset**:
+A named group of tools for one domain, such as issues or labels. Each tool is in exactly one toolset. Resource templates follow their toolset.
+_Avoid_: profile, bundle, tier
+
+**Preset**:
+A named selection of individual tools that may cross domains, such as `tracker-core`. A preset holds no toolsets and registers no resource templates; it combines with toolsets and individual tools as a union.
+_Avoid_: profile, bundle, tier
+
 **Use case**:
 The MCP-free unit of application logic behind one tool: takes plain inputs, reaches Forgejo only through the Forgejo port, and returns a repo-owned result type. It lives under `internal/app/<domain>/`, where `service.go` holds the domain's use cases as methods on a `Service` type. "Service" is that Go type name only; the concept is the use case.
 _Avoid_: handler, service, operation
@@ -40,3 +48,7 @@ _Avoid_: handler (as the concept), tool function, adapter (unqualified)
 **Compact result**:
 The default summary shape of a tool's entity. The write tools return it, and so do the entities in a list result and the single reads of an issue, a pull request, a comment and a review. Passing `verbose: true` returns the full entity instead.
 _Avoid_: short result, slim response
+
+**Lean mode**:
+The opt-in setting (`--lean`, or `FORGEJO_MCP_LEAN`, the flag winning) that serves terse tool text: each tool description cut to its first sentence, property descriptions removed except where an argument has a format, an allowed-value list, or a rule its name and type do not show, and annotations sent empty. Tool names and argument names are the same as in the full text. It is a rewrite at registration in `internal/lean/`, not a second set of descriptions.
+_Avoid_: profile, bundle, tier, terse mode
