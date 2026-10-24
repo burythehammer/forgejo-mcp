@@ -48,9 +48,6 @@ func (a adapter) List(ctx context.Context, owner, repo string, s attachment.Scop
 	} else {
 		out, err = a.p.ListIssueAttachments(ctx, owner, repo, parent)
 	}
-	if forge.IsNotFound(err) {
-		return nil, attachment.ErrNotFound
-	}
 	return bridge.Convert[[]*model.Attachment](out, err)
 }
 

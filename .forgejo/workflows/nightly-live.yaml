@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Nightly live run against a real Forgejo. Not part of the PR gate (ci.yaml).
+# Starts Forgejo in a service container, bootstraps an admin token and a test
+# repo (test/live/bootstrap.sh), then runs the live contract suite and
+# test/e2e/attachments.sh. A failure fails this run and comments on the
+# tracking issue. Versions and failure reporting: docs/agents/live-contract.md.
+name: nightly-live
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+jobs:
+  live:
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oldest supported (the 16.0 floor, README) and newest stable 16.x.
+        # 17.0.0 is out but its release notes advise against upgrading; add it
+        # here when that changes.
+        forgejo: ['16.0.3', '16.0.6']
+    env:
+      # Tracking issue that receives the failure comment.
+      TRACKING_ISSUE: '263'
+    container:
+      image: golangci/golangci-lint:v2.12.2
+    services:
+      forgejo:
+        image: codeberg.org/forgejo/forgejo:${{ matrix.forgejo }}
+        env:
+          FORGEJO__server__ROOT_URL: http://forgejo:3000/
+          FORGEJO__database__DB_TYPE: sqlite3
+          FORGEJO__security__INSTALL_LOCK: 'false'
+    steps:
+      # jq: used by bootstrap and the e2e script. nodejs: actions/checkout is a
+      # JS action and runs on the container's own node.
+      - name: Install jq and nodejs
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq jq nodejs
+      - uses: actions/checkout@v4
+      - name: Bootstrap admin token and test repo
+        env:
+          FORGEJO_URL: http://forgejo:3000
+          BOT_USER: ci-bot
+          REPO: e2e-attachments
+        run: bash test/live/bootstrap.sh
+      - name: Build forgejo-mcp
+        run: make build
+      - name: Live contract suite
+        env:
+          FORGEJO_URL: http://forgejo:3000
+        run: |
+          go test ./internal/forge/sdk -run TestHooksContractLive -count=1 -v
+      - name: E2E attachments
+        run: ./test/e2e/attachments.sh
+      - name: Report failure on the tracking issue
+        if: failure()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FORGEJO_VERSION: ${{ matrix.forgejo }}
+        run: |
+          body=$(jq -nc --arg b "Nightly live run failed against Forgejo $FORGEJO_VERSION: $RUN_URL" '{body: $b}')
+          curl -fsS -X POST \
+            -H "Authorization: token $TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "$body" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/issues/$TRACKING_ISSUE/comments" \
+            >/dev/null

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"testing"
 
-	appowner "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/owner"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 
@@ -45,8 +44,8 @@ func TestGetUser_OnlyAForgejo404IsAMiss(t *testing.T) {
 			t.Parallel()
 			a := New(userFailure{Forgejo: fake.New(), err: c.err}, fake.New())
 			_, err := a.GetUser(context.Background(), "octo")
-			if got := errors.Is(err, appowner.ErrNotFound); got != c.wantMiss {
-				t.Fatalf("errors.Is(err, ErrNotFound) = %v, want %v (err = %v)", got, c.wantMiss, err)
+			if got := errors.Is(err, forge.ErrNotFound); got != c.wantMiss {
+				t.Fatalf("errors.Is(err, forge.ErrNotFound) = %v, want %v (err = %v)", got, c.wantMiss, err)
 			}
 			if err == nil {
 				t.Fatal("want an error")
