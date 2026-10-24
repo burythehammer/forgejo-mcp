@@ -46,6 +46,13 @@ func (f *Forgejo) relatedIssues(k depKey, dependents bool) []*forgejo_sdk.Issue 
 }
 
 func (f *Forgejo) listRelated(owner, repo string, index int64, pg, limit int, dependents bool) ([]*forgejo_sdk.Issue, error) {
+	op := "ListIssueDependencies"
+	if dependents {
+		op = "ListIssueDependents"
+	}
+	if err := f.refused(op); err != nil {
+		return nil, err
+	}
 	f.issues.mu.Lock()
 	defer f.issues.mu.Unlock()
 	// A missing issue is not found, not an empty list: Forgejo's 404 is ambiguous

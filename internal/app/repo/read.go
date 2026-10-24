@@ -9,6 +9,7 @@ import (
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // The read use cases below are the one read behind each repository, commit and
@@ -48,8 +49,7 @@ func (s *AdminService) ReadRepo(ctx context.Context, owner, repo string, opt Rep
 	}
 	topics, err := s.port.ListRepoTopics(ctx, owner, repo, AdminPaging{Page: 1, Limit: maxRepoTopics})
 	if err != nil {
-		var nf *NotFoundError
-		if !errors.As(err, &nf) {
+		if !forge.IsNotFound(err) {
 			return RepoRead{}, fmt.Errorf("list repo topics: %w", err)
 		}
 		topics = nil

@@ -74,3 +74,52 @@ func RunErrors(t *testing.T, newHarness func(t *testing.T) Harness) {
 		})
 	}
 }
+
+// RunMissingVersusEmpty pins the decision every list under a parent makes, once,
+// for each implementation. A missing parent is not found. An existing parent
+// with nothing under it is an empty list, not not-found. A failure with any
+// other status is never read as not-found, whatever its message says.
+func RunMissingVersusEmpty(t *testing.T, newHarness func(t *testing.T) Harness) {
+	t.Run("comments of a missing issue are not found", func(t *testing.T) {
+		h := newHarness(t)
+		h.Seed.AddRepo(Owner, Repo)
+		_, _, err := h.Port.ListIssueComments(ctx, Owner, Repo, 99, forgejo_sdk.ListIssueCommentOptions{})
+		wantNotFound(t, err)
+	})
+
+	t.Run("comments of an existing issue with none are an empty list", func(t *testing.T) {
+		h := newHarness(t)
+		iss := newIssue(t, h, "quiet")
+		comments, _, err := h.Port.ListIssueComments(ctx, Owner, Repo, iss.Index, forgejo_sdk.ListIssueCommentOptions{})
+		must(t, err)
+		if len(comments) != 0 {
+			t.Fatalf("got %d comments, want an empty list", len(comments))
+		}
+	})
+
+	failures := []struct {
+		name   string
+		status int
+		kind   error
+	}{
+		{"a 403 listing under a missing issue is unauthorized, not not-found", 403, forge.ErrUnauthorized},
+		{"a 500 listing under a missing issue is an upstream failure, not not-found", 500, forge.ErrUpstream},
+	}
+	for _, c := range failures {
+		t.Run(c.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.Seed.AddRepo(Owner, Repo)
+			h.Seed.FailIssues(c.status)
+			_, _, err := h.Port.ListIssueComments(ctx, Owner, Repo, 99, forgejo_sdk.ListIssueCommentOptions{})
+			if err == nil {
+				t.Fatalf("want an error of kind %v, got nil", c.kind)
+			}
+			if !errors.Is(err, c.kind) {
+				t.Fatalf("got %v (status %d), want kind %v", err, forge.StatusCode(err), c.kind)
+			}
+			if forge.IsNotFound(err) {
+				t.Fatalf("got %v (status %d): a %d must not be read as not found", err, forge.StatusCode(err), c.status)
+			}
+		})
+	}
+}

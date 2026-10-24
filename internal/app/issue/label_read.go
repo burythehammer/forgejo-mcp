@@ -4,11 +4,11 @@ package issue
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // labelsDefaultLimit is the page size a repository or organization label
@@ -50,7 +50,7 @@ func (s *Service) ReadRepoLabels(ctx context.Context, in RepoLabelsInput) (list.
 	}
 	orgs, err := s.ReadOrgLabels(ctx, in.Owner, in.Paging)
 	// A user owner has no organization labels; the repository already read.
-	if err != nil && !errors.Is(err, ErrOrgNotFound) {
+	if err != nil && !forge.IsNotFound(err) {
 		return list.Bounded[model.ScopedLabel]{}, err
 	}
 	return repo.Extend(orgs.Items...), nil
