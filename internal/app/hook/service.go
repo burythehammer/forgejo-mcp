@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -20,19 +19,20 @@ type Service struct{ port Port }
 // New returns the use cases bound to port.
 func New(port Port) *Service { return &Service{port: port} }
 
-// HookRef names one webhook of a repository. ID is the number as the caller
-// gave it. It must be a positive whole number: zero, a negative number and a
-// fraction are all refused with ErrRequired before any request is made.
+// HookRef names one webhook of a repository. ID is a validated hook ID: the
+// adapter that receives the caller's number has already refused zero, a
+// negative number and a fraction. A non-positive ID is still refused here with
+// ErrRequired, so a direct caller cannot reach the port with one.
 type HookRef struct {
 	Owner, Repo string
-	ID          float64
+	ID          int64
 }
 
-// ListRequest lists a repository's webhooks. Page and Limit are the numbers as
-// the caller gave them: zero means page 1 and 30 hooks.
+// ListRequest lists a repository's webhooks. Page and Limit are whole numbers the
+// adapter has already validated; zero means page 1 and 30 hooks.
 type ListRequest struct {
 	Owner, Repo string
-	Page, Limit float64
+	Page, Limit int
 }
 
 // CreateRequest creates a webhook. Events is comma-separated. An empty string
@@ -60,7 +60,7 @@ func (s *Service) List(ctx context.Context, r ListRequest) (list.Bounded[model.H
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	return list.Run(ctx, list.Request{Page: int(r.Page), Limit: int(r.Limit), Def: 30}, c, func(ctx context.Context, q list.Paging) (list.Batch[model.HookPayload], error) {
+	return list.Run(ctx, list.Request{Page: r.Page, Limit: r.Limit, Def: 30}, c, func(ctx context.Context, q list.Paging) (list.Batch[model.HookPayload], error) {
 		hooks, err := s.port.ListRepoHooks(ctx, r.Owner, r.Repo, Paging{Page: q.Page, Limit: q.Limit})
 		if err != nil {
 			return list.Batch[model.HookPayload]{}, fmt.Errorf("list repo hooks: %w", err)
@@ -74,7 +74,7 @@ func (s *Service) Get(ctx context.Context, r HookRef) (model.HookPayload, error)
 	if err := r.check(); err != nil {
 		return model.HookPayload{}, err
 	}
-	hk, err := s.port.GetRepoHook(ctx, r.Owner, r.Repo, int64(r.ID))
+	hk, err := s.port.GetRepoHook(ctx, r.Owner, r.Repo, r.ID)
 	if err != nil {
 		return model.HookPayload{}, fmt.Errorf("get repo hook: %w", err)
 	}
@@ -126,7 +126,7 @@ func (s *Service) Edit(ctx context.Context, r EditRequest) (model.HookPayload, e
 	if err := r.check(); err != nil {
 		return model.HookPayload{}, err
 	}
-	id := int64(r.ID)
+	id := r.ID
 	existing, err := s.port.GetRepoHook(ctx, r.Owner, r.Repo, id)
 	if err != nil {
 		return model.HookPayload{}, fmt.Errorf("get repo hook for edit: %w", err)
@@ -170,7 +170,7 @@ func (s *Service) Delete(ctx context.Context, r HookRef) error {
 	if err := r.check(); err != nil {
 		return err
 	}
-	if err := s.port.DeleteRepoHook(ctx, r.Owner, r.Repo, int64(r.ID)); err != nil {
+	if err := s.port.DeleteRepoHook(ctx, r.Owner, r.Repo, r.ID); err != nil {
 		return fmt.Errorf("delete repo hook: %w", err)
 	}
 	return nil
@@ -182,7 +182,7 @@ func (s *Service) Test(ctx context.Context, r HookRef) error {
 	if err := r.check(); err != nil {
 		return err
 	}
-	if err := s.port.TestRepoHook(ctx, r.Owner, r.Repo, int64(r.ID)); err != nil {
+	if err := s.port.TestRepoHook(ctx, r.Owner, r.Repo, r.ID); err != nil {
 		return fmt.Errorf("test repo hook: %w", err)
 	}
 	return nil
@@ -192,11 +192,10 @@ func (s *Service) Test(ctx context.Context, r HookRef) error {
 // repo or id. An adapter can tell it apart from a Forgejo failure.
 var ErrRequired = errors.New("owner, repo and id are required")
 
-// check accepts only a positive whole number as the hook ID. A fraction is
-// refused rather than truncated, so the call never acts on a hook other than
-// the one named. The comparisons are written so NaN and values past int64 fail.
+// check accepts only a positive hook ID. The operation layer validates the
+// number the caller gave; this keeps the use case safe for any other caller.
 func (r HookRef) check() error {
-	if r.Owner == "" || r.Repo == "" || !(r.ID >= 1 && r.ID == math.Trunc(r.ID) && r.ID <= math.MaxInt64) {
+	if r.Owner == "" || r.Repo == "" || r.ID < 1 {
 		return ErrRequired
 	}
 	return nil

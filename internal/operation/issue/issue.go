@@ -15,6 +15,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -304,17 +305,18 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 // type), set when it was given, even as "".
 
 type issueRefArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
+	Owner string
+	Repo  string
+	Index int64 // validated by numarg before the use case sees it
 }
 
 type getIssueArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	Type    string  `json:"type"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	Type    string `json:"type"`
+	Verbose bool   `json:"verbose"`
 }
 
 type listIssuesArgs struct {
@@ -343,17 +345,19 @@ type createIssueArgs struct {
 }
 
 type createCommentArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	Body    string  `json:"body" required:"true"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	Body    string `json:"body" required:"true"`
+	Verbose bool   `json:"verbose"`
 }
 
 type updateIssueArgs struct {
-	Owner        string  `json:"owner" required:"true"`
-	Repo         string  `json:"repo" required:"true"`
-	Index        float64 `json:"index" required:"true"`
+	Owner        string `json:"owner" required:"true"`
+	Repo         string `json:"repo" required:"true"`
+	Index        any    `json:"index" required:"true" schema:"number"`
+	idx          int64
 	Title        string  `json:"title"`
 	Body         string  `json:"body"`
 	Assignee     string  `json:"assignee"`
@@ -367,11 +371,12 @@ type updateIssueArgs struct {
 }
 
 type replaceBodyLineArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
-	Old   string  `json:"old" required:"true"`
-	New   string  `json:"new" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Index any    `json:"index" required:"true" schema:"number"`
+	idx   int64
+	Old   string `json:"old" required:"true"`
+	New   string `json:"new" required:"true"`
 }
 
 // replacedBodyLine is the result of replace_issue_body_line: the compact issue
@@ -384,25 +389,28 @@ type replacedBodyLine struct {
 }
 
 type labelsArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	Labels  string  `json:"labels" required:"true"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	Labels  string `json:"labels" required:"true"`
+	Verbose bool   `json:"verbose"`
 }
 
 type stateArgs struct {
-	Owner   string  `json:"owner" required:"true"`
-	Repo    string  `json:"repo" required:"true"`
-	Index   float64 `json:"index" required:"true"`
-	State   string  `json:"state" required:"true"`
-	Verbose bool    `json:"verbose"`
+	Owner   string `json:"owner" required:"true"`
+	Repo    string `json:"repo" required:"true"`
+	Index   any    `json:"index" required:"true" schema:"number"`
+	idx     int64
+	State   string `json:"state" required:"true"`
+	Verbose bool   `json:"verbose"`
 }
 
 type listCommentsArgs struct {
-	Owner  string  `json:"owner" required:"true"`
-	Repo   string  `json:"repo" required:"true"`
-	Index  float64 `json:"index" required:"true"`
+	Owner  string `json:"owner" required:"true"`
+	Repo   string `json:"repo" required:"true"`
+	Index  any    `json:"index" required:"true" schema:"number"`
+	idx    int64
 	Since  string  `json:"since"`
 	Before string  `json:"before"`
 	Page   float64 `json:"page"`
@@ -410,24 +418,27 @@ type listCommentsArgs struct {
 }
 
 type commentArgs struct {
-	Owner     string  `json:"owner" required:"true"`
-	Repo      string  `json:"repo" required:"true"`
-	CommentID float64 `json:"comment_id" required:"true"`
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	CommentID any    `json:"comment_id" required:"true" schema:"number"`
+	commentID int64
 }
 
 type getCommentArgs struct {
-	Owner     string  `json:"owner" required:"true"`
-	Repo      string  `json:"repo" required:"true"`
-	CommentID float64 `json:"comment_id" required:"true"`
-	Verbose   bool    `json:"verbose"`
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	CommentID any    `json:"comment_id" required:"true" schema:"number"`
+	commentID int64
+	Verbose   bool `json:"verbose"`
 }
 
 type editCommentArgs struct {
-	Owner     string  `json:"owner" required:"true"`
-	Repo      string  `json:"repo" required:"true"`
-	CommentID float64 `json:"comment_id" required:"true"`
-	Body      string  `json:"body" required:"true"`
-	Verbose   bool    `json:"verbose"`
+	Owner     string `json:"owner" required:"true"`
+	Repo      string `json:"repo" required:"true"`
+	CommentID any    `json:"comment_id" required:"true" schema:"number"`
+	commentID int64
+	Body      string `json:"body" required:"true"`
+	Verbose   bool   `json:"verbose"`
 }
 
 type milestonesArgs struct {
@@ -469,7 +480,7 @@ type searchArgs struct {
 
 // target is the issue a call names.
 func target(a issueRefArgs) apppissue.Target {
-	return apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}
+	return apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: a.Index}
 }
 
 // kindRefusal names the tool for the other kind, so a caller that asked for
@@ -487,13 +498,13 @@ func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest
 		if err != nil {
 			return mcpresult.Fail(err)
 		}
-		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), apppissue.ReadOptions{Kind: kind})
+		read, err := s.Read(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}), apppissue.ReadOptions{Kind: kind})
 		if err != nil {
 			var refused *apppissue.KindError
 			if errors.As(err, &refused) {
 				return mcpresult.Fail(kindRefusal(refused))
 			}
-			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, int64(a.Index)), err)
+			return nil, mapErr(issueResourceURI(a.Owner, a.Repo, a.idx), err)
 		}
 		return compact.RenderIssueRead(read.Issue, a.Verbose)
 	})
@@ -506,10 +517,14 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.State != nil {
 			state = *a.State
 		}
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		page, err := s.List(ctx, apppissue.ListInput{
 			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
 			Milestones: a.Milestones, Labels: a.Labels,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})
 		envelope, err := issueListPage(page, err)
 		return compact.RenderIssueList(envelope, err, a.Verbose)
@@ -518,11 +533,14 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "SearchIssuesFn", func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
-		// Out-of-range page and limit values are corrected by the use case.
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		page, err := s.Search(ctx, apppissue.SearchInput{
 			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
 			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
-			Paging: apppissue.Paging{Page: int(a.Page), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})
 		envelope, err := issueSearchPage(page, err)
 		return compact.RenderIssueSearchList(envelope, err, a.Verbose)
@@ -541,7 +559,7 @@ func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 
 func (h handlers) CreateIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreateIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a createCommentArgs) (*mcp.CallToolResult, error) {
-		c, err := s.CreateComment(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.Body)
+		c, err := s.CreateComment(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, a.Body)
 		return compact.RenderComment(c, err, a.Verbose)
 	})
 }
@@ -549,7 +567,7 @@ func (h handlers) CreateIssueCommentFn(ctx context.Context, req mcp.CallToolRequ
 func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "UpdateIssueFn", func(ctx context.Context, s *apppissue.Service, a updateIssueArgs) (*mcp.CallToolResult, error) {
 		iss, err := s.Update(ctx, apppissue.UpdateInput{
-			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
 			Title:  a.Title, Body: a.Body, Assignee: a.Assignee, Assignees: a.Assignees, Ref: a.Ref,
 			Milestone: a.Milestone, DueDate: a.DueDate, ClearDueDate: a.ClearDueDate, SetLabels: a.SetLabels,
 		})
@@ -560,7 +578,7 @@ func (h handlers) UpdateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*
 func (h handlers) ReplaceIssueBodyLineFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ReplaceIssueBodyLineFn", func(ctx context.Context, s *apppissue.Service, a replaceBodyLineArgs) (*mcp.CallToolResult, error) {
 		iss, err := s.ReplaceBodyLine(ctx, apppissue.ReplaceBodyLineInput{
-			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
 			Old:    a.Old, New: a.New,
 		})
 		if err != nil {
@@ -576,60 +594,68 @@ func (h handlers) ReplaceIssueBodyLineFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) AddIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "AddIssueLabelsFn", func(ctx context.Context, s *apppissue.Service, a labelsArgs) (*mcp.CallToolResult, error) {
-		iss, err := s.AddLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels)
+		iss, err := s.AddLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}), a.Labels)
 		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
 func (h handlers) RemoveIssueLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "RemoveIssueLabelsFn", func(ctx context.Context, s *apppissue.Service, a labelsArgs) (*mcp.CallToolResult, error) {
-		iss, err := s.RemoveLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}), a.Labels)
+		iss, err := s.RemoveLabels(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}), a.Labels)
 		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
 func (h handlers) IssueStateChangeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "IssueStateChangeFn", func(ctx context.Context, s *apppissue.Service, a stateArgs) (*mcp.CallToolResult, error) {
-		iss, err := s.ChangeState(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(a.Index)}, a.State)
+		iss, err := s.ChangeState(ctx, apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, a.State)
 		return compact.RenderIssue(iss, err, a.Verbose)
 	})
 }
 
 func (h handlers) ListIssueCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueCommentsFn", func(ctx context.Context, s *apppissue.Service, a listCommentsArgs) (*mcp.CallToolResult, error) {
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		return mcpresult.Render(commentPage(s.Comments(ctx, apppissue.CommentsInput{
-			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
+			Target: target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
 			Since:  a.Since, Before: a.Before,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})))
 	})
 }
 
 func (h handlers) GetIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "GetIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a getCommentArgs) (*mcp.CallToolResult, error) {
-		c, err := s.Comment(ctx, a.Owner, a.Repo, int64(a.CommentID))
+		c, err := s.Comment(ctx, a.Owner, a.Repo, a.commentID)
 		return compact.RenderCommentRead(c, err, a.Verbose)
 	})
 }
 
 func (h handlers) EditIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "EditIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a editCommentArgs) (*mcp.CallToolResult, error) {
-		c, err := s.EditComment(ctx, a.Owner, a.Repo, int64(a.CommentID), a.Body)
+		c, err := s.EditComment(ctx, a.Owner, a.Repo, a.commentID, a.Body)
 		return compact.RenderComment(c, err, a.Verbose)
 	})
 }
 
 func (h handlers) DeleteIssueCommentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "DeleteIssueCommentFn", func(ctx context.Context, s *apppissue.Service, a commentArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render("Delete comment success", s.DeleteComment(ctx, a.Owner, a.Repo, int64(a.CommentID)))
+		return mcpresult.Render("Delete comment success", s.DeleteComment(ctx, a.Owner, a.Repo, a.commentID))
 	})
 }
 
 func (h handlers) ListRepoMilestonesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListRepoMilestonesFn", func(ctx context.Context, s *apppissue.Service, a milestonesArgs) (*mcp.CallToolResult, error) {
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		return mcpresult.Render(milestonePage(s.Milestones(ctx, a.Owner, a.Repo, apppissue.MilestoneList{
 			State:  a.State,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})))
 	})
 }
@@ -640,9 +666,13 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.IncludeOrg != nil {
 			includeOrg = *a.IncludeOrg
 		}
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
 		list, err := s.ReadRepoLabels(ctx, apppissue.RepoLabelsInput{
 			Owner: a.Owner, Repo: a.Repo, IncludeOrg: includeOrg,
-			Paging: apppissue.Paging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)},
+			Paging: apppissue.Paging{Page: pg, Limit: lim},
 		})
 		if err != nil {
 			return nil, mapErr(repoLabelsURI(a.Owner, a.Repo), err)
@@ -653,9 +683,11 @@ func (h handlers) ListRepoLabelsFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) ListOrgLabelsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListOrgLabelsFn", func(ctx context.Context, s *apppissue.Service, a orgLabelsArgs) (*mcp.CallToolResult, error) {
-		// A page below 1 reads as page 1: argument reading is the adapter's, not the use case's.
-		page := max(decode.PageOr(a.Page, 1), 1)
-		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: page, Limit: int(a.Limit)})
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
+		list, err := s.ReadOrgLabels(ctx, a.Org, apppissue.Paging{Page: pg, Limit: lim})
 		if err != nil {
 			return nil, mapErr(orgLabelsURI(a.Org), err)
 		}

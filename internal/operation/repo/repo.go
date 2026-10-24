@@ -146,7 +146,11 @@ func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*
 	return runAdmin(ctx, h, req, "ListMyReposFn", func(ctx context.Context, s *apprepo.AdminService, a listMyReposArgs) (*mcp.CallToolResult, error) {
 		// An absent limit takes the use case's default, which the instance ceiling
 		// lowers; passing 100 here would make the default a refused explicit limit.
-		page, err := repoPage(s.ListMyRepos(ctx, apprepo.AdminPaging{Page: decode.PageOr(a.Page, 1), Limit: decode.PageOr(a.Limit, 0)}))
+		pg, limit, err := decode.PagingArgs(a.Page, a.Limit)
+		if err != nil {
+			return to.ErrorResult(err)
+		}
+		page, err := repoPage(s.ListMyRepos(ctx, apprepo.AdminPaging{Page: pg, Limit: limit}))
 		return mcpresult.Render(page, err)
 	})
 }

@@ -4,6 +4,7 @@ package actions
 
 import (
 	"context"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
@@ -54,7 +55,7 @@ func (h handlers) CancelWorkflowRunFn(ctx context.Context, req mcp.CallToolReque
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
+	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -79,7 +80,7 @@ func (h handlers) DeleteWorkflowRunFn(ctx context.Context, req mcp.CallToolReque
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
+	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

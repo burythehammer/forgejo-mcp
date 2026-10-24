@@ -34,6 +34,7 @@ linters:
             - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app
             - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge
             - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr
+            - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg
             - forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/diff
           deny:
             - pkg: forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/

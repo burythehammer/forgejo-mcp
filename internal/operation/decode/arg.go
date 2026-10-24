@@ -5,9 +5,9 @@ package decode
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"reflect"
-	"strconv"
+
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 )
 
 // Arg is one argument as the client sent it. Use it for a field whose legacy
@@ -58,32 +58,16 @@ func (a Arg) Int(name string, def, minimum, maximum int) (int, error) {
 	}
 	var v any
 	if err := json.Unmarshal(a.raw, &v); err != nil {
-		return 0, intError(name, minimum, maximum)
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, minimum, maximum)
 	}
-	var number float64
-	switch x := v.(type) {
-	case float64:
-		number = x
-	case string:
-		if x == "" {
-			return def, nil
-		}
-		f, err := strconv.ParseFloat(x, 64)
-		if err != nil {
-			return 0, intError(name, minimum, maximum)
-		}
-		number = f
-	default:
-		return 0, intError(name, minimum, maximum)
+	n, given, err := numarg.Int(name, v, numarg.Bounds{Min: int64(minimum), Max: int64(maximum)})
+	if err != nil {
+		return 0, err
 	}
-	if math.Trunc(number) != number || number < float64(minimum) || number > float64(maximum) {
-		return 0, intError(name, minimum, maximum)
+	if !given {
+		return def, nil
 	}
-	return int(number), nil
-}
-
-func intError(name string, minimum, maximum int) error {
-	return fmt.Errorf("%s must be an integer between %d and %d", name, minimum, maximum)
+	return int(n), nil
 }
 
 // Map decodes a plain argument map into dst (a pointer to a struct), the way

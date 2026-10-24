@@ -129,5 +129,9 @@ func (h handlers) ListBranchesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	return gitText(branchPage(svc.ListBranches(ctx, a.Owner, a.Repo, apprepo.GitPage{Page: int(orDefault(a.Page, 1)), Limit: int(a.Limit)})))
+	page, limit, err := decode.PagingArgs(a.Page, a.Limit)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
+	return gitText(branchPage(svc.ListBranches(ctx, a.Owner, a.Repo, apprepo.GitPage{Page: page, Limit: limit})))
 }

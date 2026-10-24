@@ -12,6 +12,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/releaseadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/upload"
@@ -157,7 +158,7 @@ func number(v any, name string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", name, err)
 	}
-	return int64(f), nil
+	return numarg.PositiveID(name, f)
 }
 
 // --- Release tools ----------------------------------------------------------
@@ -182,9 +183,13 @@ func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return to.ErrorResult(err)
 	}
+	pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+	if perr != nil {
+		return to.ErrorResult(perr)
+	}
 	page, err := svc.ListReleases(ctx, a.Owner, a.Repo, apprelease.ListQuery{
 		State:  state,
-		Paging: apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)},
+		Paging: apprelease.Paging{Page: pg, Limit: lim},
 	})
 	if err != nil {
 		return to.ErrorResult(err)
@@ -360,7 +365,11 @@ func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallTool
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: int(a.Page), Limit: int(a.Limit)})
+	pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+	if perr != nil {
+		return to.ErrorResult(perr)
+	}
+	page, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: pg, Limit: lim})
 	if err != nil {
 		return to.ErrorResult(err)
 	}

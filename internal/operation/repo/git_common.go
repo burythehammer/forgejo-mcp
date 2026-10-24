@@ -32,14 +32,6 @@ func need(name string, v *string) (string, error) {
 	return *v, nil
 }
 
-// orDefault is a paging argument, or def when it was left out (zero).
-func orDefault(v, def float64) float64 {
-	if v == 0 {
-		return def
-	}
-	return v
-}
-
 // gitText renders a use case's result, or its error, as the tools' JSON text.
 func gitText(v any, err error) (*mcp.CallToolResult, error) {
 	if err != nil {

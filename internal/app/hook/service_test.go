@@ -32,7 +32,7 @@ func newService(t *testing.T) *apphook.Service {
 	return apphook.New(hookadapter.New(f))
 }
 
-func ref(id float64) apphook.HookRef { return apphook.HookRef{Owner: owner, Repo: repo, ID: id} }
+func ref(id int64) apphook.HookRef { return apphook.HookRef{Owner: owner, Repo: repo, ID: id} }
 
 func boolp(b bool) *bool { return &b }
 
@@ -95,7 +95,7 @@ func TestEditMergesConfigAndKeepsTheRest(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
 	p := create(t, s, apphook.CreateRequest{URL: "https://hooks.example/a", ContentType: "form", Secret: secret})
-	got, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(float64(p.ID)), URL: strp("https://hooks.example/b")})
+	got, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(p.ID), URL: strp("https://hooks.example/b")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func (p *countingPort) TestRepoHook(ctx context.Context, o, r string, id int64) 
 
 // hookOps runs each hook use case against id, so one table covers get, edit,
 // delete and test.
-func hookOps(s *apphook.Service, id float64) map[string]func() error {
+func hookOps(s *apphook.Service, id int64) map[string]func() error {
 	ctx := context.Background()
 	return map[string]func() error{
 		"get": func() error { _, err := s.Get(ctx, ref(id)); return err },
@@ -168,7 +168,7 @@ func hookOps(s *apphook.Service, id float64) map[string]func() error {
 
 func TestHookIDMustBeAPositiveWholeNumber(t *testing.T) {
 	t.Parallel()
-	for _, id := range []float64{0, 0.5, -1, 2.5} {
+	for _, id := range []int64{0, -1} {
 		port := &countingPort{}
 		for name, op := range hookOps(apphook.New(port), id) {
 			if err := op(); !errors.Is(err, apphook.ErrRequired) {
@@ -198,10 +198,10 @@ func TestDeleteRemovesTheHook(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
 	p := create(t, s, apphook.CreateRequest{URL: "https://hooks.example/a"})
-	if err := s.Delete(context.Background(), ref(float64(p.ID))); err != nil {
+	if err := s.Delete(context.Background(), ref(p.ID)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Get(context.Background(), ref(float64(p.ID))); err == nil {
+	if _, err := s.Get(context.Background(), ref(p.ID)); err == nil {
 		t.Fatal("hook still readable after delete")
 	}
 }
@@ -337,14 +337,14 @@ func TestEditBranchFilterThroughTheFake(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
 	p := create(t, s, apphook.CreateRequest{URL: "https://hooks.example/a", BranchFilter: "main"})
-	got, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(float64(p.ID)), URL: strp("https://hooks.example/b")})
+	got, err := s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(p.ID), URL: strp("https://hooks.example/b")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.BranchFilter != "main" {
 		t.Fatalf("url-only edit changed branch filter to %q", got.BranchFilter)
 	}
-	got, err = s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(float64(p.ID)), BranchFilter: strp("")})
+	got, err = s.Edit(context.Background(), apphook.EditRequest{HookRef: ref(p.ID), BranchFilter: strp("")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +362,7 @@ func TestListHasNextUsesTheReportedTotal(t *testing.T) {
 	cases := []struct {
 		name    string
 		n       int
-		page    float64
+		page    int
 		count   int
 		hasNext bool
 	}{

@@ -70,7 +70,11 @@ type listRepoTopicsArgs struct {
 
 func (h handlers) ListRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return runAdmin(ctx, h, req, "ListRepoTopicsFn", func(ctx context.Context, s *apprepo.AdminService, a listRepoTopicsArgs) (*mcp.CallToolResult, error) {
-		page, err := topicPage(s.ListRepoTopics(ctx, a.Owner, a.Repo, apprepo.AdminPaging{Page: decode.PageOr(a.Page, 1), Limit: int(a.Limit)}))
+		pg, limit, err := decode.PagingArgs(a.Page, a.Limit)
+		if err != nil {
+			return to.ErrorResult(err)
+		}
+		page, err := topicPage(s.ListRepoTopics(ctx, a.Owner, a.Repo, apprepo.AdminPaging{Page: pg, Limit: limit}))
 		return mcpresult.Render(page, err)
 	})
 }

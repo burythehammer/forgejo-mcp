@@ -51,8 +51,12 @@ func (h handlers) ListRepoCommitsFn(ctx context.Context, req mcp.CallToolRequest
 	if err != nil {
 		return to.ErrorResult(err)
 	}
+	page, limit, err := decode.PagingArgs(a.Page, a.Limit)
+	if err != nil {
+		return to.ErrorResult(err)
+	}
 	return gitText(commitListPage(svc.ListCommits(ctx, a.Owner, a.Repo, apprepo.ListCommitsInput{
 		Path: a.Path, SHA: a.SHA,
-		Page: apprepo.GitPage{Page: int(orDefault(a.Page, 1)), Limit: int(a.Limit)},
+		Page: apprepo.GitPage{Page: page, Limit: limit},
 	})))
 }

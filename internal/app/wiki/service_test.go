@@ -71,7 +71,7 @@ func TestGetRoundTripsContentAndCutsLines(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
 	create(t, s, "Notes", "a\nb\nc")
-	start, end := 2.0, 3.0
+	start, end := 2, 3
 	got, err := s.Get(context.Background(), appwiki.GetRequest{Owner: owner, Repo: repo, PageName: "Notes", StartLine: &start, EndLine: &end})
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +101,7 @@ func TestGetInvertedRangeIsReportedRaw(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
 	create(t, s, "Notes", "a\nb\nc")
-	start, end := 3.0, 1.0
+	start, end := 3, 1
 	_, err := s.Get(context.Background(), appwiki.GetRequest{Owner: owner, Repo: repo, PageName: "Notes", StartLine: &start, EndLine: &end})
 	if err == nil || !strings.HasPrefix(err.Error(), "start_line (3) is after end_line (1)") {
 		t.Fatalf("got %v", err)

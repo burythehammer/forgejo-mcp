@@ -75,11 +75,11 @@ func TestListDefaultsToPageOneOf100(t *testing.T) {
 	}
 }
 
-func TestListFractionTruncatesAfterDefault(t *testing.T) {
+func TestListZeroPageTakesThePageOne(t *testing.T) {
 	t.Parallel()
 	s := newService(t)
-	// A page of 0.5 truncates to 0, which the list module reads as page 1.
-	got, err := s.List(context.Background(), appbp.ListRequest{Owner: owner, Repo: repo, Page: 0.5, Limit: 3.9})
+	// The adapter has already validated the numbers; a zero page is page 1.
+	got, err := s.List(context.Background(), appbp.ListRequest{Owner: owner, Repo: repo, Page: 0, Limit: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestCreateRoundTripsStatusChecks(t *testing.T) {
 	s := newService(t)
 	bp, err := s.Create(context.Background(), appbp.CreateRequest{
 		Owner: owner, Repo: repo, BranchName: "main", EnableStatusCheck: true,
-		StatusCheckContexts: str("ci/build, lint,,"), RequiredApprovals: 2.7,
+		StatusCheckContexts: str("ci/build, lint,,"), RequiredApprovals: 2,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +185,7 @@ func TestListHasNextMarksTheLastPage(t *testing.T) {
 	cases := []struct {
 		name    string
 		n       int
-		page    float64
+		page    int
 		count   int
 		hasNext bool
 	}{

@@ -15,6 +15,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/branchprotectionadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
@@ -190,7 +191,11 @@ func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name s
 
 func (h handlers) ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListBranchProtectionsFn", func(ctx context.Context, s *appbp.Service, a listArgs) (*mcp.CallToolResult, error) {
-		got, err := s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: a.Page, Limit: a.Limit})
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return mcpresult.Fail(perr)
+		}
+		got, err := s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: pg, Limit: lim})
 		if err != nil {
 			return mcpresult.Fail(err)
 		}
@@ -209,7 +214,7 @@ func (h handlers) CreateBranchProtectionFn(ctx context.Context, req mcp.CallTool
 		return mcpresult.Render(s.Create(ctx, appbp.CreateRequest{
 			Owner: a.Owner, Repo: a.Repo, BranchName: a.BranchName, RuleName: a.RuleName,
 			EnablePush: a.EnablePush, EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts,
-			RequiredApprovals: a.RequiredApprovals, BlockOnOutdatedBranch: a.BlockOnOutdatedBranch,
+			RequiredApprovals: numarg.Truncate(a.RequiredApprovals), BlockOnOutdatedBranch: a.BlockOnOutdatedBranch,
 			RequireSignedCommits: a.RequireSignedCommits, DismissStaleApprovals: a.DismissStaleApprovals,
 		}))
 	})
@@ -221,7 +226,7 @@ func (h handlers) EditBranchProtectionFn(ctx context.Context, req mcp.CallToolRe
 			RuleRef:    appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule},
 			EnablePush: a.EnablePush, EnablePushWhitelist: a.EnablePushWhitelist, PushWhitelistUsernames: a.PushWhitelistUsernames,
 			EnableMergeWhitelist: a.EnableMergeWhitelist, MergeWhitelistUsernames: a.MergeWhitelistUsernames,
-			EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts, RequiredApprovals: a.RequiredApprovals,
+			EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts, RequiredApprovals: optionalApprovals(a.RequiredApprovals),
 			EnableApprovalsWhitelist: a.EnableApprovalsWhitelist, ApprovalsWhitelistUsernames: a.ApprovalsWhitelistUsernames,
 			BlockOnOutdatedBranch: a.BlockOnOutdatedBranch, DismissStaleApprovals: a.DismissStaleApprovals,
 			RequireSignedCommits: a.RequireSignedCommits,
@@ -236,4 +241,14 @@ func (h handlers) DeleteBranchProtectionFn(ctx context.Context, req mcp.CallTool
 		}
 		return to.TextResult(fmt.Sprintf("Deleted branch protection rule %q on %s/%s", a.Rule, a.Owner, a.Repo))
 	})
+}
+
+// optionalApprovals truncates an optional required_approvals to the whole number
+// the use case takes. A nil argument stays nil (not passed).
+func optionalApprovals(v *float64) *int64 {
+	if v == nil {
+		return nil
+	}
+	n := numarg.Truncate(*v)
+	return &n
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -116,27 +117,20 @@ var (
 	errRepoName = errors.New("repository name is required")
 )
 
-// pageOf reads a paging number, defaulting it as the original handlers did:
-// an absent page is page 1 and an absent limit is limit 100, while a number
-// given is kept as it is, zero included.
-func pageOf(p *float64) int {
-	if p == nil {
-		return 1
-	}
-	return int(*p)
+// paging reads the page and limit arguments through the numeric-argument
+// module. An absent argument is read as 0, which the module makes page 1 or the
+// use case's default limit; a value that is not a whole number in range is refused.
+func paging(page, limit *float64) (apporg.Paging, error) {
+	p, l, err := decode.PagingArgs(orZero(page), orZero(limit))
+	return apporg.Paging{Page: p, Limit: l}, err
 }
 
-// limitOf passes an absent limit on as 0: the use case applies the default,
-// lowered to the instance ceiling.
-func limitOf(l *float64) int {
-	if l == nil {
+// orZero reads an optional number as 0 when it was not sent.
+func orZero(v *float64) float64 {
+	if v == nil {
 		return 0
 	}
-	return int(*l)
-}
-
-func paging(page, limit *float64) apporg.Paging {
-	return apporg.Paging{Page: pageOf(page), Limit: limitOf(limit)}
+	return *v
 }
 
 // run is the shared shape of a tool call: decode the arguments into A, then
@@ -196,7 +190,11 @@ func (h handlers) GetOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 
 func (h handlers) ListMyOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListMyOrgsFn", func(ctx context.Context, s *apporg.Service, a myOrgsArgs) (*mcp.CallToolResult, error) {
-		return orgPage(s.MyOrgs(ctx, paging(a.Page, a.Limit)))
+		pg, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return orgPage(s.MyOrgs(ctx, pg))
 	})
 }
 
@@ -205,7 +203,11 @@ func (h handlers) ListUserOrgsFn(ctx context.Context, req mcp.CallToolRequest) (
 		if a.User == nil {
 			return mcpresult.Fail(errUserName)
 		}
-		return orgPage(s.UserOrgs(ctx, *a.User, paging(a.Page, a.Limit)))
+		pg, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return orgPage(s.UserOrgs(ctx, *a.User, pg))
 	})
 }
 
@@ -236,7 +238,11 @@ func (h handlers) ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.Org == nil {
 			return mcpresult.Fail(errOrgName)
 		}
-		return memberPage(s.Members(ctx, *a.Org, paging(a.Page, a.Limit)))
+		pg, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return memberPage(s.Members(ctx, *a.Org, pg))
 	})
 }
 
@@ -275,7 +281,11 @@ func (h handlers) ListOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (
 		if a.Org == nil {
 			return mcpresult.Fail(errOrgName)
 		}
-		return teamPage(s.Teams(ctx, *a.Org, paging(a.Page, a.Limit)))
+		pg, err := paging(a.Page, a.Limit)
+		if err != nil {
+			return mcpresult.Fail(err)
+		}
+		return teamPage(s.Teams(ctx, *a.Org, pg))
 	})
 }
 
@@ -302,7 +312,7 @@ func (h handlers) AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) 
 		if a.User == nil {
 			return mcpresult.Fail(errUserName)
 		}
-		teamID := int64(*a.TeamID)
+		teamID := numarg.Truncate(*a.TeamID)
 		err := s.AddTeamMember(ctx, teamID, *a.User)
 		return message(fmt.Sprintf("User '%s' added to team %d", *a.User, teamID), err)
 	})
@@ -316,7 +326,7 @@ func (h handlers) RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolReques
 		if a.User == nil {
 			return mcpresult.Fail(errUserName)
 		}
-		teamID := int64(*a.TeamID)
+		teamID := numarg.Truncate(*a.TeamID)
 		err := s.RemoveTeamMember(ctx, teamID, *a.User)
 		return message(fmt.Sprintf("User '%s' removed from team %d", *a.User, teamID), err)
 	})
@@ -333,7 +343,7 @@ func (h handlers) AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*
 		if a.Repo == nil {
 			return mcpresult.Fail(errRepoName)
 		}
-		teamID := int64(*a.TeamID)
+		teamID := numarg.Truncate(*a.TeamID)
 		err := s.AddTeamRepo(ctx, teamID, *a.Org, *a.Repo)
 		return message(fmt.Sprintf("Repository '%s/%s' added to team %d", *a.Org, *a.Repo, teamID), err)
 	})
@@ -350,7 +360,7 @@ func (h handlers) RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest)
 		if a.Repo == nil {
 			return mcpresult.Fail(errRepoName)
 		}
-		teamID := int64(*a.TeamID)
+		teamID := numarg.Truncate(*a.TeamID)
 		err := s.RemoveTeamRepo(ctx, teamID, *a.Org, *a.Repo)
 		return message(fmt.Sprintf("Repository '%s/%s' removed from team %d", *a.Org, *a.Repo, teamID), err)
 	})

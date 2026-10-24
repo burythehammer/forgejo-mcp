@@ -4,6 +4,7 @@ package actions
 
 import (
 	"context"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"math"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
@@ -72,15 +73,15 @@ func (h handlers) ListActionRunArtifactsFn(ctx context.Context, req mcp.CallTool
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	runID, err := positiveIntegerArg(a.RunID, "run_id", true)
+	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	page, err := boundedIntArg(a.Page, "page", 1, 1, math.MaxInt32)
+	page, err := numarg.IntDefault("page", a.Page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	limit, err := boundedIntArg(a.Limit, "limit", 0, 1, maxActionArtifactsLimit)
+	limit, err := numarg.IntDefault("limit", a.Limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionArtifactsLimit)})
 	if err != nil {
 		return to.ErrorResult(err)
 	}
@@ -109,7 +110,7 @@ func (h handlers) GetActionArtifactFn(ctx context.Context, req mcp.CallToolReque
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
 		return to.ErrorResult(err)
 	}
-	artifactID, err := positiveIntegerArg(a.ArtifactID, "artifact_id", true)
+	artifactID, err := numarg.RequiredPositiveInt("artifact_id", a.ArtifactID)
 	if err != nil {
 		return to.ErrorResult(err)
 	}

@@ -4,6 +4,7 @@ package repo
 
 import (
 	"context"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
@@ -151,7 +152,7 @@ func (h handlers) GetFileContentFn(ctx context.Context, req mcp.CallToolRequest)
 	if err != nil {
 		return to.ErrorResult(err)
 	}
-	lines := apprepo.LineRange{Start: int(a.StartLine), End: int(a.EndLine)}
+	lines := apprepo.LineRange{Start: int(numarg.Truncate(a.StartLine)), End: int(numarg.Truncate(a.EndLine))}
 	if a.WithMetadata {
 		return gitText(svc.GetFileMetadata(ctx, owner, repo, a.Ref, filePath, lines))
 	}

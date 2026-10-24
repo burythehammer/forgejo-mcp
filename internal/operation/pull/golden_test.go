@@ -253,9 +253,9 @@ var goldenCases = []goldenCase{
 	// verbose=true restores the full entity; this golden is the pre-compact output.
 	{name: "get_pr_verbose", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": float64(7), "verbose": true}},
 	{name: "get_pr_string_index", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": "7"}},
-	// Forgiving argument handling of the original handlers, kept: a missing
-	// required argument is forwarded as its zero value, and a fractional
-	// number is truncated.
+	// An invalid index is refused with the numeric-argument module's message
+	// (#246): a missing one, or a fractional one that the handlers used to
+	// truncate into a different pull request.
 	{name: "get_pr_missing_required", tool: GetPullRequestByIndexToolName, args: map[string]any{"owner": nil, "repo": nil}},
 	{name: "get_pr_fractional_index", tool: GetPullRequestByIndexToolName, args: map[string]any{"index": 5.5}},
 	{name: "list_prs_fractional_paging", tool: ListRepoPullRequestsToolName, args: map[string]any{"page": 2.9, "limit": 3.5}},

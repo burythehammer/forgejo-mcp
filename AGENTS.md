@@ -20,6 +20,14 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 
 Before adding or changing a tool, read [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md): use case, MCP adapter, port, tests, output bound, README row.
 
+## Numeric arguments
+
+A number argument is read through `internal/numarg` in the MCP adapter, and the use case gets a validated `int` or `int64`. `make check` runs `scripts/ci/check-number-casts.sh`, which enforces two things only: no `float64` anywhere under `internal/app/`, and the count of `float64` mentions per file under `internal/operation/` may not grow past `scripts/ci/number-float64-baseline.txt` (counts may only fall). A bare `int(...)` or `int64(...)` of a `float64` argument is not caught by the script; it is a review rule.
+
+Known leftovers the script does not catch, each pinned by a golden, so they change only with the golden: `int64(*a.ID)` in `internal/operation/user/notification.go` (golden `thread_zero_id`); `to.Float64` in `internal/operation/release/handlers.go` and `internal/operation/issue/dependency.go`; `numarg.Truncate` in `internal/operation/branchprotection`, `internal/operation/org`, `internal/operation/wiki` and `internal/operation/repo/file.go`.
+
+The one exception (a tool whose error text depends on how the number was given is typed `any`) and the helper list are in [DEVELOPER.md](DEVELOPER.md#numeric-arguments).
+
 ## Resources
 
 Prefer a `forgejo://` resource read over the equivalent tool call: one read returns the whole entity (`pr/{index}` replaces `get_pull_request_by_index` + `list_issue_comments`).

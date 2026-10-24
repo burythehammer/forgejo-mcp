@@ -8,6 +8,7 @@ import (
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
@@ -82,9 +83,10 @@ func (h handlers) registerDependencyTools(s *server.MCPServer) {
 }
 
 type listDependenciesArgs struct {
-	Owner string  `json:"owner" required:"true"`
-	Repo  string  `json:"repo" required:"true"`
-	Index float64 `json:"index" required:"true"`
+	Owner string `json:"owner" required:"true"`
+	Repo  string `json:"repo" required:"true"`
+	Index any    `json:"index" required:"true" schema:"number"`
+	idx   int64
 	Page  float64 `json:"page"`
 	Limit float64 `json:"limit"`
 }
@@ -113,15 +115,23 @@ type removeDependencyArgs struct {
 
 func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueDependenciesFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
-		return compact.RenderDependencyPage(dependencyPage(s.Dependencies(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
-			apppissue.Paging{Page: decode.IntOr(a.Page, 1), Limit: int(a.Limit)})))
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
+		return compact.RenderDependencyPage(dependencyPage(s.Dependencies(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
+			apppissue.Paging{Page: pg, Limit: lim})))
 	})
 }
 
 func (h handlers) ListIssueDependentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "ListIssueDependentsFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
-		return compact.RenderDependencyPage(dependencyPage(s.Dependents(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.Index}),
-			apppissue.Paging{Page: decode.IntOr(a.Page, 1), Limit: int(a.Limit)})))
+		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
+		if perr != nil {
+			return to.ErrorResult(perr)
+		}
+		return compact.RenderDependencyPage(dependencyPage(s.Dependents(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
+			apppissue.Paging{Page: pg, Limit: lim})))
 	})
 }
 
@@ -140,12 +150,12 @@ func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequ
 			return mcpresult.Fail(err)
 		}
 		if err := s.AddDependency(ctx,
-			apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(index)},
-			apppissue.Target{Owner: depOwner, Repo: depRepo, Index: int64(dependsOn)},
+			apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: index},
+			apppissue.Target{Owner: depOwner, Repo: depRepo, Index: dependsOn},
 		); err != nil {
 			return mcpresult.Fail(err)
 		}
-		return to.TextResult(fmt.Sprintf("Issue #%d now depends on %s/%s#%d", int64(index), depOwner, depRepo, int64(dependsOn)))
+		return to.TextResult(fmt.Sprintf("Issue #%d now depends on %s/%s#%d", index, depOwner, depRepo, dependsOn))
 	})
 }
 
@@ -164,23 +174,13 @@ func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolR
 			return mcpresult.Fail(err)
 		}
 		if err := s.RemoveDependency(ctx,
-			apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: int64(index)},
-			apppissue.Target{Owner: depOwner, Repo: depRepo, Index: int64(dependencyIndex)},
+			apppissue.Target{Owner: a.Owner, Repo: a.Repo, Index: index},
+			apppissue.Target{Owner: depOwner, Repo: depRepo, Index: dependencyIndex},
 		); err != nil {
 			return mcpresult.Fail(err)
 		}
-		return to.TextResult(fmt.Sprintf("Removed dependency on %s/%s#%d from issue #%d", depOwner, depRepo, int64(dependencyIndex), int64(index)))
+		return to.TextResult(fmt.Sprintf("Removed dependency on %s/%s#%d from issue #%d", depOwner, depRepo, dependencyIndex, index))
 	})
-}
-
-// numberArg reads a required number argument. A missing or malformed one is an
-// error that names it.
-func numberArg(raw any, key string) (float64, error) {
-	v, err := to.Float64(raw)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", key, err)
-	}
-	return v, nil
 }
 
 // crossRepoArgs resolves the optional owner/repo pair naming the repository a
@@ -217,4 +217,14 @@ func optionalString(raw any, key, fallback string) (string, error) {
 		return fallback, nil
 	}
 	return s, nil
+}
+
+// numberArg reads a required dependency number. A missing or unparseable value
+// keeps the "<key>: ..." wording the goldens pin (from to.Float64); the range
+// rule is the numeric-argument module's.
+func numberArg(raw any, key string) (int64, error) {
+	if _, err := to.Float64(raw); err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	return numarg.PositiveID(key, raw)
 }

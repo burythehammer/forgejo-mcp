@@ -43,11 +43,12 @@ type RepoTimesInput struct {
 }
 
 // AddTimeInput logs time against an issue. Exactly one of Seconds (nil when
-// absent) and Duration (a Go duration such as "1h30m", empty when absent) must
-// be given. CreatedAt is RFC 3339 text, or empty for now.
+// absent, otherwise a whole number of at least one) and Duration (a Go duration
+// such as "1h30m", empty when absent) must be given. CreatedAt is RFC 3339
+// text, or empty for now.
 type AddTimeInput struct {
 	IssueRef
-	Seconds   *float64
+	Seconds   *int64
 	Duration  string
 	CreatedAt string
 	User      string
@@ -295,10 +296,10 @@ func parseBounds(since, before string) (time.Time, time.Time, error) {
 }
 
 // resolveSeconds picks the whole number of seconds to log from either the
-// seconds or the duration. Exactly one must be given. Fractions are truncated
-// to whole seconds, and the result must still be at least one second, so the
-// check applies to the value that is actually sent.
-func resolveSeconds(seconds *float64, duration string) (int64, error) {
+// seconds or the duration. Exactly one must be given. The seconds arrive already
+// validated as a whole number of at least one (see the numeric-argument module),
+// so only a duration string is parsed and checked here.
+func resolveSeconds(seconds *int64, duration string) (int64, error) {
 	hasDur := duration != ""
 	switch {
 	case seconds != nil && hasDur:
@@ -306,11 +307,7 @@ func resolveSeconds(seconds *float64, duration string) (int64, error) {
 	case seconds == nil && !hasDur:
 		return 0, fmt.Errorf("one of 'seconds' or 'duration' is required")
 	case seconds != nil:
-		whole := int64(*seconds)
-		if whole < 1 {
-			return 0, fmt.Errorf("seconds must be at least one second, got %v", *seconds)
-		}
-		return whole, nil
+		return *seconds, nil
 	default:
 		d, err := time.ParseDuration(duration)
 		if err != nil {
