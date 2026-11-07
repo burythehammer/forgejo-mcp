@@ -56,3 +56,11 @@ _Avoid_: short result, slim response
 **Lean mode**:
 The opt-in setting (`--lean`, or `FORGEJO_MCP_LEAN`, the flag winning) that serves terse tool text: each tool description cut to its first sentence, property descriptions removed except where an argument has a format, an allowed-value list, or a rule its name and type do not show, and annotations sent empty. Tool names and argument names are the same as in the full text. It is a rewrite at registration in `internal/lean/`, not a second set of descriptions.
 _Avoid_: profile, bundle, tier, terse mode
+
+**Forgejo wiki**:
+The wiki a Forgejo repository carries, stored as a git repository beside the code and reached through the wiki tools. It is flat: a slash in a page name is a naming convention, not a parent-child link.
+_Avoid_: wiki (unqualified), repo wiki
+
+**Outline wiki**:
+The personal knowledge base kept in Outline, including the per-repo structured wikis the `repo-wiki` skill maintains. It is separate from the Forgejo wiki and holds notes that are not tied to one repository.
+_Avoid_: wiki (unqualified), Outline docs
