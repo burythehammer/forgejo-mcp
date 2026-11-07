@@ -21,8 +21,8 @@ const (
 	SearchPageCap = 100
 	// SearchHitCap is the most hits a search returns.
 	SearchHitCap = 20
-	// SearchListLimit is the page size used to list the wiki's page titles.
-	SearchListLimit = 30
+	// searchListLimit is the page size used to list the wiki's page titles.
+	searchListLimit = 30
 	// SearchMaxPageBytes is the largest page a search reads; a larger one is
 	// skipped. It matches the inline download cap in internal/forge.
 	SearchMaxPageBytes = 1 << 20
@@ -53,7 +53,7 @@ func (s *Service) Search(ctx context.Context, r SearchRequest) (model.WikiSearch
 	listPage := 1
 	for {
 		if len(queue) == 0 {
-			batch, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, listPage, SearchListLimit)
+			batch, err := s.port.ListWikiPages(ctx, r.Owner, r.Repo, listPage, searchListLimit)
 			if err != nil {
 				return model.WikiSearchResult{}, fmt.Errorf("list wiki pages: %w", err)
 			}
@@ -76,7 +76,9 @@ func (s *Service) Search(ctx context.Context, r SearchRequest) (model.WikiSearch
 			res.PagesSkipped++
 			continue
 		}
-		if addPageHits(&res, meta, content, needle) {
+		addPageHits(&res, meta, content, needle)
+		// Truncated is still false here unless the hit cap refused a hit.
+		if res.Truncated {
 			return res, nil
 		}
 	}
@@ -97,24 +99,22 @@ func (s *Service) readForSearch(ctx context.Context, owner, repo, pageName strin
 }
 
 // addPageHits records the page's title match, then one hit per matching body
-// line. It reports true when the hit cap is full and another hit exists, which
-// ends the scan.
-func addPageHits(res *model.WikiSearchResult, meta model.WikiPageMeta, content, needle string) bool {
+// line. Once a hit is refused by the full cap, the result is truncated and no
+// further hits are looked for.
+func addPageHits(res *model.WikiSearchResult, meta model.WikiPageMeta, content, needle string) {
 	if start, end, ok := matchSpan(meta.Title, needle); ok {
-		if addHit(res, model.WikiSearchHit{PageName: meta.SubURL, Snippet: snippetOf(meta.Title, start, end)}) {
-			return true
-		}
+		addHit(res, model.WikiSearchHit{PageName: meta.SubURL, Snippet: snippetOf(meta.Title, start, end)})
 	}
 	for i, line := range strings.Split(content, "\n") {
+		if res.Truncated {
+			return
+		}
 		start, end, ok := matchSpan(line, needle)
 		if !ok {
 			continue
 		}
-		if addHit(res, model.WikiSearchHit{PageName: meta.SubURL, Line: i + 1, Snippet: snippetOf(line, start, end)}) {
-			return true
-		}
+		addHit(res, model.WikiSearchHit{PageName: meta.SubURL, Line: i + 1, Snippet: snippetOf(line, start, end)})
 	}
-	return false
 }
 
 // matchSpan finds the lowered needle in line and returns the match as byte
@@ -144,16 +144,15 @@ func loweredToOriginal(s string, lowered int) int {
 	return len(s)
 }
 
-// addHit appends a hit. When the cap is already full it marks the result
-// truncated and reports true, so the caller stops; a full cap with no further
-// hit is not truncated.
-func addHit(res *model.WikiSearchResult, hit model.WikiSearchHit) bool {
+// addHit appends a hit. A hit that arrives when the cap is already full is
+// dropped and marks the result truncated; a full cap with no further hit is not
+// truncated.
+func addHit(res *model.WikiSearchResult, hit model.WikiSearchHit) {
 	if len(res.Hits) == SearchHitCap {
 		res.Truncated = true
-		return true
+		return
 	}
 	res.Hits = append(res.Hits, hit)
-	return false
 }
 
 // snippetOf returns at most SearchSnippetBytes of line, centred on the match
