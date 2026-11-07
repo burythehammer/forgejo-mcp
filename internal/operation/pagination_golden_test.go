@@ -427,6 +427,9 @@ func TestPaginationCoversEveryListTool(t *testing.T) {
 		if !strings.HasPrefix(name, "list_") && !strings.HasPrefix(name, "search_") {
 			continue
 		}
+		if _, unpaged := unpagedSearchTools[name]; unpaged {
+			continue
+		}
 		if !covered[name] {
 			t.Errorf("list or search tool %q has no pagination golden row", name)
 		}

@@ -169,6 +169,7 @@ var expectedHints = map[string]string{
 	"list_repo_tracked_times":             hintRead,
 	"list_user_orgs":                      hintRead,
 	"list_wiki_pages":                     hintRead,
+	"search_wiki":                         hintRead,
 	"list_workflow_runs":                  hintRead,
 	"mark_all_notifications_read":         hintWrite,
 	"mark_notification_read":              hintWrite,
