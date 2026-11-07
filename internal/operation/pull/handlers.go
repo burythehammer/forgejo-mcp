@@ -10,10 +10,10 @@ import (
 	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/pull"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/pulladapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -178,27 +178,15 @@ type reviewersArgs struct {
 	TeamReviewers string `json:"team_reviewers"`
 }
 
-// run is the shared shape of a tool call: decode the arguments into A, take
-// the use cases bound to this request's credential, and hand both to do,
-// which runs one use case and renders its result.
-func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
-	do func(context.Context, *apppull.Service, A) (*mcp.CallToolResult, error),
-) (*mcp.CallToolResult, error) {
-	log.Debugf("Called %s", name)
-	var args A
-	if err := decode.Lax(req, &args); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	if v, ok := any(&args).(validator); ok {
-		if err := v.validate(); err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-	}
+// service is the Binder for the pull request and review tools: it looks up the
+// request's credential and binds the pull use case to it. The pipeline calls it
+// only after the request is valid.
+func (h handlers) service(ctx context.Context) (*apppull.Service, error) {
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return mcpresult.Fail(err)
+		return nil, err
 	}
-	return do(ctx, apppull.New(pulladapter.New(port)), args)
+	return apppull.New(pulladapter.New(port)), nil
 }
 
 // message sends a use case's outcome as plain text.
@@ -210,18 +198,18 @@ func message(text string, err error) (*mcp.CallToolResult, error) {
 }
 
 func (h handlers) GetPullRequestByIndexFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetPullRequestByIndexFn", func(ctx context.Context, s *apppull.Service, a getArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a getArgs) (*mcp.CallToolResult, error) {
 		in := apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx}
 		read, err := s.Read(ctx, in, apppull.ReadOptions{})
 		if err != nil {
 			return nil, mapErr(pullResourceURI(a.Owner, a.Repo, in.Index), err)
 		}
 		return compact.RenderPullRequestRead(read.PR, a.Verbose)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListRepoPullRequestsFn", func(ctx context.Context, s *apppull.Service, a listArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a listArgs) (*mcp.CallToolResult, error) {
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return mcpresult.Fail(perr)
@@ -231,48 +219,48 @@ func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRe
 		})
 		envelope, err := pullListPage(page, err)
 		return compact.RenderPullList(envelope, err, a.Verbose)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) CreatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreatePullRequestFn", func(ctx context.Context, s *apppull.Service, a createArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a createArgs) (*mcp.CallToolResult, error) {
 		pr, err := s.Create(ctx, apppull.CreateRequest{
 			Owner: a.Owner, Repo: a.Repo, Head: a.Head, Base: a.Base, Title: a.Title, Body: a.Body,
 			Labels: a.Labels, Assignees: a.Assignees,
 		})
 		return compact.RenderPullRequest(pr, err, a.Verbose)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) UpdatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "UpdatePullRequestFn", func(ctx context.Context, s *apppull.Service, a updateArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a updateArgs) (*mcp.CallToolResult, error) {
 		pr, err := s.Update(ctx, apppull.UpdateInput{
 			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx},
 			Title: a.Title, Body: a.Body, Base: a.Base, Assignee: a.Assignee, Milestone: a.Milestone,
 		})
 		return compact.RenderPullRequest(pr, err, a.Verbose)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) ListPullReviewsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListPullReviewsFn", func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return mcpresult.Fail(perr)
 		}
 		return mcpresult.Render(reviewPage(s.Reviews(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, Page: pg, Limit: lim})))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) GetPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetPullReviewFn", func(ctx context.Context, s *apppull.Service, a getReviewArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a getReviewArgs) (*mcp.CallToolResult, error) {
 		review, err := s.Review(ctx, reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, idx: a.idx, id: a.id}))
 		return compact.RenderReviewRead(review, err, a.Verbose)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListPullReviewCommentsFn", func(ctx context.Context, s *apppull.Service, a reviewCommentsArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a reviewCommentsArgs) (*mcp.CallToolResult, error) {
 		ref := reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, idx: a.idx, id: a.id})
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
@@ -282,11 +270,11 @@ func (h handlers) ListPullReviewCommentsFn(ctx context.Context, req mcp.CallTool
 			Page:  pg,
 			Limit: lim,
 		})))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) MergePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "MergePullRequestFn", func(ctx context.Context, s *apppull.Service, a mergeArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a mergeArgs) (*mcp.CallToolResult, error) {
 		res, err := s.Merge(ctx, apppull.MergeRequest{
 			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx},
 			Style: a.Style, Title: a.Title, Message: a.Message,
@@ -297,21 +285,21 @@ func (h handlers) MergePullRequestFn(ctx context.Context, req mcp.CallToolReques
 			text = "Pull request scheduled to merge when all checks succeed"
 		}
 		return message(text, err)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) ListPullRequestFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListPullRequestFilesFn", func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a pagedArgs) (*mcp.CallToolResult, error) {
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return mcpresult.Fail(perr)
 		}
 		return mcpresult.Render(filesPage(s.Files(ctx, apppull.PagedPR{PR: apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx}, Page: pg, Limit: lim})))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetPullRequestDiffFn", func(ctx context.Context, s *apppull.Service, a diffArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a diffArgs) (*mcp.CallToolResult, error) {
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return message("", perr)
@@ -326,7 +314,7 @@ func (h handlers) GetPullRequestDiffFn(ctx context.Context, req mcp.CallToolRequ
 			return message("", err)
 		}
 		return message(diffWithMarker(page), nil)
-	})
+	})(ctx, req)
 }
 
 // diffWithMarker is the diff page as text, followed by a truncation marker
@@ -356,49 +344,49 @@ func withMarker(text, marker string) string {
 }
 
 func (h handlers) CreatePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreatePullReviewFn", func(ctx context.Context, s *apppull.Service, a createReviewArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a createReviewArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.CreateReview(ctx, apppull.CreateReviewRequest{
 			PR:    apppull.PR{Owner: a.Owner, Repo: a.Repo, Index: a.idx},
 			State: a.State, Body: a.Body, Comments: a.Comments,
 		}))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) SubmitPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "SubmitPullReviewFn", func(ctx context.Context, s *apppull.Service, a submitReviewArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a submitReviewArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.SubmitReview(ctx, apppull.SubmitReviewRequest{
 			ReviewRef: reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, idx: a.idx, id: a.id}),
 			State:     a.State, Body: a.Body,
 		}))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) DismissPullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DismissPullReviewFn", func(ctx context.Context, s *apppull.Service, a dismissArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a dismissArgs) (*mcp.CallToolResult, error) {
 		err := s.DismissReview(ctx, apppull.DismissRequest{
 			ReviewRef: reviewRef(reviewArgs{Owner: a.Owner, Repo: a.Repo, idx: a.idx, id: a.id}),
 			Message:   a.Message,
 		})
 		return message(`{"Result":"review dismissed successfully"}`, err)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) DeletePullReviewFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeletePullReviewFn", func(ctx context.Context, s *apppull.Service, a reviewArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a reviewArgs) (*mcp.CallToolResult, error) {
 		return message(`{"Result":"review deleted successfully"}`, s.DeleteReview(ctx, reviewRef(a)))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) CreateReviewRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateReviewRequestsFn", func(ctx context.Context, s *apppull.Service, a reviewersArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a reviewersArgs) (*mcp.CallToolResult, error) {
 		return message(`{"Result":"review requests created successfully"}`, s.RequestReviews(ctx, reviewers(a)))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) DeleteReviewRequestsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeleteReviewRequestsFn", func(ctx context.Context, s *apppull.Service, a reviewersArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppull.Service, a reviewersArgs) (*mcp.CallToolResult, error) {
 		return message(`{"Result":"review requests deleted successfully"}`, s.CancelReviewRequests(ctx, reviewers(a)))
-	})
+	})(ctx, req)
 }
 
 func reviewRef(a reviewArgs) apppull.ReviewRef {
@@ -411,7 +399,3 @@ func reviewers(a reviewersArgs) apppull.ReviewersInput {
 		Reviewers: a.Reviewers, TeamReviewers: a.TeamReviewers,
 	}
 }
-
-// validator is implemented by an argument struct whose numbers are checked by
-// the numeric-argument module before its handler runs.
-type validator interface{ validate() error }

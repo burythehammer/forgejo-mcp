@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // The adapter tests are thin on purpose: behaviour is tested on the use cases
@@ -49,9 +50,10 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	f := fake.New()
-	h := handlers{forge: fake.Factory{Forgejo: f}}
-	req := func(args map[string]any) mcp.CallToolRequest {
-		return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
+	s := server.NewMCPServer("test", "0")
+	RegisterTool(s, fake.Factory{Forgejo: f})
+	call := func(name string, args map[string]any) (*mcp.CallToolResult, error) {
+		return s.GetTool(name).Handler(ctx, mcp.CallToolRequest{Params: mcp.CallToolParams{Name: name, Arguments: args}})
 	}
 	mustText := func(name string, res *mcp.CallToolResult, err error) string {
 		t.Helper()
@@ -67,27 +69,27 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 		return b.String()
 	}
 
-	res, err := h.CreateOrgFn(ctx, req(map[string]any{"name": "octo-org"}))
+	res, err := call(CreateOrgToolName, map[string]any{"name": "octo-org"})
 	if text := mustText("create", res, err); !strings.Contains(text, "octo-org") {
 		t.Fatalf("create: %s", text)
 	}
 
-	res, err = h.EditOrgFn(ctx, req(map[string]any{"org": "octo-org", "full_name": "Octo Org Renamed"}))
+	res, err = call(EditOrgToolName, map[string]any{"org": "octo-org", "full_name": "Octo Org Renamed"})
 	if text := mustText("edit", res, err); !strings.Contains(text, "Octo Org Renamed") {
 		t.Fatalf("edit did not return the updated org: %s", text)
 	}
 
-	res, err = h.CreateOrgTeamFn(ctx, req(map[string]any{"org": "octo-org", "name": "core"}))
+	res, err = call(CreateOrgTeamToolName, map[string]any{"org": "octo-org", "name": "core"})
 	if text := mustText("create team", res, err); !strings.Contains(text, `"permission":"read"`) {
 		t.Fatalf("team did not default to read: %s", text)
 	}
 
-	res, err = h.CheckOrgMembershipFn(ctx, req(map[string]any{"org": "octo-org", "user": "nobody"}))
+	res, err = call(CheckOrgMembershipToolName, map[string]any{"org": "octo-org", "user": "nobody"})
 	if text := mustText("membership", res, err); !strings.Contains(text, `"is_member":false`) {
 		t.Fatalf("membership: %s", text)
 	}
 
-	if _, err := h.GetOrgFn(ctx, req(map[string]any{"org": "ghost"})); err == nil || !strings.HasPrefix(err.Error(), "get org err: ") {
+	if _, err := call(GetOrgToolName, map[string]any{"org": "ghost"}); err == nil || !strings.HasPrefix(err.Error(), "get org err: ") {
 		t.Fatalf("unknown org: %v", err)
 	}
 }

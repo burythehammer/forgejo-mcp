@@ -32,7 +32,7 @@ func TestOwnerReadParity_UserAgreesWithTheToolAndOrgWithGetOrg(t *testing.T) {
 	}
 
 	// The user.
-	toolRes, err := h.GetUserInfoFn(ctx, mcp.CallToolRequest{})
+	toolRes, err := callTool(t, h, GetMyUserInfoToolName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

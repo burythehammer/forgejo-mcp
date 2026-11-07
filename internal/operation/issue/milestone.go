@@ -16,6 +16,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -143,7 +144,7 @@ func dueDate(s *string) (*time.Time, error) {
 }
 
 func (h handlers) CreateMilestoneFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateMilestoneFn", func(ctx context.Context, s *apppissue.Service, a createMilestoneArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a createMilestoneArgs) (*mcp.CallToolResult, error) {
 		due, err := dueDate(&a.DueDate)
 		if err != nil {
 			return mcpresult.Fail(err)
@@ -153,11 +154,11 @@ func (h handlers) CreateMilestoneFn(ctx context.Context, req mcp.CallToolRequest
 			return mcpresult.Fail(err)
 		}
 		return mcpresult.Render(milestoneOf(m), nil)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) EditMilestoneFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "EditMilestoneFn", func(ctx context.Context, s *apppissue.Service, a editMilestoneArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a editMilestoneArgs) (*mcp.CallToolResult, error) {
 		id, err := milestoneID(a.ID)
 		if err != nil {
 			return mcpresult.Fail(err)
@@ -172,11 +173,11 @@ func (h handlers) EditMilestoneFn(ctx context.Context, req mcp.CallToolRequest) 
 			return mcpresult.Fail(err)
 		}
 		return mcpresult.Render(milestoneOf(m), nil)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) GetMilestoneFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetMilestoneFn", func(ctx context.Context, s *apppissue.Service, a getMilestoneArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a getMilestoneArgs) (*mcp.CallToolResult, error) {
 		id, err := milestoneID(a.ID)
 		if err != nil {
 			return mcpresult.Fail(err)
@@ -186,5 +187,5 @@ func (h handlers) GetMilestoneFn(ctx context.Context, req mcp.CallToolRequest) (
 			return mcpresult.Fail(err)
 		}
 		return to.TextResult(milestoneOf(m))
-	})
+	})(ctx, req)
 }

@@ -6,11 +6,11 @@ import (
 	"context"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -67,27 +67,45 @@ type getRepoTreeArgs struct {
 	Limit     float64 `json:"limit"`
 }
 
+// target is the repository a contents list names. A missing owner or repo is
+// refused in Validate, before the credential lookup.
+func (a listRepoContentsArgs) target() (owner, repo string, err error) {
+	if owner, err = need("owner", a.Owner); err != nil {
+		return "", "", err
+	}
+	if repo, err = need("repo", a.Repo); err != nil {
+		return "", "", err
+	}
+	return owner, repo, nil
+}
+
+// paging is the page and limit of the list, refused when either is out of range.
+func (a listRepoContentsArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
+// Validate refuses a contents list that names no repository or whose page or
+// limit is out of range.
+func (a listRepoContentsArgs) Validate() error {
+	if _, _, err := a.target(); err != nil {
+		return err
+	}
+	_, _, err := a.paging()
+	return err
+}
+
 func (h handlers) ListRepoContentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListRepoContentsFn")
-	var a listRepoContentsArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	owner, err := need("owner", a.Owner)
+	return pipeline.Handle(h.gitService, listRepoContents)(ctx, req)
+}
+
+func listRepoContents(ctx context.Context, svc *apprepo.GitService, a listRepoContentsArgs) (*mcp.CallToolResult, error) {
+	owner, repo, err := a.target()
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-	repo, err := need("repo", a.Repo)
+	page, limit, err := a.paging()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	page, limit, err := decode.PagingArgs(a.Page, a.Limit)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return gitText(contentsPage(svc.ListContents(ctx, owner, repo, a.Ref, a.Path, apprepo.GitPage{
 		Page:  page,
@@ -95,31 +113,48 @@ func (h handlers) ListRepoContentsFn(ctx context.Context, req mcp.CallToolReques
 	})))
 }
 
+// target is the repository and ref a tree read names. A missing one is refused
+// in Validate, before the credential lookup.
+func (a getRepoTreeArgs) target() (owner, repo, ref string, err error) {
+	if owner, err = need("owner", a.Owner); err != nil {
+		return "", "", "", err
+	}
+	if repo, err = need("repo", a.Repo); err != nil {
+		return "", "", "", err
+	}
+	if ref, err = need("ref", a.Ref); err != nil {
+		return "", "", "", err
+	}
+	return owner, repo, ref, nil
+}
+
+// paging is the page and limit of the tree read, refused when either is out of range.
+func (a getRepoTreeArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
+// Validate refuses a tree read that names no repository or ref, or whose page
+// or limit is out of range.
+func (a getRepoTreeArgs) Validate() error {
+	if _, _, _, err := a.target(); err != nil {
+		return err
+	}
+	_, _, err := a.paging()
+	return err
+}
+
 func (h handlers) GetRepoTreeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetRepoTreeFn")
-	var a getRepoTreeArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	owner, err := need("owner", a.Owner)
+	return pipeline.Handle(h.gitService, getRepoTree)(ctx, req)
+}
+
+func getRepoTree(ctx context.Context, svc *apprepo.GitService, a getRepoTreeArgs) (*mcp.CallToolResult, error) {
+	owner, repo, ref, err := a.target()
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-	repo, err := need("repo", a.Repo)
+	page, limit, err := a.paging()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	ref, err := need("ref", a.Ref)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	page, limit, err := decode.PagingArgs(a.Page, a.Limit)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return gitText(treePage(svc.GetTree(ctx, owner, repo, ref, apprepo.TreeInput{
 		Recursive: a.Recursive,

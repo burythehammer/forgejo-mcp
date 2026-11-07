@@ -5,10 +5,13 @@ package actions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
+	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -30,7 +33,13 @@ func newFixture(t *testing.T) (handlers, *fake.Forgejo) {
 	return handlers{forge: fake.Factory{Forgejo: f}}, f
 }
 
-type toolFn func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+type toolFn = func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+
+// serve returns the handler a tool is registered with: the request pipeline
+// over the handlers' Binder and one run function.
+func serve[A any](h handlers, run func(context.Context, *app.Service, A) (*mcp.CallToolResult, error)) toolFn {
+	return pipeline.Handle(h.service, run)
+}
 
 func newCallToolRequest(args map[string]any) mcp.CallToolRequest {
 	return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -77,6 +86,21 @@ func callErr(t *testing.T, fn toolFn, args map[string]any) error {
 		t.Fatalf("expected an error, got result %+v", res)
 	}
 	return err
+}
+
+// refusedErr runs a tool with a bad request and returns the refusal as an
+// error. A bad request is a tool error result, never a Go error, so this fails
+// the test for a Go error or for a successful result.
+func refusedErr(t *testing.T, fn toolFn, args map[string]any) error {
+	t.Helper()
+	res, err := fn(context.Background(), newCallToolRequest(args))
+	if err != nil {
+		t.Fatalf("bad request returned Go error %v; want a tool error", err)
+	}
+	if res == nil || !res.IsError {
+		t.Fatalf("bad request was not refused as a tool error: %+v", res)
+	}
+	return errors.New(textOf(res))
 }
 
 // resultOf runs a tool and decodes the {"Result": ...} envelope of its output.

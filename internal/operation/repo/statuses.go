@@ -10,6 +10,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -40,15 +41,34 @@ type getCommitStatusesArgs struct {
 	Limit float64 `json:"limit"`
 }
 
+// paging is the page and limit of the call. A zero limit is passed on as zero so
+// the use case applies the default, lowered to the instance ceiling; the list
+// module refuses a limit above it. Validate runs it before the credential lookup.
+func (a getCommitStatusesArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
 func (h handlers) GetCommitStatusesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "GetCommitStatusesFn", func(ctx context.Context, s *apprepo.AdminService, a getCommitStatusesArgs) (*mcp.CallToolResult, error) {
-		// A zero limit is passed on as zero so the use case applies the default,
-		// lowered to the instance ceiling; the list module refuses a limit above it.
-		pg, limit, err := decode.PagingArgs(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Render(nil, err)
-		}
-		b, err := s.GetCommitStatuses(ctx, a.Owner, a.Repo, a.SHA, apprepo.AdminPaging{Page: pg, Limit: limit})
-		return mcpresult.Render(statusPage(a.SHA, b, err))
-	})
+	return pipeline.Handle(h.adminService, getCommitStatuses)(ctx, req)
+}
+
+func getCommitStatuses(ctx context.Context, s *apprepo.AdminService, a getCommitStatusesArgs) (*mcp.CallToolResult, error) {
+	pg, limit, err := a.paging()
+	if err != nil {
+		return mcpresult.Render(nil, err)
+	}
+	b, err := s.GetCommitStatuses(ctx, a.Owner, a.Repo, a.SHA, apprepo.AdminPaging{Page: pg, Limit: limit})
+	return mcpresult.Render(statusPage(a.SHA, b, err))
+}
+
+// Validate refuses a call that names no repository or SHA, or whose page or limit is out of range.
+func (a getCommitStatusesArgs) Validate() error {
+	if err := requireOwnerRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if err := requireString("sha", a.SHA); err != nil {
+		return err
+	}
+	_, _, err := a.paging()
+	return err
 }

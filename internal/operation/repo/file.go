@@ -7,10 +7,11 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -130,27 +131,35 @@ type deleteFileArgs struct {
 	NewBranchName string  `json:"new_branch_name"`
 }
 
+// target is the repository and file path a file read names. A missing one is
+// refused in Validate, before the credential lookup.
+func (a getFileContentArgs) target() (owner, repo, filePath string, err error) {
+	if owner, err = need("owner", a.Owner); err != nil {
+		return "", "", "", err
+	}
+	if repo, err = need("repo", a.Repo); err != nil {
+		return "", "", "", err
+	}
+	if filePath, err = need("filePath", a.FilePath); err != nil {
+		return "", "", "", err
+	}
+	return owner, repo, filePath, nil
+}
+
+// Validate refuses a file read that names no repository or file path.
+func (a getFileContentArgs) Validate() error {
+	_, _, _, err := a.target()
+	return err
+}
+
 func (h handlers) GetFileContentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetFileFn")
-	var a getFileContentArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	owner, err := need("owner", a.Owner)
+	return pipeline.Handle(h.gitService, getFileContent)(ctx, req)
+}
+
+func getFileContent(ctx context.Context, svc *apprepo.GitService, a getFileContentArgs) (*mcp.CallToolResult, error) {
+	owner, repo, filePath, err := a.target()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	repo, err := need("repo", a.Repo)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	filePath, err := need("filePath", a.FilePath)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	lines := apprepo.LineRange{Start: int(numarg.Truncate(a.StartLine)), End: int(numarg.Truncate(a.EndLine))}
 	if a.WithMetadata {
@@ -160,18 +169,13 @@ func (h handlers) GetFileContentFn(ctx context.Context, req mcp.CallToolRequest)
 }
 
 func (h handlers) CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CreateFileFn")
-	var a createFileArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+	return pipeline.Handle(h.gitService, createFile)(ctx, req)
+}
+
+func createFile(ctx context.Context, svc *apprepo.GitService, a createFileArgs) (*mcp.CallToolResult, error) {
 	content, err := selectRepositoryWriteContent(a.Content, a.ContentBase64)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return gitText(svc.CreateFile(ctx, a.Owner, a.Repo, a.FilePath, apprepo.FileWriteInput{
 		Message: a.Message, Branch: a.BranchName, NewBranch: a.NewBranchName, ContentBase64: content,
@@ -179,54 +183,82 @@ func (h handlers) CreateFileFn(ctx context.Context, req mcp.CallToolRequest) (*m
 }
 
 func (h handlers) UpdateFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called UpdateFileFn")
-	var a updateFileArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+	return pipeline.Handle(h.gitService, updateFile)(ctx, req)
+}
+
+func updateFile(ctx context.Context, svc *apprepo.GitService, a updateFileArgs) (*mcp.CallToolResult, error) {
 	content, err := selectRepositoryWriteContent(a.Content, a.ContentBase64)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return gitText(svc.UpdateFile(ctx, a.Owner, a.Repo, a.FilePath, apprepo.FileWriteInput{
 		Message: a.Message, Branch: a.BranchName, NewBranch: a.NewBranchName, ContentBase64: content, SHA: a.SHA,
 	}))
 }
 
+// target is the repository, file path and blob SHA a delete names. A missing
+// one is refused in Validate, before the credential lookup.
+func (a deleteFileArgs) target() (owner, repo, filePath, sha string, err error) {
+	if owner, err = need("owner", a.Owner); err != nil {
+		return "", "", "", "", err
+	}
+	if repo, err = need("repo", a.Repo); err != nil {
+		return "", "", "", "", err
+	}
+	if filePath, err = need("filePath", a.FilePath); err != nil {
+		return "", "", "", "", err
+	}
+	if sha, err = need("sha", a.SHA); err != nil {
+		return "", "", "", "", err
+	}
+	return owner, repo, filePath, sha, nil
+}
+
+// Validate refuses a delete that names no repository, file path or SHA.
+func (a deleteFileArgs) Validate() error {
+	_, _, _, _, err := a.target()
+	return err
+}
+
 func (h handlers) DeleteFileFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteFileFn")
-	var a deleteFileArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	owner, err := need("owner", a.Owner)
+	return pipeline.Handle(h.gitService, deleteFile)(ctx, req)
+}
+
+func deleteFile(ctx context.Context, svc *apprepo.GitService, a deleteFileArgs) (*mcp.CallToolResult, error) {
+	owner, repo, filePath, sha, err := a.target()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	repo, err := need("repo", a.Repo)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	filePath, err := need("filePath", a.FilePath)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	sha, err := need("sha", a.SHA)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	if err := svc.DeleteFile(ctx, owner, repo, filePath, apprepo.FileDeleteInput{
 		Message: a.Message, Branch: a.BranchName, NewBranch: a.NewBranchName, SHA: sha,
 	}); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult("Delete file success")
+}
+
+// Validate refuses a create that names no repository, path, message or branch, or whose content
+// selectors are not exactly one. The write runs only after the credential lookup.
+func (a createFileArgs) Validate() error {
+	if err := firstError(
+		requireString("owner", a.Owner), requireString("repo", a.Repo), requireString("filePath", a.FilePath),
+		requireString("message", a.Message), requireString("branch_name", a.BranchName),
+	); err != nil {
+		return err
+	}
+	_, err := selectRepositoryWriteContent(a.Content, a.ContentBase64)
+	return err
+}
+
+// Validate refuses an update that names no repository, path, message or branch, or whose content
+// selectors are not exactly one. A missing SHA is not refused: the update takes the current one.
+func (a updateFileArgs) Validate() error {
+	if err := firstError(
+		requireString("owner", a.Owner), requireString("repo", a.Repo), requireString("filePath", a.FilePath),
+		requireString("message", a.Message), requireString("branch_name", a.BranchName),
+	); err != nil {
+		return err
+	}
+	_, err := selectRepositoryWriteContent(a.Content, a.ContentBase64)
+	return err
 }

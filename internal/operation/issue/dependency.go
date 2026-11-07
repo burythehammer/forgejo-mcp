@@ -14,6 +14,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -93,7 +94,7 @@ type listDependenciesArgs struct {
 
 // The numbers and the cross-repository names below are kept raw (any), not
 // typed: the handlers have always refused a malformed one with an error naming
-// it, which a typed field would silently zero under decode.Lax. The schema tags
+// it, which a typed field would silently zero under the lax decoder. The schema tags
 // tell mcptest.ArgsMatchSchema what the tool's schema says each one is.
 type addDependencyArgs struct {
 	Owner          string `json:"owner" required:"true"`
@@ -114,29 +115,29 @@ type removeDependencyArgs struct {
 }
 
 func (h handlers) ListIssueDependenciesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListIssueDependenciesFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return to.ErrorResult(perr)
 		}
 		return compact.RenderDependencyPage(dependencyPage(s.Dependencies(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
 			apppissue.Paging{Page: pg, Limit: lim})))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) ListIssueDependentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListIssueDependentsFn", func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a listDependenciesArgs) (*mcp.CallToolResult, error) {
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return to.ErrorResult(perr)
 		}
 		return compact.RenderDependencyPage(dependencyPage(s.Dependents(ctx, target(issueRefArgs{Owner: a.Owner, Repo: a.Repo, Index: a.idx}),
 			apppissue.Paging{Page: pg, Limit: lim})))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "AddIssueDependencyFn", func(ctx context.Context, s *apppissue.Service, a addDependencyArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a addDependencyArgs) (*mcp.CallToolResult, error) {
 		index, err := numberArg(a.Index, "index")
 		if err != nil {
 			return mcpresult.Fail(err)
@@ -156,11 +157,11 @@ func (h handlers) AddIssueDependencyFn(ctx context.Context, req mcp.CallToolRequ
 			return mcpresult.Fail(err)
 		}
 		return to.TextResult(fmt.Sprintf("Issue #%d now depends on %s/%s#%d", index, depOwner, depRepo, dependsOn))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "RemoveIssueDependencyFn", func(ctx context.Context, s *apppissue.Service, a removeDependencyArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a removeDependencyArgs) (*mcp.CallToolResult, error) {
 		index, err := numberArg(a.Index, "index")
 		if err != nil {
 			return mcpresult.Fail(err)
@@ -180,7 +181,7 @@ func (h handlers) RemoveIssueDependencyFn(ctx context.Context, req mcp.CallToolR
 			return mcpresult.Fail(err)
 		}
 		return to.TextResult(fmt.Sprintf("Removed dependency on %s/%s#%d from issue #%d", depOwner, depRepo, dependencyIndex, index))
-	})
+	})(ctx, req)
 }
 
 // crossRepoArgs resolves the optional owner/repo pair naming the repository a

@@ -5,12 +5,12 @@ package actions
 import (
 	"context"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"math"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
@@ -65,63 +65,65 @@ var (
 	)
 )
 
-func (h handlers) ListActionRunArtifactsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var a artifactsArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
+// Validate checks owner and repo, then run_id and the paging arguments, before
+// the credential lookup.
+func (a artifactsArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
 	}
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
-	}
+	_, _, err := a.read()
+	return err
+}
+
+// read reads run_id and the paging arguments.
+func (a artifactsArgs) read() (int64, app.Paging, error) {
 	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
 	if err != nil {
-		return to.ErrorResult(err)
+		return 0, app.Paging{}, err
 	}
 	page, err := numarg.IntDefault("page", a.Page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
 	if err != nil {
-		return to.ErrorResult(err)
+		return 0, app.Paging{}, err
 	}
 	limit, err := numarg.IntDefault("limit", a.Limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionArtifactsLimit)})
 	if err != nil {
-		return to.ErrorResult(err)
+		return 0, app.Paging{}, err
 	}
+	return runID, app.Paging{Page: page, Limit: limit}, nil
+}
 
-	svc, err := useCases(ctx, h)
+func listActionRunArtifacts(ctx context.Context, svc *app.Service, a artifactsArgs) (*mcp.CallToolResult, error) {
+	runID, paging, err := a.read()
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	list, err := svc.ListArtifacts(ctx, a.Owner, a.Repo, runID, app.ArtifactQuery{
-		Paging: app.Paging{Page: page, Limit: limit},
+		Paging: paging,
 		Name:   a.Name,
 	})
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(artifactPage(runID, list))
 }
 
-func (h handlers) GetActionArtifactFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetActionArtifactFn")
+// Validate checks owner and repo, then artifact_id, before the credential lookup.
+func (a getArtifactArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	_, err := numarg.RequiredPositiveInt("artifact_id", a.ArtifactID)
+	return err
+}
 
-	var a getArtifactArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
-	}
+func getActionArtifact(ctx context.Context, svc *app.Service, a getArtifactArgs) (*mcp.CallToolResult, error) {
 	artifactID, err := numarg.RequiredPositiveInt("artifact_id", a.ArtifactID)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	artifact, err := svc.GetArtifact(ctx, a.Owner, a.Repo, artifactID)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(artifact)
 }

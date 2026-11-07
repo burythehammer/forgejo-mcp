@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -212,25 +213,25 @@ func labelEdit(tool string, name, color, description *string, exclusive *bool) a
 }
 
 func (h handlers) CreateRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a createRepoLabelArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a createRepoLabelArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.CreateRepoLabel(ctx, a.Owner, a.Repo, labelNew(a.Name, a.Color, a.Description, a.Exclusive)))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) EditRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "EditRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a editRepoLabelArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a editRepoLabelArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.EditRepoLabel(ctx, a.Owner, a.Repo, a.id, labelEdit("edit_repo_label", a.Name, a.Color, a.Description, a.Exclusive)))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) DeleteRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeleteRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a deleteRepoLabelArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a deleteRepoLabelArgs) (*mcp.CallToolResult, error) {
 		id := a.id
 		if err := s.DeleteRepoLabel(ctx, a.Owner, a.Repo, id, a.DeleteMode == "force"); err != nil {
 			return mcpresult.Fail(err)
 		}
 		return to.TextResult(map[string]any{"deleted": true, "id": id})
-	})
+	})(ctx, req)
 }
 
 // repoLabelURI, repoLabelsURI and orgLabelsURI name the resource that serves
@@ -249,39 +250,39 @@ func orgLabelsURI(org string) string {
 }
 
 func (h handlers) GetRepoLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetRepoLabelFn", func(ctx context.Context, s *apppissue.Service, a getRepoLabelArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a getRepoLabelArgs) (*mcp.CallToolResult, error) {
 		label, err := s.GetRepoLabel(ctx, a.Owner, a.Repo, a.id)
 		if err != nil {
 			return nil, mapErr(repoLabelURI(a.Owner, a.Repo, a.id), err)
 		}
 		return mcpresult.Render(label, nil)
-	})
+	})(ctx, req)
 }
 
 func (h handlers) CreateOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a createOrgLabelArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a createOrgLabelArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.CreateOrgLabel(ctx, a.Org, labelNew(a.Name, a.Color, a.Description, a.Exclusive)))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) EditOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "EditOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a editOrgLabelArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a editOrgLabelArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.EditOrgLabel(ctx, a.Org, a.id, labelEdit("edit_org_label", a.Name, a.Color, a.Description, a.Exclusive)))
-	})
+	})(ctx, req)
 }
 
 func (h handlers) DeleteOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeleteOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a deleteOrgLabelArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a deleteOrgLabelArgs) (*mcp.CallToolResult, error) {
 		id := a.id
 		if err := s.DeleteOrgLabel(ctx, a.Org, id, a.DeleteMode == "force"); err != nil {
 			return mcpresult.Fail(err)
 		}
 		return to.TextResult(map[string]any{"deleted": true, "id": id})
-	})
+	})(ctx, req)
 }
 
 func (h handlers) GetOrgLabelFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetOrgLabelFn", func(ctx context.Context, s *apppissue.Service, a getOrgLabelArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a getOrgLabelArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.GetOrgLabel(ctx, a.Org, a.id))
-	})
+	})(ctx, req)
 }

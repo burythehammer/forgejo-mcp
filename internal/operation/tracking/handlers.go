@@ -4,12 +4,12 @@ package tracking
 
 import (
 	"context"
+	"errors"
 	"math"
 
 	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/tracking"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/trackingadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
@@ -19,15 +19,15 @@ import (
 )
 
 // handlers serve the time-tracking tools. They hold the factory rather than a
-// port so each call is bound to the credential of its own request. Each handler
-// is the MCP adapter of one use case in internal/app/tracking: decode the arguments, run
-// the use case, render the result.
+// port so each call is bound to the credential of its own request. Each tool is
+// the MCP adapter of one use case in internal/app/tracking: the pipeline decodes
+// and validates the arguments, the use case runs, and the result is rendered.
 type handlers struct{ forge forge.Factory }
 
 // Argument structs, one per tool. `json` names the MCP argument and
 // `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps
 // them in agreement with the tool definitions. An ID or seconds field is kept
-// raw (any) and read by the numeric-argument module in the handler, before the
+// raw (any) and read by the numeric-argument module in Validate, before the
 // use case runs, so the use case receives a validated whole number.
 
 type issueArgs struct {
@@ -92,18 +92,11 @@ func paging(page, limit float64) (int, int, error) {
 	return decode.PagingArgs(page, limit)
 }
 
-// run is the shared shape of a tool call: decode the arguments into A, then
-// hand them and the use cases to do. The use cases reach the credential's port
-// only after their input is checked (see apptracking.Source).
-func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
-	do func(context.Context, *apptracking.Service, A) (*mcp.CallToolResult, error),
-) (*mcp.CallToolResult, error) {
-	log.Debugf("Called %s", name)
-	var args A
-	if err := decode.Lax(req, &args); err != nil {
-		return mcpresult.Fail(err)
-	}
-	return do(ctx, apptracking.New(h.source()), args)
+// service is the Binder for every time-tracking tool. The use cases reach the
+// credential's port only after their input is checked (see apptracking.Source),
+// so binding does not look up a credential.
+func (h handlers) service(context.Context) (*apptracking.Service, error) {
+	return apptracking.New(h.source()), nil
 }
 
 // source returns the lookup of this request's port, which the use cases call
@@ -124,6 +117,18 @@ func message(text string, err error) (*mcp.CallToolResult, error) {
 		return mcpresult.Fail(err)
 	}
 	return to.TextResult(text)
+}
+
+// requireRepo refuses a call without its owner or repository, in the order the
+// arguments are read: owner, then repo.
+func requireRepo(owner, repo string) error {
+	if owner == "" {
+		return errors.New("owner is required")
+	}
+	if repo == "" {
+		return errors.New("repo is required")
+	}
+	return nil
 }
 
 // positive is the range of an ID or of a count of seconds: a whole number of
@@ -158,125 +163,175 @@ func optionalSeconds(raw any) (*int64, error) {
 	return &v, nil
 }
 
-func (h handlers) ListIssueTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListIssueTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a issueTimesArgs) (*mcp.CallToolResult, error) {
-		issue, err := issueRef(a.Owner, a.Repo, a.Index)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		page, limit, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return mcpresult.Render(s.IssueTimes(ctx, apptracking.IssueTimesInput{
-			IssueRef: issue,
-			Since:    a.Since, Before: a.Before, Page: page, Limit: limit,
-		}))
-	})
+// Validate checks the repository, then the index, before the credential lookup.
+func (a issueArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	_, err := issueRef(a.Owner, a.Repo, a.Index)
+	return err
 }
 
-func (h handlers) ListRepoTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListRepoTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a repoTimesArgs) (*mcp.CallToolResult, error) {
-		page, limit, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return mcpresult.Render(s.RepoTimes(ctx, apptracking.RepoTimesInput{
-			Owner: a.Owner, Repo: a.Repo, Since: a.Since, Before: a.Before, User: a.User, Page: page, Limit: limit,
-		}))
-	})
+// Validate checks the repository, the index, then the paging arguments, before
+// the credential lookup.
+func (a issueTimesArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if _, err := issueRef(a.Owner, a.Repo, a.Index); err != nil {
+		return err
+	}
+	_, _, err := paging(a.Page, a.Limit)
+	return err
 }
 
-func (h handlers) ListMyTrackedTimesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListMyTrackedTimesFn", func(ctx context.Context, s *apptracking.Service, a myTimesArgs) (*mcp.CallToolResult, error) {
-		page, limit, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return mcpresult.Render(s.MyTimes(ctx, apptracking.MyTimesInput{Page: page, Limit: limit}))
-	})
+// Validate checks the repository, then the paging arguments, before the
+// credential lookup.
+func (a repoTimesArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	_, _, err := paging(a.Page, a.Limit)
+	return err
 }
 
-func (h handlers) AddIssueTimeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "AddIssueTimeFn", func(ctx context.Context, s *apptracking.Service, a addTimeArgs) (*mcp.CallToolResult, error) {
-		issue, err := issueRef(a.Owner, a.Repo, a.Index)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		seconds, err := optionalSeconds(a.Seconds)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return mcpresult.Render(s.AddTime(ctx, apptracking.AddTimeInput{
-			IssueRef:  issue,
-			Seconds:   seconds,
-			Duration:  a.Duration,
-			CreatedAt: a.CreatedAt,
-			User:      a.UserName,
-		}))
-	})
+// Validate checks the repository, the index, then the seconds, before the
+// credential lookup.
+func (a addTimeArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if _, err := issueRef(a.Owner, a.Repo, a.Index); err != nil {
+		return err
+	}
+	_, err := optionalSeconds(a.Seconds)
+	return err
 }
 
-func (h handlers) ResetIssueTimeFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ResetIssueTimeFn", func(ctx context.Context, s *apptracking.Service, a issueArgs) (*mcp.CallToolResult, error) {
-		issue, err := issueRef(a.Owner, a.Repo, a.Index)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return message("Reset tracked time success", s.ResetTime(ctx, issue))
-	})
+// Validate checks the repository, the index, then the time entry's ID, before
+// the credential lookup.
+func (a deleteEntryArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if _, err := issueRef(a.Owner, a.Repo, a.Index); err != nil {
+		return err
+	}
+	_, err := timeEntryID(a.TimeID)
+	return err
 }
 
-func (h handlers) DeleteIssueTimeEntryFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeleteIssueTimeEntryFn", func(ctx context.Context, s *apptracking.Service, a deleteEntryArgs) (*mcp.CallToolResult, error) {
-		issue, err := issueRef(a.Owner, a.Repo, a.Index)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		id, err := timeEntryID(a.TimeID)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return message("Delete time entry success", s.DeleteTimeEntry(ctx, issue, id))
-	})
+// Validate checks the paging arguments before the credential lookup.
+func (a myTimesArgs) Validate() error {
+	_, _, err := paging(a.Page, a.Limit)
+	return err
 }
 
-func (h handlers) StartIssueStopwatchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "StartIssueStopwatchFn", func(ctx context.Context, s *apptracking.Service, a issueArgs) (*mcp.CallToolResult, error) {
-		issue, err := issueRef(a.Owner, a.Repo, a.Index)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return message("Stopwatch started", s.StartStopwatch(ctx, issue))
-	})
+// Validate checks the paging arguments before the credential lookup.
+func (a myStopwatchesArgs) Validate() error {
+	_, _, err := paging(a.Page, a.Limit)
+	return err
 }
 
-func (h handlers) StopIssueStopwatchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "StopIssueStopwatchFn", func(ctx context.Context, s *apptracking.Service, a issueArgs) (*mcp.CallToolResult, error) {
-		issue, err := issueRef(a.Owner, a.Repo, a.Index)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return message("Stopwatch stopped; elapsed time recorded as a tracked time entry", s.StopStopwatch(ctx, issue))
-	})
+func listIssueTrackedTimes(ctx context.Context, s *apptracking.Service, a issueTimesArgs) (*mcp.CallToolResult, error) {
+	issue, err := issueRef(a.Owner, a.Repo, a.Index)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	page, limit, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(s.IssueTimes(ctx, apptracking.IssueTimesInput{
+		IssueRef: issue,
+		Since:    a.Since, Before: a.Before, Page: page, Limit: limit,
+	}))
 }
 
-func (h handlers) CancelIssueStopwatchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CancelIssueStopwatchFn", func(ctx context.Context, s *apptracking.Service, a issueArgs) (*mcp.CallToolResult, error) {
-		issue, err := issueRef(a.Owner, a.Repo, a.Index)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return message("Stopwatch cancelled", s.CancelStopwatch(ctx, issue))
-	})
+func listRepoTrackedTimes(ctx context.Context, s *apptracking.Service, a repoTimesArgs) (*mcp.CallToolResult, error) {
+	page, limit, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(s.RepoTimes(ctx, apptracking.RepoTimesInput{
+		Owner: a.Owner, Repo: a.Repo, Since: a.Since, Before: a.Before, User: a.User, Page: page, Limit: limit,
+	}))
 }
 
-func (h handlers) ListMyStopwatchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListMyStopwatchesFn", func(ctx context.Context, s *apptracking.Service, a myStopwatchesArgs) (*mcp.CallToolResult, error) {
-		page, limit, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return mcpresult.Render(s.MyStopwatches(ctx, apptracking.MyStopwatchesInput{Page: page, Limit: limit}))
-	})
+func listMyTrackedTimes(ctx context.Context, s *apptracking.Service, a myTimesArgs) (*mcp.CallToolResult, error) {
+	page, limit, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(s.MyTimes(ctx, apptracking.MyTimesInput{Page: page, Limit: limit}))
+}
+
+func addIssueTime(ctx context.Context, s *apptracking.Service, a addTimeArgs) (*mcp.CallToolResult, error) {
+	issue, err := issueRef(a.Owner, a.Repo, a.Index)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	seconds, err := optionalSeconds(a.Seconds)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(s.AddTime(ctx, apptracking.AddTimeInput{
+		IssueRef:  issue,
+		Seconds:   seconds,
+		Duration:  a.Duration,
+		CreatedAt: a.CreatedAt,
+		User:      a.UserName,
+	}))
+}
+
+func resetIssueTime(ctx context.Context, s *apptracking.Service, a issueArgs) (*mcp.CallToolResult, error) {
+	issue, err := issueRef(a.Owner, a.Repo, a.Index)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return message("Reset tracked time success", s.ResetTime(ctx, issue))
+}
+
+func deleteIssueTimeEntry(ctx context.Context, s *apptracking.Service, a deleteEntryArgs) (*mcp.CallToolResult, error) {
+	issue, err := issueRef(a.Owner, a.Repo, a.Index)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	id, err := timeEntryID(a.TimeID)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return message("Delete time entry success", s.DeleteTimeEntry(ctx, issue, id))
+}
+
+func startIssueStopwatch(ctx context.Context, s *apptracking.Service, a issueArgs) (*mcp.CallToolResult, error) {
+	issue, err := issueRef(a.Owner, a.Repo, a.Index)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return message("Stopwatch started", s.StartStopwatch(ctx, issue))
+}
+
+func stopIssueStopwatch(ctx context.Context, s *apptracking.Service, a issueArgs) (*mcp.CallToolResult, error) {
+	issue, err := issueRef(a.Owner, a.Repo, a.Index)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return message("Stopwatch stopped; elapsed time recorded as a tracked time entry", s.StopStopwatch(ctx, issue))
+}
+
+func cancelIssueStopwatch(ctx context.Context, s *apptracking.Service, a issueArgs) (*mcp.CallToolResult, error) {
+	issue, err := issueRef(a.Owner, a.Repo, a.Index)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return message("Stopwatch cancelled", s.CancelStopwatch(ctx, issue))
+}
+
+func listMyStopwatches(ctx context.Context, s *apptracking.Service, a myStopwatchesArgs) (*mcp.CallToolResult, error) {
+	page, limit, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(s.MyStopwatches(ctx, apptracking.MyStopwatchesInput{Page: page, Limit: limit}))
 }

@@ -2,39 +2,44 @@
 
 package pull
 
+import (
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+)
+
 import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
-// validate methods: each argument struct checks its index and ID with the
-// numeric-argument module once, before its handler runs (see run in handlers.go).
+// Validate methods: each argument struct checks its required owner and repo, then
+// its index and ID with the numeric-argument module, before the credential lookup
+// (see pipeline.Handle).
 
-func (a *getArgs) validate() error {
+func (a *getArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *updateArgs) validate() error {
+func (a *updateArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *pagedArgs) validate() error {
+func (a *pagedArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *reviewArgs) validate() error {
+func (a *reviewArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
@@ -44,10 +49,10 @@ func (a *reviewArgs) validate() error {
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *reviewCommentsArgs) validate() error {
+func (a *reviewCommentsArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
@@ -57,10 +62,10 @@ func (a *reviewCommentsArgs) validate() error {
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *getReviewArgs) validate() error {
+func (a *getReviewArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
@@ -70,50 +75,37 @@ func (a *getReviewArgs) validate() error {
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *mergeArgs) validate() error {
+func (a *mergeArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *diffArgs) validate() error {
+func (a *diffArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *createReviewArgs) validate() error {
+func (a *createReviewArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *submitReviewArgs) validate() error {
-	var err error
-	a.idx, err = numarg.PositiveID("index", a.Index)
-	if err != nil {
-		return err
-	}
-	a.id, err = numarg.PositiveID("id", a.ID)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *dismissArgs) validate() error {
+func (a *submitReviewArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
@@ -123,14 +115,27 @@ func (a *dismissArgs) validate() error {
 	if err != nil {
 		return err
 	}
-	return nil
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
-func (a *reviewersArgs) validate() error {
+func (a *dismissArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
 	if err != nil {
 		return err
 	}
-	return nil
+	a.id, err = numarg.PositiveID("id", a.ID)
+	if err != nil {
+		return err
+	}
+	return decode.RequiredRepo(a.Owner, a.Repo)
+}
+
+func (a *reviewersArgs) Validate() error {
+	var err error
+	a.idx, err = numarg.PositiveID("index", a.Index)
+	if err != nil {
+		return err
+	}
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }

@@ -10,13 +10,10 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/packages"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/packagesadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -32,27 +29,23 @@ var ListPackagesTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(defaultPackagesLimit), mcp.Min(1), mcp.Max(maxPackagesLimit)),
 )
 
-// ListPackagesFn validates the arguments, then runs the list use case. The
-// validation comes before the credential lookup, as it always has.
-func (h handlers) ListPackagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListPackagesFn")
-	var a listPackagesArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks the owner and the paging arguments before the credential
+// lookup, as the list tool always has.
+func (a listPackagesArgs) Validate() error {
 	if a.Owner == "" {
-		return to.ErrorResult(errors.New("owner is required"))
+		return errors.New("owner is required")
 	}
+	_, _, err := pageAndLimit(a.Page, a.Limit)
+	return err
+}
+
+// listPackages runs the list use case for one page of package versions.
+func listPackages(ctx context.Context, svc *apppkg.Service, a listPackagesArgs) (*mcp.CallToolResult, error) {
 	page, limit, err := pageAndLimit(a.Page, a.Limit)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	return listPackagesResult(apppkg.New(packagesadapter.New(port)).List(ctx, apppkg.ListRequest{
+	return listPackagesResult(svc.List(ctx, apppkg.ListRequest{
 		Owner: a.Owner, Type: a.Type, Query: a.Q, Page: page, Limit: limit,
 	}))
 }

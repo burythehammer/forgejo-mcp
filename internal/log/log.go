@@ -221,39 +221,3 @@ func WithMCPContext(ctx context.Context, toolName string) (context.Context, stri
 	ctx = WithOperation(ctx, toolName)
 	return ctx, requestID
 }
-
-// LogMCPToolStart logs the start of an MCP tool execution
-func LogMCPToolStart(ctx context.Context, toolName string, params map[string]interface{}) {
-	fields := []zap.Field{
-		StringField("tool", toolName),
-	}
-
-	// Add sanitized parameters (be careful not to log sensitive data)
-	for key, value := range params {
-		if key == "token" || key == "password" || key == "secret" {
-			fields = append(fields, StringField(key, "[redacted]"))
-		} else {
-			fields = append(fields, zap.Any(key, value))
-		}
-	}
-
-	InfoCtx(ctx, "Starting MCP tool execution", fields...)
-}
-
-// LogMCPToolComplete logs successful completion of an MCP tool execution
-func LogMCPToolComplete(ctx context.Context, toolName string, duration time.Duration, resultSummary string) {
-	InfoCtx(ctx, "MCP tool execution completed successfully",
-		StringField("tool", toolName),
-		DurationField("total_duration", duration),
-		StringField("result_summary", resultSummary),
-	)
-}
-
-// LogMCPToolError logs failed MCP tool execution
-func LogMCPToolError(ctx context.Context, toolName string, duration time.Duration, err error) {
-	ErrorCtx(ctx, "MCP tool execution failed",
-		StringField("tool", toolName),
-		DurationField("total_duration", duration),
-		ErrorField(err),
-	)
-}

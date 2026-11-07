@@ -12,7 +12,8 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/useradapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -29,23 +30,35 @@ var GetMyUserInfoTool = mcp.NewTool(
 )
 
 // handlers serve the user tools. They hold the factory rather than a port so
-// each call is bound to the credential of its own request. Each handler is the
-// MCP adapter of one use case in internal/app/user: decode the arguments, run the use
-// case, render the result and log the call.
+// each call is bound to the credential of its own request. Each tool is the
+// MCP adapter of one use case in internal/app/user: the request pipeline
+// decodes and validates the arguments, and the use case runs with the service
+// bound here.
 type handlers struct {
 	forge forge.Factory
 }
 
-// service returns the use cases for one request. The port is looked up only
-// once a use case has checked its input.
-func (h handlers) service() *appuser.Service {
+// bind is the pipeline Binder for every user tool. The Forgejo port is looked
+// up lazily, inside the use case, after the use case has checked its input, so
+// an invalid input is refused before any credential lookup, as it always was.
+func (h handlers) bind(context.Context) (*appuser.Service, error) {
 	return appuser.New(func(ctx context.Context) (appuser.Port, error) {
 		port, err := h.forge.For(ctx)
 		if err != nil {
 			return nil, err
 		}
 		return useradapter.New(port), nil
-	})
+	}), nil
+}
+
+// handle wraps one user tool in the request pipeline. The tool's name is
+// attached to the context first, so each Forgejo API call it makes is logged
+// with the request it belongs to.
+func handle[A any](name string, h handlers, run func(context.Context, *appuser.Service, A) (*mcp.CallToolResult, error), opts ...pipeline.Option) server.ToolHandlerFunc {
+	return pipeline.Handle(h.bind, func(ctx context.Context, svc *appuser.Service, a A) (*mcp.CallToolResult, error) {
+		ctx, _ = log.WithMCPContext(ctx, name)
+		return run(ctx, svc, a)
+	}, opts...)
 }
 
 // apiStatus is the HTTP status to log for an API call: the one Forgejo
@@ -80,29 +93,18 @@ func logAPICall(ctx context.Context, method, endpoint string, start time.Time, e
 
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
-	s.AddTool(GetMyUserInfoTool, h.GetUserInfoFn)
-	s.AddTool(CheckNotificationsTool, h.CheckNotificationsFn)
-	s.AddTool(GetNotificationThreadTool, h.GetNotificationThreadFn)
-	s.AddTool(MarkNotificationReadTool, h.MarkNotificationReadFn)
-	s.AddTool(MarkAllNotificationsReadTool, h.MarkAllNotificationsReadFn)
-	s.AddTool(ListRepoNotificationsTool, h.ListRepoNotificationsFn)
-	s.AddTool(MarkRepoNotificationsReadTool, h.MarkRepoNotificationsReadFn)
+	s.AddTool(GetMyUserInfoTool, handle(GetMyUserInfoToolName, h, getMyUserInfo))
+	s.AddTool(CheckNotificationsTool, handle(CheckNotificationsToolName, h, checkNotifications))
+	s.AddTool(GetNotificationThreadTool, handle(GetNotificationThreadToolName, h, getNotificationThread))
+	s.AddTool(MarkNotificationReadTool, handle(MarkNotificationReadToolName, h, markNotificationRead))
+	s.AddTool(MarkAllNotificationsReadTool, handle(MarkAllNotificationsReadToolName, h, markAllNotificationsRead))
+	s.AddTool(ListRepoNotificationsTool, handle(ListRepoNotificationsToolName, h, listRepoNotifications))
+	s.AddTool(MarkRepoNotificationsReadTool, handle(MarkRepoNotificationsReadToolName, h, markRepoNotificationsRead))
 }
 
-func (h handlers) GetUserInfoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, _ = log.WithMCPContext(ctx, GetMyUserInfoToolName)
-	start := time.Now()
-
-	log.LogMCPToolStart(ctx, GetMyUserInfoToolName, map[string]interface{}{})
-
-	user, err := h.service().MyInfo(ctx)
-	logAPICall(ctx, "GET", "/user", start, err)
-	if err != nil {
-		log.LogMCPToolError(ctx, GetMyUserInfoToolName, time.Since(start), err)
-		return to.ErrorResult(err)
-	}
-
-	log.LogMCPToolComplete(ctx, GetMyUserInfoToolName, time.Since(start), "Retrieved info for user: "+user.UserName)
-
-	return to.TextResult(user)
+func getMyUserInfo(ctx context.Context, svc *appuser.Service, _ struct{}) (*mcp.CallToolResult, error) {
+	started := time.Now()
+	user, err := svc.MyInfo(ctx)
+	logAPICall(ctx, "GET", "/user", started, err)
+	return mcpresult.Render(user, err)
 }

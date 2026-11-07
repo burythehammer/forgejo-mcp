@@ -6,12 +6,9 @@ import (
 	"context"
 
 	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/packages"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/packagesadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -28,28 +25,27 @@ var ListPackageFilesTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(defaultPackagesLimit), mcp.Min(1), mcp.Max(maxPackagesLimit)),
 )
 
-// ListPackageFilesFn validates the arguments, then runs the files use case.
-func (h handlers) ListPackageFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListPackageFilesFn")
-	var a listPackageFilesArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
+// Validate checks the version's coordinates, then the paging arguments.
+func (a listPackageFilesArgs) Validate() error {
+	if err := a.packageArgs().Validate(); err != nil {
+		return err
 	}
-	c, err := packageArgs{Owner: a.Owner, Type: a.Type, Name: a.Name, Version: a.Version}.coords()
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+	_, _, err := pageAndLimit(a.Page, a.Limit)
+	return err
+}
+
+func (a listPackageFilesArgs) packageArgs() packageArgs {
+	return packageArgs{Owner: a.Owner, Type: a.Type, Name: a.Name, Version: a.Version}
+}
+
+// listPackageFiles runs the files use case for one page of a version's files.
+func listPackageFiles(ctx context.Context, svc *apppkg.Service, a listPackageFilesArgs) (*mcp.CallToolResult, error) {
 	page, limit, err := pageAndLimit(a.Page, a.Limit)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	return listPackageFilesResult(apppkg.New(packagesadapter.New(port)).ListFiles(ctx, apppkg.ListFilesRequest{
-		Coords: c,
+	return listPackageFilesResult(svc.ListFiles(ctx, apppkg.ListFilesRequest{
+		Coords: a.packageArgs().coords(),
 		Page:   page,
 		Limit:  limit,
 	}))

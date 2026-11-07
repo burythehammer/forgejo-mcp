@@ -5,15 +5,17 @@ package release
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	apprelease "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/release"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/releaseadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/upload"
 
@@ -21,34 +23,51 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// RegisterTool registers all the release tools with the MCP server.
+// RegisterTool registers all the release tools with the MCP server. Each
+// request takes its Forgejo port from f through the request pipeline's Binder,
+// so it runs under the credential that request carries, and only after the
+// request is valid. The upload tool asks for the raw request (WithRaw), because
+// its source is read from it.
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
-	s.AddTool(ListReleasesTool, h.ListReleasesFn)
-	s.AddTool(GetReleaseByIDTool, h.GetReleaseByIDFn)
-	s.AddTool(GetReleaseByTagTool, h.GetReleaseByTagFn)
-	s.AddTool(GetLatestReleaseTool, h.GetLatestReleaseFn)
-	s.AddTool(CreateReleaseTool, h.CreateReleaseFn)
-	s.AddTool(EditReleaseTool, h.EditReleaseFn)
-	s.AddTool(DeleteReleaseTool, h.DeleteReleaseFn)
-	s.AddTool(DeleteReleaseByTagTool, h.DeleteReleaseByTagFn)
+	s.AddTool(ListReleasesTool, pipeline.Handle(h.service, listReleases))
+	s.AddTool(GetReleaseByIDTool, pipeline.Handle(h.service, getReleaseByID))
+	s.AddTool(GetReleaseByTagTool, pipeline.Handle(h.service, getReleaseByTag))
+	s.AddTool(GetLatestReleaseTool, pipeline.Handle(h.service, getLatestRelease))
+	s.AddTool(CreateReleaseTool, pipeline.Handle(h.service, createRelease))
+	s.AddTool(EditReleaseTool, pipeline.Handle(h.service, editRelease))
+	s.AddTool(DeleteReleaseTool, pipeline.Handle(h.service, deleteRelease))
+	s.AddTool(DeleteReleaseByTagTool, pipeline.Handle(h.service, deleteReleaseByTag))
 
-	s.AddTool(ListReleaseAttachmentsTool, h.ListReleaseAttachmentsFn)
-	s.AddTool(GetReleaseAttachmentTool, h.GetReleaseAttachmentFn)
-	s.AddTool(DownloadReleaseAttachmentTool, h.DownloadReleaseAttachmentFn)
-	s.AddTool(CreateReleaseAttachmentTool, h.CreateReleaseAttachmentFn)
-	s.AddTool(EditReleaseAttachmentTool, h.EditReleaseAttachmentFn)
-	s.AddTool(DeleteReleaseAttachmentTool, h.DeleteReleaseAttachmentFn)
+	s.AddTool(ListReleaseAttachmentsTool, pipeline.Handle(h.service, listReleaseAttachments))
+	s.AddTool(GetReleaseAttachmentTool, pipeline.Handle(h.service, getReleaseAttachment))
+	s.AddTool(DownloadReleaseAttachmentTool, pipeline.Handle(h.service, downloadReleaseAttachment))
+	s.AddTool(CreateReleaseAttachmentTool, pipeline.Handle(h.uploadService, createReleaseAttachment, pipeline.WithRaw()))
+	s.AddTool(EditReleaseAttachmentTool, pipeline.Handle(h.service, editReleaseAttachment))
+	s.AddTool(DeleteReleaseAttachmentTool, pipeline.Handle(h.service, deleteReleaseAttachment))
 }
 
-// handlers serve the release tools. They hold the factory rather than a port so
-// each request gets the port for its own credential. Each handler is the MCP
-// adapter of one use case in internal/app/release: read the arguments, run the use case,
-// render the result.
+// handlers hold the factory rather than a port so each request gets the port
+// for its own credential.
 type handlers struct{ forge forge.Factory }
 
-// useCases returns the release use cases over the request's Forgejo port.
-func useCases(ctx context.Context, h handlers) (*apprelease.Service, error) {
+// service is the Binder for every release tool: it looks up the request's
+// credential and binds the release use cases to it.
+// uploadService is the Binder of the upload tool. It checks the upload source
+// in the raw request before the credential lookup, so a bad source is refused
+// as the source error, never as a credential error.
+func (h handlers) uploadService(ctx context.Context) (*apprelease.Service, error) {
+	raw, ok := pipeline.Raw(ctx)
+	if !ok {
+		return nil, errors.New("upload: the raw request is not available")
+	}
+	if err := upload.CheckArguments(raw.GetArguments()); err != nil {
+		return nil, err
+	}
+	return h.service(ctx)
+}
+
+func (h handlers) service(ctx context.Context) (*apprelease.Service, error) {
 	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, err
@@ -62,8 +81,10 @@ func useCases(ctx context.Context, h handlers) (*apprelease.Service, error) {
 //
 // A number that is required and must fail with its own "<name>: <cause>" text
 // when missing or wrongly typed is kept as `any` (with schema:"number") and read
-// by number(). decode.Lax would otherwise hide that failure as zero. Optional
-// numbers are float64: decode.Lax reads them as the old to.Float64 calls did.
+// by number(). the lax decoder would otherwise hide that failure as zero. Optional
+// numbers are float64: the lax decoder reads them as the old to.Float64 calls did.
+// Each struct's Validate method holds the checks the tool made before its
+// credential lookup; the pipeline runs them first.
 
 type repoArgs struct {
 	Owner string `json:"owner" required:"true"`
@@ -133,7 +154,7 @@ type attachmentRefArgs struct {
 // createAttachmentArgs declares content and file_path so the schema check covers
 // them, but the upload source is read from the raw arguments by
 // upload.SourceFromArguments: it must tell a present non-string value (rejected,
-// including null) from an absent one, which decode.Lax cannot.
+// including null) from an absent one, which the lax decoder cannot.
 type createAttachmentArgs struct {
 	Owner     string `json:"owner" required:"true"`
 	Repo      string `json:"repo" required:"true"`
@@ -152,6 +173,112 @@ type editAttachmentArgs struct {
 	Name         string `json:"name" required:"true"`
 }
 
+// Validate checks the request before the credential lookup, as each tool
+// always has.
+
+func (a listReleasesArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if _, err := stateOf(a.State); err != nil {
+		return err
+	}
+	_, _, err := decode.PagingArgs(a.Page, a.Limit)
+	return err
+}
+
+func (a repoArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
+
+func (a releaseRefArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	_, err := number(a.ReleaseID, "release_id")
+	return err
+}
+
+func (a tagRefArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if a.Tag == "" {
+		return errors.New("tag is required")
+	}
+	return nil
+}
+
+func (a createReleaseArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if a.TagName == "" {
+		return errors.New("tag_name is required")
+	}
+	return nil
+}
+
+func (a editReleaseArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	_, err := number(a.ReleaseID, "release_id")
+	return err
+}
+
+func (a listAttachmentsArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if _, err := number(a.ReleaseID, "release_id"); err != nil {
+		return err
+	}
+	_, _, err := decode.PagingArgs(a.Page, a.Limit)
+	return err
+}
+
+func (a attachmentRefArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	_, _, err := releaseAndAttachment(a.ReleaseID, a.AttachmentID)
+	return err
+}
+
+func (a createAttachmentArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	_, err := number(a.ReleaseID, "release_id")
+	return err
+}
+
+func (a editAttachmentArgs) Validate() error {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if _, _, err := releaseAndAttachment(a.ReleaseID, a.AttachmentID); err != nil {
+		return err
+	}
+	if a.Name == "" {
+		return errors.New("name is required")
+	}
+	return nil
+}
+
+// stateOf checks the list filter: empty means all, anything else must be one
+// of the four states.
+func stateOf(state string) (string, error) {
+	if state == "" {
+		state = stateAll
+	}
+	switch state {
+	case stateAll, stateDraft, statePrerelease, statePublished:
+		return state, nil
+	default:
+		return "", fmt.Errorf("invalid state %q: must be one of all|draft|prerelease|published", state)
+	}
+}
+
 // number reads a required numeric argument, with the tool's error text.
 func number(v any, name string) (int64, error) {
 	f, err := to.Float64(v)
@@ -161,135 +288,85 @@ func number(v any, name string) (int64, error) {
 	return numarg.PositiveID(name, f)
 }
 
+// releaseAndAttachment converts the release and attachment numbers of an
+// attachment tool, in the order the tools always have.
+func releaseAndAttachment(releaseID, attachmentID any) (int64, int64, error) {
+	rid, err := number(releaseID, "release_id")
+	if err != nil {
+		return 0, 0, err
+	}
+	aid, err := number(attachmentID, "attachment_id")
+	if err != nil {
+		return 0, 0, err
+	}
+	return rid, aid, nil
+}
+
 // --- Release tools ----------------------------------------------------------
 
-func (h handlers) ListReleasesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListReleasesFn")
-	var a listReleasesArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	state := a.State
-	if state == "" {
-		state = stateAll
-	}
-	switch state {
-	case stateAll, stateDraft, statePrerelease, statePublished:
-	default:
-		return to.ErrorResult(fmt.Errorf("invalid state %q: must be one of all|draft|prerelease|published", state))
-	}
-
-	svc, err := useCases(ctx, h)
+func listReleases(ctx context.Context, svc *apprelease.Service, a listReleasesArgs) (*mcp.CallToolResult, error) {
+	state, err := stateOf(a.State)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-	pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
-	if perr != nil {
-		return to.ErrorResult(perr)
+	pg, lim, err := decode.PagingArgs(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
 	}
 	page, err := svc.ListReleases(ctx, a.Owner, a.Repo, apprelease.ListQuery{
 		State:  state,
 		Paging: apprelease.Paging{Page: pg, Limit: lim},
 	})
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(model.ReleasePage{Releases: page.Items, PageMeta: model.PageMetaOf(page)})
 }
 
-func (h handlers) GetReleaseByIDFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetReleaseByIDFn")
-	var a releaseRefArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+func getReleaseByID(ctx context.Context, svc *apprelease.Service, a releaseRefArgs) (*mcp.CallToolResult, error) {
 	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	rel, err := svc.GetRelease(ctx, a.Owner, a.Repo, rid)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(rel)
 }
 
-func (h handlers) GetReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetReleaseByTagFn")
-	var a tagRefArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	if a.Tag == "" {
-		return to.ErrorResult(fmt.Errorf("tag is required"))
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func getReleaseByTag(ctx context.Context, svc *apprelease.Service, a tagRefArgs) (*mcp.CallToolResult, error) {
 	rel, err := svc.GetReleaseByTag(ctx, a.Owner, a.Repo, a.Tag)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(rel)
 }
 
-func (h handlers) GetLatestReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetLatestReleaseFn")
-	var a repoArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func getLatestRelease(ctx context.Context, svc *apprelease.Service, a repoArgs) (*mcp.CallToolResult, error) {
 	rel, err := svc.GetLatestRelease(ctx, a.Owner, a.Repo)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(rel)
 }
 
-func (h handlers) CreateReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CreateReleaseFn")
-	var a createReleaseArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	if a.TagName == "" {
-		return to.ErrorResult(fmt.Errorf("tag_name is required"))
-	}
-
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func createRelease(ctx context.Context, svc *apprelease.Service, a createReleaseArgs) (*mcp.CallToolResult, error) {
 	rel, err := svc.CreateRelease(ctx, a.Owner, a.Repo, apprelease.CreateInput{
 		TagName: a.TagName, Target: a.TargetCommitish, Title: a.Name, Note: a.Body,
 		IsDraft: a.Draft, IsPrerelease: a.Prerelease,
 	})
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(rel)
 }
 
-func (h handlers) EditReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called EditReleaseFn")
-	var a editReleaseArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+func editRelease(ctx context.Context, svc *apprelease.Service, a editReleaseArgs) (*mcp.CallToolResult, error) {
 	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-
 	in := apprelease.EditInput{
 		TagName:      a.TagName,
 		Target:       a.TargetCommitish,
@@ -298,130 +375,69 @@ func (h handlers) EditReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*
 		IsDraft:      a.Draft,
 		IsPrerelease: a.Prerelease,
 	}
-
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
 	rel, err := svc.EditRelease(ctx, a.Owner, a.Repo, rid, in)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(rel)
 }
 
-func (h handlers) DeleteReleaseFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteReleaseFn")
-	var a releaseRefArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+func deleteRelease(ctx context.Context, svc *apprelease.Service, a releaseRefArgs) (*mcp.CallToolResult, error) {
 	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	if err := svc.DeleteRelease(ctx, a.Owner, a.Repo, rid); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
 }
 
-func (h handlers) DeleteReleaseByTagFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteReleaseByTagFn")
-	var a tagRefArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	if a.Tag == "" {
-		return to.ErrorResult(fmt.Errorf("tag is required"))
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func deleteReleaseByTag(ctx context.Context, svc *apprelease.Service, a tagRefArgs) (*mcp.CallToolResult, error) {
 	if err := svc.DeleteReleaseByTag(ctx, a.Owner, a.Repo, a.Tag); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
 }
 
 // --- Release attachment tools ----------------------------------------------
 
-func (h handlers) ListReleaseAttachmentsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListReleaseAttachmentsFn")
-	var a listAttachmentsArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+func listReleaseAttachments(ctx context.Context, svc *apprelease.Service, a listAttachmentsArgs) (*mcp.CallToolResult, error) {
 	rid, err := number(a.ReleaseID, "release_id")
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-	svc, err := useCases(ctx, h)
+	pg, lim, err := decode.PagingArgs(a.Page, a.Limit)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
-	if perr != nil {
-		return to.ErrorResult(perr)
+		return mcpresult.Fail(err)
 	}
 	page, err := svc.ListAttachments(ctx, a.Owner, a.Repo, rid, apprelease.Paging{Page: pg, Limit: lim})
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(model.AttachmentPageOf(page))
 }
 
-func (h handlers) GetReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetReleaseAttachmentFn")
-	var a attachmentRefArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	rid, err := number(a.ReleaseID, "release_id")
+func getReleaseAttachment(ctx context.Context, svc *apprelease.Service, a attachmentRefArgs) (*mcp.CallToolResult, error) {
+	rid, aid, err := releaseAndAttachment(a.ReleaseID, a.AttachmentID)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	aid, err := number(a.AttachmentID, "attachment_id")
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	att, err := svc.GetAttachment(ctx, a.Owner, a.Repo, rid, aid)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(att)
 }
 
-func (h handlers) DownloadReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DownloadReleaseAttachmentFn")
-	var a attachmentRefArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	rid, err := number(a.ReleaseID, "release_id")
+func downloadReleaseAttachment(ctx context.Context, svc *apprelease.Service, a attachmentRefArgs) (*mcp.CallToolResult, error) {
+	rid, aid, err := releaseAndAttachment(a.ReleaseID, a.AttachmentID)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	aid, err := number(a.AttachmentID, "attachment_id")
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	dl, err := svc.DownloadAttachment(ctx, a.Owner, a.Repo, rid, aid)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	if !dl.Result.Inline {
 		return to.TextResult(dl.Result)
@@ -435,85 +451,51 @@ func (h handlers) DownloadReleaseAttachmentFn(ctx context.Context, req mcp.CallT
 	}), nil
 }
 
-func (h handlers) CreateReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CreateReleaseAttachmentFn")
-	var a createAttachmentArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
+// createReleaseAttachment reads the upload source from the raw request (see
+// createAttachmentArgs), which uploadService has already checked, and opens the
+// file here, after the credential lookup.
+func createReleaseAttachment(ctx context.Context, svc *apprelease.Service, a createAttachmentArgs) (*mcp.CallToolResult, error) {
+	rid, _ := number(a.ReleaseID, "release_id") // Validate refused a bad release_id before the credential lookup
+	raw, ok := pipeline.Raw(ctx)
+	if !ok {
+		return mcpresult.Fail(errors.New("upload: the raw request is not available"))
 	}
-	rid, err := number(a.ReleaseID, "release_id")
+	source, err := upload.SourceFromArguments(raw.GetArguments())
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	source, err := upload.SourceFromArguments(req.GetArguments())
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	reader, filename, err := upload.Open(source)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	defer reader.Close()
 
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
 	att, err := svc.CreateAttachment(ctx, a.Owner, a.Repo, rid, apprelease.Upload{Filename: filename, MIMEType: a.MimeType, Content: reader})
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(att)
 }
 
-func (h handlers) EditReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called EditReleaseAttachmentFn")
-	var a editAttachmentArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	rid, err := number(a.ReleaseID, "release_id")
+func editReleaseAttachment(ctx context.Context, svc *apprelease.Service, a editAttachmentArgs) (*mcp.CallToolResult, error) {
+	rid, aid, err := releaseAndAttachment(a.ReleaseID, a.AttachmentID)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	aid, err := number(a.AttachmentID, "attachment_id")
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	if a.Name == "" {
-		return to.ErrorResult(fmt.Errorf("name is required"))
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	att, err := svc.EditAttachment(ctx, a.Owner, a.Repo, rid, aid, a.Name)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(att)
 }
 
-func (h handlers) DeleteReleaseAttachmentFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteReleaseAttachmentFn")
-	var a attachmentRefArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	rid, err := number(a.ReleaseID, "release_id")
+func deleteReleaseAttachment(ctx context.Context, svc *apprelease.Service, a attachmentRefArgs) (*mcp.CallToolResult, error) {
+	rid, aid, err := releaseAndAttachment(a.ReleaseID, a.AttachmentID)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	aid, err := number(a.AttachmentID, "attachment_id")
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	if err := svc.DeleteAttachment(ctx, a.Owner, a.Repo, rid, aid); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
 }

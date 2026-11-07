@@ -11,7 +11,6 @@ import (
 	appsearch "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/search"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/searchadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 
@@ -59,67 +58,63 @@ func paging(page, limit float64) (appsearch.Paging, error) {
 	return appsearch.Paging{Page: p, Limit: l}, err
 }
 
-// run is the shared shape of a tool call: decode the arguments into A, take
-// the use cases bound to this request's credential, and hand both to do.
-func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
-	do func(context.Context, *appsearch.Service, A) (*mcp.CallToolResult, error),
-) (*mcp.CallToolResult, error) {
-	log.Debugf("Called %s", name)
-	var args A
-	if err := decode.Lax(req, &args); err != nil {
-		return mcpresult.Fail(err)
-	}
+// service is the Binder for every search tool: it looks up the request's
+// credential and binds the search use case to it.
+func (h handlers) service(ctx context.Context) (*appsearch.Service, error) {
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return mcpresult.Fail(err)
+		return nil, err
 	}
-	return do(ctx, appsearch.New(searchadapter.New(port)), args)
+	return appsearch.New(searchadapter.New(port)), nil
 }
 
-func (h handlers) SearchUserFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "SearchUserFn", func(ctx context.Context, s *appsearch.Service, a usersArgs) (*mcp.CallToolResult, error) {
-		pg, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return userSearchPage(s.Users(ctx, appsearch.UserQuery{Keyword: a.Keyword, Paging: pg}))
-	})
+// Validate checks the paging arguments before the credential lookup.
+func (a usersArgs) Validate() error {
+	_, err := paging(a.Page, a.Limit)
+	return err
 }
 
-// SearchOrgTeamsFn checks the org argument before the credential is looked up,
-// as the original handler did, so a request without an org is refused the same
-// way whatever the credential policy says.
-func (h handlers) SearchOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called SearchOrgTeamsFn")
-	var a orgTeamsArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return mcpresult.Fail(err)
-	}
+// Validate checks the org before the credential lookup, as the original handler
+// did, so a request without an org is refused the same way whatever the
+// credential policy says. Then it checks the paging arguments.
+func (a orgTeamsArgs) Validate() error {
 	if a.Org == nil {
-		return mcpresult.Fail(errors.New("org name is required"))
+		return errors.New("org name is required")
 	}
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return mcpresult.Fail(err)
-	}
+	_, err := paging(a.Page, a.Limit)
+	return err
+}
+
+// Validate checks the paging arguments before the credential lookup.
+func (a reposArgs) Validate() error {
+	_, err := paging(a.Page, a.Limit)
+	return err
+}
+
+func searchUsers(ctx context.Context, s *appsearch.Service, a usersArgs) (*mcp.CallToolResult, error) {
 	pg, err := paging(a.Page, a.Limit)
 	if err != nil {
 		return mcpresult.Fail(err)
 	}
-	return teamSearchPage(appsearch.New(searchadapter.New(port)).OrgTeams(ctx, *a.Org,
-		appsearch.TeamQuery{Keyword: a.Keyword, Paging: pg}))
+	return userSearchPage(s.Users(ctx, appsearch.UserQuery{Keyword: a.Keyword, Paging: pg}))
 }
 
-func (h handlers) SearchReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "SearchReposFn", func(ctx context.Context, s *appsearch.Service, a reposArgs) (*mcp.CallToolResult, error) {
-		pg, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return repositoryPage(s.Repos(ctx, appsearch.RepoQuery{
-			Keyword: a.Keyword, Sort: a.Sort, Order: a.Order, Paging: pg,
-		}))
-	})
+func searchOrgTeams(ctx context.Context, s *appsearch.Service, a orgTeamsArgs) (*mcp.CallToolResult, error) {
+	pg, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return teamSearchPage(s.OrgTeams(ctx, *a.Org, appsearch.TeamQuery{Keyword: a.Keyword, Paging: pg}))
+}
+
+func searchRepos(ctx context.Context, s *appsearch.Service, a reposArgs) (*mcp.CallToolResult, error) {
+	pg, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return repositoryPage(s.Repos(ctx, appsearch.RepoQuery{
+		Keyword: a.Keyword, Sort: a.Sort, Order: a.Order, Paging: pg,
+	}))
 }
 
 // userSearchPage renders one page of matching users in its wire form.

@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -89,22 +89,21 @@ type changeFileArgs struct {
 	SHA           decode.Arg `json:"sha" schema:"string"`
 }
 
-// The batch's errors are the tool's own, so it is decoded with decode.Lax and
-// validated here rather than by decode.
-func (h handlers) ChangeFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ChangeFilesFn")
+// Validate refuses a batch that parseChangeFiles rejects. The batch's errors are
+// the tool's own, so they are returned as the refusal, before the credential lookup.
+func (a changeFilesArgs) Validate() error {
+	_, _, _, err := parseChangeFiles(a)
+	return err
+}
 
-	var a changeFilesArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+func (h handlers) ChangeFilesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.gitService, changeFiles)(ctx, req)
+}
+
+func changeFiles(ctx context.Context, svc *apprepo.GitService, a changeFilesArgs) (*mcp.CallToolResult, error) {
 	owner, repo, in, err := parseChangeFiles(a)
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return gitText(svc.ChangeFiles(ctx, owner, repo, in))
 }

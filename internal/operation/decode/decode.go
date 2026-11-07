@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package decode fills a per-tool argument struct from an MCP tool call and
-// validates it once, so adapters hand use cases typed values instead of
-// reading the argument map field by field.
+// Package decode fills a per-tool argument struct from an MCP tool call, so the
+// use case receives typed values instead of the argument map.
+//
+// Decode is called by the request pipeline (internal/operation/pipeline) and by
+// nothing else outside it: a tool is registered with pipeline.Handle, which
+// decodes with Lax or Args as the tool's option says, then runs the struct's
+// Validate method, then binds the credential. A domain does not call Lax or Args
+// itself (scripts/ci/check-decode-boundary.sh enforces it). Arg, PagingArgs and
+// Map are the field types and helpers an argument struct uses.
 //
 // Struct fields are named by `json:"name"` tags; `required:"true"` marks a
-// field that must be present. Unknown arguments are ignored, as the
+// field that must be present. Unknown arguments are ignored by Lax, as the
 // hand-written handlers did. A number given as a string ("7") is accepted, as
-// some MCP clients send them that way. Use mcptest.ArgsMatchSchema to keep a struct and
-// its tool's input schema in agreement.
+// some MCP clients send them that way. Use mcptest.ArgsMatchSchema to keep a
+// struct and its tool's input schema in agreement.
 package decode
 
 import (

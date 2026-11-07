@@ -9,6 +9,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -51,10 +52,12 @@ type getRepoArgs struct {
 }
 
 func (h handlers) GetRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "GetRepoFn", func(ctx context.Context, s *apprepo.AdminService, a getRepoArgs) (*mcp.CallToolResult, error) {
-		r, err := s.GetRepo(ctx, a.Owner, a.Repo)
-		return mcpresult.Render(r, err)
-	})
+	return pipeline.Handle(h.adminService, getRepo)(ctx, req)
+}
+
+func getRepo(ctx context.Context, s *apprepo.AdminService, a getRepoArgs) (*mcp.CallToolResult, error) {
+	r, err := s.GetRepo(ctx, a.Owner, a.Repo)
+	return mcpresult.Render(r, err)
 }
 
 // editRepoArgs leaves a setting nil when it was not given (or was given with
@@ -80,14 +83,26 @@ type editRepoArgs struct {
 }
 
 func (h handlers) EditRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "EditRepoFn", func(ctx context.Context, s *apprepo.AdminService, a editRepoArgs) (*mcp.CallToolResult, error) {
-		r, err := s.EditRepo(ctx, apprepo.EditRepoInput{Owner: a.Owner, Repo: a.Repo, Edit: apprepo.RepoEdit{
-			Name: a.Name, Description: a.Description, Website: a.Website, DefaultBranch: a.DefaultBranch,
-			Private: a.Private, Template: a.Template, Archived: a.Archived,
-			HasIssues: a.HasIssues, HasWiki: a.HasWiki, HasPullRequests: a.HasPullRequests,
-			HasProjects: a.HasProjects, HasReleases: a.HasReleases, HasPackages: a.HasPackages,
-			HasActions: a.HasActions,
-		}})
-		return mcpresult.Render(r, err)
-	})
+	return pipeline.Handle(h.adminService, editRepo)(ctx, req)
+}
+
+func editRepo(ctx context.Context, s *apprepo.AdminService, a editRepoArgs) (*mcp.CallToolResult, error) {
+	r, err := s.EditRepo(ctx, apprepo.EditRepoInput{Owner: a.Owner, Repo: a.Repo, Edit: apprepo.RepoEdit{
+		Name: a.Name, Description: a.Description, Website: a.Website, DefaultBranch: a.DefaultBranch,
+		Private: a.Private, Template: a.Template, Archived: a.Archived,
+		HasIssues: a.HasIssues, HasWiki: a.HasWiki, HasPullRequests: a.HasPullRequests,
+		HasProjects: a.HasProjects, HasReleases: a.HasReleases, HasPackages: a.HasPackages,
+		HasActions: a.HasActions,
+	}})
+	return mcpresult.Render(r, err)
+}
+
+// Validate refuses a call that names no repository. It runs before the credential lookup.
+func (a getRepoArgs) Validate() error {
+	return requireOwnerRepo(a.Owner, a.Repo)
+}
+
+// Validate refuses a call that names no repository. It runs before the credential lookup.
+func (a editRepoArgs) Validate() error {
+	return requireOwnerRepo(a.Owner, a.Repo)
 }

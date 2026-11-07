@@ -179,13 +179,16 @@ in `internal/app/issue`. Per domain:
    resources and contract suite use it) until #8 retires it.
 4. **MCP adapter** (`internal/operation/<domain>/handlers.go`): one argument struct per
    tool (`json:"name"`, `required:"true"` so `ArgsMatchSchema` checks them against the
-   schema). Decode with `decode.Lax`, not `decode.Args` (rule in
-   [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md)): the pre-split tools never rejected a missing or mistyped argument,
-   and truncated numbers, so declare numeric fields `float64` and read them with
-   the numeric-argument module in the MCP adapter (see **Numeric arguments**
-   below). Both accept string-encoded numbers. Then each
-   MCP adapter method is a few lines through the generic `run` helper: decode, build
-   `apppull.New(pulladapter.New(port))`, call the use case, render with
+   schema). Register each tool with `pipeline.Handle` (`internal/operation/pipeline`),
+   which decodes the struct, runs its `Validate` method, and only then calls the
+   Binder that looks up the credential (rule in
+   [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md)). The default decoding
+   is lax, as the pre-split tools were: a missing or mistyped argument is not
+   rejected unless the tool asks for `pipeline.Strict()`. Declare numeric fields
+   `float64` and read them with the numeric-argument module in the MCP adapter (see
+   **Numeric arguments** below). Both accept string-encoded numbers. Each handler is
+   a few lines: a Binder that builds `apppull.New(pulladapter.New(port))` from
+   `forge.For(ctx)`, and a run function that calls the use case and renders with
    `mcpresult.Render` / plain text. Use-case errors become MCP errors in one
    function (`mcpresult.Fail`); invalid or missing arguments are a tool error result
    (`mcp.NewToolResultError`). Keep the exported `XxxTool` definitions and
@@ -201,10 +204,10 @@ in `internal/app/issue`. Per domain:
    - **Pointer fields where presence matters.** An argument whose "given but
      empty" differs from "not given" (`labels`, `assignees`, `set_labels`,
      `ref`, a label's `name`, `state` on `list_repo_issues`) is a `*string`
-     struct field, nil when absent or wrongly typed. `decode.Lax` zeroes a
-     field whose value fails to decode, so a wrong type reads as absent.
-     `mcptest.ArgsMatchSchema` dereferences pointer fields.
-   - **Numbers as a string.** `decode.Lax` reads a numeric string (`"7"`) as
+     struct field, nil when absent or wrongly typed. The lax decoding the pipeline
+     uses by default zeroes a field whose value fails to decode, so a wrong type
+     reads as absent. `mcptest.ArgsMatchSchema` dereferences pointer fields.
+   - **Numbers as a string.** The lax decoding reads a numeric string (`"7"`) as
      the number, for a plain or a pointer field. A pre-split tool that asserted
      `float64` and ignored a string tags the field `exact:"true"`, so the
      string reads as absent (the wiki paging and line arguments).
@@ -292,18 +295,40 @@ var ListThingsTool = mcp.NewTool(
 	mcp.WithNumber("limit", mcp.Description("Page size"), mcp.DefaultNumber(20)),
 )
 
-func (h handlers) ListThingsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListThingsFn", func(ctx context.Context, s *appmydomain.Service, a listArgs) (*mcp.CallToolResult, error) {
+// Validate holds the checks that run before the credential lookup, in the
+// order the tool always made them. It is optional: the pipeline calls it when
+// the struct has it.
+func (a listArgs) Validate() error {
+	return nil
+}
+
+// bind is the pipeline Binder: it runs only after the arguments are valid.
+func (h handlers) bind(ctx context.Context) (*appmydomain.Service, error) {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return appmydomain.New(mydomainadapter.New(port)), nil
+}
+
+func (h handlers) listThings() server.ToolHandlerFunc {
+	return pipeline.Handle(h.bind, func(ctx context.Context, s *appmydomain.Service, a listArgs) (*mcp.CallToolResult, error) {
 		return mcpresult.Render(s.List(ctx, appmydomain.ListInput{Owner: a.Owner, Repo: a.Repo, Limit: int(a.Limit)}))
 	})
 }
 ```
 
-`run` is the per-domain helper in `internal/operation/pull/handlers.go`: it decodes the
-arguments, calls `h.forge.For(ctx)` for this request's credential and builds the
-use case over the bridge. `mcpresult.Render` (in `internal/operation/mcpresult`, shared by
-every domain) sends the result with `to.TextResult` and any error through
-`mcpresult.Fail`, which uses `to.ErrorResult`.
+`pipeline.Handle` (in `internal/operation/pipeline`, shared by every domain) is the one
+path a call takes: it decodes the arguments, runs `Validate`, and refuses a bad request
+as a tool error before the Binder runs. The Binder calls `h.forge.For(ctx)` for this
+request's credential and builds the use case over the bridge. Options: `pipeline.Strict()`
+to refuse a missing or mistyped argument, `pipeline.Lax()` to decode forgivingly whatever
+the package default, and `pipeline.WithRaw()` with `pipeline.Raw(ctx)` for the few tools
+that must tell an absent argument from a present null. A domain does not call
+`decode.Lax` or `decode.Args` itself; `scripts/ci/check-decode-boundary.sh` (run by
+`make check`) fails on such a call. `mcpresult.Render` (in `internal/operation/mcpresult`)
+sends the result with `to.TextResult` and any error through `mcpresult.Fail`, which uses
+`to.ErrorResult`.
 
 Argument struct rules:
 
@@ -312,20 +337,20 @@ Argument struct rules:
 - Numbers are `float64` in the argument struct (the decode boundary). Never
   convert them with a bare `int(...)` or `int64(...)`: read them through
   `internal/numarg` (see **Numeric arguments** below).
-- `required:"true"` marks a required argument. `decode.Lax` never rejects a
-  request: a missing or wrongly typed argument leaves its field at the zero
-  value, which is what the hand-written tools saw. `mcptest.ArgsMatchSchema`
+- `required:"true"` marks a required argument. The default (lax) decoding never
+  rejects a request: a missing or wrongly typed argument leaves its field at the
+  zero value, which is what the hand-written tools saw. `mcptest.ArgsMatchSchema`
   checks the tags against the tool's schema.
 - Use a pointer field (`*string`, `*float64`) only where "given but empty"
   differs from "not given". A wrongly typed value reads as absent.
 - A numeric string (`"7"`) is read for a plain number field and for a pointer
   field tagged `numeric:"string"`. Tag a number `exact:"true"` to refuse it, to
   match a pre-split tool that asserted `float64` strictly. Copy the pre-split tool's rule.
-- A new tool decodes with `decode.Lax`; the rule, and the number rule with its
-  two exceptions, is stated once in
-  [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md). `decode.Args`
-  (reject a missing or mistyped argument in one error) has one caller, the
-  argument-less version tool, and is not used for new tools.
+- A new tool is registered with `pipeline.Handle`; the rule, and the number rule
+  with its two exceptions, is stated once in
+  [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md). Strict decoding
+  (`pipeline.Strict()`, a missing or mistyped argument refused in one error) is
+  chosen per tool; the argument-less version tool is its one caller today.
 
 ### Numeric arguments
 
@@ -368,7 +393,7 @@ count of `float64` mentions per file under `internal/operation/` against
 ```go
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
-	s.AddTool(ListThingsTool, h.ListThingsFn)
+	s.AddTool(ListThingsTool, h.listThings())
 }
 ```
 
@@ -398,16 +423,11 @@ Before opening a PR, run `make build`, `go vet ./...`, `go test ./...` and every
 
 ### Parameter Handling
 
-Tools that have been split (see "Splitting a domain..." and "Adding a New Tool")
-decode their arguments into a per-tool struct with `decode.Lax`. The tools
-still reading the argument map directly are in `internal/operation/release`,
-`internal/operation/actions`, `internal/operation/attachment`, `internal/operation/packages`,
-`internal/operation/repo` (`file.go`, `change_files.go`), `internal/operation/issue`
-(`dependency.go`) and `internal/operation/user` (`notification.go`). In those:
-
-- String parameters: `value, _ := req.Params.Arguments["param"].(string)`
-- Number parameters: `value, _ := req.Params.Arguments["num"].(float64)` (always float64)
-- Optional with defaults: Check if value exists before using
+Every tool decodes its arguments into a per-tool struct through `pipeline.Handle`
+(see "Step 2" above). No domain reads `req.Params.Arguments` directly. The few tools
+that need the raw request (an upload's source, where presence matters) read it with
+`pipeline.Raw(ctx)` after the credential lookup, and a value they must tell apart from
+an absent one is a `decode.Arg` field, not a map lookup.
 
 ### Response Formatting
 
