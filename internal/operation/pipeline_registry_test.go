@@ -48,8 +48,7 @@ var noCredential = map[string]bool{
 // unmigrated is the allowlist of domains whose tools have not yet moved to the
 // request pipeline. A migration ticket deletes its domain's line. Keep it
 // sorted, one domain per line; it may only shrink.
-var unmigrated = map[string]bool{
-}
+var unmigrated = map[string]bool{}
 
 func sortedDomains() []string {
 	names := make([]string, 0, len(domainRegistrars))
