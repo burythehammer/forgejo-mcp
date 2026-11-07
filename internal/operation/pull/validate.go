@@ -2,24 +2,10 @@
 
 package pull
 
-import "fmt"
+import (
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+)
 
-// required returns the error for a string argument that is missing or empty.
-func required(name, value string) error {
-	if value == "" {
-		return fmt.Errorf("%s is required", name)
-	}
-	return nil
-}
+func (a *listArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 
-// requiredRepo checks owner, then repo, the order the tools always used.
-func requiredRepo(owner, repo string) error {
-	if err := required("owner", owner); err != nil {
-		return err
-	}
-	return required("repo", repo)
-}
-
-func (a *listArgs) Validate() error { return requiredRepo(a.Owner, a.Repo) }
-
-func (a *createArgs) Validate() error { return requiredRepo(a.Owner, a.Repo) }
+func (a *createArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }

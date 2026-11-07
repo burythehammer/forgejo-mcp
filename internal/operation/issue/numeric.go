@@ -2,6 +2,10 @@
 
 package issue
 
+import (
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+)
+
 import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 // Validate methods: each argument struct checks its required owner, repo or org,
@@ -15,7 +19,7 @@ func (a *getIssueArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *createCommentArgs) Validate() error {
@@ -24,7 +28,7 @@ func (a *createCommentArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *updateIssueArgs) Validate() error {
@@ -33,7 +37,7 @@ func (a *updateIssueArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *replaceBodyLineArgs) Validate() error {
@@ -42,7 +46,7 @@ func (a *replaceBodyLineArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *labelsArgs) Validate() error {
@@ -51,7 +55,7 @@ func (a *labelsArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *stateArgs) Validate() error {
@@ -60,7 +64,7 @@ func (a *stateArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *listCommentsArgs) Validate() error {
@@ -69,7 +73,7 @@ func (a *listCommentsArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *commentArgs) Validate() error {
@@ -78,7 +82,7 @@ func (a *commentArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *getCommentArgs) Validate() error {
@@ -87,7 +91,7 @@ func (a *getCommentArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *editCommentArgs) Validate() error {
@@ -96,7 +100,7 @@ func (a *editCommentArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *editRepoLabelArgs) Validate() error {
@@ -105,7 +109,7 @@ func (a *editRepoLabelArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *deleteRepoLabelArgs) Validate() error {
@@ -114,7 +118,7 @@ func (a *deleteRepoLabelArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *getRepoLabelArgs) Validate() error {
@@ -123,7 +127,7 @@ func (a *getRepoLabelArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *editOrgLabelArgs) Validate() error {
@@ -132,7 +136,7 @@ func (a *editOrgLabelArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return required("org", a.Org)
+	return decode.Required("org", a.Org)
 }
 
 func (a *deleteOrgLabelArgs) Validate() error {
@@ -141,7 +145,7 @@ func (a *deleteOrgLabelArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return required("org", a.Org)
+	return decode.Required("org", a.Org)
 }
 
 func (a *getOrgLabelArgs) Validate() error {
@@ -150,7 +154,7 @@ func (a *getOrgLabelArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return required("org", a.Org)
+	return decode.Required("org", a.Org)
 }
 
 func (a *listDependenciesArgs) Validate() error {
@@ -159,5 +163,5 @@ func (a *listDependenciesArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }

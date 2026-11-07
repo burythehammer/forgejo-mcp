@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -69,7 +70,7 @@ var (
 // Validate checks owner and repo, then the numeric arguments, before the
 // credential lookup.
 func (a listRunsArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := a.query()
@@ -113,7 +114,7 @@ func listWorkflowRuns(ctx context.Context, svc *app.Service, a listRunsArgs) (*m
 
 // Validate checks owner and repo, then run_id, before the credential lookup.
 func (a repoRunArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := a.runID()

@@ -2,6 +2,10 @@
 
 package pull
 
+import (
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+)
+
 import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 // Validate methods: each argument struct checks its required owner and repo, then
@@ -14,7 +18,7 @@ func (a *getArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *updateArgs) Validate() error {
@@ -23,7 +27,7 @@ func (a *updateArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *pagedArgs) Validate() error {
@@ -32,7 +36,7 @@ func (a *pagedArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *reviewArgs) Validate() error {
@@ -45,7 +49,7 @@ func (a *reviewArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *reviewCommentsArgs) Validate() error {
@@ -58,7 +62,7 @@ func (a *reviewCommentsArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *getReviewArgs) Validate() error {
@@ -71,7 +75,7 @@ func (a *getReviewArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *mergeArgs) Validate() error {
@@ -80,7 +84,7 @@ func (a *mergeArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *diffArgs) Validate() error {
@@ -89,7 +93,7 @@ func (a *diffArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *createReviewArgs) Validate() error {
@@ -98,7 +102,7 @@ func (a *createReviewArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *submitReviewArgs) Validate() error {
@@ -111,7 +115,7 @@ func (a *submitReviewArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *dismissArgs) Validate() error {
@@ -124,7 +128,7 @@ func (a *dismissArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }
 
 func (a *reviewersArgs) Validate() error {
@@ -133,5 +137,5 @@ func (a *reviewersArgs) Validate() error {
 	if err != nil {
 		return err
 	}
-	return requiredRepo(a.Owner, a.Repo)
+	return decode.RequiredRepo(a.Owner, a.Repo)
 }

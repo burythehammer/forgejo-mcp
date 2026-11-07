@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/actionsadapter"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
@@ -63,13 +64,13 @@ type dispatchArgs struct {
 // order the tool always has. A bad request is refused before the credential
 // lookup.
 func (a dispatchArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
-	if err := required("workflow", a.Workflow); err != nil {
+	if err := decode.Required("workflow", a.Workflow); err != nil {
 		return err
 	}
-	if err := required("ref", a.Ref); err != nil {
+	if err := decode.Required("ref", a.Ref); err != nil {
 		return err
 	}
 	_, err := a.inputs()

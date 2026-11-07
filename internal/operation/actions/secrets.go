@@ -5,6 +5,7 @@ package actions
 import (
 	"context"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"math"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
@@ -147,7 +148,7 @@ func secretPaging(page, limit any) (app.Paging, error) {
 // Validate checks owner and repo, then the paging arguments, before the
 // credential lookup.
 func (a repoSecretsListArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := secretPaging(a.Page, a.Limit)
@@ -169,13 +170,13 @@ func listRepoActionSecrets(ctx context.Context, svc *app.Service, a repoSecretsL
 // Validate checks owner, repo, secret_name and data, in that order, before the
 // credential lookup.
 func (a repoSecretSetArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
-	if err := required("secret_name", a.SecretName); err != nil {
+	if err := decode.Required("secret_name", a.SecretName); err != nil {
 		return err
 	}
-	return required("data", a.Data)
+	return decode.Required("data", a.Data)
 }
 
 func createOrUpdateRepoActionSecret(ctx context.Context, svc *app.Service, a repoSecretSetArgs) (*mcp.CallToolResult, error) {
@@ -193,10 +194,10 @@ func createOrUpdateRepoActionSecret(ctx context.Context, svc *app.Service, a rep
 // Validate checks owner, repo and secret_name, in that order, before the
 // credential lookup.
 func (a repoSecretNameArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
-	return required("secret_name", a.SecretName)
+	return decode.Required("secret_name", a.SecretName)
 }
 
 func deleteRepoActionSecret(ctx context.Context, svc *app.Service, a repoSecretNameArgs) (*mcp.CallToolResult, error) {
@@ -213,7 +214,7 @@ func deleteRepoActionSecret(ctx context.Context, svc *app.Service, a repoSecretN
 
 // Validate checks org, then the paging arguments, before the credential lookup.
 func (a orgSecretsListArgs) Validate() error {
-	if err := required("org", a.Org); err != nil {
+	if err := decode.Required("org", a.Org); err != nil {
 		return err
 	}
 	_, err := secretPaging(a.Page, a.Limit)
@@ -235,13 +236,13 @@ func listOrgActionSecrets(ctx context.Context, svc *app.Service, a orgSecretsLis
 // Validate checks org, secret_name and data, in that order, before the
 // credential lookup.
 func (a orgSecretSetArgs) Validate() error {
-	if err := required("org", a.Org); err != nil {
+	if err := decode.Required("org", a.Org); err != nil {
 		return err
 	}
-	if err := required("secret_name", a.SecretName); err != nil {
+	if err := decode.Required("secret_name", a.SecretName); err != nil {
 		return err
 	}
-	return required("data", a.Data)
+	return decode.Required("data", a.Data)
 }
 
 func createOrUpdateOrgActionSecret(ctx context.Context, svc *app.Service, a orgSecretSetArgs) (*mcp.CallToolResult, error) {
@@ -258,10 +259,10 @@ func createOrUpdateOrgActionSecret(ctx context.Context, svc *app.Service, a orgS
 // Validate checks org and secret_name, in that order, before the credential
 // lookup.
 func (a orgSecretNameArgs) Validate() error {
-	if err := required("org", a.Org); err != nil {
+	if err := decode.Required("org", a.Org); err != nil {
 		return err
 	}
-	return required("secret_name", a.SecretName)
+	return decode.Required("secret_name", a.SecretName)
 }
 
 func deleteOrgActionSecret(ctx context.Context, svc *app.Service, a orgSecretNameArgs) (*mcp.CallToolResult, error) {

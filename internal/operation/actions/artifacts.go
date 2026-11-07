@@ -5,6 +5,7 @@ package actions
 import (
 	"context"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"math"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
@@ -67,7 +68,7 @@ var (
 // Validate checks owner and repo, then run_id and the paging arguments, before
 // the credential lookup.
 func (a artifactsArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, _, err := a.read()
@@ -108,7 +109,7 @@ func listActionRunArtifacts(ctx context.Context, svc *app.Service, a artifactsAr
 
 // Validate checks owner and repo, then artifact_id, before the credential lookup.
 func (a getArtifactArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := numarg.RequiredPositiveInt("artifact_id", a.ArtifactID)
