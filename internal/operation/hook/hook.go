@@ -6,6 +6,7 @@ package hook
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -306,20 +307,37 @@ func testRepoHook(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.
 	return to.TextResult(map[string]bool{"triggered": true})
 }
 
-// Validate refuses a list call whose page or limit is out of range.
+// Validate refuses a list call that names no repository or whose page or limit is out of range.
 func (a listArgs) Validate() error {
+	if a.Owner == "" || a.Repo == "" {
+		return errors.New("owner and repo are required")
+	}
 	_, _, err := a.paging()
 	return err
 }
 
-// Validate refuses a hook reference whose ID is not a valid hook ID.
+// Validate refuses a hook reference that names no repository or a hook ID that is not valid.
 func (a hookRefArgs) Validate() error {
+	if a.Owner == "" || a.Repo == "" {
+		return errors.New("owner, repo and id are required")
+	}
 	_, err := hookRefOf(a.Owner, a.Repo, a.ID)
 	return err
 }
 
-// Validate refuses an edit whose hook ID is not a valid hook ID.
+// Validate refuses a create that names no repository or URL.
+func (a createArgs) Validate() error {
+	if a.Owner == "" || a.Repo == "" || a.URL == "" {
+		return errors.New("owner, repo and url are required")
+	}
+	return nil
+}
+
+// Validate refuses an edit that names no repository or a hook ID that is not valid.
 func (a editArgs) Validate() error {
+	if a.Owner == "" || a.Repo == "" {
+		return errors.New("owner, repo and id are required")
+	}
 	_, err := hookRefOf(a.Owner, a.Repo, a.ID)
 	return err
 }
