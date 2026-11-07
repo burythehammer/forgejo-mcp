@@ -60,6 +60,14 @@ var unpagedSearchTools = map[string]string{
 	wiki.SearchWikiToolName: "searches by fixed caps on pages scanned and hits returned, and reports truncated; it takes no page or limit",
 }
 
+// isUnpagedSearchTool reports whether a search tool is exempt from the page and
+// limit contract. Both the bound test and the pagination golden test read the
+// exemption through here.
+func isUnpagedSearchTool(name string) bool {
+	_, unpaged := unpagedSearchTools[name]
+	return unpaged
+}
+
 // listResourceFixture is one list resource template: a concrete URI that reads
 // it and the seed that fills the fake behind that URI.
 type listResourceFixture struct {
@@ -126,7 +134,7 @@ func TestRegistryBoundsEveryListResource(t *testing.T) {
 // isListTool reports whether a registered tool returns a list: its name says so,
 // or it takes a page or limit, which only a list does.
 func isListTool(name string, tool mcp.Tool) bool {
-	if _, unpaged := unpagedSearchTools[name]; unpaged {
+	if isUnpagedSearchTool(name) {
 		return false
 	}
 	if strings.HasPrefix(name, "list_") || strings.HasPrefix(name, "search_") {

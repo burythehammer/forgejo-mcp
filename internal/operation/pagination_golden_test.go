@@ -427,7 +427,7 @@ func TestPaginationCoversEveryListTool(t *testing.T) {
 		if !strings.HasPrefix(name, "list_") && !strings.HasPrefix(name, "search_") {
 			continue
 		}
-		if _, unpaged := unpagedSearchTools[name]; unpaged {
+		if isUnpagedSearchTool(name) {
 			continue
 		}
 		if !covered[name] {
