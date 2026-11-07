@@ -188,12 +188,6 @@ func (a listArgs) paging() (int, int, error) {
 	return decode.PagingArgs(a.Page, a.Limit)
 }
 
-// Validate refuses a list call whose page or limit is out of range.
-func (a listArgs) Validate() error {
-	_, _, err := a.paging()
-	return err
-}
-
 func (h handlers) ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return pipeline.Handle(h.service, listBranchProtections)(ctx, req)
 }
@@ -266,4 +260,10 @@ func optionalApprovals(v *float64) *int64 {
 	}
 	n := numarg.Truncate(*v)
 	return &n
+}
+
+// Validate refuses a list call whose page or limit is out of range.
+func (a listArgs) Validate() error {
+	_, _, err := a.paging()
+	return err
 }

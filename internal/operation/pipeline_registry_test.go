@@ -49,16 +49,16 @@ var noCredential = map[string]bool{
 // request pipeline. A migration ticket deletes its domain's line. Keep it
 // sorted, one domain per line; it may only shrink.
 var unmigrated = map[string]bool{
-	"actions":          true,
-	"attachment":       true,
-	"issue":            true,
-	"org":              true,
-	"pull":             true,
-	"release":          true,
-	"search":           true,
-	"tracking":         true,
-	"user":             true,
-	"wiki":             true,
+	"actions":    true,
+	"attachment": true,
+	"issue":      true,
+	"org":        true,
+	"pull":       true,
+	"release":    true,
+	"search":     true,
+	"tracking":   true,
+	"user":       true,
+	"wiki":       true,
 }
 
 func sortedDomains() []string {

@@ -218,24 +218,6 @@ func (a listArgs) paging() (int, int, error) {
 	return decode.PagingArgs(a.Page, a.Limit)
 }
 
-// Validate refuses a list call whose page or limit is out of range.
-func (a listArgs) Validate() error {
-	_, _, err := a.paging()
-	return err
-}
-
-// Validate refuses a hook reference whose ID is not a valid hook ID.
-func (a hookRefArgs) Validate() error {
-	_, err := hookRefOf(a.Owner, a.Repo, a.ID)
-	return err
-}
-
-// Validate refuses an edit whose hook ID is not a valid hook ID.
-func (a editArgs) Validate() error {
-	_, err := hookRefOf(a.Owner, a.Repo, a.ID)
-	return err
-}
-
 func (h handlers) ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return pipeline.Handle(h.service, listRepoHooks)(ctx, req)
 }
@@ -322,4 +304,22 @@ func testRepoHook(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.
 		return mcpresult.Fail(err)
 	}
 	return to.TextResult(map[string]bool{"triggered": true})
+}
+
+// Validate refuses a list call whose page or limit is out of range.
+func (a listArgs) Validate() error {
+	_, _, err := a.paging()
+	return err
+}
+
+// Validate refuses a hook reference whose ID is not a valid hook ID.
+func (a hookRefArgs) Validate() error {
+	_, err := hookRefOf(a.Owner, a.Repo, a.ID)
+	return err
+}
+
+// Validate refuses an edit whose hook ID is not a valid hook ID.
+func (a editArgs) Validate() error {
+	_, err := hookRefOf(a.Owner, a.Repo, a.ID)
+	return err
 }

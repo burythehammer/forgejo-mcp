@@ -1,3 +1,3 @@
-ERROR: sha is required
+RESULT-ERROR: sha is required
 -- port calls --
 

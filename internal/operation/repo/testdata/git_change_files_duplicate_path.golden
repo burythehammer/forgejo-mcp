@@ -1,3 +1,3 @@
-ERROR: files[1]: duplicate target path "a"
+RESULT-ERROR: files[1]: duplicate target path "a"
 -- port calls --
 

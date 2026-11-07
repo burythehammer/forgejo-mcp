@@ -10,6 +10,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -68,15 +69,23 @@ type listRepoTopicsArgs struct {
 	Limit float64 `json:"limit"`
 }
 
+// paging is the page and limit of the list. Validate runs it before the
+// credential lookup.
+func (a listRepoTopicsArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
 func (h handlers) ListRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "ListRepoTopicsFn", func(ctx context.Context, s *apprepo.AdminService, a listRepoTopicsArgs) (*mcp.CallToolResult, error) {
-		pg, limit, err := decode.PagingArgs(a.Page, a.Limit)
-		if err != nil {
-			return to.ErrorResult(err)
-		}
-		page, err := topicPage(s.ListRepoTopics(ctx, a.Owner, a.Repo, apprepo.AdminPaging{Page: pg, Limit: limit}))
-		return mcpresult.Render(page, err)
-	})
+	return pipeline.Handle(h.adminService, listRepoTopics)(ctx, req)
+}
+
+func listRepoTopics(ctx context.Context, s *apprepo.AdminService, a listRepoTopicsArgs) (*mcp.CallToolResult, error) {
+	pg, limit, err := a.paging()
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	page, err := topicPage(s.ListRepoTopics(ctx, a.Owner, a.Repo, apprepo.AdminPaging{Page: pg, Limit: limit}))
+	return mcpresult.Render(page, err)
 }
 
 type setRepoTopicsArgs struct {
@@ -86,13 +95,15 @@ type setRepoTopicsArgs struct {
 }
 
 func (h handlers) SetRepoTopicsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "SetRepoTopicsFn", func(ctx context.Context, s *apprepo.AdminService, a setRepoTopicsArgs) (*mcp.CallToolResult, error) {
-		topics, err := s.SetRepoTopics(ctx, a.Owner, a.Repo, a.Topics)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return to.TextResult(map[string]any{"topics": topics})
-	})
+	return pipeline.Handle(h.adminService, setRepoTopics)(ctx, req)
+}
+
+func setRepoTopics(ctx context.Context, s *apprepo.AdminService, a setRepoTopicsArgs) (*mcp.CallToolResult, error) {
+	topics, err := s.SetRepoTopics(ctx, a.Owner, a.Repo, a.Topics)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return to.TextResult(map[string]any{"topics": topics})
 }
 
 type addRepoTopicArgs struct {
@@ -102,21 +113,31 @@ type addRepoTopicArgs struct {
 }
 
 func (h handlers) AddRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "AddRepoTopicFn", func(ctx context.Context, s *apprepo.AdminService, a addRepoTopicArgs) (*mcp.CallToolResult, error) {
-		name, err := s.AddRepoTopic(ctx, a.Owner, a.Repo, a.Topic)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return to.TextResult(map[string]string{"topic": name, "status": "added"})
-	})
+	return pipeline.Handle(h.adminService, addRepoTopic)(ctx, req)
+}
+
+func addRepoTopic(ctx context.Context, s *apprepo.AdminService, a addRepoTopicArgs) (*mcp.CallToolResult, error) {
+	name, err := s.AddRepoTopic(ctx, a.Owner, a.Repo, a.Topic)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return to.TextResult(map[string]string{"topic": name, "status": "added"})
 }
 
 func (h handlers) DeleteRepoTopicFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "DeleteRepoTopicFn", func(ctx context.Context, s *apprepo.AdminService, a addRepoTopicArgs) (*mcp.CallToolResult, error) {
-		name, err := s.DeleteRepoTopic(ctx, a.Owner, a.Repo, a.Topic)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return to.TextResult(map[string]string{"topic": name, "status": "deleted"})
-	})
+	return pipeline.Handle(h.adminService, deleteRepoTopic)(ctx, req)
+}
+
+func deleteRepoTopic(ctx context.Context, s *apprepo.AdminService, a addRepoTopicArgs) (*mcp.CallToolResult, error) {
+	name, err := s.DeleteRepoTopic(ctx, a.Owner, a.Repo, a.Topic)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return to.TextResult(map[string]string{"topic": name, "status": "deleted"})
+}
+
+// Validate refuses a list call whose page or limit is out of range.
+func (a listRepoTopicsArgs) Validate() error {
+	_, _, err := a.paging()
+	return err
 }
