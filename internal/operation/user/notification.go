@@ -5,17 +5,15 @@ package user
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	appuser "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/user"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -90,6 +88,7 @@ var (
 // them in agreement with the tool definitions. Numbers are float64 so the
 // forgiving decoder truncates them as the original handlers did. An id, owner
 // or repo is a pointer so that a missing or wrongly typed value reads as absent.
+// Each struct's Validate runs before the credential lookup.
 
 type checkArgs struct {
 	All    bool    `json:"all"`
@@ -123,38 +122,49 @@ type repoMarkArgs struct {
 	LastReadAt string  `json:"last_read_at"`
 }
 
+// Validate checks the paging arguments, as every list tool does.
+func (a checkArgs) Validate() error {
+	_, _, err := paging(a.Page, a.Limit)
+	return err
+}
+
+func (a checkArgs) input() (appuser.NotificationsInput, error) {
+	return notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit)
+}
+
+// Validate checks owner and repo, then the paging arguments.
+func (a repoCheckArgs) Validate() error {
+	if a.Owner == nil || a.Repo == nil {
+		return errOwnerRepo
+	}
+	_, _, err := paging(a.Page, a.Limit)
+	return err
+}
+
+func (a repoCheckArgs) input() (appuser.NotificationsInput, error) {
+	return notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit)
+}
+
+// Validate checks that the thread id is present.
+func (a threadArgs) Validate() error {
+	if a.ID == nil {
+		return errIDRequired
+	}
+	return nil
+}
+
+// Validate checks owner and repo.
+func (a repoMarkArgs) Validate() error {
+	if a.Owner == nil || a.Repo == nil {
+		return errOwnerRepo
+	}
+	return nil
+}
+
 // paging reads the page and limit arguments through the numeric-argument
 // module, so a bad value is refused with the same message as on every list tool.
 func paging(page, limit float64) (int, int, error) {
 	return decode.PagingArgs(page, limit)
-}
-
-// start begins a tool call: it attaches the tool's name to the context, logs
-// the call and decodes the arguments. A decode failure is returned as an error.
-func start[A any](ctx context.Context, req mcp.CallToolRequest, name string) (context.Context, time.Time, A, error) {
-	ctx, _ = log.WithMCPContext(ctx, name)
-	started := time.Now()
-	log.LogMCPToolStart(ctx, name, req.GetArguments())
-	var args A
-	err := decode.Lax(req, &args)
-	return ctx, started, args, err
-}
-
-// refuse logs and renders a request refused before Forgejo was called.
-func refuse(ctx context.Context, name string, started time.Time, err error) (*mcp.CallToolResult, error) {
-	log.LogMCPToolError(ctx, name, time.Since(started), err)
-	return to.ErrorResult(err)
-}
-
-// finish logs and renders the outcome of a call that went through the use
-// cases: the result as JSON, or the error.
-func finish(ctx context.Context, name string, started time.Time, summary string, v any, err error) (*mcp.CallToolResult, error) {
-	if err != nil {
-		log.LogMCPToolError(ctx, name, time.Since(started), err)
-		return to.ErrorResult(err)
-	}
-	log.LogMCPToolComplete(ctx, name, time.Since(started), summary)
-	return to.TextResult(v)
 }
 
 // notificationPage is one page of notifications in the wire form of the list tools.
@@ -167,98 +177,66 @@ func notificationsInput(all bool, since, before string, pageArg, limitArg float6
 	return appuser.NotificationsInput{All: all, Since: since, Before: before, Page: page, Limit: limit}, err
 }
 
-func (h handlers) CheckNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, started, a, err := start[checkArgs](ctx, req, CheckNotificationsToolName)
+// badRequest sends an input error the pipeline did not catch as a tool error.
+// Validate runs first, so this is unreachable for a valid request.
+func badRequest(err error) (*mcp.CallToolResult, error) {
+	return mcp.NewToolResultError(err.Error()), nil
+}
+
+func checkNotifications(ctx context.Context, svc *appuser.Service, a checkArgs) (*mcp.CallToolResult, error) {
+	started := time.Now()
+	in, err := a.input()
 	if err != nil {
-		return refuse(ctx, CheckNotificationsToolName, started, err)
+		return badRequest(err)
 	}
-	in, err := notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit)
-	if err != nil {
-		return refuse(ctx, CheckNotificationsToolName, started, err)
-	}
-	page, err := h.service().Notifications(ctx, in)
+	page, err := svc.Notifications(ctx, in)
 	logAPICall(ctx, "GET", "/notifications", started, err)
-	return finish(ctx, CheckNotificationsToolName, started, fmt.Sprintf("Retrieved %d notifications", page.Count), notificationPage(page), err)
+	return mcpresult.Render(notificationPage(page), err)
 }
 
-func (h handlers) GetNotificationThreadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, started, a, err := start[threadArgs](ctx, req, GetNotificationThreadToolName)
-	if err != nil {
-		return refuse(ctx, GetNotificationThreadToolName, started, err)
-	}
-	if a.ID == nil {
-		return refuse(ctx, GetNotificationThreadToolName, started, errIDRequired)
-	}
+func getNotificationThread(ctx context.Context, svc *appuser.Service, a threadArgs) (*mcp.CallToolResult, error) {
+	started := time.Now()
 	id := int64(*a.ID)
-	thread, err := h.service().Thread(ctx, id)
+	thread, err := svc.Thread(ctx, id)
 	logAPICall(ctx, "GET", apiEndpoint("notifications", "threads", id), started, err)
-	return finish(ctx, GetNotificationThreadToolName, started, "Retrieved notification thread", thread, err)
+	return mcpresult.Render(thread, err)
 }
 
-func (h handlers) MarkNotificationReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, started, a, err := start[threadArgs](ctx, req, MarkNotificationReadToolName)
-	if err != nil {
-		return refuse(ctx, MarkNotificationReadToolName, started, err)
-	}
-	if a.ID == nil {
-		return refuse(ctx, MarkNotificationReadToolName, started, errIDRequired)
-	}
+func markNotificationRead(ctx context.Context, svc *appuser.Service, a threadArgs) (*mcp.CallToolResult, error) {
+	started := time.Now()
 	id := int64(*a.ID)
-	thread, err := h.service().MarkRead(ctx, id)
+	thread, err := svc.MarkRead(ctx, id)
 	logAPICall(ctx, "PATCH", apiEndpoint("notifications", "threads", id), started, err)
-	return finish(ctx, MarkNotificationReadToolName, started, "Marked notification as read", thread, err)
+	return mcpresult.Render(thread, err)
 }
 
-func (h handlers) MarkAllNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, started, a, err := start[markAllArgs](ctx, req, MarkAllNotificationsReadToolName)
-	if err != nil {
-		return refuse(ctx, MarkAllNotificationsReadToolName, started, err)
-	}
-	err = h.service().MarkAllRead(ctx, a.LastReadAt)
+func markAllNotificationsRead(ctx context.Context, svc *appuser.Service, a markAllArgs) (*mcp.CallToolResult, error) {
+	started := time.Now()
+	err := svc.MarkAllRead(ctx, a.LastReadAt)
 	logAPICall(ctx, "PUT", "/notifications", started, err)
-	if err != nil {
-		return finish(ctx, MarkAllNotificationsReadToolName, started, "", nil, err)
-	}
-	return finish(ctx, MarkAllNotificationsReadToolName, started, "Marked all notifications as read", "All notifications marked as read", nil)
+	return mcpresult.Render("All notifications marked as read", err)
 }
 
-func (h handlers) ListRepoNotificationsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, started, a, err := start[repoCheckArgs](ctx, req, ListRepoNotificationsToolName)
-	if err != nil {
-		return refuse(ctx, ListRepoNotificationsToolName, started, err)
-	}
-	if a.Owner == nil || a.Repo == nil {
-		return refuse(ctx, ListRepoNotificationsToolName, started, errOwnerRepo)
-	}
+func listRepoNotifications(ctx context.Context, svc *appuser.Service, a repoCheckArgs) (*mcp.CallToolResult, error) {
+	started := time.Now()
 	owner, repo := *a.Owner, *a.Repo
-	in, err := notificationsInput(a.All, a.Since, a.Before, a.Page, a.Limit)
+	in, err := a.input()
 	if err != nil {
-		return refuse(ctx, ListRepoNotificationsToolName, started, err)
+		return badRequest(err)
 	}
-	page, err := h.service().RepoNotifications(ctx, appuser.RepoNotificationsInput{
+	page, err := svc.RepoNotifications(ctx, appuser.RepoNotificationsInput{
 		Owner: owner, Repo: repo, NotificationsInput: in,
 	})
 	logAPICall(ctx, "GET", apiEndpoint("repos", owner, repo, "notifications"), started, err)
-	return finish(ctx, ListRepoNotificationsToolName, started,
-		fmt.Sprintf("Retrieved %d notifications for repo %s/%s", page.Count, owner, repo), notificationPage(page), err)
+	return mcpresult.Render(notificationPage(page), err)
 }
 
-func (h handlers) MarkRepoNotificationsReadFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	ctx, started, a, err := start[repoMarkArgs](ctx, req, MarkRepoNotificationsReadToolName)
-	if err != nil {
-		return refuse(ctx, MarkRepoNotificationsReadToolName, started, err)
-	}
-	if a.Owner == nil || a.Repo == nil {
-		return refuse(ctx, MarkRepoNotificationsReadToolName, started, errOwnerRepo)
-	}
+func markRepoNotificationsRead(ctx context.Context, svc *appuser.Service, a repoMarkArgs) (*mcp.CallToolResult, error) {
+	started := time.Now()
 	owner, repo := *a.Owner, *a.Repo
-	err = h.service().MarkRepoRead(ctx, owner, repo, a.LastReadAt)
+	err := svc.MarkRepoRead(ctx, owner, repo, a.LastReadAt)
 	logAPICall(ctx, "PUT", apiEndpoint("repos", owner, repo, "notifications"), started, err)
-	if err != nil {
-		return finish(ctx, MarkRepoNotificationsReadToolName, started, "", nil, err)
-	}
-	return finish(ctx, MarkRepoNotificationsReadToolName, started,
-		fmt.Sprintf("Marked all notifications for repo %s/%s as read", owner, repo), "Repo notifications marked as read", nil)
+	return mcpresult.Render("Repo notifications marked as read", err)
 }
 
 var (

@@ -58,7 +58,6 @@ var unmigrated = map[string]bool{
 	"repo":             true,
 	"search":           true,
 	"tracking":         true,
-	"user":             true,
 	"wiki":             true,
 }
 
@@ -126,6 +125,11 @@ func TestRegistryPipelineDomainsRefuseBadRequestBeforeCredential(t *testing.T) {
 		}
 		sort.Strings(names)
 		for _, name := range names {
+			// A tool with no required argument has no bad request to refuse:
+			// decoding is lax by default, so an unknown argument is ignored.
+			if len(tools[name].Tool.InputSchema.Required) == 0 {
+				continue
+			}
 			req := mcp.CallToolRequest{Params: mcp.CallToolParams{
 				Name:      name,
 				Arguments: map[string]any{"not_a_real_argument": "x"},
@@ -143,7 +147,7 @@ func TestRegistryPipelineDomainsRefuseBadRequestBeforeCredential(t *testing.T) {
 			if strings.Contains(text, refuse.Error()) {
 				t.Errorf("%s (%s): reached the credential lookup: %q", name, domain, text)
 			}
-			if !strings.Contains(text, "is required") {
+			if !strings.Contains(text, "required") {
 				t.Errorf("%s (%s): refusal %q does not name the missing argument", name, domain, text)
 			}
 		}

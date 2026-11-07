@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // The adapter tests are thin on purpose: behaviour is tested on the use cases
@@ -46,15 +47,20 @@ func newFixture() (handlers, *fake.Forgejo) {
 	return handlers{forge: fake.Factory{Forgejo: f}}, f
 }
 
+// callTool runs one user tool through the server it is registered on, so the
+// request pipeline handles the call as it does in production.
+func callTool(t *testing.T, h handlers, name string, args map[string]any) (*mcp.CallToolResult, error) {
+	t.Helper()
+	s := server.NewMCPServer("test", "0")
+	RegisterTool(s, h.forge)
+	return s.GetTool(name).Handler(context.Background(), mcp.CallToolRequest{Params: mcp.CallToolParams{Name: name, Arguments: args}})
+}
+
 func TestToolsReachTheirUseCases(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture()
-	ctx := context.Background()
-	req := func(args map[string]any) mcp.CallToolRequest {
-		return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
-	}
 
-	res, err := h.GetUserInfoFn(ctx, req(nil))
+	res, err := callTool(t, h, GetMyUserInfoToolName, nil)
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("my info: err=%v res=%+v", err, res)
 	}
@@ -62,18 +68,19 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 		t.Fatalf("my info is not a user: %s", text)
 	}
 
-	res, err = h.CheckNotificationsFn(ctx, req(map[string]any{"since": "2026-01-01T00:00:00Z"}))
+	res, err = callTool(t, h, CheckNotificationsToolName, map[string]any{"since": "2026-01-01T00:00:00Z"})
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("check: err=%v res=%+v", err, res)
 	}
 
-	res, err = h.MarkAllNotificationsReadFn(ctx, req(nil))
+	res, err = callTool(t, h, MarkAllNotificationsReadToolName, nil)
 	if err != nil || res == nil || res.IsError || !strings.Contains(textOf(res), "All notifications marked as read") {
 		t.Fatalf("mark all: err=%v res=%+v", err, res)
 	}
 
-	if _, err := h.GetNotificationThreadFn(ctx, req(nil)); err == nil || err.Error() != "id is required and must be a number" {
-		t.Fatalf("thread without id: %v", err)
+	res, err = callTool(t, h, GetNotificationThreadToolName, nil)
+	if err != nil || res == nil || !res.IsError || textOf(res) != "id is required and must be a number" {
+		t.Fatalf("thread without id: err=%v res=%+v", err, res)
 	}
 }
 
