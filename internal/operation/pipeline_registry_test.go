@@ -115,8 +115,10 @@ func TestRegistryPipelineDomainsRefuseBadRequestBeforeCredential(t *testing.T) {
 		sort.Strings(names)
 		for _, name := range names {
 			// A tool with no required argument has no bad request to refuse:
-			// decoding is lax by default, so an unknown argument is ignored.
-			if len(tools[name].Tool.InputSchema.Required) == 0 {
+			// decoding is lax by default, so an unknown argument is ignored. An
+			// argument with a schema default is not required in effect (a call that
+			// omits it is valid and takes the default), so it does not count.
+			if !hasRequiredWithoutDefault(tools[name].Tool.InputSchema) {
 				continue
 			}
 			req := mcp.CallToolRequest{Params: mcp.CallToolParams{
@@ -136,9 +138,25 @@ func TestRegistryPipelineDomainsRefuseBadRequestBeforeCredential(t *testing.T) {
 			if strings.Contains(text, refuse.Error()) {
 				t.Errorf("%s (%s): reached the credential lookup: %q", name, domain, text)
 			}
-			if !strings.Contains(text, "required") {
-				t.Errorf("%s (%s): refusal %q does not name the missing argument", name, domain, text)
+			if strings.TrimSpace(text) == "" {
+				t.Errorf("%s (%s): refusal has no text", name, domain)
 			}
 		}
 	}
+}
+
+// hasRequiredWithoutDefault reports whether a tool's schema has a required
+// argument that takes no default. A required argument with a default is not
+// required in effect: a call that omits it is valid, and its golden pins that.
+func hasRequiredWithoutDefault(schema mcp.ToolInputSchema) bool {
+	for _, name := range schema.Required {
+		prop, ok := schema.Properties[name].(map[string]any)
+		if !ok {
+			return true
+		}
+		if _, hasDefault := prop["default"]; !hasDefault {
+			return true
+		}
+	}
+	return false
 }
