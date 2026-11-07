@@ -54,14 +54,10 @@ var unmigrated = map[string]bool{
 	"branchprotection": true,
 	"hook":             true,
 	"issue":            true,
-	"org":              true,
 	"pull":             true,
 	"release":          true,
 	"repo":             true,
-	"search":           true,
-	"tracking":         true,
 	"user":             true,
-	"wiki":             true,
 }
 
 func sortedDomains() []string {
