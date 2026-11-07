@@ -172,20 +172,40 @@ func RegisterWikiTool(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered wiki tools")
 }
 
-// Run builds the MCP server with every tool and resource registered, then hands
-// it to the transport package to serve on cfg.Transport. version is the build
-// version, which is build information and so not part of cfg.
-func Run(ctx context.Context, cfg config.Config, version string) error {
+// Built is what Build returns: the server with the operator's selection
+// applied, the selection and the Forgejo factory.
+type Built struct {
+	Server    *server.MCPServer
+	Selection toolset.Selection
+	Factory   forge.Factory
+}
+
+// Build is the composition root for the server and the CLI. It resolves the
+// operator's selection (preset, toolsets and tools), builds the factory, and
+// returns a server holding exactly the selected tools and resource templates,
+// with lean text applied. An unknown name in the selection is an error.
+func Build(cfg config.Config, version string) (Built, error) {
 	sel, err := toolset.ParseWithPreset(cfg.Preset, cfg.Toolsets, cfg.Tools)
 	if err != nil {
-		return err
+		return Built{}, err
 	}
 	mcpServer := newMCPServer(version)
 	factory := newFactory(cfg, version)
 	RegisterSelectedTool(mcpServer, version, factory, sel)
 	lean.Finish(mcpServer, cfg.Lean)
 	RegisterSelectedResources(mcpServer, factory, sel)
-	return transport.Serve(ctx, cfg, mcpServer, factory)
+	return Built{Server: mcpServer, Selection: sel, Factory: factory}, nil
+}
+
+// Run builds the MCP server through Build, then hands it to the transport
+// package to serve on cfg.Transport. version is the build version, which is
+// build information and so not part of cfg.
+func Run(ctx context.Context, cfg config.Config, version string) error {
+	b, err := Build(cfg, version)
+	if err != nil {
+		return err
+	}
+	return transport.Serve(ctx, cfg, b.Server, b.Factory)
 }
 
 // newFactory builds the Forgejo factory from cfg. The factory holds no credential

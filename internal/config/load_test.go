@@ -117,12 +117,27 @@ func TestLoadPrecedencePerSetting(t *testing.T) {
 	}
 }
 
-func TestLoadCLIModeReadsEnvironmentAndIgnoresTheCommandLine(t *testing.T) {
+func TestLoadCLIModeParsesServerOptionsBeforeTheCommand(t *testing.T) {
 	t.Parallel()
-	cfg, _ := mustLoad(t, []string{"-host", "0.0.0.0", "--cli", "get_issue", "--args", "{}"},
-		env("FORGEJO_URL", "https://f.example.org", "FORGEJO_MCP_HOST", "10.0.0.1"))
-	if cfg.Mode != ModeCLI || cfg.Listen.Host != "10.0.0.1" {
-		t.Fatalf("mode=%v host=%q", cfg.Mode, cfg.Listen.Host)
+	cfg, _ := mustLoad(t, []string{"-host", "0.0.0.0", "-toolsets", "issues", "-lean", "--cli", "get_issue", "--args", "{}"},
+		env("FORGEJO_URL", "https://f.example.org", "FORGEJO_MCP_HOST", "10.0.0.1", "FORGEJO_MCP_TOOLS", "get_repo"))
+	if cfg.Mode != ModeCLI || cfg.Listen.Host != "0.0.0.0" {
+		t.Fatalf("mode=%v host=%q, want the flag to beat the environment", cfg.Mode, cfg.Listen.Host)
+	}
+	if !reflect.DeepEqual(cfg.Toolsets, []string{"issues"}) || !cfg.Lean {
+		t.Fatalf("toolsets=%v lean=%v", cfg.Toolsets, cfg.Lean)
+	}
+	if cfg.CLI.Tool != "get_issue" || cfg.CLI.Args != "{}" {
+		t.Fatalf("cli=%+v", cfg.CLI)
+	}
+}
+
+func TestLoadCLIModeReadsSelectionFromTheEnvironment(t *testing.T) {
+	t.Parallel()
+	cfg, _ := mustLoad(t, []string{"--cli", "list"},
+		env("FORGEJO_URL", "https://f.example.org", "FORGEJO_MCP_TOOLSETS", "issues", "FORGEJO_MCP_LEAN", "1"))
+	if !reflect.DeepEqual(cfg.Toolsets, []string{"issues"}) || !cfg.Lean {
+		t.Fatalf("toolsets=%v lean=%v", cfg.Toolsets, cfg.Lean)
 	}
 }
 
