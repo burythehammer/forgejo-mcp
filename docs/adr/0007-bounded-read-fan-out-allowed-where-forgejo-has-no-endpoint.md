@@ -27,3 +27,7 @@ A write workflow, or a sequence that encodes one user's convention, stays with A
 - `search_wiki` is a new tool, adding to the standing cost operators pay per model request (#275).
 - Clients can come to depend on its hit shape, so it is hard to change later.
 - Cloning the wiki repository and searching locally is the way out if wikis outgrow the page cap; it is not built now.
+
+## Amendment: create_wiki_page precondition (#357)
+
+`create_wiki_page` refuses an existing title, which takes one read before its one write. That read is a precondition of a single operation, not a workflow, so it stays within ADR 0005. The check and the create are two requests, so two simultaneous creates of one new title can both pass the check; the README row for `create_wiki_page` documents the race.
