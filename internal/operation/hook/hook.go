@@ -13,12 +13,12 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/hookadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -201,96 +201,125 @@ func optString(a decode.Arg, name string) *string {
 	return &s
 }
 
-// run is the shared shape of a tool call: decode the arguments into A, take the
-// use cases bound to this request's credential, and hand both to do, which
-// runs one use case and renders its result.
-func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
-	do func(context.Context, *apphook.Service, A) (*mcp.CallToolResult, error),
-) (*mcp.CallToolResult, error) {
-	log.Debugf("Called %s", name)
-	var args A
-	if err := decode.Lax(req, &args); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
+// service is the Binder of every webhook tool: it looks up the request's
+// credential and binds the use case to it. It runs only after the request is
+// valid.
+func (h handlers) service(ctx context.Context) (*apphook.Service, error) {
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return mcpresult.Fail(err)
+		return nil, err
 	}
-	return do(ctx, apphook.New(hookadapter.New(port)), args)
+	return apphook.New(hookadapter.New(port)), nil
+}
+
+// paging is the page and limit of a list call, refused when either is out of
+// range. Validate runs it before the credential lookup.
+func (a listArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
+// Validate refuses a list call whose page or limit is out of range.
+func (a listArgs) Validate() error {
+	_, _, err := a.paging()
+	return err
+}
+
+// Validate refuses a hook reference whose ID is not a valid hook ID.
+func (a hookRefArgs) Validate() error {
+	_, err := hookRefOf(a.Owner, a.Repo, a.ID)
+	return err
+}
+
+// Validate refuses an edit whose hook ID is not a valid hook ID.
+func (a editArgs) Validate() error {
+	_, err := hookRefOf(a.Owner, a.Repo, a.ID)
+	return err
 }
 
 func (h handlers) ListRepoHooksFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListRepoHooksFn", func(ctx context.Context, s *apphook.Service, a listArgs) (*mcp.CallToolResult, error) {
-		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
-		if perr != nil {
-			return mcpresult.Fail(perr)
-		}
-		got, err := s.List(ctx, apphook.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: pg, Limit: lim})
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		meta := model.PageMetaOf(got)
-		return mcpresult.Render(model.HookListResult{Hooks: got.Items, PageWindow: meta.PageWindow, PageTotal: meta.PageTotal, PageNext: meta.PageNext}, nil)
-	})
+	return pipeline.Handle(h.service, listRepoHooks)(ctx, req)
+}
+
+func listRepoHooks(ctx context.Context, s *apphook.Service, a listArgs) (*mcp.CallToolResult, error) {
+	pg, lim, err := a.paging()
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	got, err := s.List(ctx, apphook.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: pg, Limit: lim})
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	meta := model.PageMetaOf(got)
+	return mcpresult.Render(model.HookListResult{Hooks: got.Items, PageWindow: meta.PageWindow, PageTotal: meta.PageTotal, PageNext: meta.PageNext}, nil)
 }
 
 func (h handlers) GetRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return mcpresult.Render(s.Get(ctx, ref))
-	})
+	return pipeline.Handle(h.service, getRepoHook)(ctx, req)
+}
+
+func getRepoHook(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
+	ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(s.Get(ctx, ref))
 }
 
 func (h handlers) CreateRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateRepoHookFn", func(ctx context.Context, s *apphook.Service, a createArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Create(ctx, apphook.CreateRequest{
-			Owner: a.Owner, Repo: a.Repo, URL: a.URL, Type: a.Type, ContentType: a.ContentType, Secret: a.Secret,
-			HTTPMethod: a.HTTPMethod, BranchFilter: a.BranchFilter, Events: a.Events, Active: a.Active,
-		}))
-	})
+	return pipeline.Handle(h.service, createRepoHook)(ctx, req)
+}
+
+func createRepoHook(ctx context.Context, s *apphook.Service, a createArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.Create(ctx, apphook.CreateRequest{
+		Owner: a.Owner, Repo: a.Repo, URL: a.URL, Type: a.Type, ContentType: a.ContentType, Secret: a.Secret,
+		HTTPMethod: a.HTTPMethod, BranchFilter: a.BranchFilter, Events: a.Events, Active: a.Active,
+	}))
 }
 
 func (h handlers) EditRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "EditRepoHookFn", func(ctx context.Context, s *apphook.Service, a editArgs) (*mcp.CallToolResult, error) {
-		ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return mcpresult.Render(s.Edit(ctx, apphook.EditRequest{
-			HookRef: ref,
-			URL:     optString(a.URL, "url"), ContentType: optString(a.ContentType, "content_type"),
-			Secret: optString(a.Secret, "secret"), HTTPMethod: optString(a.HTTPMethod, "http_method"),
-			BranchFilter: optString(a.BranchFilter, "branch_filter"), Events: optString(a.Events, "events"),
-			Active: a.Active,
-		}))
-	})
+	return pipeline.Handle(h.service, editRepoHook)(ctx, req)
+}
+
+func editRepoHook(ctx context.Context, s *apphook.Service, a editArgs) (*mcp.CallToolResult, error) {
+	ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(s.Edit(ctx, apphook.EditRequest{
+		HookRef: ref,
+		URL:     optString(a.URL, "url"), ContentType: optString(a.ContentType, "content_type"),
+		Secret: optString(a.Secret, "secret"), HTTPMethod: optString(a.HTTPMethod, "http_method"),
+		BranchFilter: optString(a.BranchFilter, "branch_filter"), Events: optString(a.Events, "events"),
+		Active: a.Active,
+	}))
 }
 
 func (h handlers) DeleteRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeleteRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		if err := s.Delete(ctx, ref); err != nil {
-			return mcpresult.Fail(err)
-		}
-		return to.TextResult(fmt.Sprintf("Deleted webhook %d on %s/%s", ref.ID, a.Owner, a.Repo))
-	})
+	return pipeline.Handle(h.service, deleteRepoHook)(ctx, req)
+}
+
+func deleteRepoHook(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
+	ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	if err := s.Delete(ctx, ref); err != nil {
+		return mcpresult.Fail(err)
+	}
+	return to.TextResult(fmt.Sprintf("Deleted webhook %d on %s/%s", ref.ID, a.Owner, a.Repo))
 }
 
 func (h handlers) TestRepoHookFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "TestRepoHookFn", func(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
-		ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		if err := s.Test(ctx, ref); err != nil {
-			return mcpresult.Fail(err)
-		}
-		return to.TextResult(map[string]bool{"triggered": true})
-	})
+	return pipeline.Handle(h.service, testRepoHook)(ctx, req)
+}
+
+func testRepoHook(ctx context.Context, s *apphook.Service, a hookRefArgs) (*mcp.CallToolResult, error) {
+	ref, err := hookRefOf(a.Owner, a.Repo, a.ID)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	if err := s.Test(ctx, ref); err != nil {
+		return mcpresult.Fail(err)
+	}
+	return to.TextResult(map[string]bool{"triggered": true})
 }
