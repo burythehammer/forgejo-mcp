@@ -59,7 +59,8 @@ func Lax() Option { return func(o *options) { o.strict = boolPtr(false) } }
 func Strict() Option { return func(o *options) { o.strict = boolPtr(true) } }
 
 // WithRaw gives the tool the raw request, read with Raw, for the few tools
-// that must tell an absent argument from a present null.
+// that must tell an absent argument from a present null. The Binder sees it
+// too, so a check on the raw request can refuse before the credential lookup.
 func WithRaw() Option { return func(o *options) { o.raw = true } }
 
 func boolPtr(b bool) *bool { return &b }
@@ -100,12 +101,12 @@ func Handle[S, A any](bind Binder[S], run func(context.Context, S, A) (*mcp.Call
 				return refuse(err)
 			}
 		}
+		if o.raw {
+			ctx = context.WithValue(ctx, rawKey{}, req)
+		}
 		s, err := bind(ctx)
 		if err != nil {
 			return mcpresult.Fail(err)
-		}
-		if o.raw {
-			ctx = context.WithValue(ctx, rawKey{}, req)
 		}
 		res, err := run(ctx, s, a)
 		log.Debugf("%s: finish in %s", name, time.Since(start))

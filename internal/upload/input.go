@@ -115,16 +115,39 @@ func SourceFromArguments(arguments map[string]any) (Source, error) {
 	return Source{Content: content, FilePath: filePath, Filename: filename}, nil
 }
 
+// CheckArguments refuses a bad upload source read from the raw arguments: a
+// content or file_path that is present but not a string, or a source that is
+// not exactly one of content and file_path, or content with no filename. A
+// tool calls it before its credential lookup, so the refusal is never a
+// credential error. Open repeats the shape check, so a source checked here
+// reads the same way there.
+func CheckArguments(arguments map[string]any) error {
+	source, err := SourceFromArguments(arguments)
+	if err != nil {
+		return err
+	}
+	return checkShape(source)
+}
+
+// checkShape is the part of Open's validation that reads no file and decodes
+// no content.
+func checkShape(source Source) error {
+	if (source.Content == nil) == (source.FilePath == nil) {
+		return fmt.Errorf("exactly one of content or file_path is required")
+	}
+	if source.Content != nil && source.Filename == "" {
+		return fmt.Errorf("filename is required when content is used")
+	}
+	return nil
+}
+
 // Open validates the source and returns its reader and upload filename.
 func Open(source Source) (io.ReadCloser, string, error) {
-	if (source.Content == nil) == (source.FilePath == nil) {
-		return nil, "", fmt.Errorf("exactly one of content or file_path is required")
+	if err := checkShape(source); err != nil {
+		return nil, "", err
 	}
 
 	if source.Content != nil {
-		if source.Filename == "" {
-			return nil, "", fmt.Errorf("filename is required when content is used")
-		}
 		// Reject an oversized argument before paying to allocate/decode it —
 		// see MaxContentB64Bytes.
 		if len(*source.Content) > contentLimit {

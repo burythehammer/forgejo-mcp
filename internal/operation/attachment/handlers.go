@@ -43,14 +43,14 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(ListIssueAttachmentsTool, pipeline.Handle(h.service, listIssueAttachments))
 	s.AddTool(GetIssueAttachmentTool, pipeline.Handle(h.service, getIssueAttachment))
 	s.AddTool(DownloadIssueAttachmentTool, pipeline.Handle(h.service, downloadIssueAttachment))
-	s.AddTool(CreateIssueAttachmentTool, pipeline.Handle(h.service, createIssueAttachment, pipeline.WithRaw()))
+	s.AddTool(CreateIssueAttachmentTool, pipeline.Handle(h.uploadService, createIssueAttachment, pipeline.WithRaw()))
 	s.AddTool(EditIssueAttachmentTool, pipeline.Handle(h.service, editIssueAttachment))
 	s.AddTool(DeleteIssueAttachmentTool, pipeline.Handle(h.service, deleteIssueAttachment))
 
 	s.AddTool(ListCommentAttachmentsTool, pipeline.Handle(h.service, listCommentAttachments))
 	s.AddTool(GetCommentAttachmentTool, pipeline.Handle(h.service, getCommentAttachment))
 	s.AddTool(DownloadCommentAttachmentTool, pipeline.Handle(h.service, downloadCommentAttachment))
-	s.AddTool(CreateCommentAttachmentTool, pipeline.Handle(h.service, createCommentAttachment, pipeline.WithRaw()))
+	s.AddTool(CreateCommentAttachmentTool, pipeline.Handle(h.uploadService, createCommentAttachment, pipeline.WithRaw()))
 	s.AddTool(EditCommentAttachmentTool, pipeline.Handle(h.service, editCommentAttachment))
 	s.AddTool(DeleteCommentAttachmentTool, pipeline.Handle(h.service, deleteCommentAttachment))
 }
@@ -61,6 +61,20 @@ type handlers struct{ forge forge.Factory }
 
 // service is the Binder for every attachment tool: it looks up the request's
 // credential and binds the attachment use cases to it.
+// uploadService is the Binder of the upload tools. It checks the upload source
+// in the raw request before the credential lookup, so a bad source is refused
+// as the source error, never as a credential error.
+func (h handlers) uploadService(ctx context.Context) (*appattachment.Service, error) {
+	raw, ok := pipeline.Raw(ctx)
+	if !ok {
+		return nil, errors.New("upload: the raw request is not available")
+	}
+	if err := upload.CheckArguments(raw.GetArguments()); err != nil {
+		return nil, err
+	}
+	return h.service(ctx)
+}
+
 func (h handlers) service(ctx context.Context) (*appattachment.Service, error) {
 	port, err := h.forge.For(ctx)
 	if err != nil {
@@ -154,7 +168,7 @@ type commentEditArgs struct {
 // tools always have: the issue index, then the paging.
 
 func (a issueRefArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	if _, err := number(a.Index, "index"); err != nil {
@@ -165,7 +179,7 @@ func (a issueRefArgs) Validate() error {
 }
 
 func (a commentRefArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	if _, err := number(a.CommentID, "comment_id"); err != nil {
@@ -176,21 +190,21 @@ func (a commentRefArgs) Validate() error {
 }
 
 func (a issueAttachmentArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	return parentAndAttachment(a.Index, "index", a.AttachmentID)
 }
 
 func (a commentAttachmentArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	return parentAndAttachment(a.CommentID, "comment_id", a.AttachmentID)
 }
 
 func (a issueCreateArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := number(a.Index, "index")
@@ -198,7 +212,7 @@ func (a issueCreateArgs) Validate() error {
 }
 
 func (a commentCreateArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := number(a.CommentID, "comment_id")
@@ -206,14 +220,14 @@ func (a commentCreateArgs) Validate() error {
 }
 
 func (a issueEditArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	return editOK(a.Index, "index", a.AttachmentID, a.Name)
 }
 
 func (a commentEditArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	return editOK(a.CommentID, "comment_id", a.AttachmentID, a.Name)
@@ -259,7 +273,8 @@ func downloadIssueAttachment(ctx context.Context, svc *appattachment.Service, a 
 }
 
 func createIssueAttachment(ctx context.Context, svc *appattachment.Service, a issueCreateArgs) (*mcp.CallToolResult, error) {
-	return create(ctx, svc, a.Owner, a.Repo, appattachment.ScopeIssue, a.Index, a.MimeType)
+	p, _ := number(a.Index, "index") // Validate refused a bad index before the credential lookup
+	return create(ctx, svc, a.Owner, a.Repo, appattachment.ScopeIssue, p, a.MimeType)
 }
 
 func editIssueAttachment(ctx context.Context, svc *appattachment.Service, a issueEditArgs) (*mcp.CallToolResult, error) {
@@ -285,7 +300,8 @@ func downloadCommentAttachment(ctx context.Context, svc *appattachment.Service, 
 }
 
 func createCommentAttachment(ctx context.Context, svc *appattachment.Service, a commentCreateArgs) (*mcp.CallToolResult, error) {
-	return create(ctx, svc, a.Owner, a.Repo, appattachment.ScopeComment, a.CommentID, a.MimeType)
+	p, _ := number(a.CommentID, "comment_id") // Validate refused a bad comment_id before the credential lookup
+	return create(ctx, svc, a.Owner, a.Repo, appattachment.ScopeComment, p, a.MimeType)
 }
 
 func editCommentAttachment(ctx context.Context, svc *appattachment.Service, a commentEditArgs) (*mcp.CallToolResult, error) {
@@ -352,14 +368,10 @@ func download(ctx context.Context, svc *appattachment.Service, owner, repo strin
 	}), nil
 }
 
-// create reads the upload source from the raw request (see issueCreateArgs).
-// The source is checked and the file opened here, after the credential lookup,
-// because the source needs the raw request that the Binder does not see.
-func create(ctx context.Context, svc *appattachment.Service, owner, repo string, sc appattachment.Scope, parent any, mimeType string) (*mcp.CallToolResult, error) {
-	p, err := number(parent, parentName(sc))
-	if err != nil {
-		return mcpresult.Fail(err)
-	}
+// create reads the upload source from the raw request (see issueCreateArgs),
+// which uploadService has already checked, and opens the file here, after the
+// credential lookup.
+func create(ctx context.Context, svc *appattachment.Service, owner, repo string, sc appattachment.Scope, p int64, mimeType string) (*mcp.CallToolResult, error) {
 	raw, ok := pipeline.Raw(ctx)
 	if !ok {
 		return mcpresult.Fail(errors.New("upload: the raw request is not available"))
@@ -423,15 +435,4 @@ func parentName(sc appattachment.Scope) string {
 		return "comment_id"
 	}
 	return "index"
-}
-
-// requiredRepo checks owner, then repo, before the credential lookup.
-func requiredRepo(owner, repo string) error {
-	if owner == "" {
-		return errors.New("owner is required")
-	}
-	if repo == "" {
-		return errors.New("repo is required")
-	}
-	return nil
 }

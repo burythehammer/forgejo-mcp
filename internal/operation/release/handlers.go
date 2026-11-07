@@ -42,7 +42,7 @@ func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	s.AddTool(ListReleaseAttachmentsTool, pipeline.Handle(h.service, listReleaseAttachments))
 	s.AddTool(GetReleaseAttachmentTool, pipeline.Handle(h.service, getReleaseAttachment))
 	s.AddTool(DownloadReleaseAttachmentTool, pipeline.Handle(h.service, downloadReleaseAttachment))
-	s.AddTool(CreateReleaseAttachmentTool, pipeline.Handle(h.service, createReleaseAttachment, pipeline.WithRaw()))
+	s.AddTool(CreateReleaseAttachmentTool, pipeline.Handle(h.uploadService, createReleaseAttachment, pipeline.WithRaw()))
 	s.AddTool(EditReleaseAttachmentTool, pipeline.Handle(h.service, editReleaseAttachment))
 	s.AddTool(DeleteReleaseAttachmentTool, pipeline.Handle(h.service, deleteReleaseAttachment))
 }
@@ -53,6 +53,20 @@ type handlers struct{ forge forge.Factory }
 
 // service is the Binder for every release tool: it looks up the request's
 // credential and binds the release use cases to it.
+// uploadService is the Binder of the upload tool. It checks the upload source
+// in the raw request before the credential lookup, so a bad source is refused
+// as the source error, never as a credential error.
+func (h handlers) uploadService(ctx context.Context) (*apprelease.Service, error) {
+	raw, ok := pipeline.Raw(ctx)
+	if !ok {
+		return nil, errors.New("upload: the raw request is not available")
+	}
+	if err := upload.CheckArguments(raw.GetArguments()); err != nil {
+		return nil, err
+	}
+	return h.service(ctx)
+}
+
 func (h handlers) service(ctx context.Context) (*apprelease.Service, error) {
 	port, err := h.forge.For(ctx)
 	if err != nil {
@@ -163,7 +177,7 @@ type editAttachmentArgs struct {
 // always has.
 
 func (a listReleasesArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	if _, err := stateOf(a.State); err != nil {
@@ -173,10 +187,10 @@ func (a listReleasesArgs) Validate() error {
 	return err
 }
 
-func (a repoArgs) Validate() error { return requiredRepo(a.Owner, a.Repo) }
+func (a repoArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 
 func (a releaseRefArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := number(a.ReleaseID, "release_id")
@@ -184,7 +198,7 @@ func (a releaseRefArgs) Validate() error {
 }
 
 func (a tagRefArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	if a.Tag == "" {
@@ -194,7 +208,7 @@ func (a tagRefArgs) Validate() error {
 }
 
 func (a createReleaseArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	if a.TagName == "" {
@@ -204,7 +218,7 @@ func (a createReleaseArgs) Validate() error {
 }
 
 func (a editReleaseArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := number(a.ReleaseID, "release_id")
@@ -212,7 +226,7 @@ func (a editReleaseArgs) Validate() error {
 }
 
 func (a listAttachmentsArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	if _, err := number(a.ReleaseID, "release_id"); err != nil {
@@ -223,7 +237,7 @@ func (a listAttachmentsArgs) Validate() error {
 }
 
 func (a attachmentRefArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, _, err := releaseAndAttachment(a.ReleaseID, a.AttachmentID)
@@ -231,7 +245,7 @@ func (a attachmentRefArgs) Validate() error {
 }
 
 func (a createAttachmentArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	_, err := number(a.ReleaseID, "release_id")
@@ -239,7 +253,7 @@ func (a createAttachmentArgs) Validate() error {
 }
 
 func (a editAttachmentArgs) Validate() error {
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
+	if err := decode.RequiredRepo(a.Owner, a.Repo); err != nil {
 		return err
 	}
 	if _, _, err := releaseAndAttachment(a.ReleaseID, a.AttachmentID); err != nil {
@@ -438,14 +452,10 @@ func downloadReleaseAttachment(ctx context.Context, svc *apprelease.Service, a a
 }
 
 // createReleaseAttachment reads the upload source from the raw request (see
-// createAttachmentArgs). The source is checked and the file opened here, after
-// the credential lookup, because the source needs the raw request that the
-// Binder does not see.
+// createAttachmentArgs), which uploadService has already checked, and opens the
+// file here, after the credential lookup.
 func createReleaseAttachment(ctx context.Context, svc *apprelease.Service, a createAttachmentArgs) (*mcp.CallToolResult, error) {
-	rid, err := number(a.ReleaseID, "release_id")
-	if err != nil {
-		return mcpresult.Fail(err)
-	}
+	rid, _ := number(a.ReleaseID, "release_id") // Validate refused a bad release_id before the credential lookup
 	raw, ok := pipeline.Raw(ctx)
 	if !ok {
 		return mcpresult.Fail(errors.New("upload: the raw request is not available"))
@@ -488,15 +498,4 @@ func deleteReleaseAttachment(ctx context.Context, svc *apprelease.Service, a att
 		return mcpresult.Fail(err)
 	}
 	return to.TextResult(map[string]string{"status": "deleted"})
-}
-
-// requiredRepo checks owner, then repo, before the credential lookup.
-func requiredRepo(owner, repo string) error {
-	if owner == "" {
-		return errors.New("owner is required")
-	}
-	if repo == "" {
-		return errors.New("repo is required")
-	}
-	return nil
 }
