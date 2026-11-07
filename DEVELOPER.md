@@ -179,8 +179,8 @@ in `internal/app/issue`. Per domain:
    resources and contract suite use it) until #8 retires it.
 4. **MCP adapter** (`internal/operation/<domain>/handlers.go`): one argument struct per
    tool (`json:"name"`, `required:"true"` so `ArgsMatchSchema` checks them against the
-   schema). Decode with `decode.Lax`, not `decode.Args`, while the wire contract
-   is frozen: the pre-split tools never rejected a missing or mistyped argument,
+   schema). Decode with `decode.Lax`, not `decode.Args` (rule in
+   [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md)): the pre-split tools never rejected a missing or mistyped argument,
    and truncated numbers, so declare numeric fields `float64` and read them with
    the numeric-argument module in the MCP adapter (see **Numeric arguments**
    below). Both accept string-encoded numbers. Then each
@@ -321,9 +321,11 @@ Argument struct rules:
 - A numeric string (`"7"`) is read for a plain number field and for a pointer
   field tagged `numeric:"string"`. Tag a number `exact:"true"` to refuse it, to
   match a pre-split tool that asserted `float64` strictly. Copy the pre-split tool's rule.
-- For a new tool with no legacy behaviour to keep, use `decode.Args` instead of
-  `decode.Lax`: it rejects a missing required argument or a wrong type in one
-  error.
+- A new tool decodes with `decode.Lax`; the rule, and the number rule with its
+  two exceptions, is stated once in
+  [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md). `decode.Args`
+  (reject a missing or mistyped argument in one error) has one caller, the
+  argument-less version tool, and is not used for new tools.
 
 ### Numeric arguments
 
@@ -351,6 +353,10 @@ the adapter does the conversion and the use case receives `int` or `int64`.
   typed `any` and passes it to the module. This is the one documented exception
   to `float64` in an argument struct; the module offers that path instead of a
   second one.
+- The `id` of `edit_milestone` and `get_milestone` is a `decode.Arg`, the other
+  documented exception: its goldens pin "id must be an integer between 1 and
+  9223372036854775807" (`numarg.PositiveID` wording) and the missing/null/wrong-type
+  split, which `RequiredPositiveInt` would reword. Migrate it only with those goldens.
 
 `internal/app/` takes no `float64`. `scripts/ci/check-number-casts.sh` (run by
 `make check`) fails on any `float64` under `internal/app/`, and it ratchets the
@@ -429,7 +435,7 @@ mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1))
 
 | Package | Purpose |
 |---------|---------|
-| `codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v2` | Forgejo API client |
+| `codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3` | Forgejo API client |
 | `github.com/mark3labs/mcp-go` | MCP protocol implementation |
 | `github.com/spf13/cobra` | CLI framework |
 
