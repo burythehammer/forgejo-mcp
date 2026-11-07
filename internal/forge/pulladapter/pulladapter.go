@@ -21,10 +21,12 @@ import (
 )
 
 // New returns the use cases' port over p.
-// Source is the part of the Forgejo port the pull domain uses: its pull methods
-// and the instance's pagination ceiling.
+// Source is the part of the Forgejo port the pull domain uses: its pull methods,
+// the label catalogue a pull request resolves label names against, and the
+// instance's pagination ceiling.
 type Source interface {
 	forge.Pulls
+	forge.Labels
 	forge.Ceilings
 }
 
@@ -61,8 +63,19 @@ func (a adapter) ListPullRequests(ctx context.Context, owner, repo string, q app
 func (a adapter) CreatePullRequest(ctx context.Context, owner, repo string, in apppull.CreateInput) (*model.PullRequest, error) {
 	pr, err := a.p.CreatePullRequest(ctx, owner, repo, forgejo_sdk.CreatePullRequestOption{
 		Head: in.Head, Base: in.Base, Title: in.Title, Body: in.Body,
+		Labels: in.Labels, Assignees: in.Assignees,
 	})
 	return bridge.Convert[*model.PullRequest](pr, err)
+}
+
+func (a adapter) ListRepoLabels(ctx context.Context, owner, repo string, p apppull.Paging) ([]*model.CatalogLabel, error) {
+	labels, _, err := a.p.ListRepoLabels(ctx, owner, repo, p.Page, p.Limit)
+	return bridge.Convert[[]*model.CatalogLabel](labels, err)
+}
+
+func (a adapter) ListOrgLabels(ctx context.Context, org string, p apppull.Paging) ([]*model.CatalogLabel, error) {
+	labels, _, err := a.p.ListOrgLabels(ctx, org, p.Page, p.Limit)
+	return bridge.Convert[[]*model.CatalogLabel](labels, err)
 }
 
 func (a adapter) EditPullRequest(ctx context.Context, owner, repo string, index int64, in apppull.EditInput) (*model.PullRequest, error) {
