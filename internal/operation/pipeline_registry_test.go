@@ -45,11 +45,6 @@ var noCredential = map[string]bool{
 	"version": true,
 }
 
-// unmigrated is the allowlist of domains whose tools have not yet moved to the
-// request pipeline. A migration ticket deletes its domain's line. Keep it
-// sorted, one domain per line; it may only shrink.
-var unmigrated = map[string]bool{}
-
 func sortedDomains() []string {
 	names := make([]string, 0, len(domainRegistrars))
 	for name := range domainRegistrars {
@@ -86,24 +81,15 @@ func TestRegistryDomainsCoverEveryTool(t *testing.T) {
 	}
 }
 
-func TestRegistryAllowlistNamesOnlyRealDomains(t *testing.T) {
-	t.Parallel()
-	for name := range unmigrated {
-		if _, ok := domainRegistrars[name]; !ok {
-			t.Errorf("unmigrated lists %q, which is not a domain; remove the stale line", name)
-		}
-	}
-}
-
-// TestRegistryPipelineDomainsRefuseBadRequestBeforeCredential calls every tool
-// of every migrated domain with no valid arguments, plus an unknown one, and a
-// factory that refuses every credential. The refusal must be a tool error
-// naming the bad request, and the credential refusal must never appear.
-func TestRegistryPipelineDomainsRefuseBadRequestBeforeCredential(t *testing.T) {
+// TestRegistryRefusesBadRequestBeforeCredential calls every tool of every
+// domain with a bad argument, plus an unknown one, and a factory that refuses
+// every credential. The refusal must be a tool error naming the bad request,
+// and the credential refusal must never appear.
+func TestRegistryRefusesBadRequestBeforeCredential(t *testing.T) {
 	t.Parallel()
 	refuse := errors.New("no credential for this request")
 	for _, domain := range sortedDomains() {
-		if unmigrated[domain] || noCredential[domain] {
+		if noCredential[domain] {
 			continue
 		}
 		s := registerDomain(domain, fake.Factory{Err: refuse})
