@@ -94,7 +94,7 @@ type listDependenciesArgs struct {
 
 // The numbers and the cross-repository names below are kept raw (any), not
 // typed: the handlers have always refused a malformed one with an error naming
-// it, which a typed field would silently zero under decode.Lax. The schema tags
+// it, which a typed field would silently zero under the lax decoder. The schema tags
 // tell mcptest.ArgsMatchSchema what the tool's schema says each one is.
 type addDependencyArgs struct {
 	Owner          string `json:"owner" required:"true"`

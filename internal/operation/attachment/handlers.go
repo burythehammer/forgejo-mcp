@@ -76,7 +76,7 @@ func (h handlers) service(ctx context.Context) (*appattachment.Service, error) {
 //
 // Required numbers are kept as `any` (schema:"number") and read by number(),
 // so a missing or wrongly typed one fails with its "<name>: <cause>" text,
-// which decode.Lax would otherwise hide as zero. Each struct's Validate method
+// which the lax decoder would otherwise hide as zero. Each struct's Validate method
 // holds the checks the tool made before its credential lookup; the pipeline
 // runs them first.
 
@@ -113,7 +113,7 @@ type commentAttachmentArgs struct {
 // issueCreateArgs and commentCreateArgs declare content and file_path so the
 // schema check covers them, but the upload source is read from the raw
 // arguments by upload.SourceFromArguments: it must tell a present non-string
-// value (rejected, including null) from an absent one, which decode.Lax cannot.
+// value (rejected, including null) from an absent one, which the lax decoder cannot.
 type issueCreateArgs struct {
 	Owner    string `json:"owner" required:"true"`
 	Repo     string `json:"repo" required:"true"`

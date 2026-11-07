@@ -67,8 +67,8 @@ func (h handlers) service(ctx context.Context) (*apprelease.Service, error) {
 //
 // A number that is required and must fail with its own "<name>: <cause>" text
 // when missing or wrongly typed is kept as `any` (with schema:"number") and read
-// by number(). decode.Lax would otherwise hide that failure as zero. Optional
-// numbers are float64: decode.Lax reads them as the old to.Float64 calls did.
+// by number(). the lax decoder would otherwise hide that failure as zero. Optional
+// numbers are float64: the lax decoder reads them as the old to.Float64 calls did.
 // Each struct's Validate method holds the checks the tool made before its
 // credential lookup; the pipeline runs them first.
 
@@ -140,7 +140,7 @@ type attachmentRefArgs struct {
 // createAttachmentArgs declares content and file_path so the schema check covers
 // them, but the upload source is read from the raw arguments by
 // upload.SourceFromArguments: it must tell a present non-string value (rejected,
-// including null) from an absent one, which decode.Lax cannot.
+// including null) from an absent one, which the lax decoder cannot.
 type createAttachmentArgs struct {
 	Owner     string `json:"owner" required:"true"`
 	Repo      string `json:"repo" required:"true"`
