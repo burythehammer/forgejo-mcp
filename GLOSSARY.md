@@ -45,6 +45,10 @@ _Avoid_: handler, service, operation
 The thin layer that exposes a use case as an MCP tool: it owns the tool definition and input schema, decodes arguments into the tool's argument struct, calls the use case, and renders its result as MCP output. It lives under `internal/operation/<domain>/`, in `handlers.go`, and its struct is named `handlers`. Those file and type names are the only place "handler" appears in the code, and they mean this layer.
 _Avoid_: handler (as the concept), tool function, adapter (unqualified)
 
+**Request pipeline**:
+The one module in the MCP adapter that carries a tool call from its raw arguments to its rendered result: it decodes and validates the arguments, refuses a bad request before any credential lookup or Forgejo call, binds the use case to the request's credential, runs it, and shapes any error. A tool supplies only its argument struct, its use case and how it renders. A rule that applies to every tool, such as rejecting unknown arguments, is made here once. It does not define tools or register them.
+_Avoid_: run helper, handler wrapper, middleware
+
 **Compact result**:
 The default summary shape of a tool's entity. The write tools return it, and so do the entities in a list result and the single reads of an issue, a pull request, a comment and a review. Passing `verbose: true` returns the full entity instead.
 _Avoid_: short result, slim response
