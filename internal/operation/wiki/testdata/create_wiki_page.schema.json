@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Create a wiki page. Slash-separated titles such as Parent/Child are a flat naming convention: Forgejo stores no parent-child relationship and does not create a parent page automatically. Creating an existing title overwrites it. Use the returned page_name verbatim; never derive it from title.",
+  "description": "Create a wiki page. Slash-separated titles such as Parent/Child are a flat naming convention: Forgejo stores no parent-child relationship and does not create a parent page automatically. A title that already names a page is refused; use update_wiki_page to change an existing page. The check and the create are two requests, so two simultaneous creates of one new title can both succeed. Use the returned page_name verbatim; never derive it from title.",
   "inputSchema": {
     "properties": {
       "content": {

@@ -226,9 +226,8 @@ var wikiGoldenCases = []wikiGoldenCase{
 	{name: "revisions_missing", tool: GetWikiRevisionsToolName, args: map[string]any{"page_name": "missing"}},
 	{name: "revisions_port_error", tool: GetWikiRevisionsToolName, args: map[string]any{"page_name": "Home"}, stub: func(s *stubWiki) { s.fail = errors.New("boom") }},
 
-	{name: "create_default_message", tool: CreateWikiPageToolName, args: map[string]any{"title": "New", "content": "body"}},
-	{name: "create_custom_message", tool: CreateWikiPageToolName, args: map[string]any{"title": "New", "content": "body", "message": "add new"}},
-	{name: "create_port_error", tool: CreateWikiPageToolName, args: map[string]any{"title": "New", "content": "body"}, stub: func(s *stubWiki) { s.fail = errors.New("boom") }},
+	// create is pinned over the in-memory Forgejo in create_golden_test.go: whether
+	// it is refused depends on which pages exist, which this stub does not model.
 
 	{name: "update_with_title", tool: UpdateWikiPageToolName, args: map[string]any{"page_name": "Home", "title": "Start", "content": "body", "message": "reword"}},
 	{name: "update_default_message", tool: UpdateWikiPageToolName, args: map[string]any{"page_name": "Home", "title": "Start", "content": "body"}},

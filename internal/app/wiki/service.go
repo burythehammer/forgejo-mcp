@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // defaultLimit is the page size when the caller gives none.
@@ -173,8 +174,18 @@ type noCeiling struct{}
 // MaxResponseItems reports no ceiling.
 func (noCeiling) MaxResponseItems(context.Context) (int, bool) { return 0, false }
 
-// Create adds a page and returns its title, name and commit.
+// Create adds a page and returns its title, name and commit. A title that
+// already names a page is refused, so a create never replaces content: the
+// caller uses update to change a page. Forgejo has no conditional create, so
+// two creates of one new title racing each other can still both succeed.
 func (s *Service) Create(ctx context.Context, r CreateRequest) (model.WikiWriteResult, error) {
+	exists, err := s.pageExists(ctx, r.Owner, r.Repo, r.Title)
+	if err != nil {
+		return model.WikiWriteResult{}, fmt.Errorf("check wiki page before create: %w", err)
+	}
+	if exists {
+		return model.WikiWriteResult{}, fmt.Errorf("create wiki page: %q already exists; use update_wiki_page to change it", r.Title)
+	}
 	message := r.Message
 	if message == "" {
 		message = fmt.Sprintf("Create wiki page '%s'", r.Title)
@@ -214,6 +225,21 @@ func (s *Service) Delete(ctx context.Context, r PageRef) (model.WikiDeleteResult
 		return model.WikiDeleteResult{}, fmt.Errorf("delete wiki page: %w", err)
 	}
 	return model.WikiDeleteResult{Deleted: true, PageName: r.PageName}, nil
+}
+
+// pageExists reports whether title already names a page. The read goes through
+// the same page-name handling as every other wiki call, so Forgejo's
+// normalization decides the match. Not found is "no page"; any other failure
+// is returned, never read as "exists" or as "no page".
+func (s *Service) pageExists(ctx context.Context, owner, repo, title string) (bool, error) {
+	_, err := s.port.GetWikiPage(ctx, owner, repo, title)
+	if err == nil {
+		return true, nil
+	}
+	if forge.IsNotFound(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func encode(content string) string { return base64.StdEncoding.EncodeToString([]byte(content)) }
