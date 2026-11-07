@@ -51,13 +51,10 @@ var noCredential = map[string]bool{
 var unmigrated = map[string]bool{
 	"actions":          true,
 	"attachment":       true,
-	"branchprotection": true,
-	"hook":             true,
 	"issue":            true,
 	"org":              true,
 	"pull":             true,
 	"release":          true,
-	"repo":             true,
 	"search":           true,
 	"tracking":         true,
 	"user":             true,
