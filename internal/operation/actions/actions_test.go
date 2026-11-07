@@ -27,7 +27,7 @@ func TestDispatchWorkflowFn_Success(t *testing.T) {
 	h, f := newFixture(t)
 	f.AddWorkflow(testOwner, testRepo, "ci.yml")
 
-	out := call(t, h.DispatchWorkflowFn, repoArgs(map[string]any{"workflow": "ci.yml", "ref": "main"}))
+	out := call(t, serve(h, dispatchWorkflow), repoArgs(map[string]any{"workflow": "ci.yml", "ref": "main"}))
 
 	if !strings.Contains(out, "Workflow dispatched successfully") || !strings.Contains(out, "/o/r/actions") {
 		t.Errorf("unexpected result: %s", out)
@@ -43,7 +43,7 @@ func TestDispatchWorkflowFn_WithInputs(t *testing.T) {
 	h, f := newFixture(t)
 	f.AddWorkflow(testOwner, testRepo, "deploy.yml")
 
-	call(t, h.DispatchWorkflowFn, repoArgs(map[string]any{
+	call(t, serve(h, dispatchWorkflow), repoArgs(map[string]any{
 		"workflow": "deploy.yml", "ref": "v1.0.0", "inputs": `{"environment": "production", "debug": "false"}`,
 	}))
 
@@ -57,7 +57,7 @@ func TestDispatchWorkflowFn_InvalidInputsJSON(t *testing.T) {
 	h, f := newFixture(t)
 	f.AddWorkflow(testOwner, testRepo, "ci.yml")
 
-	err := callErr(t, h.DispatchWorkflowFn, repoArgs(map[string]any{"workflow": "ci.yml", "ref": "main", "inputs": "not-valid-json"}))
+	err := refusedErr(t, serve(h, dispatchWorkflow), repoArgs(map[string]any{"workflow": "ci.yml", "ref": "main", "inputs": "not-valid-json"}))
 
 	if !strings.Contains(err.Error(), "invalid inputs JSON") {
 		t.Errorf("unexpected error: %v", err)
@@ -71,7 +71,7 @@ func TestDispatchWorkflowFn_UnknownWorkflow(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	err := callErr(t, h.DispatchWorkflowFn, repoArgs(map[string]any{"workflow": "nope.yml", "ref": "main"}))
+	err := callErr(t, serve(h, dispatchWorkflow), repoArgs(map[string]any{"workflow": "nope.yml", "ref": "main"}))
 
 	if !strings.Contains(err.Error(), "failed to dispatch workflow") {
 		t.Errorf("unexpected error: %v", err)
@@ -86,7 +86,7 @@ func TestDispatchWorkflowFn_MissingArguments(t *testing.T) {
 		"workflow": {"owner": testOwner, "repo": testRepo, "ref": "main"},
 		"ref":      {"owner": testOwner, "repo": testRepo, "workflow": "ci.yml"},
 	} {
-		if err := callErr(t, h.DispatchWorkflowFn, args); !strings.Contains(err.Error(), name+" is required") {
+		if err := refusedErr(t, serve(h, dispatchWorkflow), args); !strings.Contains(err.Error(), name+" is required") {
 			t.Errorf("missing %s: %v", name, err)
 		}
 	}
@@ -98,7 +98,7 @@ func TestListWorkflowRunsFn_ReturnsRuns(t *testing.T) {
 	f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Title: "Run CI", Status: "success", Event: "push", CommitSHA: "abc1234567890"})
 	f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Title: "Deploy", Status: "running", Event: "workflow_dispatch", CommitSHA: "def9876543210"})
 
-	out := call(t, h.ListWorkflowRunsFn, repoArgs(nil))
+	out := call(t, serve(h, listWorkflowRuns), repoArgs(nil))
 
 	for _, want := range []string{`"total_count":2`, `"count":2`, `"has_next":false`, "Run CI", "Deploy", `"commit_sha":"abc1234567890"`, `"commit_sha":"def9876543210"`} {
 		if !strings.Contains(out, want) {
@@ -113,7 +113,7 @@ func TestListWorkflowRunsFn_Filters(t *testing.T) {
 	f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Title: "Run CI", Status: "success", Event: "push"})
 	f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Title: "Deploy", Status: "running", Event: "workflow_dispatch"})
 
-	out := call(t, h.ListWorkflowRunsFn, repoArgs(map[string]any{"status": "running"}))
+	out := call(t, serve(h, listWorkflowRuns), repoArgs(map[string]any{"status": "running"}))
 
 	if !strings.Contains(out, "Deploy") || strings.Contains(out, "Run CI") {
 		t.Errorf("status filter not applied: %s", out)
@@ -124,7 +124,7 @@ func TestListWorkflowRunsFn_EmptyResult(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	out := call(t, h.ListWorkflowRunsFn, repoArgs(nil))
+	out := call(t, serve(h, listWorkflowRuns), repoArgs(nil))
 
 	if !strings.Contains(out, `"workflow_runs":[]`) || !strings.Contains(out, `"has_next":false`) {
 		t.Errorf("unexpected result: %s", out)
@@ -135,7 +135,7 @@ func TestListWorkflowRunsFn_MissingRepo(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	callErr(t, h.ListWorkflowRunsFn, map[string]any{"owner": testOwner})
+	refusedErr(t, serve(h, listWorkflowRuns), map[string]any{"owner": testOwner})
 }
 
 func TestGetWorkflowRunFn_ReturnsRun(t *testing.T) {
@@ -146,7 +146,7 @@ func TestGetWorkflowRunFn_ReturnsRun(t *testing.T) {
 		TriggerUser: &forgejo_sdk.User{UserName: "testuser"},
 	})
 
-	out := call(t, h.GetWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+	out := call(t, serve(h, getWorkflowRun), repoArgs(map[string]any{"run_id": float64(run.ID)}))
 
 	for _, want := range []string{"CI Pipeline", "Status: success", "Triggered by: testuser", "Commit SHA: deadbeef"} {
 		if !strings.Contains(out, want) {
@@ -159,7 +159,7 @@ func TestGetWorkflowRunFn_UnknownRun(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	err := callErr(t, h.GetWorkflowRunFn, repoArgs(map[string]any{"run_id": 99.0}))
+	err := callErr(t, serve(h, getWorkflowRun), repoArgs(map[string]any{"run_id": 99.0}))
 
 	if !strings.Contains(err.Error(), "failed to get workflow run") {
 		t.Errorf("unexpected error: %v", err)
@@ -170,6 +170,6 @@ func TestGetWorkflowRunFn_InvalidRunID(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	callErr(t, h.GetWorkflowRunFn, repoArgs(map[string]any{"run_id": -1.0}))
-	callErr(t, h.GetWorkflowRunFn, repoArgs(nil))
+	refusedErr(t, serve(h, getWorkflowRun), repoArgs(map[string]any{"run_id": -1.0}))
+	refusedErr(t, serve(h, getWorkflowRun), repoArgs(nil))
 }

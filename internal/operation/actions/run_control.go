@@ -4,11 +4,11 @@ package actions
 
 import (
 	"context"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
+
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
@@ -45,52 +45,24 @@ var (
 	)
 )
 
-func (h handlers) CancelWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CancelWorkflowRunFn")
-
-	var a repoRunArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
-	}
-	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
+func cancelWorkflowRun(ctx context.Context, svc *app.Service, a repoRunArgs) (*mcp.CallToolResult, error) {
+	runID, err := a.runID()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	if err := svc.CancelRun(ctx, a.Owner, a.Repo, runID); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(workflowRunControlResult{RunID: runID, Status: "cancelled"})
 }
 
-func (h handlers) DeleteWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteWorkflowRunFn")
-
-	var a repoRunArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
-	}
-	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
+func deleteWorkflowRun(ctx context.Context, svc *app.Service, a repoRunArgs) (*mcp.CallToolResult, error) {
+	runID, err := a.runID()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	if err := svc.DeleteRun(ctx, a.Owner, a.Repo, runID); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(workflowRunControlResult{RunID: runID, Status: "deleted"})
 }

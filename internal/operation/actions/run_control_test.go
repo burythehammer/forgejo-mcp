@@ -25,7 +25,7 @@ func TestCancelWorkflowRunFn_RunningRun(t *testing.T) {
 	h, f := newFixture(t)
 	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Status: "running"})
 
-	got := resultOf[workflowRunControlResult](t, h.CancelWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+	got := resultOf[workflowRunControlResult](t, serve(h, cancelWorkflowRun), repoArgs(map[string]any{"run_id": float64(run.ID)}))
 
 	if got.RunID != run.ID || got.Status != "cancelled" {
 		t.Fatalf("result: %+v", got)
@@ -40,7 +40,7 @@ func TestCancelWorkflowRunFn_AlreadyFinishedIsSuccess(t *testing.T) {
 	h, f := newFixture(t)
 	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Status: "success"})
 
-	got := resultOf[workflowRunControlResult](t, h.CancelWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+	got := resultOf[workflowRunControlResult](t, serve(h, cancelWorkflowRun), repoArgs(map[string]any{"run_id": float64(run.ID)}))
 
 	if got.Status != "cancelled" {
 		t.Fatalf("result: %+v", got)
@@ -54,7 +54,7 @@ func TestCancelWorkflowRunFn_UnknownRun(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	err := callErr(t, h.CancelWorkflowRunFn, repoArgs(map[string]any{"run_id": 5.0}))
+	err := callErr(t, serve(h, cancelWorkflowRun), repoArgs(map[string]any{"run_id": 5.0}))
 
 	if !strings.Contains(err.Error(), "cancel workflow run") {
 		t.Errorf("unexpected error: %v", err)
@@ -66,12 +66,12 @@ func TestDeleteWorkflowRunFn_CompletedRun(t *testing.T) {
 	h, f := newFixture(t)
 	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Status: "failure"})
 
-	got := resultOf[workflowRunControlResult](t, h.DeleteWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+	got := resultOf[workflowRunControlResult](t, serve(h, deleteWorkflowRun), repoArgs(map[string]any{"run_id": float64(run.ID)}))
 
 	if got.RunID != run.ID || got.Status != "deleted" {
 		t.Fatalf("result: %+v", got)
 	}
-	callErr(t, h.GetWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+	callErr(t, serve(h, getWorkflowRun), repoArgs(map[string]any{"run_id": float64(run.ID)}))
 }
 
 func TestDeleteWorkflowRunFn_LiveRunIsError(t *testing.T) {
@@ -79,7 +79,7 @@ func TestDeleteWorkflowRunFn_LiveRunIsError(t *testing.T) {
 	h, f := newFixture(t)
 	run := f.AddWorkflowRun(testOwner, testRepo, forgejo_sdk.ActionRun{Status: "running"})
 
-	err := callErr(t, h.DeleteWorkflowRunFn, repoArgs(map[string]any{"run_id": float64(run.ID)}))
+	err := callErr(t, serve(h, deleteWorkflowRun), repoArgs(map[string]any{"run_id": float64(run.ID)}))
 
 	if !strings.Contains(err.Error(), "delete workflow run") || strings.Contains(err.Error(), `"status":"deleted"`) {
 		t.Errorf("unexpected error: %v", err)
@@ -98,6 +98,6 @@ func TestCancelWorkflowRunFn_InvalidArguments(t *testing.T) {
 		{"owner": "o", "repo": "r"},
 		{"owner": "o", "repo": "r", "run_id": 0.0},
 	} {
-		callErr(t, h.CancelWorkflowRunFn, args)
+		refusedErr(t, serve(h, cancelWorkflowRun), args)
 	}
 }

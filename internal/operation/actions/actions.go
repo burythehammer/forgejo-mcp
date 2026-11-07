@@ -10,10 +10,10 @@ import (
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/actionsadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -35,15 +35,14 @@ var DispatchWorkflowTool = mcp.NewTool(
 	mcp.WithString("inputs", mcp.Description(params.Inputs)),
 )
 
-// handlers serve the Actions tools. They hold the factory rather than a port
-// so each call is bound to the credential of its own request. Each handler is
-// the MCP adapter of one use case in internal/app/actions: check the arguments, run the
-// use case, render the result.
+// handlers hold the factory rather than a port so each call is bound to the
+// credential of its own request.
 type handlers struct{ forge forge.Factory }
 
-// useCases returns the Actions use cases over the request's Forgejo port. It
-// is called after the arguments are checked, as the handlers always did.
-func useCases(ctx context.Context, h handlers) (*app.Service, error) {
+// service is the Binder for every Actions tool: it looks up the request's
+// credential and binds the Actions use cases to it. The request pipeline calls
+// it only after the arguments are valid.
+func (h handlers) service(ctx context.Context) (*app.Service, error) {
 	port, err := h.forge.For(ctx)
 	if err != nil {
 		return nil, err
@@ -60,57 +59,62 @@ type dispatchArgs struct {
 	Inputs   string `json:"inputs"`
 }
 
-func RegisterTool(s *server.MCPServer, f forge.Factory) {
-	h := handlers{forge: f}
-	s.AddTool(DispatchWorkflowTool, h.DispatchWorkflowFn)
-	s.AddTool(ListWorkflowRunsTool, h.ListWorkflowRunsFn)
-	s.AddTool(GetWorkflowRunTool, h.GetWorkflowRunFn)
-	s.AddTool(ListActionRunJobsTool, h.ListActionRunJobsFn)
-	s.AddTool(GetActionJobLogsTool, h.GetActionJobLogsFn)
-	s.AddTool(CancelWorkflowRunTool, h.CancelWorkflowRunFn)
-	s.AddTool(DeleteWorkflowRunTool, h.DeleteWorkflowRunFn)
-	s.AddTool(ListActionRunArtifactsTool, h.ListActionRunArtifactsFn)
-	s.AddTool(GetActionArtifactTool, h.GetActionArtifactFn)
-	s.AddTool(ListRepoActionSecretsTool, h.ListRepoActionSecretsFn)
-	s.AddTool(CreateOrUpdateRepoActionSecretTool, h.CreateOrUpdateRepoActionSecretFn)
-	s.AddTool(DeleteRepoActionSecretTool, h.DeleteRepoActionSecretFn)
-	s.AddTool(ListOrgActionSecretsTool, h.ListOrgActionSecretsFn)
-	s.AddTool(CreateOrUpdateOrgActionSecretTool, h.CreateOrUpdateOrgActionSecretFn)
-	s.AddTool(DeleteOrgActionSecretTool, h.DeleteOrgActionSecretFn)
-}
-
-func (h handlers) DispatchWorkflowFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DispatchWorkflowFn")
-
-	var a dispatchArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks owner, repo, workflow and ref, then the inputs JSON, in the
+// order the tool always has. A bad request is refused before the credential
+// lookup.
+func (a dispatchArgs) Validate() error {
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
 	if err := required("workflow", a.Workflow); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
 	if err := required("ref", a.Ref); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
+	_, err := a.inputs()
+	return err
+}
 
-	// Parse optional inputs JSON
+// inputs parses the optional inputs JSON. An absent inputs argument is nil.
+func (a dispatchArgs) inputs() (map[string]string, error) {
+	if a.Inputs == "" {
+		return nil, nil
+	}
 	var inputs map[string]string
-	if a.Inputs != "" {
-		if err := json.Unmarshal([]byte(a.Inputs), &inputs); err != nil {
-			return to.ErrorResult(fmt.Errorf(`invalid inputs JSON: %w (expected format: {"key": "value"})`, err))
-		}
+	if err := json.Unmarshal([]byte(a.Inputs), &inputs); err != nil {
+		return nil, fmt.Errorf(`invalid inputs JSON: %w (expected format: {"key": "value"})`, err)
 	}
+	return inputs, nil
+}
 
-	svc, err := useCases(ctx, h)
+func RegisterTool(s *server.MCPServer, f forge.Factory) {
+	h := handlers{forge: f}
+	s.AddTool(DispatchWorkflowTool, pipeline.Handle(h.service, dispatchWorkflow))
+	s.AddTool(ListWorkflowRunsTool, pipeline.Handle(h.service, listWorkflowRuns))
+	s.AddTool(GetWorkflowRunTool, pipeline.Handle(h.service, getWorkflowRun))
+	s.AddTool(ListActionRunJobsTool, pipeline.Handle(h.service, listActionRunJobs))
+	s.AddTool(GetActionJobLogsTool, pipeline.Handle(h.service, getActionJobLogs))
+	s.AddTool(CancelWorkflowRunTool, pipeline.Handle(h.service, cancelWorkflowRun))
+	s.AddTool(DeleteWorkflowRunTool, pipeline.Handle(h.service, deleteWorkflowRun))
+	s.AddTool(ListActionRunArtifactsTool, pipeline.Handle(h.service, listActionRunArtifacts))
+	s.AddTool(GetActionArtifactTool, pipeline.Handle(h.service, getActionArtifact))
+	s.AddTool(ListRepoActionSecretsTool, pipeline.Handle(h.service, listRepoActionSecrets))
+	s.AddTool(CreateOrUpdateRepoActionSecretTool, pipeline.Handle(h.service, createOrUpdateRepoActionSecret))
+	s.AddTool(DeleteRepoActionSecretTool, pipeline.Handle(h.service, deleteRepoActionSecret))
+	s.AddTool(ListOrgActionSecretsTool, pipeline.Handle(h.service, listOrgActionSecrets))
+	s.AddTool(CreateOrUpdateOrgActionSecretTool, pipeline.Handle(h.service, createOrUpdateOrgActionSecret))
+	s.AddTool(DeleteOrgActionSecretTool, pipeline.Handle(h.service, deleteOrgActionSecret))
+}
+
+func dispatchWorkflow(ctx context.Context, svc *app.Service, a dispatchArgs) (*mcp.CallToolResult, error) {
+	inputs, err := a.inputs()
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	url, err := svc.Dispatch(ctx, a.Owner, a.Repo, a.Workflow, app.DispatchInput{Ref: a.Ref, Inputs: inputs})
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 
 	result := fmt.Sprintf("Workflow dispatched successfully!\n  Workflow: %s\n  Ref: %s\n  URL: %s",

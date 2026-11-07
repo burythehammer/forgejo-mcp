@@ -8,9 +8,8 @@ import (
 	"math"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
@@ -131,59 +130,57 @@ var (
 	)
 )
 
-func (h handlers) ListRepoActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListRepoActionSecretsFn")
-
-	var a repoSecretsListArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
+// secretPaging reads the page and limit of a secret list. Repository and
+// organization lists take the same bounds.
+func secretPaging(page, limit any) (app.Paging, error) {
+	p, err := numarg.IntDefault("page", page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
+	if err != nil {
+		return app.Paging{}, err
 	}
+	l, err := numarg.IntDefault("limit", limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionSecretsLimit)})
+	if err != nil {
+		return app.Paging{}, err
+	}
+	return app.Paging{Page: p, Limit: l}, nil
+}
+
+// Validate checks owner and repo, then the paging arguments, before the
+// credential lookup.
+func (a repoSecretsListArgs) Validate() error {
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
-	page, err := numarg.IntDefault("page", a.Page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	limit, err := numarg.IntDefault("limit", a.Limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionSecretsLimit)})
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+	_, err := secretPaging(a.Page, a.Limit)
+	return err
+}
 
-	svc, err := useCases(ctx, h)
+func listRepoActionSecrets(ctx context.Context, svc *app.Service, a repoSecretsListArgs) (*mcp.CallToolResult, error) {
+	paging, err := secretPaging(a.Page, a.Limit)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-	out, err := svc.ListRepoSecrets(ctx, a.Owner, a.Repo, app.Paging{Page: page, Limit: limit})
+	out, err := svc.ListRepoSecrets(ctx, a.Owner, a.Repo, paging)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.SafeTextResult(repoSecretPage(a.Owner, a.Repo, out))
 }
 
-func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CreateOrUpdateRepoActionSecretFn")
-
-	var a repoSecretSetArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks owner, repo, secret_name and data, in that order, before the
+// credential lookup.
+func (a repoSecretSetArgs) Validate() error {
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
 	if err := required("secret_name", a.SecretName); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
-	if err := required("data", a.Data); err != nil {
-		return to.ErrorResult(err)
-	}
+	return required("data", a.Data)
+}
 
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func createOrUpdateRepoActionSecret(ctx context.Context, svc *app.Service, a repoSecretSetArgs) (*mcp.CallToolResult, error) {
 	if err := svc.SetRepoSecret(ctx, a.Owner, a.Repo, a.SecretName, a.Data); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "created_or_updated",
@@ -193,26 +190,18 @@ func (h handlers) CreateOrUpdateRepoActionSecretFn(ctx context.Context, req mcp.
 	})
 }
 
-func (h handlers) DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteRepoActionSecretFn")
-
-	var a repoSecretNameArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks owner, repo and secret_name, in that order, before the
+// credential lookup.
+func (a repoSecretNameArgs) Validate() error {
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
-	if err := required("secret_name", a.SecretName); err != nil {
-		return to.ErrorResult(err)
-	}
+	return required("secret_name", a.SecretName)
+}
 
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func deleteRepoActionSecret(ctx context.Context, svc *app.Service, a repoSecretNameArgs) (*mcp.CallToolResult, error) {
 	if err := svc.DeleteRepoSecret(ctx, a.Owner, a.Repo, a.SecretName); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "deleted",
@@ -222,59 +211,42 @@ func (h handlers) DeleteRepoActionSecretFn(ctx context.Context, req mcp.CallTool
 	})
 }
 
-func (h handlers) ListOrgActionSecretsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListOrgActionSecretsFn")
-
-	var a orgSecretsListArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks org, then the paging arguments, before the credential lookup.
+func (a orgSecretsListArgs) Validate() error {
 	if err := required("org", a.Org); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
-	page, err := numarg.IntDefault("page", a.Page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	limit, err := numarg.IntDefault("limit", a.Limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionSecretsLimit)})
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+	_, err := secretPaging(a.Page, a.Limit)
+	return err
+}
 
-	svc, err := useCases(ctx, h)
+func listOrgActionSecrets(ctx context.Context, svc *app.Service, a orgSecretsListArgs) (*mcp.CallToolResult, error) {
+	paging, err := secretPaging(a.Page, a.Limit)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-	out, err := svc.ListOrgSecrets(ctx, a.Org, app.Paging{Page: page, Limit: limit})
+	out, err := svc.ListOrgSecrets(ctx, a.Org, paging)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.SafeTextResult(orgSecretPage(a.Org, out))
 }
 
-func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CreateOrUpdateOrgActionSecretFn")
-
-	var a orgSecretSetArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks org, secret_name and data, in that order, before the
+// credential lookup.
+func (a orgSecretSetArgs) Validate() error {
 	if err := required("org", a.Org); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
 	if err := required("secret_name", a.SecretName); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
-	if err := required("data", a.Data); err != nil {
-		return to.ErrorResult(err)
-	}
+	return required("data", a.Data)
+}
 
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func createOrUpdateOrgActionSecret(ctx context.Context, svc *app.Service, a orgSecretSetArgs) (*mcp.CallToolResult, error) {
 	if err := svc.SetOrgSecret(ctx, a.Org, a.SecretName, a.Data); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "created_or_updated",
@@ -283,26 +255,18 @@ func (h handlers) CreateOrUpdateOrgActionSecretFn(ctx context.Context, req mcp.C
 	})
 }
 
-func (h handlers) DeleteOrgActionSecretFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteOrgActionSecretFn")
-
-	var a orgSecretNameArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks org and secret_name, in that order, before the credential
+// lookup.
+func (a orgSecretNameArgs) Validate() error {
 	if err := required("org", a.Org); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
-	if err := required("secret_name", a.SecretName); err != nil {
-		return to.ErrorResult(err)
-	}
+	return required("secret_name", a.SecretName)
+}
 
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func deleteOrgActionSecret(ctx context.Context, svc *app.Service, a orgSecretNameArgs) (*mcp.CallToolResult, error) {
 	if err := svc.DeleteOrgSecret(ctx, a.Org, a.SecretName); err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.SafeTextResult(actionSecretMutationResult{
 		Status:     "deleted",
