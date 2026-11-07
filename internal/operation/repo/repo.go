@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -109,18 +110,6 @@ type createRepoArgs struct {
 	DefaultBranch string  `json:"default_branch"`
 }
 
-func (h handlers) CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "CreateRepoFn", func(ctx context.Context, s *apprepo.AdminService, a createRepoArgs) (*mcp.CallToolResult, error) {
-		r, err := s.CreateRepo(ctx, apprepo.CreateRepoInput{
-			Owner: a.Owner, Name: a.Name, Description: a.Description, Private: a.Private,
-			IssueLabels: a.IssueLabels, AutoInit: a.AutoInit, Template: a.Template,
-			Gitignores: a.Gitignores, License: a.License, Readme: a.Readme,
-			DefaultBranch: a.DefaultBranch,
-		})
-		return mcpresult.Render(r, err)
-	})
-}
-
 type forkRepoArgs struct {
 	User         *string `json:"user" required:"true"`
 	Repo         *string `json:"repo" required:"true"`
@@ -128,29 +117,59 @@ type forkRepoArgs struct {
 	Name         string  `json:"name"`
 }
 
-func (h handlers) ForkRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "ForkRepoFn", func(ctx context.Context, s *apprepo.AdminService, a forkRepoArgs) (*mcp.CallToolResult, error) {
-		if err := s.ForkRepo(ctx, apprepo.ForkInput{User: a.User, Repo: a.Repo, Organization: a.Organization, Name: a.Name}); err != nil {
-			return mcpresult.Fail(err)
-		}
-		return to.TextResult("Fork success")
-	})
-}
-
 type listMyReposArgs struct {
 	Page  float64 `json:"page"`
 	Limit float64 `json:"limit"`
 }
 
-func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return runAdmin(ctx, h, req, "ListMyReposFn", func(ctx context.Context, s *apprepo.AdminService, a listMyReposArgs) (*mcp.CallToolResult, error) {
-		// An absent limit takes the use case's default, which the instance ceiling
-		// lowers; passing 100 here would make the default a refused explicit limit.
-		pg, limit, err := decode.PagingArgs(a.Page, a.Limit)
-		if err != nil {
-			return to.ErrorResult(err)
-		}
-		page, err := repoPage(s.ListMyRepos(ctx, apprepo.AdminPaging{Page: pg, Limit: limit}))
-		return mcpresult.Render(page, err)
+// paging is the page and limit of the list. An absent limit takes the use
+// case's default, which the instance ceiling lowers; passing 100 here would make
+// the default a refused explicit limit. Validate runs it before the credential
+// lookup.
+func (a listMyReposArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
+// Validate refuses a list call whose page or limit is out of range.
+func (a listMyReposArgs) Validate() error {
+	_, _, err := a.paging()
+	return err
+}
+
+func (h handlers) CreateRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.adminService, createRepo)(ctx, req)
+}
+
+func createRepo(ctx context.Context, s *apprepo.AdminService, a createRepoArgs) (*mcp.CallToolResult, error) {
+	r, err := s.CreateRepo(ctx, apprepo.CreateRepoInput{
+		Owner: a.Owner, Name: a.Name, Description: a.Description, Private: a.Private,
+		IssueLabels: a.IssueLabels, AutoInit: a.AutoInit, Template: a.Template,
+		Gitignores: a.Gitignores, License: a.License, Readme: a.Readme,
+		DefaultBranch: a.DefaultBranch,
 	})
+	return mcpresult.Render(r, err)
+}
+
+func (h handlers) ForkRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.adminService, forkRepo)(ctx, req)
+}
+
+func forkRepo(ctx context.Context, s *apprepo.AdminService, a forkRepoArgs) (*mcp.CallToolResult, error) {
+	if err := s.ForkRepo(ctx, apprepo.ForkInput{User: a.User, Repo: a.Repo, Organization: a.Organization, Name: a.Name}); err != nil {
+		return mcpresult.Fail(err)
+	}
+	return to.TextResult("Fork success")
+}
+
+func (h handlers) ListMyReposFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.adminService, listMyRepos)(ctx, req)
+}
+
+func listMyRepos(ctx context.Context, s *apprepo.AdminService, a listMyReposArgs) (*mcp.CallToolResult, error) {
+	pg, limit, err := a.paging()
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	page, err := repoPage(s.ListMyRepos(ctx, apprepo.AdminPaging{Page: pg, Limit: limit}))
+	return mcpresult.Render(page, err)
 }

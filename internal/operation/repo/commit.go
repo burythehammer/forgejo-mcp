@@ -6,11 +6,11 @@ import (
 	"context"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -41,22 +41,28 @@ type listRepoCommitsArgs struct {
 	Limit float64 `json:"limit" required:"true"`
 }
 
+// paging is the page and limit of the commit list, refused when either is out of range.
+func (a listRepoCommitsArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
 func (h handlers) ListRepoCommitsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListRepoCommitsFn")
-	var a listRepoCommitsArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
+	return pipeline.Handle(h.gitService, listRepoCommits)(ctx, req)
+}
+
+func listRepoCommits(ctx context.Context, svc *apprepo.GitService, a listRepoCommitsArgs) (*mcp.CallToolResult, error) {
+	page, limit, err := a.paging()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	page, limit, err := decode.PagingArgs(a.Page, a.Limit)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return gitText(commitListPage(svc.ListCommits(ctx, a.Owner, a.Repo, apprepo.ListCommitsInput{
 		Path: a.Path, SHA: a.SHA,
 		Page: apprepo.GitPage{Page: page, Limit: limit},
 	})))
+}
+
+// Validate refuses a commit list whose page or limit is out of range.
+func (a listRepoCommitsArgs) Validate() error {
+	_, _, err := a.paging()
+	return err
 }

@@ -6,10 +6,11 @@ import (
 	"context"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -75,27 +76,35 @@ type listBranchesArgs struct {
 	Limit float64 `json:"limit" required:"true"`
 }
 
+// target is the repository and new branch a create names. A missing one is
+// refused in Validate, before the credential lookup.
+func (a createBranchArgs) target() (owner, repo, branch string, err error) {
+	if owner, err = need("owner", a.Owner); err != nil {
+		return "", "", "", err
+	}
+	if repo, err = need("repo", a.Repo); err != nil {
+		return "", "", "", err
+	}
+	if branch, err = need("branch", a.Branch); err != nil {
+		return "", "", "", err
+	}
+	return owner, repo, branch, nil
+}
+
+// Validate refuses a create that names no repository or branch.
+func (a createBranchArgs) Validate() error {
+	_, _, _, err := a.target()
+	return err
+}
+
 func (h handlers) CreateBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called CreateBranchFn")
-	var a createBranchArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	owner, err := need("owner", a.Owner)
+	return pipeline.Handle(h.gitService, createBranch)(ctx, req)
+}
+
+func createBranch(ctx context.Context, svc *apprepo.GitService, a createBranchArgs) (*mcp.CallToolResult, error) {
+	owner, repo, branch, err := a.target()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	repo, err := need("repo", a.Repo)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	branch, err := need("branch", a.Branch)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	if err := svc.CreateBranch(ctx, owner, repo, apprepo.CreateBranchInput{Branch: branch, OldBranch: a.OldBranch}); err != nil {
 		return to.ErrorResult(err)
@@ -104,34 +113,35 @@ func (h handlers) CreateBranchFn(ctx context.Context, req mcp.CallToolRequest) (
 }
 
 func (h handlers) DeleteBranchFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeleteBranchFn")
-	var a deleteBranchArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+	return pipeline.Handle(h.gitService, deleteBranch)(ctx, req)
+}
+
+func deleteBranch(ctx context.Context, svc *apprepo.GitService, a deleteBranchArgs) (*mcp.CallToolResult, error) {
 	if err := svc.DeleteBranch(ctx, a.Owner, a.Repo, a.Branch); err != nil {
 		return to.ErrorResult(err)
 	}
 	return to.TextResult("Delete Branch Success")
 }
 
+// paging is the page and limit of the branch list, refused when either is out of range.
+func (a listBranchesArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
 func (h handlers) ListBranchesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListBranchesFn")
-	var a listBranchesArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	svc, err := h.gitService(ctx)
+	return pipeline.Handle(h.gitService, listBranches)(ctx, req)
+}
+
+func listBranches(ctx context.Context, svc *apprepo.GitService, a listBranchesArgs) (*mcp.CallToolResult, error) {
+	page, limit, err := a.paging()
 	if err != nil {
-		return to.ErrorResult(err)
-	}
-	page, limit, err := decode.PagingArgs(a.Page, a.Limit)
-	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return gitText(branchPage(svc.ListBranches(ctx, a.Owner, a.Repo, apprepo.GitPage{Page: page, Limit: limit})))
+}
+
+// Validate refuses a branch list whose page or limit is out of range.
+func (a listBranchesArgs) Validate() error {
+	_, _, err := a.paging()
+	return err
 }

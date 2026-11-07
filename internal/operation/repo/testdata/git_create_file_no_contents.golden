@@ -1,3 +1,3 @@
-ERROR: exactly one of content or content_base64 must be supplied
+RESULT-ERROR: exactly one of content or content_base64 must be supplied
 -- port calls --
 
