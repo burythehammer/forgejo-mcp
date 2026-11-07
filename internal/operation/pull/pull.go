@@ -4,6 +4,7 @@ package pull
 
 import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
@@ -11,6 +12,10 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+// createLabelsDescription is the labels argument of create_pull_request. It
+// follows create_issue's wording, since both resolve label names the same way.
+const createLabelsDescription = "Labels for the new pull request (comma-separated). Accepts label names or numeric IDs. A name is matched before an ID, so a label named \"123\" wins over the ID 123. An unrecognised name is an error and nothing is created; list_repo_labels shows what exists."
 
 const (
 	GetPullRequestByIndexToolName  = "get_pull_request_by_index"
@@ -53,13 +58,15 @@ var (
 	CreatePullRequestTool = mcp.NewTool(
 		CreatePullRequestToolName,
 		annotate.Write(),
-		mcp.WithDescription("Create pull request"),
+		mcp.WithDescription("Create pull request, optionally with labels (by name or ID) and assignees in the same call"),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("head", mcp.Required(), mcp.Description(params.Head)),
 		mcp.WithString("base", mcp.Required(), mcp.Description(params.Base)),
 		mcp.WithString("title", mcp.Required(), mcp.Description(params.Title)),
 		mcp.WithString("body", mcp.Description(params.Body)),
+		mcp.WithString("labels", mcp.Description(createLabelsDescription), lean.Keep("comma-separated label names or IDs")),
+		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated)"), lean.Keep("comma-separated usernames")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 

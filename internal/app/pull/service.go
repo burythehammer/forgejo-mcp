@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/labelresolve"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/split"
@@ -18,10 +19,15 @@ import (
 
 // Service runs the pull-request use cases over a Port. Build one per request
 // from the port the request's credential selects; it holds no other state.
-type Service struct{ port Port }
+type Service struct {
+	port   Port
+	labels *labelresolve.Resolver
+}
 
 // New returns the use cases bound to port.
-func New(port Port) *Service { return &Service{port: port} }
+func New(port Port) *Service {
+	return &Service{port: port, labels: labelresolve.New(catalog{port})}
+}
 
 // PR names a pull request.
 type PR struct {
@@ -49,8 +55,12 @@ type ListInput struct {
 	Page, Limit                         int
 }
 
-// CreateRequest opens a pull request.
-type CreateRequest struct{ Owner, Repo, Head, Base, Title, Body string }
+// CreateRequest opens a pull request. Labels and Assignees are comma-separated
+// and nil when not given; Labels take label names or numeric IDs.
+type CreateRequest struct {
+	Owner, Repo, Head, Base, Title, Body string
+	Labels, Assignees                    *string
+}
 
 // UpdateInput changes a pull request; empty fields are left alone.
 type UpdateInput struct {
@@ -163,9 +173,21 @@ func (s *Service) List(ctx context.Context, in ListInput) (list.Bounded[*model.P
 	return page, nil
 }
 
-// Create opens a pull request.
+// Create opens a pull request. Label names are resolved before the port is
+// called, so an unknown label fails the call and opens nothing.
 func (s *Service) Create(ctx context.Context, in CreateRequest) (*model.PullRequest, error) {
-	pr, err := s.port.CreatePullRequest(ctx, in.Owner, in.Repo, CreateInput{Head: in.Head, Base: in.Base, Title: in.Title, Body: in.Body})
+	opt := CreateInput{Head: in.Head, Base: in.Base, Title: in.Title, Body: in.Body}
+	if in.Labels != nil {
+		ids, err := s.labels.Resolve(ctx, in.Owner, in.Repo, *in.Labels)
+		if err != nil {
+			return nil, err
+		}
+		opt.Labels = ids
+	}
+	if in.Assignees != nil {
+		opt.Assignees = split.CSV(*in.Assignees)
+	}
+	pr, err := s.port.CreatePullRequest(ctx, in.Owner, in.Repo, opt)
 	if err != nil {
 		return nil, fmt.Errorf("create pull request err: %w", err)
 	}

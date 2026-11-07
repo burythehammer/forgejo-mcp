@@ -24,6 +24,10 @@ type Port interface {
 	GetPullRequest(ctx context.Context, owner, repo string, index int64) (*model.PullRequest, error)
 	ListPullRequests(ctx context.Context, owner, repo string, q ListQuery) ([]*model.PullRequest, error)
 	CreatePullRequest(ctx context.Context, owner, repo string, in CreateInput) (*model.PullRequest, error)
+	// ListRepoLabels and ListOrgLabels read the label catalogue that label
+	// names resolve against when a pull request is opened with labels.
+	ListRepoLabels(ctx context.Context, owner, repo string, p Paging) ([]*model.CatalogLabel, error)
+	ListOrgLabels(ctx context.Context, org string, p Paging) ([]*model.CatalogLabel, error)
 	EditPullRequest(ctx context.Context, owner, repo string, index int64, in EditInput) (*model.PullRequest, error)
 	MergePullRequest(ctx context.Context, owner, repo string, index int64, in MergeInput) (MergeOutcome, error)
 	GetPullRequestDiff(ctx context.Context, owner, repo string, index int64) (string, error)
@@ -61,8 +65,13 @@ type ListQuery struct {
 	Paging
 }
 
-// CreateInput is what opening a pull request takes.
-type CreateInput struct{ Head, Base, Title, Body string }
+// CreateInput is what opening a pull request takes. Labels are label IDs,
+// already resolved; Assignees are usernames. Both are empty when not given.
+type CreateInput struct {
+	Head, Base, Title, Body string
+	Labels                  []int64
+	Assignees               []string
+}
 
 // EditInput is a partial update: zero values (and a nil Body) are left alone.
 type EditInput struct {

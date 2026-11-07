@@ -48,13 +48,15 @@ type listArgs struct {
 }
 
 type createArgs struct {
-	Owner   string `json:"owner" required:"true"`
-	Repo    string `json:"repo" required:"true"`
-	Head    string `json:"head" required:"true"`
-	Base    string `json:"base" required:"true"`
-	Title   string `json:"title" required:"true"`
-	Body    string `json:"body"`
-	Verbose bool   `json:"verbose"`
+	Owner     string  `json:"owner" required:"true"`
+	Repo      string  `json:"repo" required:"true"`
+	Head      string  `json:"head" required:"true"`
+	Base      string  `json:"base" required:"true"`
+	Title     string  `json:"title" required:"true"`
+	Body      string  `json:"body"`
+	Labels    *string `json:"labels"`
+	Assignees *string `json:"assignees"`
+	Verbose   bool    `json:"verbose"`
 }
 
 type updateArgs struct {
@@ -234,7 +236,10 @@ func (h handlers) ListRepoPullRequestsFn(ctx context.Context, req mcp.CallToolRe
 
 func (h handlers) CreatePullRequestFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return run(ctx, h, req, "CreatePullRequestFn", func(ctx context.Context, s *apppull.Service, a createArgs) (*mcp.CallToolResult, error) {
-		pr, err := s.Create(ctx, apppull.CreateRequest{Owner: a.Owner, Repo: a.Repo, Head: a.Head, Base: a.Base, Title: a.Title, Body: a.Body})
+		pr, err := s.Create(ctx, apppull.CreateRequest{
+			Owner: a.Owner, Repo: a.Repo, Head: a.Head, Base: a.Base, Title: a.Title, Body: a.Body,
+			Labels: a.Labels, Assignees: a.Assignees,
+		})
 		return compact.RenderPullRequest(pr, err, a.Verbose)
 	})
 }

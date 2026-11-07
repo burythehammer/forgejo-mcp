@@ -5,9 +5,13 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Create pull request",
+  "description": "Create pull request, optionally with labels (by name or ID) and assignees in the same call",
   "inputSchema": {
     "properties": {
+      "assignees": {
+        "description": "Assignee usernames (comma-separated)",
+        "type": "string"
+      },
       "base": {
         "description": "Base branch",
         "type": "string"
@@ -18,6 +22,10 @@
       },
       "head": {
         "description": "Head branch",
+        "type": "string"
+      },
+      "labels": {
+        "description": "Labels for the new pull request (comma-separated). Accepts label names or numeric IDs. A name is matched before an ID, so a label named \"123\" wins over the ID 123. An unrecognised name is an error and nothing is created; list_repo_labels shows what exists.",
         "type": "string"
       },
       "owner": {

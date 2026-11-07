@@ -203,6 +203,12 @@ func (f *Forgejo) ListPullRequests(_ context.Context, owner, repo string, opt fo
 }
 
 func (f *Forgejo) CreatePullRequest(_ context.Context, owner, repo string, opt forgejo_sdk.CreatePullRequestOption) (*forgejo_sdk.PullRequest, error) {
+	// The labels are read before the pulls lock is taken: the issue side's
+	// locks are never held inside it (repoKnown takes the pulls lock).
+	labels, err := f.pullLabels(owner, repo, opt.Labels)
+	if err != nil {
+		return nil, err
+	}
 	f.pulls.mu.Lock()
 	defer f.pulls.mu.Unlock()
 	r, err := f.pulls.repo(owner, repo)
@@ -230,9 +236,34 @@ func (f *Forgejo) CreatePullRequest(_ context.Context, owner, repo string, opt f
 	if opt.Milestone > 0 {
 		pr.Milestone = &forgejo_sdk.Milestone{ID: opt.Milestone}
 	}
+	pr.Labels = labels
+	for _, a := range opt.Assignees {
+		pr.Assignees = append(pr.Assignees, user(a))
+	}
 	r.pulls = append(r.pulls, &pullRecord{pr: pr})
 	cp := *pr
 	return &cp, nil
+}
+
+// pullLabels returns the labels that ids name in owner/repo's catalogue, as a
+// pull request carries them. Unknown IDs are skipped, as CreateIssue skips them.
+func (f *Forgejo) pullLabels(owner, repo string, ids []int64) ([]*forgejo_sdk.Label, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	f.issues.mu.Lock()
+	defer f.issues.mu.Unlock()
+	r, err := f.issueRepo(owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	var out []*forgejo_sdk.Label
+	for _, id := range ids {
+		if l, ok := f.assignableLabel(r, id); ok {
+			out = append(out, issueLabel(l))
+		}
+	}
+	return out, nil
 }
 
 func (f *Forgejo) EditPullRequest(_ context.Context, owner, repo string, index int64, opt forgejo_sdk.EditPullRequestOption) (*forgejo_sdk.PullRequest, error) {
