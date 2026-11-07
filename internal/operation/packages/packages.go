@@ -9,12 +9,11 @@ import (
 	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/packages"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/packagesadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -52,24 +51,37 @@ var (
 	)
 )
 
-// RegisterTool registers the package tools. Each call takes its Forgejo port
-// from f, so it runs under the credential of the request that made it.
+// RegisterTool registers the package tools. Each request takes its Forgejo
+// port from f through the request pipeline's Binder, so it runs under the
+// credential of the request that made it, and only after the request is valid.
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
-	s.AddTool(ListPackagesTool, h.ListPackagesFn)
-	s.AddTool(GetPackageTool, h.GetPackageFn)
-	s.AddTool(DeletePackageTool, h.DeletePackageFn)
-	s.AddTool(ListPackageFilesTool, h.ListPackageFilesFn)
+	s.AddTool(ListPackagesTool, pipeline.Handle(h.service, listPackages))
+	s.AddTool(GetPackageTool, pipeline.Handle(h.service, getPackage))
+	s.AddTool(DeletePackageTool, pipeline.Handle(h.service, deletePackage))
+	s.AddTool(ListPackageFilesTool, pipeline.Handle(h.service, listPackageFiles))
 }
 
-// handlers serve the package tools. They hold the factory rather than a port
-// so each request gets its own credential.
+// handlers holds the factory rather than a port so each request gets its own
+// credential.
 type handlers struct{ forge forge.Factory }
+
+// service is the Binder for every package tool: it looks up the request's
+// credential and binds the package use case to it.
+func (h handlers) service(ctx context.Context) (*apppkg.Service, error) {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return apppkg.New(packagesadapter.New(port)), nil
+}
 
 // Argument structs, one per tool. `json` names the MCP argument and
 // `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps
 // them in agreement with the tool definitions. A page or limit is a decode.Arg,
-// because a wrongly typed one is an error rather than the default.
+// because a wrongly typed one is an error rather than the default. Each struct
+// with a Validate method is checked by the pipeline before the credential
+// lookup.
 
 type packageArgs struct {
 	Owner   string `json:"owner" required:"true"`
@@ -95,58 +107,32 @@ type listPackageFilesArgs struct {
 	Limit   decode.Arg `json:"limit" schema:"number"`
 }
 
-// coords checks the coordinates in the order the tools always have: owner,
+// Validate checks the coordinates in the order the tools always have: owner,
 // type, name, version. An empty value is a missing one.
-func (a packageArgs) coords() (apppkg.Coords, error) {
+func (a packageArgs) Validate() error {
 	if a.Owner == "" {
-		return apppkg.Coords{}, errors.New("owner is required")
+		return errors.New("owner is required")
 	}
 	if a.Type == "" {
-		return apppkg.Coords{}, errors.New("type is required")
+		return errors.New("type is required")
 	}
 	if a.Name == "" {
-		return apppkg.Coords{}, errors.New("name is required")
+		return errors.New("name is required")
 	}
 	if a.Version == "" {
-		return apppkg.Coords{}, errors.New("version is required")
+		return errors.New("version is required")
 	}
-	return apppkg.Coords{Owner: a.Owner, Type: a.Type, Name: a.Name, Version: a.Version}, nil
+	return nil
 }
 
-// GetPackageFn validates the coordinates, then runs the get use case.
-func (h handlers) GetPackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetPackageFn")
-	var a packageArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	c, err := a.coords()
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	return mcpresult.Render(apppkg.New(packagesadapter.New(port)).Get(ctx, c))
+func (a packageArgs) coords() apppkg.Coords {
+	return apppkg.Coords{Owner: a.Owner, Type: a.Type, Name: a.Name, Version: a.Version}
 }
 
-// DeletePackageFn validates the coordinates, then runs the delete use case.
-func (h handlers) DeletePackageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called DeletePackageFn")
-	var a packageArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
-	c, err := a.coords()
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+func getPackage(ctx context.Context, svc *apppkg.Service, a packageArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(svc.Get(ctx, a.coords()))
+}
 
-	port, err := h.forge.For(ctx)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	return mcpresult.Render(apppkg.New(packagesadapter.New(port)).Delete(ctx, c))
+func deletePackage(ctx context.Context, svc *apppkg.Service, a packageArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(svc.Delete(ctx, a.coords()))
 }

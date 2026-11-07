@@ -19,9 +19,10 @@ import (
 func TestToolsRefuseWhenTheFactoryRefuses(t *testing.T) {
 	t.Parallel()
 	refuse := fmt.Errorf("no credential")
-	h := handlers{forge: fake.Factory{Err: refuse}}
-	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{"owner": "octo"}}}
-	_, err := h.ListPackagesFn(context.Background(), req)
+	s := server.NewMCPServer("test", "0")
+	RegisterTool(s, fake.Factory{Err: refuse})
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Name: ListPackagesToolName, Arguments: map[string]any{"owner": "octo"}}}
+	_, err := s.GetTool(ListPackagesToolName).Handler(context.Background(), req)
 	if err == nil || !strings.Contains(err.Error(), "no credential") {
 		t.Fatalf("got %v, want the factory's error", err)
 	}
