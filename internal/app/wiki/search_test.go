@@ -137,3 +137,30 @@ func TestSearchSnippetIsBounded(t *testing.T) {
 		t.Fatalf("snippet lost the match: %q", got.Hits[0].Snippet)
 	}
 }
+
+// Some runes change byte length when lowered: U+0130 grows from 2 bytes to 3
+// and U+1E9E shrinks from 3 to 2, and an invalid byte becomes U+FFFD. The
+// snippet must centre on the match in the original line, not on its offset in
+// the lowered copy, so the matched text stays in the snippet.
+func TestSearchSnippetFindsMatchAfterLengthChangingRunes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, prefix string }{
+		{"lengthening", strings.Repeat("İ", 100)},
+		{"shortening", strings.Repeat("ẞ", 100)},
+		{"invalid bytes", strings.Repeat("\xff", 100)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newService(t)
+			create(t, s, "Long", tc.prefix+"needle"+strings.Repeat("b", 2500))
+
+			got := runSearch(t, s, "needle")
+			if len(got.Hits) != 1 {
+				t.Fatalf("hits: got %+v", got.Hits)
+			}
+			if !strings.Contains(got.Hits[0].Snippet, "needle") {
+				t.Fatalf("snippet lost the match: %q", got.Hits[0].Snippet)
+			}
+		})
+	}
+}
