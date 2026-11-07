@@ -6,6 +6,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -53,7 +54,7 @@ var (
 // from f, so a request is served with the credential that request carries.
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
-	s.AddTool(SearchUsersTool, h.SearchUserFn)
-	s.AddTool(SearchOrgTeamsTool, h.SearchOrgTeamsFn)
-	s.AddTool(SearchReposTool, h.SearchReposFn)
+	s.AddTool(SearchUsersTool, pipeline.Handle(h.service, searchUsers))
+	s.AddTool(SearchOrgTeamsTool, pipeline.Handle(h.service, searchOrgTeams))
+	s.AddTool(SearchReposTool, pipeline.Handle(h.service, searchRepos))
 }

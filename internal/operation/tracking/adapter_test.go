@@ -11,6 +11,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // The adapter tests are thin on purpose: behaviour is tested on the use cases
@@ -44,7 +45,8 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 	t.Parallel()
 	f := fake.New()
 	f.AddTrackableIssue("octo", "hello", 1, "work")
-	h := handlers{forge: fake.Factory{Forgejo: f}}
+	s := server.NewMCPServer("test", "0")
+	RegisterTool(s, fake.Factory{Forgejo: f})
 	base := map[string]any{"owner": "octo", "repo": "hello", "index": float64(1)}
 	with := func(extra map[string]any) mcp.CallToolRequest {
 		args := map[string]any{}
@@ -57,8 +59,12 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 		return mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
 	}
 	ctx := context.Background()
+	call := func(name string, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		req.Params.Name = name
+		return s.GetTool(name).Handler(ctx, req)
+	}
 
-	res, err := h.AddIssueTimeFn(ctx, with(map[string]any{"duration": "5m"}))
+	res, err := call(AddIssueTimeToolName, with(map[string]any{"duration": "5m"}))
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("add: err=%v res=%+v", err, res)
 	}
@@ -66,7 +72,7 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 		t.Fatalf("add logged the wrong time: %s", text)
 	}
 
-	res, err = h.ListIssueTrackedTimesFn(ctx, with(nil))
+	res, err = call(ListIssueTrackedTimesToolName, with(nil))
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("list: err=%v res=%+v", err, res)
 	}
@@ -74,7 +80,7 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 		t.Fatalf("list did not return the entry: %s", text)
 	}
 
-	if _, err := h.StopIssueStopwatchFn(ctx, with(nil)); err == nil || !strings.Contains(err.Error(), "stop issue stopwatch err") {
+	if _, err := call(StopIssueStopwatchToolName, with(nil)); err == nil || !strings.Contains(err.Error(), "stop issue stopwatch err") {
 		t.Fatalf("stop without start: %v", err)
 	}
 }

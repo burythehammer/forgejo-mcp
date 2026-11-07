@@ -9,7 +9,19 @@ import (
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
+
+// callTool runs one wiki tool through the server it is registered on, as a
+// client does, so a test goes through the request pipeline too.
+func callTool(ctx context.Context, h handlers, name string, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	s := server.NewMCPServer("test", "0")
+	RegisterTool(s, h.forge)
+	req.Params.Name = name
+	return s.GetTool(name).Handler(ctx, req)
+}
 
 // The wiki resources still read through the forge port; these helpers serve
 // their tests. The tools are pinned by golden_test.go.

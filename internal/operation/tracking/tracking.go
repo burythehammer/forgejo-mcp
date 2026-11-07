@@ -6,6 +6,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -133,14 +134,14 @@ var (
 // port from f, so a request is served with the credential that request carries.
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
-	s.AddTool(ListIssueTrackedTimesTool, h.ListIssueTrackedTimesFn)
-	s.AddTool(ListRepoTrackedTimesTool, h.ListRepoTrackedTimesFn)
-	s.AddTool(ListMyTrackedTimesTool, h.ListMyTrackedTimesFn)
-	s.AddTool(AddIssueTimeTool, h.AddIssueTimeFn)
-	s.AddTool(ResetIssueTimeTool, h.ResetIssueTimeFn)
-	s.AddTool(DeleteIssueTimeEntryTool, h.DeleteIssueTimeEntryFn)
-	s.AddTool(StartIssueStopwatchTool, h.StartIssueStopwatchFn)
-	s.AddTool(StopIssueStopwatchTool, h.StopIssueStopwatchFn)
-	s.AddTool(CancelIssueStopwatchTool, h.CancelIssueStopwatchFn)
-	s.AddTool(ListMyStopwatchesTool, h.ListMyStopwatchesFn)
+	s.AddTool(ListIssueTrackedTimesTool, pipeline.Handle(h.service, listIssueTrackedTimes))
+	s.AddTool(ListRepoTrackedTimesTool, pipeline.Handle(h.service, listRepoTrackedTimes))
+	s.AddTool(ListMyTrackedTimesTool, pipeline.Handle(h.service, listMyTrackedTimes))
+	s.AddTool(AddIssueTimeTool, pipeline.Handle(h.service, addIssueTime))
+	s.AddTool(ResetIssueTimeTool, pipeline.Handle(h.service, resetIssueTime))
+	s.AddTool(DeleteIssueTimeEntryTool, pipeline.Handle(h.service, deleteIssueTimeEntry))
+	s.AddTool(StartIssueStopwatchTool, pipeline.Handle(h.service, startIssueStopwatch))
+	s.AddTool(StopIssueStopwatchTool, pipeline.Handle(h.service, stopIssueStopwatch))
+	s.AddTool(CancelIssueStopwatchTool, pipeline.Handle(h.service, cancelIssueStopwatch))
+	s.AddTool(ListMyStopwatchesTool, pipeline.Handle(h.service, listMyStopwatches))
 }

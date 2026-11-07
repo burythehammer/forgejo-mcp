@@ -60,7 +60,7 @@ func TestWikiReadParity_ToolAndResourceAgree(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	pageRes, err := h.GetWikiPageFn(ctx, wikiReq(map[string]any{"page_name": "Hello"}))
+	pageRes, err := callTool(ctx, h, GetWikiPageToolName, wikiReq(map[string]any{"page_name": "Hello"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestWikiReadParity_ToolAndResourceAgree(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	revRes, err := h.GetWikiRevisionsFn(ctx, wikiReq(map[string]any{"page_name": "Hello", "page": float64(1), "limit": float64(resource.EmbeddedListCap + 2)}))
+	revRes, err := callTool(ctx, h, GetWikiRevisionsToolName, wikiReq(map[string]any{"page_name": "Hello", "page": float64(1), "limit": float64(resource.EmbeddedListCap + 2)}))
 	if err != nil {
 		t.Fatal(err)
 	}
