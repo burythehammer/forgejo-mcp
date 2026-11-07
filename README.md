@@ -485,6 +485,7 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | `delete_release_attachment` | Delete a release attachment — destructive |
 | **Wiki** | |
 | `list_wiki_pages` | List pages using `page`/`limit`. Envelope `{pages, page, limit, count, has_next}`. No `total_count`: Forgejo's `X-Total-Count` counts raw wiki tree entries, not pages, so it is not an exact grand total and is omitted. |
+| `search_wiki` | Plain-text, case-insensitive search of a repo's wiki pages by title and body line. Returns `{hits, pages_scanned, pages_skipped, truncated}`; a hit is `{page_name, line, snippet}`, and a title match has no line. Bounded: at most 100 pages scanned and 20 hits returned, snippets capped at 120 bytes, and a page over 1 MiB is skipped and counted. `truncated: true` means a cap stopped the search. |
 | `get_wiki_page` | Read decoded Markdown; optional `start_line`/`end_line`, always returns `total_lines`. |
 | `get_wiki_revisions` | List revision history using `page`/`limit`; returns `has_next` and `total_count`, the page's total revision count as reported in the response body. |
 | `create_wiki_page` | Create a page and return its server-normalized `page_name`; slash-separated titles are a flat subpage naming convention (no hierarchy and no automatic parent page), and an existing title is overwritten. |
@@ -589,7 +590,7 @@ Per-toolset figures below are the same measure for a selection of that one tools
 | `tracking` | 10 | 1694 | `add_issue_time`, `cancel_issue_stopwatch`, `delete_issue_time_entry`, `list_issue_tracked_times`, `list_my_stopwatches`, `list_my_tracked_times`, `list_repo_tracked_times`, `reset_issue_time`, `start_issue_stopwatch`, `stop_issue_stopwatch` |
 | `branch-protection` | 5 | 1383 | `create_branch_protection`, `delete_branch_protection`, `edit_branch_protection`, `get_branch_protection`, `list_branch_protections` |
 | `webhooks` | 6 | 1218 | `create_repo_hook`, `delete_repo_hook`, `edit_repo_hook`, `get_repo_hook`, `list_repo_hooks`, `test_repo_hook` |
-| `wiki` | 6 | 1058 | `create_wiki_page`, `delete_wiki_page`, `get_wiki_page`, `get_wiki_revisions`, `list_wiki_pages`, `update_wiki_page` |
+| `wiki` | 7 | 1058 | `create_wiki_page`, `delete_wiki_page`, `get_wiki_page`, `get_wiki_revisions`, `list_wiki_pages`, `search_wiki`, `update_wiki_page` |
 | `version` | 1 | 73 | `get_forgejo_mcp_server_version` |
 
 

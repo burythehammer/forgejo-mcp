@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/wiki"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/wiki"
 )
 
 func runSearch(t *testing.T, s *appwiki.Service, query string) model.WikiSearchResult {
