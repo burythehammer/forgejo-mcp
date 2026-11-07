@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
@@ -99,21 +100,48 @@ func (s *Service) readForSearch(ctx context.Context, owner, repo, pageName strin
 // line. It reports true when the hit cap is full and another hit exists, which
 // ends the scan.
 func addPageHits(res *model.WikiSearchResult, meta model.WikiPageMeta, content, needle string) bool {
-	if idx := strings.Index(strings.ToLower(meta.Title), needle); idx >= 0 {
-		if addHit(res, model.WikiSearchHit{PageName: meta.SubURL, Snippet: snippetOf(meta.Title, idx, len(needle))}) {
+	if start, end, ok := matchSpan(meta.Title, needle); ok {
+		if addHit(res, model.WikiSearchHit{PageName: meta.SubURL, Snippet: snippetOf(meta.Title, start, end)}) {
 			return true
 		}
 	}
 	for i, line := range strings.Split(content, "\n") {
-		idx := strings.Index(strings.ToLower(line), needle)
-		if idx < 0 {
+		start, end, ok := matchSpan(line, needle)
+		if !ok {
 			continue
 		}
-		if addHit(res, model.WikiSearchHit{PageName: meta.SubURL, Line: i + 1, Snippet: snippetOf(line, idx, len(needle))}) {
+		if addHit(res, model.WikiSearchHit{PageName: meta.SubURL, Line: i + 1, Snippet: snippetOf(line, start, end)}) {
 			return true
 		}
 	}
 	return false
+}
+
+// matchSpan finds the lowered needle in line and returns the match as byte
+// offsets into line itself. The search runs on strings.ToLower(line), whose
+// offsets differ from line's where a rune changes length, so the offsets are
+// mapped back rune by rune.
+func matchSpan(line, needle string) (start, end int, ok bool) {
+	idx := strings.Index(strings.ToLower(line), needle)
+	if idx < 0 {
+		return 0, 0, false
+	}
+	return loweredToOriginal(line, idx), loweredToOriginal(line, idx+len(needle)), true
+}
+
+// loweredToOriginal maps a byte offset in strings.ToLower(s) to the byte offset
+// in s of the rune that produced it. strings.ToLower maps rune by rune, so the
+// lowered offset of each rune boundary is the running sum of the lowered rune
+// lengths; the result is clamped to len(s).
+func loweredToOriginal(s string, lowered int) int {
+	acc := 0
+	for i, r := range s {
+		if acc >= lowered {
+			return i
+		}
+		acc += utf8.RuneLen(unicode.ToLower(r))
+	}
+	return len(s)
 }
 
 // addHit appends a hit. When the cap is already full it marks the result
@@ -128,16 +156,14 @@ func addHit(res *model.WikiSearchResult, hit model.WikiSearchHit) bool {
 	return false
 }
 
-// snippetOf returns at most SearchSnippetBytes of line, centred on the match at
-// idx where the line is longer than the bound. Its ends fall on rune boundaries.
-func snippetOf(line string, idx, matchLen int) string {
+// snippetOf returns at most SearchSnippetBytes of line, centred on the match
+// line[matchStart:matchEnd] where the line is longer than the bound. Its ends
+// fall on rune boundaries.
+func snippetOf(line string, matchStart, matchEnd int) string {
 	if len(line) <= SearchSnippetBytes {
 		return strings.TrimSpace(line)
 	}
-	if idx > len(line) {
-		idx = len(line)
-	}
-	start := idx - (SearchSnippetBytes-matchLen)/2
+	start := matchStart - (SearchSnippetBytes-(matchEnd-matchStart))/2
 	if start < 0 {
 		start = 0
 	}
