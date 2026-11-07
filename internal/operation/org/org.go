@@ -6,6 +6,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -82,21 +83,21 @@ var (
 // credential that request carries.
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
-	s.AddTool(CreateOrgTool, h.CreateOrgFn)
-	s.AddTool(GetOrgTool, h.GetOrgFn)
-	s.AddTool(ListMyOrgsTool, h.ListMyOrgsFn)
-	s.AddTool(ListUserOrgsTool, h.ListUserOrgsFn)
-	s.AddTool(EditOrgTool, h.EditOrgFn)
-	s.AddTool(DeleteOrgTool, h.DeleteOrgFn)
+	s.AddTool(CreateOrgTool, pipeline.Handle(h.service, createOrg))
+	s.AddTool(GetOrgTool, pipeline.Handle(h.service, getOrg))
+	s.AddTool(ListMyOrgsTool, pipeline.Handle(h.service, listMyOrgs))
+	s.AddTool(ListUserOrgsTool, pipeline.Handle(h.service, listUserOrgs))
+	s.AddTool(EditOrgTool, pipeline.Handle(h.service, editOrg))
+	s.AddTool(DeleteOrgTool, pipeline.Handle(h.service, deleteOrg))
 
-	s.AddTool(ListOrgMembersTool, h.ListOrgMembersFn)
-	s.AddTool(CheckOrgMembershipTool, h.CheckOrgMembershipFn)
-	s.AddTool(RemoveOrgMemberTool, h.RemoveOrgMemberFn)
+	s.AddTool(ListOrgMembersTool, pipeline.Handle(h.service, listOrgMembers))
+	s.AddTool(CheckOrgMembershipTool, pipeline.Handle(h.service, checkOrgMembership))
+	s.AddTool(RemoveOrgMemberTool, pipeline.Handle(h.service, removeOrgMember))
 
-	s.AddTool(ListOrgTeamsTool, h.ListOrgTeamsFn)
-	s.AddTool(CreateOrgTeamTool, h.CreateOrgTeamFn)
-	s.AddTool(AddTeamMemberTool, h.AddTeamMemberFn)
-	s.AddTool(RemoveTeamMemberTool, h.RemoveTeamMemberFn)
-	s.AddTool(AddTeamRepoTool, h.AddTeamRepoFn)
-	s.AddTool(RemoveTeamRepoTool, h.RemoveTeamRepoFn)
+	s.AddTool(ListOrgTeamsTool, pipeline.Handle(h.service, listOrgTeams))
+	s.AddTool(CreateOrgTeamTool, pipeline.Handle(h.service, createOrgTeam))
+	s.AddTool(AddTeamMemberTool, pipeline.Handle(h.service, addTeamMember))
+	s.AddTool(RemoveTeamMemberTool, pipeline.Handle(h.service, removeTeamMember))
+	s.AddTool(AddTeamRepoTool, pipeline.Handle(h.service, addTeamRepo))
+	s.AddTool(RemoveTeamRepoTool, pipeline.Handle(h.service, removeTeamRepo))
 }

@@ -51,11 +51,6 @@ var noCredential = map[string]bool{
 var unmigrated = map[string]bool{
 	"branchprotection": true,
 	"hook":             true,
-	"org":              true,
-	"repo":             true,
-	"search":           true,
-	"tracking":         true,
-	"wiki":             true,
 }
 
 func sortedDomains() []string {

@@ -4,18 +4,19 @@ package wiki
 
 import (
 	"context"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+	"errors"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/wiki"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/wikiadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -93,17 +94,27 @@ var DeleteWikiPageTool = mcp.NewTool(DeleteWikiPageToolName,
 // f, so it runs under the credential of the request that made it.
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
-	s.AddTool(ListWikiPagesTool, h.ListWikiPagesFn)
-	s.AddTool(GetWikiPageTool, h.GetWikiPageFn)
-	s.AddTool(GetWikiRevisionsTool, h.GetWikiRevisionsFn)
-	s.AddTool(CreateWikiPageTool, h.CreateWikiPageFn)
-	s.AddTool(UpdateWikiPageTool, h.UpdateWikiPageFn)
-	s.AddTool(DeleteWikiPageTool, h.DeleteWikiPageFn)
+	s.AddTool(ListWikiPagesTool, pipeline.Handle(h.service, listWikiPages))
+	s.AddTool(GetWikiPageTool, pipeline.Handle(h.service, getWikiPage))
+	s.AddTool(GetWikiRevisionsTool, pipeline.Handle(h.service, getWikiRevisions))
+	s.AddTool(CreateWikiPageTool, pipeline.Handle(h.service, createWikiPage))
+	s.AddTool(UpdateWikiPageTool, pipeline.Handle(h.service, updateWikiPage))
+	s.AddTool(DeleteWikiPageTool, pipeline.Handle(h.service, deleteWikiPage))
 }
 
 // handlers serve the wiki tools and resource. They hold the factory rather than
 // a port so each request gets its own credential.
 type handlers struct{ forge forge.Factory }
+
+// service is the Binder for every wiki tool: it looks up the request's
+// credential and binds the wiki use case to it.
+func (h handlers) service(ctx context.Context) (*appwiki.Service, error) {
+	port, err := h.forge.For(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return appwiki.New(wikiadapter.New(port)), nil
+}
 
 // Argument structs, one per tool. `json` names the MCP argument and
 // `required:"true"` marks the required ones; mcptest.ArgsMatchSchema keeps
@@ -157,68 +168,116 @@ type pageArgs struct {
 	PageName string `json:"page_name" required:"true"`
 }
 
-// run is the shared shape of a tool call: decode the arguments into A, take the
-// use cases bound to this request's credential, and hand both to do, which
-// runs one use case and renders its result.
-func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
-	do func(context.Context, *appwiki.Service, A) (*mcp.CallToolResult, error),
-) (*mcp.CallToolResult, error) {
-	log.Debugf("Called %s", name)
-	var args A
-	if err := decode.Lax(req, &args); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+// requireRepo refuses a call without its owner or repository, in the order the
+// arguments are read: owner, then repo.
+func requireRepo(owner, repo string) error {
+	if owner == "" {
+		return errors.New("owner is required")
 	}
-	port, err := h.forge.For(ctx)
+	if repo == "" {
+		return errors.New("repo is required")
+	}
+	return nil
+}
+
+// requireString refuses a call without a required string argument.
+func requireString(name, value string) error {
+	if value == "" {
+		return errors.New(name + " is required")
+	}
+	return nil
+}
+
+// Validate checks the repository and the paging arguments before the
+// credential lookup.
+func (a listArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	_, _, err := decode.PagingArgs(a.Page, a.Limit)
+	return err
+}
+
+// Validate checks the repository and the page name before the credential
+// lookup.
+func (a getArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	return requireString("page_name", a.PageName)
+}
+
+// Validate checks the repository, the page name and the paging arguments before
+// the credential lookup.
+func (a revisionsArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if err := requireString("page_name", a.PageName); err != nil {
+		return err
+	}
+	_, _, err := decode.PagingArgs(a.Page, a.Limit)
+	return err
+}
+
+// Validate checks the repository and the title before the credential lookup.
+func (a createArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	return requireString("title", a.Title)
+}
+
+// Validate checks the repository and the page name before the credential
+// lookup.
+func (a updateArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	return requireString("page_name", a.PageName)
+}
+
+// Validate checks the repository and the page name before the credential
+// lookup.
+func (a pageArgs) Validate() error {
+	if err := requireRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	return requireString("page_name", a.PageName)
+}
+
+func listWikiPages(ctx context.Context, s *appwiki.Service, a listArgs) (*mcp.CallToolResult, error) {
+	pg, lim, err := decode.PagingArgs(a.Page, a.Limit)
 	if err != nil {
 		return mcpresult.Fail(err)
 	}
-	return do(ctx, appwiki.New(wikiadapter.New(port)), args)
+	return wikiPageList(s.List(ctx, appwiki.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: pg, Limit: lim}))
 }
 
-func (h handlers) ListWikiPagesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListWikiPagesFn", func(ctx context.Context, s *appwiki.Service, a listArgs) (*mcp.CallToolResult, error) {
-		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
-		if perr != nil {
-			return mcpresult.Fail(perr)
-		}
-		return wikiPageList(s.List(ctx, appwiki.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: pg, Limit: lim}))
-	})
+func getWikiPage(ctx context.Context, s *appwiki.Service, a getArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.Get(ctx, appwiki.GetRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, StartLine: lineArg(a.StartLine), EndLine: lineArg(a.EndLine)}))
 }
 
-func (h handlers) GetWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetWikiPageFn", func(ctx context.Context, s *appwiki.Service, a getArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Get(ctx, appwiki.GetRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, StartLine: lineArg(a.StartLine), EndLine: lineArg(a.EndLine)}))
-	})
+func getWikiRevisions(ctx context.Context, s *appwiki.Service, a revisionsArgs) (*mcp.CallToolResult, error) {
+	pg, lim, err := decode.PagingArgs(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return wikiRevisionsResult(s.Revisions(ctx, appwiki.RevisionsRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Page: pg, Limit: lim}))
 }
 
-func (h handlers) GetWikiRevisionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetWikiRevisionsFn", func(ctx context.Context, s *appwiki.Service, a revisionsArgs) (*mcp.CallToolResult, error) {
-		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
-		if perr != nil {
-			return mcpresult.Fail(perr)
-		}
-		return wikiRevisionsResult(s.Revisions(ctx, appwiki.RevisionsRequest{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Page: pg, Limit: lim}))
-	})
+func createWikiPage(ctx context.Context, s *appwiki.Service, a createArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.Create(ctx, appwiki.CreateRequest{Owner: a.Owner, Repo: a.Repo, Title: a.Title, Content: a.Content, Message: a.Message}))
 }
 
-func (h handlers) CreateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateWikiPageFn", func(ctx context.Context, s *appwiki.Service, a createArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Create(ctx, appwiki.CreateRequest{Owner: a.Owner, Repo: a.Repo, Title: a.Title, Content: a.Content, Message: a.Message}))
-	})
+func updateWikiPage(ctx context.Context, s *appwiki.Service, a updateArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.Update(ctx, appwiki.UpdateRequest{
+		Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Title: a.Title, Content: a.Content, Message: a.Message,
+	}))
 }
 
-func (h handlers) UpdateWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "UpdateWikiPageFn", func(ctx context.Context, s *appwiki.Service, a updateArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Update(ctx, appwiki.UpdateRequest{
-			Owner: a.Owner, Repo: a.Repo, PageName: a.PageName, Title: a.Title, Content: a.Content, Message: a.Message,
-		}))
-	})
-}
-
-func (h handlers) DeleteWikiPageFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeleteWikiPageFn", func(ctx context.Context, s *appwiki.Service, a pageArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Delete(ctx, appwiki.PageRef{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName}))
-	})
+func deleteWikiPage(ctx context.Context, s *appwiki.Service, a pageArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.Delete(ctx, appwiki.PageRef{Owner: a.Owner, Repo: a.Repo, PageName: a.PageName}))
 }
 
 // wikiPageList renders one page of wiki pages in the list tool's wire form.

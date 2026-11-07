@@ -12,6 +12,7 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // The adapter tests are thin on purpose: behaviour is tested on the use cases
@@ -40,22 +41,24 @@ func TestToolsReachTheirUseCases(t *testing.T) {
 	f.SeedUser(forgejo_sdk.User{UserName: "alice"})
 	f.SeedTeam("acme", forgejo_sdk.Team{Name: "devs"})
 	f.SeedSearchableRepo(forgejo_sdk.Repository{ID: 1, Name: "tool-a"})
-	h := handlers{forge: fake.Factory{Forgejo: f}}
+	s := server.NewMCPServer("test", "0")
+	RegisterTool(s, fake.Factory{Forgejo: f})
 
 	cases := []struct {
 		name string
-		fn   func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+		tool string
 		args map[string]any
 		want string
 	}{
-		{"users", h.SearchUserFn, map[string]any{"keyword": "ali"}, "alice"},
-		{"org teams", h.SearchOrgTeamsFn, map[string]any{"org": "acme"}, "devs"},
-		{"repos", h.SearchReposFn, map[string]any{"keyword": "tool"}, "tool-a"},
+		{"users", SearchUsersToolName, map[string]any{"keyword": "ali"}, "alice"},
+		{"org teams", SearchOrgTeamsToolName, map[string]any{"org": "acme"}, "devs"},
+		{"repos", SearchReposToolName, map[string]any{"keyword": "tool"}, "tool-a"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			res, err := c.fn(context.Background(), mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: c.args}})
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Name: c.tool, Arguments: c.args}}
+			res, err := s.GetTool(c.tool).Handler(context.Background(), req)
 			if err != nil || res == nil || res.IsError {
 				t.Fatalf("err=%v res=%+v", err, res)
 			}

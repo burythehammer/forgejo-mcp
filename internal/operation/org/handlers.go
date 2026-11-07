@@ -6,14 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/org"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/orgadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
@@ -23,9 +22,9 @@ import (
 
 // handlers serve the org, membership and team tools. They hold the factory
 // rather than a port so each call is bound to the credential of its own
-// request. Each handler is the MCP adapter of one use case in internal/app/org: decode
-// the arguments, check the ones the tool requires, run the use case, render the
-// result.
+// request. Each tool is the MCP adapter of one use case in internal/app/org:
+// the pipeline decodes and validates the arguments, the use case runs, and the
+// result is rendered.
 type handlers struct {
 	forge forge.Factory
 }
@@ -133,18 +132,11 @@ func orZero(v *float64) float64 {
 	return *v
 }
 
-// run is the shared shape of a tool call: decode the arguments into A, then
-// hand them and the use cases to do. The use cases reach the credential's port
-// only after their input is checked (see apporg.Source).
-func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
-	do func(context.Context, *apporg.Service, A) (*mcp.CallToolResult, error),
-) (*mcp.CallToolResult, error) {
-	log.Debugf("Called %s", name)
-	var args A
-	if err := decode.Lax(req, &args); err != nil {
-		return mcpresult.Fail(err)
-	}
-	return do(ctx, apporg.New(h.source()), args)
+// service is the Binder for every org tool. The use cases reach the
+// credential's port only after their input is checked (see apporg.Source), so
+// binding does not look up a credential.
+func (h handlers) service(context.Context) (*apporg.Service, error) {
+	return apporg.New(h.source()), nil
 }
 
 // source returns the lookup of this request's port, which the use cases call
@@ -167,203 +159,214 @@ func message(text string, err error) (*mcp.CallToolResult, error) {
 	return to.TextResult(text)
 }
 
-func (h handlers) CreateOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateOrgFn", func(ctx context.Context, s *apporg.Service, a createOrgArgs) (*mcp.CallToolResult, error) {
-		if a.Name == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		return mcpresult.Render(s.CreateOrg(ctx, apporg.CreateOrgInput{
-			Name: *a.Name, FullName: a.FullName, Description: a.Description,
-			Website: a.Website, Location: a.Location, Visibility: a.Visibility,
-		}))
-	})
+// Validate checks the name before the credential lookup.
+func (a createOrgArgs) Validate() error {
+	if a.Name == nil {
+		return errOrgName
+	}
+	return nil
 }
 
-func (h handlers) GetOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetOrgFn", func(ctx context.Context, s *apporg.Service, a orgArgs) (*mcp.CallToolResult, error) {
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		return mcpresult.Render(s.GetOrg(ctx, *a.Org))
-	})
+// Validate checks the organization before the credential lookup.
+func (a orgArgs) Validate() error {
+	if a.Org == nil {
+		return errOrgName
+	}
+	return nil
 }
 
-func (h handlers) ListMyOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListMyOrgsFn", func(ctx context.Context, s *apporg.Service, a myOrgsArgs) (*mcp.CallToolResult, error) {
-		pg, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return orgPage(s.MyOrgs(ctx, pg))
-	})
+// Validate checks the paging arguments before the credential lookup.
+func (a myOrgsArgs) Validate() error {
+	_, err := paging(a.Page, a.Limit)
+	return err
 }
 
-func (h handlers) ListUserOrgsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListUserOrgsFn", func(ctx context.Context, s *apporg.Service, a userOrgsArgs) (*mcp.CallToolResult, error) {
-		if a.User == nil {
-			return mcpresult.Fail(errUserName)
-		}
-		pg, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return orgPage(s.UserOrgs(ctx, *a.User, pg))
-	})
+// Validate checks the user, then the paging arguments, before the credential
+// lookup.
+func (a userOrgsArgs) Validate() error {
+	if a.User == nil {
+		return errUserName
+	}
+	_, err := paging(a.Page, a.Limit)
+	return err
 }
 
-func (h handlers) EditOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "EditOrgFn", func(ctx context.Context, s *apporg.Service, a editOrgArgs) (*mcp.CallToolResult, error) {
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		return mcpresult.Render(s.EditOrg(ctx, *a.Org, apporg.EditOrgInput{
-			FullName: a.FullName, Description: a.Description, Website: a.Website,
-			Location: a.Location, Visibility: a.Visibility,
-		}))
-	})
+// Validate checks the organization before the credential lookup.
+func (a editOrgArgs) Validate() error {
+	if a.Org == nil {
+		return errOrgName
+	}
+	return nil
 }
 
-func (h handlers) DeleteOrgFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeleteOrgFn", func(ctx context.Context, s *apporg.Service, a orgArgs) (*mcp.CallToolResult, error) {
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		err := s.DeleteOrg(ctx, *a.Org)
-		return message(fmt.Sprintf("Organization '%s' deleted successfully", *a.Org), err)
-	})
+// Validate checks the organization, then the paging arguments, before the
+// credential lookup.
+func (a membersArgs) Validate() error {
+	if a.Org == nil {
+		return errOrgName
+	}
+	_, err := paging(a.Page, a.Limit)
+	return err
 }
 
-func (h handlers) ListOrgMembersFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListOrgMembersFn", func(ctx context.Context, s *apporg.Service, a membersArgs) (*mcp.CallToolResult, error) {
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		pg, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return memberPage(s.Members(ctx, *a.Org, pg))
-	})
+// Validate checks the organization, then the user, before the credential
+// lookup.
+func (a membershipArgs) Validate() error {
+	if a.Org == nil {
+		return errOrgName
+	}
+	if a.User == nil {
+		return errUserName
+	}
+	return nil
 }
 
-func (h handlers) CheckOrgMembershipFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CheckOrgMembershipFn", func(ctx context.Context, s *apporg.Service, a membershipArgs) (*mcp.CallToolResult, error) {
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		if a.User == nil {
-			return mcpresult.Fail(errUserName)
-		}
-		isMember, err := s.IsMember(ctx, *a.Org, *a.User)
-		return mcpresult.Render(map[string]interface{}{
-			"org":       *a.Org,
-			"user":      *a.User,
-			"is_member": isMember,
-		}, err)
-	})
+// Validate checks the organization, then the paging arguments, before the
+// credential lookup.
+func (a teamsArgs) Validate() error {
+	if a.Org == nil {
+		return errOrgName
+	}
+	_, err := paging(a.Page, a.Limit)
+	return err
 }
 
-func (h handlers) RemoveOrgMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "RemoveOrgMemberFn", func(ctx context.Context, s *apporg.Service, a membershipArgs) (*mcp.CallToolResult, error) {
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		if a.User == nil {
-			return mcpresult.Fail(errUserName)
-		}
-		err := s.RemoveMember(ctx, *a.Org, *a.User)
-		return message(fmt.Sprintf("User '%s' removed from organization '%s'", *a.User, *a.Org), err)
-	})
+// Validate checks the organization, then the team name, before the credential
+// lookup.
+func (a createTeamArgs) Validate() error {
+	if a.Org == nil {
+		return errOrgName
+	}
+	if a.Name == nil {
+		return errTeamName
+	}
+	return nil
 }
 
-func (h handlers) ListOrgTeamsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListOrgTeamsFn", func(ctx context.Context, s *apporg.Service, a teamsArgs) (*mcp.CallToolResult, error) {
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		pg, err := paging(a.Page, a.Limit)
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return teamPage(s.Teams(ctx, *a.Org, pg))
-	})
+// Validate checks the team ID, then the user, before the credential lookup.
+func (a teamMemberArgs) Validate() error {
+	if a.TeamID == nil {
+		return errTeamID
+	}
+	if a.User == nil {
+		return errUserName
+	}
+	return nil
 }
 
-func (h handlers) CreateOrgTeamFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateOrgTeamFn", func(ctx context.Context, s *apporg.Service, a createTeamArgs) (*mcp.CallToolResult, error) {
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		if a.Name == nil {
-			return mcpresult.Fail(errTeamName)
-		}
-		return mcpresult.Render(s.CreateTeam(ctx, *a.Org, apporg.CreateTeamInput{
-			Name: *a.Name, Description: a.Description, Permission: a.Permission,
-			CanCreateOrgRepo: a.CanCreateOrgRepo, IncludesAllRepositories: a.IncludesAllRepositories,
-		}))
-	})
+// Validate checks the team ID, the organization, then the repository, before
+// the credential lookup.
+func (a teamRepoArgs) Validate() error {
+	if a.TeamID == nil {
+		return errTeamID
+	}
+	if a.Org == nil {
+		return errOrgName
+	}
+	if a.Repo == nil {
+		return errRepoName
+	}
+	return nil
 }
 
-func (h handlers) AddTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "AddTeamMemberFn", func(ctx context.Context, s *apporg.Service, a teamMemberArgs) (*mcp.CallToolResult, error) {
-		if a.TeamID == nil {
-			return mcpresult.Fail(errTeamID)
-		}
-		if a.User == nil {
-			return mcpresult.Fail(errUserName)
-		}
-		teamID := numarg.Truncate(*a.TeamID)
-		err := s.AddTeamMember(ctx, teamID, *a.User)
-		return message(fmt.Sprintf("User '%s' added to team %d", *a.User, teamID), err)
-	})
+func createOrg(ctx context.Context, s *apporg.Service, a createOrgArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.CreateOrg(ctx, apporg.CreateOrgInput{
+		Name: *a.Name, FullName: a.FullName, Description: a.Description,
+		Website: a.Website, Location: a.Location, Visibility: a.Visibility,
+	}))
 }
 
-func (h handlers) RemoveTeamMemberFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "RemoveTeamMemberFn", func(ctx context.Context, s *apporg.Service, a teamMemberArgs) (*mcp.CallToolResult, error) {
-		if a.TeamID == nil {
-			return mcpresult.Fail(errTeamID)
-		}
-		if a.User == nil {
-			return mcpresult.Fail(errUserName)
-		}
-		teamID := numarg.Truncate(*a.TeamID)
-		err := s.RemoveTeamMember(ctx, teamID, *a.User)
-		return message(fmt.Sprintf("User '%s' removed from team %d", *a.User, teamID), err)
-	})
+func getOrg(ctx context.Context, s *apporg.Service, a orgArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.GetOrg(ctx, *a.Org))
 }
 
-func (h handlers) AddTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "AddTeamRepoFn", func(ctx context.Context, s *apporg.Service, a teamRepoArgs) (*mcp.CallToolResult, error) {
-		if a.TeamID == nil {
-			return mcpresult.Fail(errTeamID)
-		}
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		if a.Repo == nil {
-			return mcpresult.Fail(errRepoName)
-		}
-		teamID := numarg.Truncate(*a.TeamID)
-		err := s.AddTeamRepo(ctx, teamID, *a.Org, *a.Repo)
-		return message(fmt.Sprintf("Repository '%s/%s' added to team %d", *a.Org, *a.Repo, teamID), err)
-	})
+func listMyOrgs(ctx context.Context, s *apporg.Service, a myOrgsArgs) (*mcp.CallToolResult, error) {
+	pg, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return orgPage(s.MyOrgs(ctx, pg))
 }
 
-func (h handlers) RemoveTeamRepoFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "RemoveTeamRepoFn", func(ctx context.Context, s *apporg.Service, a teamRepoArgs) (*mcp.CallToolResult, error) {
-		if a.TeamID == nil {
-			return mcpresult.Fail(errTeamID)
-		}
-		if a.Org == nil {
-			return mcpresult.Fail(errOrgName)
-		}
-		if a.Repo == nil {
-			return mcpresult.Fail(errRepoName)
-		}
-		teamID := numarg.Truncate(*a.TeamID)
-		err := s.RemoveTeamRepo(ctx, teamID, *a.Org, *a.Repo)
-		return message(fmt.Sprintf("Repository '%s/%s' removed from team %d", *a.Org, *a.Repo, teamID), err)
-	})
+func listUserOrgs(ctx context.Context, s *apporg.Service, a userOrgsArgs) (*mcp.CallToolResult, error) {
+	pg, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return orgPage(s.UserOrgs(ctx, *a.User, pg))
+}
+
+func editOrg(ctx context.Context, s *apporg.Service, a editOrgArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.EditOrg(ctx, *a.Org, apporg.EditOrgInput{
+		FullName: a.FullName, Description: a.Description, Website: a.Website,
+		Location: a.Location, Visibility: a.Visibility,
+	}))
+}
+
+func deleteOrg(ctx context.Context, s *apporg.Service, a orgArgs) (*mcp.CallToolResult, error) {
+	err := s.DeleteOrg(ctx, *a.Org)
+	return message(fmt.Sprintf("Organization '%s' deleted successfully", *a.Org), err)
+}
+
+func listOrgMembers(ctx context.Context, s *apporg.Service, a membersArgs) (*mcp.CallToolResult, error) {
+	pg, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return memberPage(s.Members(ctx, *a.Org, pg))
+}
+
+func checkOrgMembership(ctx context.Context, s *apporg.Service, a membershipArgs) (*mcp.CallToolResult, error) {
+	isMember, err := s.IsMember(ctx, *a.Org, *a.User)
+	return mcpresult.Render(map[string]interface{}{
+		"org":       *a.Org,
+		"user":      *a.User,
+		"is_member": isMember,
+	}, err)
+}
+
+func removeOrgMember(ctx context.Context, s *apporg.Service, a membershipArgs) (*mcp.CallToolResult, error) {
+	err := s.RemoveMember(ctx, *a.Org, *a.User)
+	return message(fmt.Sprintf("User '%s' removed from organization '%s'", *a.User, *a.Org), err)
+}
+
+func listOrgTeams(ctx context.Context, s *apporg.Service, a teamsArgs) (*mcp.CallToolResult, error) {
+	pg, err := paging(a.Page, a.Limit)
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return teamPage(s.Teams(ctx, *a.Org, pg))
+}
+
+func createOrgTeam(ctx context.Context, s *apporg.Service, a createTeamArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.CreateTeam(ctx, *a.Org, apporg.CreateTeamInput{
+		Name: *a.Name, Description: a.Description, Permission: a.Permission,
+		CanCreateOrgRepo: a.CanCreateOrgRepo, IncludesAllRepositories: a.IncludesAllRepositories,
+	}))
+}
+
+func addTeamMember(ctx context.Context, s *apporg.Service, a teamMemberArgs) (*mcp.CallToolResult, error) {
+	teamID := numarg.Truncate(*a.TeamID)
+	err := s.AddTeamMember(ctx, teamID, *a.User)
+	return message(fmt.Sprintf("User '%s' added to team %d", *a.User, teamID), err)
+}
+
+func removeTeamMember(ctx context.Context, s *apporg.Service, a teamMemberArgs) (*mcp.CallToolResult, error) {
+	teamID := numarg.Truncate(*a.TeamID)
+	err := s.RemoveTeamMember(ctx, teamID, *a.User)
+	return message(fmt.Sprintf("User '%s' removed from team %d", *a.User, teamID), err)
+}
+
+func addTeamRepo(ctx context.Context, s *apporg.Service, a teamRepoArgs) (*mcp.CallToolResult, error) {
+	teamID := numarg.Truncate(*a.TeamID)
+	err := s.AddTeamRepo(ctx, teamID, *a.Org, *a.Repo)
+	return message(fmt.Sprintf("Repository '%s/%s' added to team %d", *a.Org, *a.Repo, teamID), err)
+}
+
+func removeTeamRepo(ctx context.Context, s *apporg.Service, a teamRepoArgs) (*mcp.CallToolResult, error) {
+	teamID := numarg.Truncate(*a.TeamID)
+	err := s.RemoveTeamRepo(ctx, teamID, *a.Org, *a.Repo)
+	return message(fmt.Sprintf("Repository '%s/%s' removed from team %d", *a.Org, *a.Repo, teamID), err)
 }
 
 // orgPage renders one page of organizations in the wire form of the list tools.
