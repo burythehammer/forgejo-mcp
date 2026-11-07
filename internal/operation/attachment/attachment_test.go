@@ -17,6 +17,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/upload"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // Handler tests run against the in-memory fake, build their own, and so run in
@@ -98,29 +99,29 @@ func fails(t *testing.T, f fn, args map[string]any) string {
 
 func upload64(t *testing.T, h handlers, content, filename string) {
 	t.Helper()
-	ok(t, h.CreateIssueAttachmentFn, map[string]any{"index": 3.0, "content": b64(content), "filename": filename})
+	ok(t, h.tool(CreateIssueAttachmentTool.Name), map[string]any{"index": 3.0, "content": b64(content), "filename": filename})
 }
 
 func TestIssueAttachmentLifecycle(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	res := ok(t, h.CreateIssueAttachmentFn, map[string]any{
+	res := ok(t, h.tool(CreateIssueAttachmentTool.Name), map[string]any{
 		"index": 3.0, "content": b64("payload bytes"), "filename": "f.bin", "mime_type": "text/plain",
 	})
 	if body := text(t, res); !strings.Contains(body, `"name":"f.bin"`) || !strings.Contains(body, `"size":13`) {
 		t.Fatalf("create: %s", body)
 	}
-	if body := text(t, ok(t, h.ListIssueAttachmentsFn, map[string]any{"index": 3.0})); !strings.Contains(body, `"f.bin"`) {
+	if body := text(t, ok(t, h.tool(ListIssueAttachmentsTool.Name), map[string]any{"index": 3.0})); !strings.Contains(body, `"f.bin"`) {
 		t.Fatalf("list: %s", body)
 	}
-	if body := text(t, ok(t, h.GetIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0})); !strings.Contains(body, `"f.bin"`) {
+	if body := text(t, ok(t, h.tool(GetIssueAttachmentTool.Name), map[string]any{"index": 3.0, "attachment_id": 1.0})); !strings.Contains(body, `"f.bin"`) {
 		t.Fatalf("get: %s", body)
 	}
-	if body := text(t, ok(t, h.EditIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0, "name": "g.bin"})); !strings.Contains(body, `"g.bin"`) {
+	if body := text(t, ok(t, h.tool(EditIssueAttachmentTool.Name), map[string]any{"index": 3.0, "attachment_id": 1.0, "name": "g.bin"})); !strings.Contains(body, `"g.bin"`) {
 		t.Fatalf("edit: %s", body)
 	}
-	dl := ok(t, h.DownloadIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0})
+	dl := ok(t, h.tool(DownloadIssueAttachmentTool.Name), map[string]any{"index": 3.0, "attachment_id": 1.0})
 	b, found := blob(dl)
 	if !found || b.Blob != b64("payload bytes") || b.MIMEType != "text/plain" {
 		t.Fatalf("download blob: %+v found=%v", b, found)
@@ -128,10 +129,10 @@ func TestIssueAttachmentLifecycle(t *testing.T) {
 	if !strings.Contains(text(t, dl), `"inline":true`) {
 		t.Fatalf("download text: %s", text(t, dl))
 	}
-	if body := text(t, ok(t, h.DeleteIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0})); !strings.Contains(body, "deleted") {
+	if body := text(t, ok(t, h.tool(DeleteIssueAttachmentTool.Name), map[string]any{"index": 3.0, "attachment_id": 1.0})); !strings.Contains(body, "deleted") {
 		t.Fatalf("delete: %s", body)
 	}
-	if msg := fails(t, h.GetIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0}); !strings.Contains(msg, "get issue attachment err") {
+	if msg := fails(t, h.tool(GetIssueAttachmentTool.Name), map[string]any{"index": 3.0, "attachment_id": 1.0}); !strings.Contains(msg, "get issue attachment err") {
 		t.Fatalf("get after delete: %s", msg)
 	}
 }
@@ -139,17 +140,17 @@ func TestIssueAttachmentLifecycle(t *testing.T) {
 func TestCommentAttachmentLifecycle(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	ok(t, h.CreateCommentAttachmentFn, map[string]any{"comment_id": 5.0, "content": b64("c"), "filename": "c.txt"})
-	if body := text(t, ok(t, h.ListCommentAttachmentsFn, map[string]any{"comment_id": 5.0})); !strings.Contains(body, `"c.txt"`) {
+	ok(t, h.tool(CreateCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "content": b64("c"), "filename": "c.txt"})
+	if body := text(t, ok(t, h.tool(ListCommentAttachmentsTool.Name), map[string]any{"comment_id": 5.0})); !strings.Contains(body, `"c.txt"`) {
 		t.Fatalf("list: %s", body)
 	}
-	ok(t, h.GetCommentAttachmentFn, map[string]any{"comment_id": 5.0, "attachment_id": 1.0})
-	ok(t, h.EditCommentAttachmentFn, map[string]any{"comment_id": 5.0, "attachment_id": 1.0, "name": "d.txt"})
-	if b, found := blob(ok(t, h.DownloadCommentAttachmentFn, map[string]any{"comment_id": 5.0, "attachment_id": 1.0})); !found || b.Blob != b64("c") {
+	ok(t, h.tool(GetCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "attachment_id": 1.0})
+	ok(t, h.tool(EditCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "attachment_id": 1.0, "name": "d.txt"})
+	if b, found := blob(ok(t, h.tool(DownloadCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "attachment_id": 1.0})); !found || b.Blob != b64("c") {
 		t.Fatalf("download blob: %+v", b)
 	}
-	ok(t, h.DeleteCommentAttachmentFn, map[string]any{"comment_id": 5.0, "attachment_id": 1.0})
-	if body := text(t, ok(t, h.ListCommentAttachmentsFn, map[string]any{"comment_id": 5.0})); strings.Contains(body, "d.txt") {
+	ok(t, h.tool(DeleteCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "attachment_id": 1.0})
+	if body := text(t, ok(t, h.tool(ListCommentAttachmentsTool.Name), map[string]any{"comment_id": 5.0})); strings.Contains(body, "d.txt") {
 		t.Fatalf("still listed: %s", body)
 	}
 }
@@ -158,10 +159,10 @@ func TestCommentAttachmentLifecycle(t *testing.T) {
 func TestListUnknownParentIsNotFound(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	if msg := fails(t, h.ListIssueAttachmentsFn, map[string]any{"index": 99.0}); !strings.Contains(msg, "not found") {
+	if msg := fails(t, h.tool(ListIssueAttachmentsTool.Name), map[string]any{"index": 99.0}); !strings.Contains(msg, "not found") {
 		t.Fatalf("issue: %s", msg)
 	}
-	if msg := fails(t, h.ListCommentAttachmentsFn, map[string]any{"comment_id": 99.0}); !strings.Contains(msg, "not found") {
+	if msg := fails(t, h.tool(ListCommentAttachmentsTool.Name), map[string]any{"comment_id": 99.0}); !strings.Contains(msg, "not found") {
 		t.Fatalf("comment: %s", msg)
 	}
 }
@@ -170,7 +171,7 @@ func TestDownloadOverCapReturnsMetadataOnly(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 	upload64(t, h, strings.Repeat("x", int(forge.MaxInlineDownloadBytes)), "big.bin")
-	res := ok(t, h.DownloadIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0})
+	res := ok(t, h.tool(DownloadIssueAttachmentTool.Name), map[string]any{"index": 3.0, "attachment_id": 1.0})
 	if _, found := blob(res); found {
 		t.Fatal("blob must not be inlined at or above the cap")
 	}
@@ -192,7 +193,7 @@ func TestDownloadBodyExceedingCapFallsBackGracefully(t *testing.T) {
 	_, f := newFixture(t)
 	h := handlers{forge: fake.Factory{Forgejo: capLiar{f}}}
 	upload64(t, handlers{forge: fake.Factory{Forgejo: f}}, "tiny", "t.bin")
-	res := ok(t, h.DownloadIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0})
+	res := ok(t, h.tool(DownloadIssueAttachmentTool.Name), map[string]any{"index": 3.0, "attachment_id": 1.0})
 	if _, found := blob(res); found {
 		t.Fatal("blob must not be inlined")
 	}
@@ -208,7 +209,7 @@ func TestCreateUsesFilePathAndBasename(t *testing.T) {
 	if err := os.WriteFile(p, []byte("from disk"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if body := text(t, ok(t, h.CreateIssueAttachmentFn, map[string]any{"index": 3.0, "file_path": p})); !strings.Contains(body, `"note.txt"`) {
+	if body := text(t, ok(t, h.tool(CreateIssueAttachmentTool.Name), map[string]any{"index": 3.0, "file_path": p})); !strings.Contains(body, `"note.txt"`) {
 		t.Fatalf("body: %s", body)
 	}
 }
@@ -223,7 +224,7 @@ func TestCreateRejectsBadInputBeforeUploading(t *testing.T) {
 		"missing index": {"content": b64("x"), "filename": "f"},
 	}
 	for name, args := range cases {
-		fails(t, h.CreateIssueAttachmentFn, args)
+		fails(t, h.tool(CreateIssueAttachmentTool.Name), args)
 		_ = name
 	}
 	if atts, _ := f.ListIssueAttachments(context.Background(), owner, repo, 3); len(atts) != 0 {
@@ -239,10 +240,10 @@ func TestCreateRejectsOversizedContent(t *testing.T) {
 	t.Cleanup(restore)
 	h, f := newFixture(t)
 	oversized := strings.Repeat("A", 1025)
-	if msg := fails(t, h.CreateIssueAttachmentFn, map[string]any{"index": 3.0, "content": oversized, "filename": "f"}); !strings.Contains(msg, "too large") {
+	if msg := fails(t, h.tool(CreateIssueAttachmentTool.Name), map[string]any{"index": 3.0, "content": oversized, "filename": "f"}); !strings.Contains(msg, "too large") {
 		t.Fatalf("issue: want a size-limit error, got %s", msg)
 	}
-	if msg := fails(t, h.CreateCommentAttachmentFn, map[string]any{"comment_id": 5.0, "content": oversized, "filename": "f"}); !strings.Contains(msg, "too large") {
+	if msg := fails(t, h.tool(CreateCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "content": oversized, "filename": "f"}); !strings.Contains(msg, "too large") {
 		t.Fatalf("comment: want a size-limit error, got %s", msg)
 	}
 	if atts, _ := f.ListIssueAttachments(context.Background(), owner, repo, 3); len(atts) != 0 {
@@ -253,10 +254,10 @@ func TestCreateRejectsOversizedContent(t *testing.T) {
 func TestEditRequiresName(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	if msg := fails(t, h.EditIssueAttachmentFn, map[string]any{"index": 3.0, "attachment_id": 1.0}); !strings.Contains(msg, "name is required") {
+	if msg := fails(t, h.tool(EditIssueAttachmentTool.Name), map[string]any{"index": 3.0, "attachment_id": 1.0}); !strings.Contains(msg, "name is required") {
 		t.Fatal(msg)
 	}
-	if msg := fails(t, h.EditCommentAttachmentFn, map[string]any{"comment_id": 5.0, "attachment_id": 1.0}); !strings.Contains(msg, "name is required") {
+	if msg := fails(t, h.tool(EditCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "attachment_id": 1.0}); !strings.Contains(msg, "name is required") {
 		t.Fatal(msg)
 	}
 }
@@ -264,14 +265,14 @@ func TestEditRequiresName(t *testing.T) {
 func TestHandlersRejectMissingNumericArgs(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	fails(t, h.GetIssueAttachmentFn, map[string]any{})
-	fails(t, h.GetCommentAttachmentFn, map[string]any{})
+	fails(t, h.tool(GetIssueAttachmentTool.Name), map[string]any{})
+	fails(t, h.tool(GetCommentAttachmentTool.Name), map[string]any{})
 }
 
 func TestCredentialPolicyErrorIsReported(t *testing.T) {
 	t.Parallel()
 	h := handlers{forge: fake.Factory{Err: errors.New("no credential")}}
-	if msg := fails(t, h.ListIssueAttachmentsFn, map[string]any{"index": 3.0}); !strings.Contains(msg, "no credential") {
+	if msg := fails(t, h.tool(ListIssueAttachmentsTool.Name), map[string]any{"index": 3.0}); !strings.Contains(msg, "no credential") {
 		t.Fatal(msg)
 	}
 }
@@ -292,10 +293,10 @@ func TestUploadTimeout(t *testing.T) {
 
 	for name, call := range map[string]func() string{
 		"issue": func() string {
-			return fails(t, h.CreateIssueAttachmentFn, map[string]any{"index": 3.0, "content": b64("hang"), "filename": "f.bin"})
+			return fails(t, h.tool(CreateIssueAttachmentTool.Name), map[string]any{"index": 3.0, "content": b64("hang"), "filename": "f.bin"})
 		},
 		"comment": func() string {
-			return fails(t, h.CreateCommentAttachmentFn, map[string]any{"comment_id": 5.0, "content": b64("hang"), "filename": "f.bin"})
+			return fails(t, h.tool(CreateCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "content": b64("hang"), "filename": "f.bin"})
 		},
 	} {
 		start := time.Now()
@@ -317,7 +318,7 @@ func TestParentDeadlineNotMisattributed(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	res, err := h.CreateIssueAttachmentFn(parent, req(map[string]any{"index": 3.0, "content": b64("hang"), "filename": "f.bin"}))
+	res, err := h.tool(CreateIssueAttachmentTool.Name)(parent, req(map[string]any{"index": 3.0, "content": b64("hang"), "filename": "f.bin"}))
 	msg := ""
 	if err != nil {
 		msg = err.Error()
@@ -343,11 +344,11 @@ func TestCreateRejectsNonStringSourceBeforeUploading(t *testing.T) {
 	values := map[string]any{"number": 123.0, "bool": true, "null": nil}
 	for _, key := range []string{"content", "file_path"} {
 		for name, value := range values {
-			issueMsg := fails(t, h.CreateIssueAttachmentFn, map[string]any{"index": 3.0, "filename": "a.png", key: value})
+			issueMsg := fails(t, h.tool(CreateIssueAttachmentTool.Name), map[string]any{"index": 3.0, "filename": "a.png", key: value})
 			if !strings.Contains(issueMsg, key+" must be a string") {
 				t.Fatalf("issue %s=%s: want must-be-a-string error, got %s", key, name, issueMsg)
 			}
-			commentMsg := fails(t, h.CreateCommentAttachmentFn, map[string]any{"comment_id": 5.0, "filename": "a.png", key: value})
+			commentMsg := fails(t, h.tool(CreateCommentAttachmentTool.Name), map[string]any{"comment_id": 5.0, "filename": "a.png", key: value})
 			if !strings.Contains(commentMsg, key+" must be a string") {
 				t.Fatalf("comment %s=%s: want must-be-a-string error, got %s", key, name, commentMsg)
 			}
@@ -359,4 +360,12 @@ func TestCreateRejectsNonStringSourceBeforeUploading(t *testing.T) {
 	if atts, _ := f.ListCommentAttachments(context.Background(), owner, repo, 5); len(atts) != 0 {
 		t.Fatalf("comment: nothing should have been uploaded: %+v", atts)
 	}
+}
+
+// tool returns the handler the registered server serves for one tool, so the
+// test reaches it through the request pipeline.
+func (h handlers) tool(name string) fn {
+	s := server.NewMCPServer("test", "0")
+	RegisterTool(s, h.forge)
+	return s.GetTool(name).Handler
 }
