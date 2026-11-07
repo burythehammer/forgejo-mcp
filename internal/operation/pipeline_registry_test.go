@@ -81,11 +81,13 @@ func TestRegistryDomainsCoverEveryTool(t *testing.T) {
 	}
 }
 
-// TestRegistryRefusesBadRequestBeforeCredential calls every tool of every
-// domain with a bad argument, plus an unknown one, and a factory that refuses
-// every credential. The refusal must be a tool error naming the bad request,
-// and the credential refusal must never appear.
-func TestRegistryRefusesBadRequestBeforeCredential(t *testing.T) {
+// TestRegistryRefusesMissingRequiredArgumentBeforeCredential checks that a bad
+// request (a call that omits a required argument) is refused before the
+// credential: every tool of every domain is called that way, against a factory
+// that refuses every credential. The refusal must be a tool error with text,
+// and the credential refusal must never appear. Refusing an unknown argument is
+// #314's concern, not this test's: lax decoding ignores unknown arguments.
+func TestRegistryRefusesMissingRequiredArgumentBeforeCredential(t *testing.T) {
 	t.Parallel()
 	refuse := errors.New("no credential for this request")
 	for _, domain := range sortedDomains() {
@@ -120,7 +122,16 @@ func TestRegistryRefusesBadRequestBeforeCredential(t *testing.T) {
 				t.Errorf("%s (%s): bad request was not refused as a tool error", name, domain)
 				continue
 			}
-			text := res.Content[0].(mcp.TextContent).Text
+			if len(res.Content) == 0 {
+				t.Errorf("%s (%s): refusal has no content", name, domain)
+				continue
+			}
+			content, ok := res.Content[0].(mcp.TextContent)
+			if !ok {
+				t.Errorf("%s (%s): refusal content is not text: %T", name, domain, res.Content[0])
+				continue
+			}
+			text := content.Text
 			if strings.Contains(text, refuse.Error()) {
 				t.Errorf("%s (%s): reached the credential lookup: %q", name, domain, text)
 			}

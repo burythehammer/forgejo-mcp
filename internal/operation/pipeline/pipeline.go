@@ -123,6 +123,6 @@ func decodeInto(req mcp.CallToolRequest, dst any, strict bool) error {
 
 // refuse sends a bad request to the client as a plain tool error.
 func refuse(err error) (*mcp.CallToolResult, error) {
-	log.Errorf("%s", err)
+	log.Debugf("%s", err)
 	return mcp.NewToolResultError(err.Error()), nil
 }
