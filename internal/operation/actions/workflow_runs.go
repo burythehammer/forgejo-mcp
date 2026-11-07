@@ -9,9 +9,8 @@ import (
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
@@ -67,68 +66,73 @@ var (
 	)
 )
 
-func (h handlers) ListWorkflowRunsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListWorkflowRunsFn")
-
-	var a listRunsArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks owner and repo, then the numeric arguments, before the
+// credential lookup.
+func (a listRunsArgs) Validate() error {
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
+	_, err := a.query()
+	return err
+}
+
+// query reads the filter and paging arguments. A page of 0 is page 1.
+func (a listRunsArgs) query() (app.RunQuery, error) {
 	runNumber, _, err := numarg.NonNegativeInt("run_number", a.RunNumber)
 	if err != nil {
-		return to.ErrorResult(err)
+		return app.RunQuery{}, err
 	}
 	page, err := numarg.Paging("page", a.Page)
 	if err != nil {
-		return to.ErrorResult(err)
+		return app.RunQuery{}, err
 	}
 	if page == 0 {
 		page = 1
 	}
 	limit, err := numarg.Paging("limit", a.Limit)
 	if err != nil {
-		return to.ErrorResult(err)
+		return app.RunQuery{}, err
 	}
-
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	out, err := svc.ListRuns(ctx, a.Owner, a.Repo, app.RunQuery{
+	return app.RunQuery{
 		Status: a.Status, Event: a.Event, RunNumber: runNumber, HeadSHA: a.HeadSHA,
 		Paging: app.Paging{Page: page, Limit: limit},
-	})
+	}, nil
+}
+
+func listWorkflowRuns(ctx context.Context, svc *app.Service, a listRunsArgs) (*mcp.CallToolResult, error) {
+	q, err := a.query()
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
+	}
+	out, err := svc.ListRuns(ctx, a.Owner, a.Repo, q)
+	if err != nil {
+		return mcpresult.Fail(err)
 	}
 	return to.SafeTextResult(runPage(out))
 }
 
-func (h handlers) GetWorkflowRunFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetWorkflowRunFn")
-
-	var a repoRunArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks owner and repo, then run_id, before the credential lookup.
+func (a repoRunArgs) Validate() error {
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
-	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
+	_, err := a.runID()
+	return err
+}
 
-	svc, err := useCases(ctx, h)
+// runID reads the required run_id as a positive whole number.
+func (a repoRunArgs) runID() (int64, error) {
+	return numarg.RequiredPositiveInt("run_id", a.RunID)
+}
+
+func getWorkflowRun(ctx context.Context, svc *app.Service, a repoRunArgs) (*mcp.CallToolResult, error) {
+	runID, err := a.runID()
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	run, err := svc.GetRun(ctx, a.Owner, a.Repo, runID)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.TextResult(renderRun(run))
 }

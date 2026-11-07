@@ -29,7 +29,7 @@ func TestListActionRunArtifactsFn_ServerPagedEnvelope(t *testing.T) {
 	h, f := newFixture(t)
 	runID := runWithArtifacts(t, f, "dist", "logs", "dist", "other")
 
-	got := resultOf[model.ArtifactPage](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{
+	got := resultOf[model.ArtifactPage](t, serve(h, listActionRunArtifacts), repoArgs(map[string]any{
 		"run_id": float64(runID), "page": 2.0, "limit": 1.0, "name": "dist",
 	}))
 
@@ -49,8 +49,8 @@ func TestListActionRunArtifactsFn_EmptyPageIsAnEmptyList(t *testing.T) {
 	h, f := newFixture(t)
 	runID := runWithArtifacts(t, f)
 
-	out := call(t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": float64(runID)}))
-	got := resultOf[model.ArtifactPage](t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": float64(runID)}))
+	out := call(t, serve(h, listActionRunArtifacts), repoArgs(map[string]any{"run_id": float64(runID)}))
+	got := resultOf[model.ArtifactPage](t, serve(h, listActionRunArtifacts), repoArgs(map[string]any{"run_id": float64(runID)}))
 
 	if got.Count != 0 || got.Artifacts == nil {
 		t.Fatalf("empty page: %+v", got)
@@ -64,7 +64,7 @@ func TestListActionRunArtifactsFn_MissingRunIsError(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	err := callErr(t, h.ListActionRunArtifactsFn, repoArgs(map[string]any{"run_id": 99.0}))
+	err := callErr(t, serve(h, listActionRunArtifacts), repoArgs(map[string]any{"run_id": 99.0}))
 
 	if !strings.Contains(err.Error(), "list action run artifacts") {
 		t.Errorf("unexpected error: %v", err)
@@ -80,7 +80,7 @@ func TestGetActionArtifactFn_MetadataOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := resultOf[forge.ActionArtifact](t, h.GetActionArtifactFn, repoArgs(map[string]any{"artifact_id": float64(art.ID)}))
+	got := resultOf[forge.ActionArtifact](t, serve(h, getActionArtifact), repoArgs(map[string]any{"artifact_id": float64(art.ID)}))
 
 	if got.ID != art.ID || got.Name != "dist" || got.RunID != runID || got.SizeInBytes != 10 {
 		t.Fatalf("artifact: %+v", got)
@@ -91,9 +91,9 @@ func TestGetActionArtifactFn_UnknownAndInvalid(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
 
-	err := callErr(t, h.GetActionArtifactFn, repoArgs(map[string]any{"artifact_id": 9.0}))
+	err := callErr(t, serve(h, getActionArtifact), repoArgs(map[string]any{"artifact_id": 9.0}))
 	if !strings.Contains(err.Error(), "get action artifact") {
 		t.Errorf("unexpected error: %v", err)
 	}
-	callErr(t, h.GetActionArtifactFn, repoArgs(nil))
+	refusedErr(t, serve(h, getActionArtifact), repoArgs(nil))
 }

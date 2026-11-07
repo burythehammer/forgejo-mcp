@@ -8,9 +8,8 @@ import (
 	"math"
 
 	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
@@ -71,76 +70,86 @@ var (
 	)
 )
 
-func (h handlers) ListActionRunJobsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called ListActionRunJobsFn")
-
-	var a jobsArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks owner and repo, then run_id and the paging arguments, before
+// the credential lookup.
+func (a jobsArgs) Validate() error {
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
+	_, _, err := a.read()
+	return err
+}
+
+// read reads run_id and the paging arguments.
+func (a jobsArgs) read() (int64, app.Paging, error) {
 	runID, err := numarg.RequiredPositiveInt("run_id", a.RunID)
 	if err != nil {
-		return to.ErrorResult(err)
+		return 0, app.Paging{}, err
 	}
 	page, err := numarg.IntDefault("page", a.Page, 1, numarg.Bounds{Min: int64(1), Max: int64(math.MaxInt32)})
 	if err != nil {
-		return to.ErrorResult(err)
+		return 0, app.Paging{}, err
 	}
 	limit, err := numarg.IntDefault("limit", a.Limit, 0, numarg.Bounds{Min: int64(1), Max: int64(maxActionJobsLimit)})
 	if err != nil {
-		return to.ErrorResult(err)
+		return 0, app.Paging{}, err
 	}
+	return runID, app.Paging{Page: page, Limit: limit}, nil
+}
 
-	svc, err := useCases(ctx, h)
+func listActionRunJobs(ctx context.Context, svc *app.Service, a jobsArgs) (*mcp.CallToolResult, error) {
+	runID, paging, err := a.read()
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
-	jobs, err := svc.ListJobs(ctx, a.Owner, a.Repo, runID, app.Paging{Page: page, Limit: limit})
+	jobs, err := svc.ListJobs(ctx, a.Owner, a.Repo, runID, paging)
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
 	}
 	return to.SafeTextResult(jobPage(runID, jobs))
 }
 
-func (h handlers) GetActionJobLogsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Debugf("Called GetActionJobLogsFn")
-
-	var a jobLogArgs
-	if err := decode.Lax(req, &a); err != nil {
-		return to.ErrorResult(err)
-	}
+// Validate checks owner and repo, then the job and log arguments, before the
+// credential lookup.
+func (a jobLogArgs) Validate() error {
 	if err := requiredRepo(a.Owner, a.Repo); err != nil {
-		return to.ErrorResult(err)
+		return err
 	}
+	_, err := a.query()
+	return err
+}
+
+// query reads the job_id, attempt, offset and max_bytes arguments.
+func (a jobLogArgs) query() (app.JobLogQuery, error) {
 	jobID, err := numarg.RequiredPositiveInt("job_id", a.JobID)
 	if err != nil {
-		return to.ErrorResult(err)
+		return app.JobLogQuery{}, err
 	}
 	attempt, _, err := numarg.PositiveInt("attempt", a.Attempt)
 	if err != nil {
-		return to.ErrorResult(err)
+		return app.JobLogQuery{}, err
 	}
 	maxBytes, err := numarg.IntDefault("max_bytes", a.MaxBytes, defaultActionLogBytes, numarg.Bounds{Min: int64(1), Max: int64(maxActionLogBytes)})
 	if err != nil {
-		return to.ErrorResult(err)
+		return app.JobLogQuery{}, err
 	}
 	offset, hasOffset, err := numarg.NonNegativeInt("offset", a.Offset)
 	if err != nil {
-		return to.ErrorResult(err)
+		return app.JobLogQuery{}, err
 	}
-
-	svc, err := useCases(ctx, h)
-	if err != nil {
-		return to.ErrorResult(err)
-	}
-	page, err := svc.JobLog(ctx, a.Owner, a.Repo, app.JobLogQuery{
+	return app.JobLogQuery{
 		JobID: jobID, Attempt: attempt, Offset: offset, HasOffset: hasOffset, MaxBytes: int64(maxBytes),
-	})
+	}, nil
+}
+
+func getActionJobLogs(ctx context.Context, svc *app.Service, a jobLogArgs) (*mcp.CallToolResult, error) {
+	q, err := a.query()
 	if err != nil {
-		return to.ErrorResult(err)
+		return mcpresult.Fail(err)
+	}
+	page, err := svc.JobLog(ctx, a.Owner, a.Repo, q)
+	if err != nil {
+		return mcpresult.Fail(err)
 	}
 	// Do not use TextResult here: it debug-logs the complete payload, and CI
 	// logs may contain sensitive output even when Forgejo masks known secrets.
