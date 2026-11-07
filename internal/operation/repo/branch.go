@@ -140,8 +140,16 @@ func listBranches(ctx context.Context, svc *apprepo.GitService, a listBranchesAr
 	return gitText(branchPage(svc.ListBranches(ctx, a.Owner, a.Repo, apprepo.GitPage{Page: page, Limit: limit})))
 }
 
-// Validate refuses a branch list whose page or limit is out of range.
+// Validate refuses a branch list that names no repository or whose page or limit is out of range.
 func (a listBranchesArgs) Validate() error {
+	if err := firstError(requireString("owner", a.Owner), requireString("repo", a.Repo)); err != nil {
+		return err
+	}
 	_, _, err := a.paging()
 	return err
+}
+
+// Validate refuses a delete that names no repository or branch.
+func (a deleteBranchArgs) Validate() error {
+	return firstError(requireString("owner", a.Owner), requireString("repo", a.Repo), requireString("branch", a.Branch))
 }

@@ -4,6 +4,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
@@ -172,4 +173,23 @@ func listMyRepos(ctx context.Context, s *apprepo.AdminService, a listMyReposArgs
 	}
 	page, err := repoPage(s.ListMyRepos(ctx, apprepo.AdminPaging{Page: pg, Limit: limit}))
 	return mcpresult.Render(page, err)
+}
+
+// Validate refuses a create that names no repository name.
+func (a createRepoArgs) Validate() error {
+	if a.Name == nil {
+		return errors.New("repository name is required")
+	}
+	return nil
+}
+
+// Validate refuses a fork that names no source user or repository.
+func (a forkRepoArgs) Validate() error {
+	if a.User == nil {
+		return errors.New("user name is required")
+	}
+	if a.Repo == nil {
+		return errors.New("repository name is required")
+	}
+	return nil
 }

@@ -61,8 +61,11 @@ func listRepoCommits(ctx context.Context, svc *apprepo.GitService, a listRepoCom
 	})))
 }
 
-// Validate refuses a commit list whose page or limit is out of range.
+// Validate refuses a commit list that names no repository or whose page or limit is out of range.
 func (a listRepoCommitsArgs) Validate() error {
+	if err := firstError(requireString("owner", a.Owner), requireString("repo", a.Repo)); err != nil {
+		return err
+	}
 	_, _, err := a.paging()
 	return err
 }

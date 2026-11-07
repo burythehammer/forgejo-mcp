@@ -61,8 +61,14 @@ func getCommitStatuses(ctx context.Context, s *apprepo.AdminService, a getCommit
 	return mcpresult.Render(statusPage(a.SHA, b, err))
 }
 
-// Validate refuses a call whose page or limit is out of range.
+// Validate refuses a call that names no repository or SHA, or whose page or limit is out of range.
 func (a getCommitStatusesArgs) Validate() error {
+	if err := requireOwnerRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if err := requireString("sha", a.SHA); err != nil {
+		return err
+	}
 	_, _, err := a.paging()
 	return err
 }

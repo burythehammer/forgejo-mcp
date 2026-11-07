@@ -4,6 +4,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 
 	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
@@ -136,8 +137,33 @@ func deleteRepoTopic(ctx context.Context, s *apprepo.AdminService, a addRepoTopi
 	return to.TextResult(map[string]string{"topic": name, "status": "deleted"})
 }
 
-// Validate refuses a list call whose page or limit is out of range.
+// Validate refuses a list call that names no repository or whose page or limit is out of range.
 func (a listRepoTopicsArgs) Validate() error {
+	if err := requireOwnerRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
 	_, _, err := a.paging()
 	return err
+}
+
+// Validate refuses a set that names no repository or topic list.
+func (a setRepoTopicsArgs) Validate() error {
+	if err := requireOwnerRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if a.Topics == nil {
+		return errors.New("topics is required")
+	}
+	return nil
+}
+
+// Validate refuses an add or delete that names no repository or topic.
+func (a addRepoTopicArgs) Validate() error {
+	if err := requireOwnerRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if a.Topic == "" {
+		return errors.New("topic name is empty")
+	}
+	return nil
 }

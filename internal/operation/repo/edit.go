@@ -96,3 +96,13 @@ func editRepo(ctx context.Context, s *apprepo.AdminService, a editRepoArgs) (*mc
 	}})
 	return mcpresult.Render(r, err)
 }
+
+// Validate refuses a call that names no repository. It runs before the credential lookup.
+func (a getRepoArgs) Validate() error {
+	return requireOwnerRepo(a.Owner, a.Repo)
+}
+
+// Validate refuses a call that names no repository. It runs before the credential lookup.
+func (a editRepoArgs) Validate() error {
+	return requireOwnerRepo(a.Owner, a.Repo)
+}

@@ -237,15 +237,28 @@ func deleteFile(ctx context.Context, svc *apprepo.GitService, a deleteFileArgs) 
 	return to.TextResult("Delete file success")
 }
 
-// Validate refuses a write whose content selectors are not exactly one. The
-// write itself runs only after the credential lookup.
+// Validate refuses a create that names no repository, path, message or branch, or whose content
+// selectors are not exactly one. The write runs only after the credential lookup.
 func (a createFileArgs) Validate() error {
+	if err := firstError(
+		requireString("owner", a.Owner), requireString("repo", a.Repo), requireString("filePath", a.FilePath),
+		requireString("message", a.Message), requireString("branch_name", a.BranchName),
+	); err != nil {
+		return err
+	}
 	_, err := selectRepositoryWriteContent(a.Content, a.ContentBase64)
 	return err
 }
 
-// Validate refuses a write whose content selectors are not exactly one.
+// Validate refuses an update that names no repository, path, message or branch, or whose content
+// selectors are not exactly one. A missing SHA is not refused: the update takes the current one.
 func (a updateFileArgs) Validate() error {
+	if err := firstError(
+		requireString("owner", a.Owner), requireString("repo", a.Repo), requireString("filePath", a.FilePath),
+		requireString("message", a.Message), requireString("branch_name", a.BranchName),
+	); err != nil {
+		return err
+	}
 	_, err := selectRepositoryWriteContent(a.Content, a.ContentBase64)
 	return err
 }
