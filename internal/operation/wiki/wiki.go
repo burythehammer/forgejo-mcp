@@ -95,6 +95,7 @@ var DeleteWikiPageTool = mcp.NewTool(DeleteWikiPageToolName,
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
 	s.AddTool(ListWikiPagesTool, pipeline.Handle(h.service, listWikiPages))
+	s.AddTool(SearchWikiTool, pipeline.Handle(h.service, searchWikiPages))
 	s.AddTool(GetWikiPageTool, pipeline.Handle(h.service, getWikiPage))
 	s.AddTool(GetWikiRevisionsTool, pipeline.Handle(h.service, getWikiRevisions))
 	s.AddTool(CreateWikiPageTool, pipeline.Handle(h.service, createWikiPage))
