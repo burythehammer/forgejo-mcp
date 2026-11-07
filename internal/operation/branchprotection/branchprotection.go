@@ -14,12 +14,12 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/branchprotectionadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -171,76 +171,91 @@ type editArgs struct {
 	RequireSignedCommits        *bool    `json:"require_signed_commits"`
 }
 
-// run is the shared shape of a tool call: decode the arguments into A, take the
-// use cases bound to this request's credential, and hand both to do, which
-// runs one use case and renders its result.
-func run[A any](ctx context.Context, h handlers, req mcp.CallToolRequest, name string,
-	do func(context.Context, *appbp.Service, A) (*mcp.CallToolResult, error),
-) (*mcp.CallToolResult, error) {
-	log.Debugf("Called %s", name)
-	var args A
-	if err := decode.Lax(req, &args); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
+// service is the Binder of every branch protection tool: it looks up the
+// request's credential and binds the use case to it. It runs only after the
+// request is valid.
+func (h handlers) service(ctx context.Context) (*appbp.Service, error) {
 	port, err := h.forge.For(ctx)
 	if err != nil {
-		return mcpresult.Fail(err)
+		return nil, err
 	}
-	return do(ctx, appbp.New(branchprotectionadapter.New(port)), args)
+	return appbp.New(branchprotectionadapter.New(port)), nil
+}
+
+// paging is the page and limit of a list call, refused when either is out of
+// range. It runs in Validate, before the credential lookup.
+func (a listArgs) paging() (int, int, error) {
+	return decode.PagingArgs(a.Page, a.Limit)
+}
+
+// Validate refuses a list call whose page or limit is out of range.
+func (a listArgs) Validate() error {
+	_, _, err := a.paging()
+	return err
 }
 
 func (h handlers) ListBranchProtectionsFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "ListBranchProtectionsFn", func(ctx context.Context, s *appbp.Service, a listArgs) (*mcp.CallToolResult, error) {
-		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
-		if perr != nil {
-			return mcpresult.Fail(perr)
-		}
-		got, err := s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: pg, Limit: lim})
-		if err != nil {
-			return mcpresult.Fail(err)
-		}
-		return mcpresult.Render(model.BranchProtectionList{BranchProtections: got.Items, PageMeta: model.PageMetaOf(got)}, nil)
-	})
+	return pipeline.Handle(h.service, listBranchProtections)(ctx, req)
+}
+
+func listBranchProtections(ctx context.Context, s *appbp.Service, a listArgs) (*mcp.CallToolResult, error) {
+	pg, lim, err := a.paging()
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	got, err := s.List(ctx, appbp.ListRequest{Owner: a.Owner, Repo: a.Repo, Page: pg, Limit: lim})
+	if err != nil {
+		return mcpresult.Fail(err)
+	}
+	return mcpresult.Render(model.BranchProtectionList{BranchProtections: got.Items, PageMeta: model.PageMetaOf(got)}, nil)
 }
 
 func (h handlers) GetBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "GetBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a ruleArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Get(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}))
-	})
+	return pipeline.Handle(h.service, getBranchProtection)(ctx, req)
+}
+
+func getBranchProtection(ctx context.Context, s *appbp.Service, a ruleArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.Get(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}))
 }
 
 func (h handlers) CreateBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "CreateBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a createArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Create(ctx, appbp.CreateRequest{
-			Owner: a.Owner, Repo: a.Repo, BranchName: a.BranchName, RuleName: a.RuleName,
-			EnablePush: a.EnablePush, EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts,
-			RequiredApprovals: numarg.Truncate(a.RequiredApprovals), BlockOnOutdatedBranch: a.BlockOnOutdatedBranch,
-			RequireSignedCommits: a.RequireSignedCommits, DismissStaleApprovals: a.DismissStaleApprovals,
-		}))
-	})
+	return pipeline.Handle(h.service, createBranchProtection)(ctx, req)
+}
+
+func createBranchProtection(ctx context.Context, s *appbp.Service, a createArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.Create(ctx, appbp.CreateRequest{
+		Owner: a.Owner, Repo: a.Repo, BranchName: a.BranchName, RuleName: a.RuleName,
+		EnablePush: a.EnablePush, EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts,
+		RequiredApprovals: numarg.Truncate(a.RequiredApprovals), BlockOnOutdatedBranch: a.BlockOnOutdatedBranch,
+		RequireSignedCommits: a.RequireSignedCommits, DismissStaleApprovals: a.DismissStaleApprovals,
+	}))
 }
 
 func (h handlers) EditBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "EditBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a editArgs) (*mcp.CallToolResult, error) {
-		return mcpresult.Render(s.Edit(ctx, appbp.EditRequest{
-			RuleRef:    appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule},
-			EnablePush: a.EnablePush, EnablePushWhitelist: a.EnablePushWhitelist, PushWhitelistUsernames: a.PushWhitelistUsernames,
-			EnableMergeWhitelist: a.EnableMergeWhitelist, MergeWhitelistUsernames: a.MergeWhitelistUsernames,
-			EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts, RequiredApprovals: optionalApprovals(a.RequiredApprovals),
-			EnableApprovalsWhitelist: a.EnableApprovalsWhitelist, ApprovalsWhitelistUsernames: a.ApprovalsWhitelistUsernames,
-			BlockOnOutdatedBranch: a.BlockOnOutdatedBranch, DismissStaleApprovals: a.DismissStaleApprovals,
-			RequireSignedCommits: a.RequireSignedCommits,
-		}))
-	})
+	return pipeline.Handle(h.service, editBranchProtection)(ctx, req)
+}
+
+func editBranchProtection(ctx context.Context, s *appbp.Service, a editArgs) (*mcp.CallToolResult, error) {
+	return mcpresult.Render(s.Edit(ctx, appbp.EditRequest{
+		RuleRef:    appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule},
+		EnablePush: a.EnablePush, EnablePushWhitelist: a.EnablePushWhitelist, PushWhitelistUsernames: a.PushWhitelistUsernames,
+		EnableMergeWhitelist: a.EnableMergeWhitelist, MergeWhitelistUsernames: a.MergeWhitelistUsernames,
+		EnableStatusCheck: a.EnableStatusCheck, StatusCheckContexts: a.StatusCheckContexts, RequiredApprovals: optionalApprovals(a.RequiredApprovals),
+		EnableApprovalsWhitelist: a.EnableApprovalsWhitelist, ApprovalsWhitelistUsernames: a.ApprovalsWhitelistUsernames,
+		BlockOnOutdatedBranch: a.BlockOnOutdatedBranch, DismissStaleApprovals: a.DismissStaleApprovals,
+		RequireSignedCommits: a.RequireSignedCommits,
+	}))
 }
 
 func (h handlers) DeleteBranchProtectionFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return run(ctx, h, req, "DeleteBranchProtectionFn", func(ctx context.Context, s *appbp.Service, a ruleArgs) (*mcp.CallToolResult, error) {
-		if err := s.Delete(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}); err != nil {
-			return mcpresult.Fail(err)
-		}
-		return to.TextResult(fmt.Sprintf("Deleted branch protection rule %q on %s/%s", a.Rule, a.Owner, a.Repo))
-	})
+	return pipeline.Handle(h.service, deleteBranchProtection)(ctx, req)
+}
+
+func deleteBranchProtection(ctx context.Context, s *appbp.Service, a ruleArgs) (*mcp.CallToolResult, error) {
+	if err := s.Delete(ctx, appbp.RuleRef{Owner: a.Owner, Repo: a.Repo, Rule: a.Rule}); err != nil {
+		return mcpresult.Fail(err)
+	}
+	return to.TextResult(fmt.Sprintf("Deleted branch protection rule %q on %s/%s", a.Rule, a.Owner, a.Repo))
 }
 
 // optionalApprovals truncates an optional required_approvals to the whole number
