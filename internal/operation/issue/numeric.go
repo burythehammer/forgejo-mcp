@@ -4,108 +4,160 @@ package issue
 
 import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
 
-// validate methods: each argument struct checks its numbers with the numeric-argument
-// module once, before its handler runs (see run in handlers.go). The validated value is
-// read through the unexported field, so no handler casts a raw number.
+// Validate methods: each argument struct checks its required owner, repo or org,
+// then its numbers with the numeric-argument module, before the credential lookup
+// (see pipeline.Handle). The validated value is read through the unexported field,
+// so no handler casts a raw number.
 
-func (a *getIssueArgs) validate() error {
+func (a *getIssueArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *createCommentArgs) validate() error {
+func (a *createCommentArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *updateIssueArgs) validate() error {
+func (a *updateIssueArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *replaceBodyLineArgs) validate() error {
+func (a *replaceBodyLineArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *labelsArgs) validate() error {
+func (a *labelsArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *stateArgs) validate() error {
+func (a *stateArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *listCommentsArgs) validate() error {
+func (a *listCommentsArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *commentArgs) validate() error {
+func (a *commentArgs) Validate() error {
 	var err error
 	a.commentID, err = numarg.PositiveID("comment_id", a.CommentID)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *getCommentArgs) validate() error {
+func (a *getCommentArgs) Validate() error {
 	var err error
 	a.commentID, err = numarg.PositiveID("comment_id", a.CommentID)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *editCommentArgs) validate() error {
+func (a *editCommentArgs) Validate() error {
 	var err error
 	a.commentID, err = numarg.PositiveID("comment_id", a.CommentID)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *editRepoLabelArgs) validate() error {
+func (a *editRepoLabelArgs) Validate() error {
 	var err error
 	a.id, err = numarg.PositiveID("id", a.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *deleteRepoLabelArgs) validate() error {
+func (a *deleteRepoLabelArgs) Validate() error {
 	var err error
 	a.id, err = numarg.PositiveID("id", a.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *getRepoLabelArgs) validate() error {
+func (a *getRepoLabelArgs) Validate() error {
 	var err error
 	a.id, err = numarg.PositiveID("id", a.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
 
-func (a *editOrgLabelArgs) validate() error {
+func (a *editOrgLabelArgs) Validate() error {
 	var err error
 	a.id, err = numarg.PositiveID("id", a.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	return required("org", a.Org)
 }
 
-func (a *deleteOrgLabelArgs) validate() error {
+func (a *deleteOrgLabelArgs) Validate() error {
 	var err error
 	a.id, err = numarg.PositiveID("id", a.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	return required("org", a.Org)
 }
 
-func (a *getOrgLabelArgs) validate() error {
+func (a *getOrgLabelArgs) Validate() error {
 	var err error
 	a.id, err = numarg.PositiveID("id", a.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	return required("org", a.Org)
 }
 
-func (a *listDependenciesArgs) validate() error {
+func (a *listDependenciesArgs) Validate() error {
 	var err error
 	a.idx, err = numarg.PositiveID("index", a.Index)
-	return err
+	if err != nil {
+		return err
+	}
+	return requiredRepo(a.Owner, a.Repo)
 }
