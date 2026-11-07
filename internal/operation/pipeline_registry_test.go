@@ -60,7 +60,6 @@ var unmigrated = map[string]bool{
 	"repo":             true,
 	"search":           true,
 	"tracking":         true,
-	"user":             true,
 	"wiki":             true,
 }
 
