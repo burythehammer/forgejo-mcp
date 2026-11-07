@@ -13,35 +13,12 @@ import (
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
-
-// toolDomains maps each tool name to its toolset, for grouped listing.
-var toolDomains = map[string]string{}
-
-// registerToolsWithDomains registers every tool through operation.RegisterTool,
-// so the CLI lists the same registry the server serves, and records each
-// tool's toolset from the toolset catalogue.
-func registerToolsWithDomains(s *server.MCPServer, version string, f forge.Factory) {
-	operation.RegisterTool(s, version, f)
-	for _, name := range toolNames(s) {
-		toolDomains[name] = toolset.Of(name)
-	}
-}
-
-func toolNames(s *server.MCPServer) []string {
-	tools := s.ListTools()
-	names := make([]string, 0, len(tools))
-	for name := range tools {
-		names = append(names, name)
-	}
-	return names
-}
 
 // RunCLI is the entry point for --cli mode. cfg.CLI holds the parsed command.
 func RunCLI(cfg config.Config, version string) {
@@ -53,9 +30,14 @@ func RunCLI(cfg config.Config, version string) {
 		os.Exit(1)
 	}
 
-	// Build the MCPServer and register tools with domain tracking.
-	mcpSrv := server.NewMCPServer("Forgejo MCP Server", version, server.WithLogging())
-	registerToolsWithDomains(mcpSrv, version, sdk.NewFactory(cfg.Forgejo, version))
+	// The same composition root as the server, so the CLI offers exactly the
+	// tools the operator selected.
+	built, err := operation.Build(cfg, version)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	mcpSrv := built.Server
 
 	switch c.Tool {
 	case "list":
@@ -127,7 +109,7 @@ func cliList(s *server.MCPServer, outputMode string) error {
 	// Build sorted list.
 	var infos []toolInfo
 	for name, st := range tools {
-		domain := toolDomains[name]
+		domain := toolset.Of(name)
 		if domain == "" {
 			domain = "other"
 		}

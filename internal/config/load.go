@@ -68,8 +68,9 @@ var resourceSettings = []resourceSetting{
 
 // Load resolves args and the environment into a Config, flag over environment
 // over default. It reads no process state: getenv stands in for os.Getenv and
-// args excludes the program name. With --cli among args the command line is
-// not parsed (it belongs to the CLI) and only the environment is consulted.
+// args excludes the program name. With --cli among args, the options before it
+// are server options and parse as in serve mode; the arguments after it belong
+// to the CLI.
 func Load(args []string, getenv func(string) string, build Build) (Config, []Warning, error) {
 	var (
 		cfg   Config
@@ -154,13 +155,23 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	}
 
 	cfg.Mode = ModeServe
+	// Server options go before --cli and are parsed like in serve mode; the
+	// arguments after it belong to the CLI.
 	var cliArgs []string
+	serverArgs := args
 	for i, a := range args {
 		if a == "--cli" {
 			cfg.Mode = ModeCLI
+			serverArgs = args[:i]
 			cliArgs = args[i+1:]
 			break
 		}
+	}
+	if err := fs.Parse(serverArgs); err != nil {
+		var usage bytes.Buffer
+		fs.SetOutput(&usage)
+		fs.PrintDefaults()
+		return Config{}, nil, &UsageError{Err: err, Usage: usage.String()}
 	}
 	if cfg.Mode == ModeCLI {
 		c, err := parseCLI(cliArgs)
@@ -168,13 +179,6 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 			return Config{}, nil, err
 		}
 		cfg.CLI = c
-	} else {
-		if err := fs.Parse(args); err != nil {
-			var usage bytes.Buffer
-			fs.SetOutput(&usage)
-			fs.PrintDefaults()
-			return Config{}, nil, &UsageError{Err: err, Usage: usage.String()}
-		}
 	}
 
 	passed := map[string]bool{}
@@ -364,6 +368,9 @@ func parseCLI(args []string) (CLI, error) {
 		var usage bytes.Buffer
 		fs.SetOutput(&usage)
 		fs.PrintDefaults()
+		if !errors.Is(err, flag.ErrHelp) {
+			err = fmt.Errorf("%w (server options such as --toolsets, --tools, --preset and --lean go before --cli, for example: forgejo-mcp --toolsets issues --cli list)", err)
+		}
 		return CLI{}, &UsageError{Err: err, Usage: usage.String()}
 	}
 	if c.Output == "" {
