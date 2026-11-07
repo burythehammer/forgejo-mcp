@@ -1,3 +1,3 @@
-ERROR: invalid state "archived": must be one of all|draft|prerelease|published
+RESULT-ERROR: invalid state "archived": must be one of all|draft|prerelease|published
 -- port calls --
 

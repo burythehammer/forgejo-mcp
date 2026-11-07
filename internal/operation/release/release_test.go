@@ -16,6 +16,7 @@ import (
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // Handler tests run against the in-memory fake, build their own, and so run in
@@ -97,23 +98,23 @@ func TestListReleases_PaginationAndStateFilter(t *testing.T) {
 	seed(t, f, "v3-rc", false, true)
 	seed(t, f, "v4", false, false)
 
-	all := text(t, ok(t, h.ListReleasesFn, nil))
+	all := text(t, ok(t, h.tool(ListReleasesTool.Name), nil))
 	for _, tag := range []string{"v1", "v2-draft", "v3-rc", "v4"} {
 		if !strings.Contains(all, `"`+tag+`"`) {
 			t.Fatalf("default list is missing %s: %s", tag, all)
 		}
 	}
-	published := text(t, ok(t, h.ListReleasesFn, map[string]any{"state": "published"}))
+	published := text(t, ok(t, h.tool(ListReleasesTool.Name), map[string]any{"state": "published"}))
 	if !strings.Contains(published, `"v1"`) || !strings.Contains(published, `"v4"`) || strings.Contains(published, "v2-draft") || strings.Contains(published, "v3-rc") {
 		t.Fatalf("published: %s", published)
 	}
-	if d := text(t, ok(t, h.ListReleasesFn, map[string]any{"state": "draft"})); !strings.Contains(d, "v2-draft") || strings.Contains(d, `"v1"`) {
+	if d := text(t, ok(t, h.tool(ListReleasesTool.Name), map[string]any{"state": "draft"})); !strings.Contains(d, "v2-draft") || strings.Contains(d, `"v1"`) {
 		t.Fatalf("draft: %s", d)
 	}
-	if p := text(t, ok(t, h.ListReleasesFn, map[string]any{"state": "prerelease"})); !strings.Contains(p, "v3-rc") || strings.Contains(p, `"v1"`) {
+	if p := text(t, ok(t, h.tool(ListReleasesTool.Name), map[string]any{"state": "prerelease"})); !strings.Contains(p, "v3-rc") || strings.Contains(p, `"v1"`) {
 		t.Fatalf("prerelease: %s", p)
 	}
-	page := text(t, ok(t, h.ListReleasesFn, map[string]any{"page": 2.0, "limit": 3.0}))
+	page := text(t, ok(t, h.tool(ListReleasesTool.Name), map[string]any{"page": 2.0, "limit": 3.0}))
 	if !strings.Contains(page, `"v1"`) || strings.Contains(page, `"v4"`) {
 		t.Fatalf("page 2: %s", page)
 	}
@@ -122,7 +123,7 @@ func TestListReleases_PaginationAndStateFilter(t *testing.T) {
 func TestListReleases_InvalidStateRejected(t *testing.T) {
 	t.Parallel()
 	h, _ := newFixture(t)
-	if msg := fails(t, h.ListReleasesFn, map[string]any{"state": "bogus"}); !strings.Contains(msg, "invalid state") {
+	if msg := fails(t, h.tool(ListReleasesTool.Name), map[string]any{"state": "bogus"}); !strings.Contains(msg, "invalid state") {
 		t.Fatal(msg)
 	}
 }
@@ -133,19 +134,19 @@ func TestGetReleases(t *testing.T) {
 	rel := seed(t, f, "v1", false, false)
 	seed(t, f, "v2-draft", true, false)
 
-	if b := text(t, ok(t, h.GetReleaseByIDFn, map[string]any{"release_id": float64(rel.ID)})); !strings.Contains(b, `"v1"`) {
+	if b := text(t, ok(t, h.tool(GetReleaseByIDTool.Name), map[string]any{"release_id": float64(rel.ID)})); !strings.Contains(b, `"v1"`) {
 		t.Fatal(b)
 	}
-	if b := text(t, ok(t, h.GetReleaseByTagFn, map[string]any{"tag": "v1"})); !strings.Contains(b, `"v1"`) {
+	if b := text(t, ok(t, h.tool(GetReleaseByTagTool.Name), map[string]any{"tag": "v1"})); !strings.Contains(b, `"v1"`) {
 		t.Fatal(b)
 	}
-	if b := text(t, ok(t, h.GetLatestReleaseFn, nil)); !strings.Contains(b, `"v1"`) {
+	if b := text(t, ok(t, h.tool(GetLatestReleaseTool.Name), nil)); !strings.Contains(b, `"v1"`) {
 		t.Fatal(b)
 	}
-	if msg := fails(t, h.GetReleaseByIDFn, map[string]any{"release_id": 99.0}); !strings.Contains(msg, "get release err") {
+	if msg := fails(t, h.tool(GetReleaseByIDTool.Name), map[string]any{"release_id": 99.0}); !strings.Contains(msg, "get release err") {
 		t.Fatal(msg)
 	}
-	if msg := fails(t, h.GetReleaseByTagFn, map[string]any{}); !strings.Contains(msg, "tag is required") {
+	if msg := fails(t, h.tool(GetReleaseByTagTool.Name), map[string]any{}); !strings.Contains(msg, "tag is required") {
 		t.Fatal(msg)
 	}
 }
@@ -153,7 +154,7 @@ func TestGetReleases(t *testing.T) {
 func TestCreateRelease(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
-	body := text(t, ok(t, h.CreateReleaseFn, map[string]any{"tag_name": "v1.0.0", "target_commitish": "abc123", "body": "notes", "prerelease": true}))
+	body := text(t, ok(t, h.tool(CreateReleaseTool.Name), map[string]any{"tag_name": "v1.0.0", "target_commitish": "abc123", "body": "notes", "prerelease": true}))
 	// The name defaults to the tag.
 	for _, want := range []string{`"v1.0.0"`, `"abc123"`, `"notes"`, `"prerelease":true`} {
 		if !strings.Contains(body, want) {
@@ -164,7 +165,7 @@ func TestCreateRelease(t *testing.T) {
 	if err != nil || rel.Title != "v1.0.0" {
 		t.Fatalf("rel=%+v err=%v", rel, err)
 	}
-	if msg := fails(t, h.CreateReleaseFn, map[string]any{}); !strings.Contains(msg, "tag_name is required") {
+	if msg := fails(t, h.tool(CreateReleaseTool.Name), map[string]any{}); !strings.Contains(msg, "tag_name is required") {
 		t.Fatal(msg)
 	}
 }
@@ -173,12 +174,12 @@ func TestEditRelease_PartialUpdate(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	rel := seed(t, f, "v1", false, false)
-	ok(t, h.EditReleaseFn, map[string]any{"release_id": float64(rel.ID), "body": "updated"})
+	ok(t, h.tool(EditReleaseTool.Name), map[string]any{"release_id": float64(rel.ID), "body": "updated"})
 	got, _ := f.GetRelease(context.Background(), owner, repo, rel.ID)
 	if got.Note != "updated" || got.Title != "title v1" || got.IsDraft {
 		t.Fatalf("got %+v", got)
 	}
-	ok(t, h.EditReleaseFn, map[string]any{"release_id": float64(rel.ID), "draft": true})
+	ok(t, h.tool(EditReleaseTool.Name), map[string]any{"release_id": float64(rel.ID), "draft": true})
 	got, _ = f.GetRelease(context.Background(), owner, repo, rel.ID)
 	if !got.IsDraft || got.Note != "updated" {
 		t.Fatalf("got %+v", got)
@@ -190,16 +191,16 @@ func TestDeleteReleases(t *testing.T) {
 	h, f := newFixture(t)
 	a := seed(t, f, "v1", false, false)
 	seed(t, f, "v2", false, false)
-	if b := text(t, ok(t, h.DeleteReleaseFn, map[string]any{"release_id": float64(a.ID)})); !strings.Contains(b, "deleted") {
+	if b := text(t, ok(t, h.tool(DeleteReleaseTool.Name), map[string]any{"release_id": float64(a.ID)})); !strings.Contains(b, "deleted") {
 		t.Fatal(b)
 	}
-	if b := text(t, ok(t, h.DeleteReleaseByTagFn, map[string]any{"tag": "v2"})); !strings.Contains(b, "deleted") {
+	if b := text(t, ok(t, h.tool(DeleteReleaseByTagTool.Name), map[string]any{"tag": "v2"})); !strings.Contains(b, "deleted") {
 		t.Fatal(b)
 	}
 	if rels, _ := f.ListReleases(context.Background(), owner, repo, forgejo_sdk.ListReleasesOptions{}); len(rels) != 0 {
 		t.Fatalf("left: %+v", rels)
 	}
-	if msg := fails(t, h.DeleteReleaseByTagFn, map[string]any{}); !strings.Contains(msg, "tag is required") {
+	if msg := fails(t, h.tool(DeleteReleaseByTagTool.Name), map[string]any{}); !strings.Contains(msg, "tag is required") {
 		t.Fatal(msg)
 	}
 }
@@ -209,17 +210,17 @@ func TestReleaseAttachmentLifecycle(t *testing.T) {
 	h, f := newFixture(t)
 	rid := float64(seed(t, f, "v1", false, false).ID)
 
-	created := text(t, ok(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": b64("archive"), "filename": "a.zip", "mime_type": "application/zip"}))
+	created := text(t, ok(t, h.tool(CreateReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "content": b64("archive"), "filename": "a.zip", "mime_type": "application/zip"}))
 	if !strings.Contains(created, `"a.zip"`) {
 		t.Fatal(created)
 	}
-	if b := text(t, ok(t, h.GetReleaseAttachmentFn, map[string]any{"release_id": rid, "attachment_id": 1.0})); !strings.Contains(b, `"a.zip"`) {
+	if b := text(t, ok(t, h.tool(GetReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "attachment_id": 1.0})); !strings.Contains(b, `"a.zip"`) {
 		t.Fatal(b)
 	}
-	if b := text(t, ok(t, h.EditReleaseAttachmentFn, map[string]any{"release_id": rid, "attachment_id": 1.0, "name": "b.zip"})); !strings.Contains(b, `"b.zip"`) {
+	if b := text(t, ok(t, h.tool(EditReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "attachment_id": 1.0, "name": "b.zip"})); !strings.Contains(b, `"b.zip"`) {
 		t.Fatal(b)
 	}
-	dl := ok(t, h.DownloadReleaseAttachmentFn, map[string]any{"release_id": rid, "attachment_id": 1.0})
+	dl := ok(t, h.tool(DownloadReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "attachment_id": 1.0})
 	var blobFound bool
 	for _, c := range dl.Content {
 		if er, isRes := c.(mcp.EmbeddedResource); isRes {
@@ -231,8 +232,8 @@ func TestReleaseAttachmentLifecycle(t *testing.T) {
 	if !blobFound {
 		t.Fatalf("no blob in %+v", dl.Content)
 	}
-	ok(t, h.DeleteReleaseAttachmentFn, map[string]any{"release_id": rid, "attachment_id": 1.0})
-	if msg := fails(t, h.DownloadReleaseAttachmentFn, map[string]any{"release_id": rid, "attachment_id": 1.0}); !strings.Contains(msg, "download release attachment (metadata) err") {
+	ok(t, h.tool(DeleteReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "attachment_id": 1.0})
+	if msg := fails(t, h.tool(DownloadReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "attachment_id": 1.0}); !strings.Contains(msg, "download release attachment (metadata) err") {
 		t.Fatal(msg)
 	}
 }
@@ -242,13 +243,13 @@ func TestListReleaseAttachments_ClientSideSlicing(t *testing.T) {
 	h, f := newFixture(t)
 	rid := float64(seed(t, f, "v1", false, false).ID)
 	for i := 1; i <= 5; i++ {
-		ok(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": b64("x"), "filename": fmt.Sprintf("f%d", i)})
+		ok(t, h.tool(CreateReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "content": b64("x"), "filename": fmt.Sprintf("f%d", i)})
 	}
-	got := text(t, ok(t, h.ListReleaseAttachmentsFn, map[string]any{"release_id": rid, "page": 2.0, "limit": 2.0}))
+	got := text(t, ok(t, h.tool(ListReleaseAttachmentsTool.Name), map[string]any{"release_id": rid, "page": 2.0, "limit": 2.0}))
 	if !strings.Contains(got, `"f3"`) || !strings.Contains(got, `"f4"`) || strings.Contains(got, `"f2"`) || strings.Contains(got, `"f5"`) {
 		t.Fatalf("page 2 limit 2: %s", got)
 	}
-	if past := text(t, ok(t, h.ListReleaseAttachmentsFn, map[string]any{"release_id": rid, "page": 9.0})); strings.Contains(past, `"f1"`) {
+	if past := text(t, ok(t, h.tool(ListReleaseAttachmentsTool.Name), map[string]any{"release_id": rid, "page": 9.0})); strings.Contains(past, `"f1"`) {
 		t.Fatalf("past the end: %s", past)
 	}
 }
@@ -257,8 +258,8 @@ func TestDownloadReleaseAttachment_AtCapNoBlob(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	rid := float64(seed(t, f, "v1", false, false).ID)
-	ok(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": b64(strings.Repeat("x", int(forge.MaxInlineDownloadBytes))), "filename": "big"})
-	res := ok(t, h.DownloadReleaseAttachmentFn, map[string]any{"release_id": rid, "attachment_id": 1.0})
+	ok(t, h.tool(CreateReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "content": b64(strings.Repeat("x", int(forge.MaxInlineDownloadBytes))), "filename": "big"})
+	res := ok(t, h.tool(DownloadReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "attachment_id": 1.0})
 	if len(res.Content) != 1 || !strings.Contains(text(t, res), `"inline":false`) {
 		t.Fatalf("got %+v", res.Content)
 	}
@@ -271,8 +272,8 @@ func TestCreateReleaseAttachment_RejectsBadInput(t *testing.T) {
 	t.Cleanup(upload.SetContentLimitForTest(1024))
 	h, f := newFixture(t)
 	rid := float64(seed(t, f, "v1", false, false).ID)
-	fails(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": "not base64!!!", "filename": "f"})
-	if msg := fails(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "content": strings.Repeat("A", 1025), "filename": "f"}); !strings.Contains(msg, "too large") {
+	fails(t, h.tool(CreateReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "content": "not base64!!!", "filename": "f"})
+	if msg := fails(t, h.tool(CreateReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "content": strings.Repeat("A", 1025), "filename": "f"}); !strings.Contains(msg, "too large") {
 		t.Fatal(msg)
 	}
 	if atts, _ := f.ListReleaseAttachments(context.Background(), owner, repo, int64(rid)); len(atts) != 0 {
@@ -284,7 +285,7 @@ func TestEditReleaseAttachment_RequiresName(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
 	rid := float64(seed(t, f, "v1", false, false).ID)
-	if msg := fails(t, h.EditReleaseAttachmentFn, map[string]any{"release_id": rid, "attachment_id": 1.0}); !strings.Contains(msg, "name is required") {
+	if msg := fails(t, h.tool(EditReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "attachment_id": 1.0}); !strings.Contains(msg, "name is required") {
 		t.Fatal(msg)
 	}
 }
@@ -292,7 +293,7 @@ func TestEditReleaseAttachment_RequiresName(t *testing.T) {
 func TestCredentialPolicyErrorIsReported(t *testing.T) {
 	t.Parallel()
 	h := handlers{forge: fake.Factory{Err: errors.New("no credential")}}
-	if msg := fails(t, h.ListReleasesFn, nil); !strings.Contains(msg, "no credential") {
+	if msg := fails(t, h.tool(ListReleasesTool.Name), nil); !strings.Contains(msg, "no credential") {
 		t.Fatal(msg)
 	}
 }
@@ -304,7 +305,7 @@ func TestCreateReleaseAttachment_RejectsNonStringSource(t *testing.T) {
 	rid := float64(seed(t, f, "v1", false, false).ID)
 	for _, key := range []string{"content", "file_path"} {
 		for _, value := range []any{123.0, true, nil} {
-			msg := fails(t, h.CreateReleaseAttachmentFn, map[string]any{"release_id": rid, "filename": "a.png", key: value})
+			msg := fails(t, h.tool(CreateReleaseAttachmentTool.Name), map[string]any{"release_id": rid, "filename": "a.png", key: value})
 			if !strings.Contains(msg, key+" must be a string") {
 				t.Fatalf("%s=%v: want must-be-a-string error, got %s", key, value, msg)
 			}
@@ -313,4 +314,12 @@ func TestCreateReleaseAttachment_RejectsNonStringSource(t *testing.T) {
 	if atts, _ := f.ListReleaseAttachments(context.Background(), owner, repo, int64(rid)); len(atts) != 0 {
 		t.Fatalf("nothing should be uploaded: %+v", atts)
 	}
+}
+
+// tool returns the handler the registered server serves for one tool, so the
+// test reaches it through the request pipeline.
+func (h handlers) tool(name string) fn {
+	s := server.NewMCPServer("test", "0")
+	RegisterTool(s, h.forge)
+	return s.GetTool(name).Handler
 }
