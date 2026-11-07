@@ -8,6 +8,7 @@ package branchprotection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	appbp "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/branchprotection"
@@ -262,8 +263,46 @@ func optionalApprovals(v *float64) *int64 {
 	return &n
 }
 
-// Validate refuses a list call whose page or limit is out of range.
+// requireOwnerRepo reports a missing owner or repo with the wording of the use case.
+func requireOwnerRepo(owner, repo string) error {
+	if owner == "" || repo == "" {
+		return errors.New("owner and repo are required")
+	}
+	return nil
+}
+
+// Validate refuses a list call that names no repository or whose page or limit is out of range.
 func (a listArgs) Validate() error {
+	if err := requireOwnerRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
 	_, _, err := a.paging()
 	return err
+}
+
+// Validate refuses a get, edit or delete that names no repository or rule.
+func (a ruleArgs) Validate() error {
+	if a.Owner == "" || a.Repo == "" || a.Rule == "" {
+		return errors.New("owner, repo and rule are required")
+	}
+	return nil
+}
+
+// Validate refuses a create that names no repository or branch.
+func (a createArgs) Validate() error {
+	if err := requireOwnerRepo(a.Owner, a.Repo); err != nil {
+		return err
+	}
+	if a.BranchName == "" {
+		return errors.New("branch_name is required")
+	}
+	return nil
+}
+
+// Validate refuses an edit that names no repository or rule.
+func (a editArgs) Validate() error {
+	if a.Owner == "" || a.Repo == "" || a.Rule == "" {
+		return errors.New("owner, repo and rule are required")
+	}
+	return nil
 }
