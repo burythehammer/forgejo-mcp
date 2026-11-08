@@ -15,6 +15,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/hook"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pull"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/wiki"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -51,6 +52,21 @@ var textListTools = map[string]textShape{
 // skippedListTools are list tools the bound cannot hold yet. Each runs as a
 // subtest that skips with its reason, so the gap shows in every run.
 var skippedListTools = map[string]string{}
+
+// unpagedSearchTools are search tools that take no page or limit. Their bound
+// is fixed caps on pages scanned and hits returned, reported by a truncated
+// flag, so the page contract and its goldens do not apply to them.
+var unpagedSearchTools = map[string]string{
+	wiki.SearchWikiToolName: "searches by fixed caps on pages scanned and hits returned, and reports truncated; it takes no page or limit",
+}
+
+// isUnpagedSearchTool reports whether a search tool is exempt from the page and
+// limit contract. Both the bound test and the pagination golden test read the
+// exemption through here.
+func isUnpagedSearchTool(name string) bool {
+	_, unpaged := unpagedSearchTools[name]
+	return unpaged
+}
 
 // listResourceFixture is one list resource template: a concrete URI that reads
 // it and the seed that fills the fake behind that URI.
@@ -118,6 +134,9 @@ func TestRegistryBoundsEveryListResource(t *testing.T) {
 // isListTool reports whether a registered tool returns a list: its name says so,
 // or it takes a page or limit, which only a list does.
 func isListTool(name string, tool mcp.Tool) bool {
+	if isUnpagedSearchTool(name) {
+		return false
+	}
 	if strings.HasPrefix(name, "list_") || strings.HasPrefix(name, "search_") {
 		return true
 	}

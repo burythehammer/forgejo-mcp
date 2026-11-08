@@ -63,7 +63,7 @@ var GetWikiRevisionsTool = mcp.NewTool(GetWikiRevisionsToolName,
 
 var CreateWikiPageTool = mcp.NewTool(CreateWikiPageToolName,
 	annotate.Write(),
-	mcp.WithDescription("Create a wiki page. Slash-separated titles such as Parent/Child are a flat naming convention: Forgejo stores no parent-child relationship and does not create a parent page automatically. Creating an existing title overwrites it. Use the returned page_name verbatim; never derive it from title."),
+	mcp.WithDescription("Create a wiki page. Slash-separated titles such as Parent/Child are a flat naming convention: Forgejo stores no parent-child relationship and does not create a parent page automatically. A title that already names a page is refused; use update_wiki_page to change an existing page. The check and the create are two requests, so two simultaneous creates of one new title can both succeed. Use the returned page_name verbatim; never derive it from title."),
 	mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 	mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 	mcp.WithString("title", mcp.Required(), mcp.Description(params.WikiTitle)),
@@ -95,6 +95,7 @@ var DeleteWikiPageTool = mcp.NewTool(DeleteWikiPageToolName,
 func RegisterTool(s *server.MCPServer, f forge.Factory) {
 	h := handlers{forge: f}
 	s.AddTool(ListWikiPagesTool, pipeline.Handle(h.service, listWikiPages))
+	s.AddTool(SearchWikiTool, pipeline.Handle(h.service, searchWikiPages))
 	s.AddTool(GetWikiPageTool, pipeline.Handle(h.service, getWikiPage))
 	s.AddTool(GetWikiRevisionsTool, pipeline.Handle(h.service, getWikiRevisions))
 	s.AddTool(CreateWikiPageTool, pipeline.Handle(h.service, createWikiPage))

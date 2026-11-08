@@ -1,3 +1,0 @@
-ERROR: create wiki page: boom
--- port calls --
-CreateWikiPage ["octo","hello","New","Ym9keQ==","Create wiki page 'New'"]

@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Search a repository's wiki pages for a plain-text query, matched case-insensitively on each page's title and on each line of its body. Returns {hits, pages_scanned, pages_skipped, truncated}; a hit is {page_name, line, snippet} and a title match has no line. The search reads at most 100 pages and returns at most 20 hits, and a page over 1 MiB is skipped and counted in pages_skipped. truncated true means a cap stopped the search, so no hits does not prove absence. Pass a hit's page_name to get_wiki_page, with its line as start_line.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "query": {
+        "description": "Plain text to find, matched case-insensitively; not a pattern",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "query"
+    ],
+    "type": "object"
+  },
+  "name": "search_wiki"
+}

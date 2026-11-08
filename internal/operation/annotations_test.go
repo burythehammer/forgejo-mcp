@@ -185,6 +185,7 @@ var expectedHints = map[string]string{
 	"search_org_teams":                    hintRead,
 	"search_repos":                        hintRead,
 	"search_users":                        hintRead,
+	"search_wiki":                         hintRead,
 	"set_repo_topics":                     hintWrite,
 	"start_issue_stopwatch":               hintWrite,
 	"stop_issue_stopwatch":                hintWrite,

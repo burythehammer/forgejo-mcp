@@ -274,6 +274,7 @@ var catalogue = []Toolset{
 			"get_wiki_page",
 			"get_wiki_revisions",
 			"list_wiki_pages",
+			"search_wiki",
 			"update_wiki_page",
 		},
 	},

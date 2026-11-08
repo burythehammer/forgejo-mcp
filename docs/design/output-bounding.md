@@ -216,7 +216,10 @@ The exemption maps as they stand:
   `get_wiki_revisions`, with the reason that the revision history is deliberately not
   held to the instance ceiling (see `wiki.Service.Revisions`, which reads through a
   source that reports no ceiling).
-- `unpagedListTools` does not exist in the tree; nothing is exempt on that basis.
+- `unpagedSearchTools` (`registry_bound_test.go`) holds one entry, `search_wiki`. It takes
+  no `page` or `limit` because spec #356 fixes its caps in the server (100 pages scanned,
+  20 hits returned, a page over 1 MiB skipped) and it reports `truncated`. The decision is
+  the spec's; the caps are a server ceiling, not a caller-set bound, so this is an exemption.
 
 **Wiki revisions decision.** The revision history stays a documented entity-read cap
 with a truncation marker, not a ceiling-bound list. `get_wiki_revisions` pages with

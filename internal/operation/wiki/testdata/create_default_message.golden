@@ -1,3 +1,0 @@
-{"Result":{"title":"New","page_name":"New","commit_sha":"abc123"}}
--- port calls --
-CreateWikiPage ["octo","hello","New","Ym9keQ==","Create wiki page 'New'"]
