@@ -36,6 +36,29 @@ func TestHooksContractLive(t *testing.T) {
 	forgetest.RunHooks(t, liveHarness(url, token))
 }
 
+// TestWikiContractLive runs the wiki contract against a real Forgejo through
+// the SDK adapter. It skips unless both environment variables are set. Each
+// case works in a fresh repository, so a case starts with no wiki, and the
+// repository is deleted when the case ends. The server version is logged so a
+// run records which Forgejo it checked.
+func TestWikiContractLive(t *testing.T) {
+	url, token := os.Getenv(liveURLEnv), os.Getenv(liveTokenEnv)
+	if url == "" || token == "" {
+		t.Skipf("set %s and %s to run the contract against a real Forgejo", liveURLEnv, liveTokenEnv)
+	}
+	t.Parallel()
+	client, err := forgejo_sdk.NewClient(url, forgejo_sdk.SetToken(token))
+	if err != nil {
+		t.Fatalf("building SDK client for %s: %v", url, err)
+	}
+	version, _, err := client.ServerVersion()
+	if err != nil {
+		t.Fatalf("reading the Forgejo server version: %v", err)
+	}
+	t.Logf("wiki contract run against Forgejo %s", version)
+	forgetest.RunWiki(t, liveHarness(url, token))
+}
+
 // liveHarness builds a fresh adapter and throwaway repository for each case,
 // owned by the token's user.
 func liveHarness(url, token string) func(t *testing.T) forgetest.Harness {
