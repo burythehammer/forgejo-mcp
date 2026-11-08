@@ -4,7 +4,7 @@
 
 The contract cases in `internal/forge/forgetest` run against the fake and against the SDK adapter pointed at a stub. A live run of the Forgejo adapter runs the same cases against a real Forgejo instance, so a disagreement between our assumptions and Forgejo shows up as a failing test.
 
-The first slice covers the hook cases (`forgetest.RunHooks`) and is `TestHooksContractLive` in `internal/forge/sdk/contract_live_test.go`.
+The first slice covers the hook cases (`forgetest.RunHooks`) and is `TestHooksContractLive` in `internal/forge/sdk/contract_live_test.go`. The wiki cases (`forgetest.RunWiki`) are `TestWikiContractLive` in the same file.
 
 ## Run it
 
@@ -15,6 +15,8 @@ FORGEJO_URL=https://forgejo.example.org \
 FORGEJO_ACCESS_TOKEN=<token> \
 go test ./internal/forge/sdk -run TestHooksContractLive -count=1 -v
 ```
+
+For the wiki cases, use `-run TestWikiContractLive` in place of `TestHooksContractLive`. The run logs `wiki contract run against Forgejo <version>`; record that version with the result, because the wiki REST behaviour is checked per Forgejo version (the README records 15.0.4 and 16.0.0 as live-tested).
 
 - If either variable is unset, the test skips. `go test ./...` never needs a server or a token.
 - The token is supplied by the human, typed or exported from their own password manager. An agent never reads a token from a file and never searches for one.
