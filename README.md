@@ -1,30 +1,8 @@
 # Forgejo MCP Server
 
-> **📦 This project has moved.** Development, issues, releases, and container
-> images now live at
-> **<https://git.b4mad.industries/agentic-forges/forgejo-mcp>**.
-> The Codeberg repository at `codeberg.org/goern/forgejo-mcp` remains only as a
-> read-only mirror, and its container registry no longer publishes images —
-> pull from `git.b4mad.industries/agentic-forges/forgejo-mcp` instead. Issue
-> numbers are preserved across the move. Contributions from humans **and**
-> AI agents are welcome at the new location.
->
-> ```bash
-> git clone https://git.b4mad.industries/agentic-forges/forgejo-mcp.git
-> ```
->
-> If you have a remote or a bookmark pointing at `forgejo.b4mad.net`, that is
-> the **same** forge under its previous name — renamed 2026-07-29, not moved
-> again. The old name still resolves and serves port 2222 with the same host
-> key, so existing clones keep working; repoint them at your leisure:
->
-> ```bash
-> git remote set-url origin \
->   ssh://git@git.b4mad.industries:2222/agentic-forges/forgejo-mcp.git
-> ssh-keyscan -p 2222 git.b4mad.industries >> ~/.ssh/known_hosts
-> ```
-
 Connect your AI assistant to Forgejo repositories. Manage issues, pull requests, files, and more through natural language.
+
+**Origin:** forgejo-mcp began as a fork of b4mad/forgejo-mcp and has been independent since [ADR 0001](docs/adr/0001-clean-break-from-upstream.md).
 
 ## What It Does
 
@@ -35,77 +13,29 @@ Forgejo MCP Server is an integration plugin that connects Forgejo with [Model Co
 - "Create an issue titled 'Bug in login page'"
 - "Show me open pull requests in my-org/my-repo"
 - "Get the contents of README.md from the main branch"
-- "Show me the latest Actions workflow runs in agentic-forges/forgejo-mcp"
+- "Show me the latest Actions workflow runs in my-org/my-app"
 
 ## Quick Start
 
 ### 1. Install
 
-**Option A: Using Go (Recommended)**
+**Option A: Go install (recommended)**
 
 ```bash
-git clone https://git.b4mad.industries/agentic-forges/forgejo-mcp.git
-cd forgejo-mcp
-go install .
+go install forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3@latest
 ```
 
 Ensure `$GOPATH/bin` (typically `~/go/bin`) is in your PATH.
 
-> **Note:** you can also install straight from the module path, without
-> cloning:
->
-> ```bash
-> go install forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3@latest
-> ```
+**Option B: Build from source**
 
-**Option B: Download Binary**
-
-Download the latest release from the [releases page](https://git.b4mad.industries/agentic-forges/forgejo-mcp/releases).
-
-For Arch Linux, use your favorite AUR helper:
+From a checkout of this repository:
 
 ```bash
-yay -S forgejo-mcp      # builds from source
-yay -S forgejo-mcp-bin  # uses pre-built binary
+make build
 ```
 
-**Option C: Nix / NixOS**
-
- You can run the server directly using the Nix package manager:
- ```bash
- nix-shell -p forgejo-mcp
- ```
- Or using Flakes:
- ```bash
- nix run nixpkgs#forgejo-mcp
- ```
-
- > **Note:** `forgejo-mcp` is currently only available in the `unstable` channel and is not yet part of the 25.11 stable release.
-
-**Option D: Container image**
-
-A signed multi-stage OCI image is published on every release to
-`git.b4mad.industries/agentic-forges/forgejo-mcp`. Run the server without building from source:
-
-```bash
-# Latest release
-podman run --rm -i \
-  -e FORGEJO_ACCESS_TOKEN="<your personal access token>" \
-  git.b4mad.industries/agentic-forges/forgejo-mcp:latest \
-  --transport stdio --url https://your-forgejo-instance.org
-
-# Or pin a specific version
-podman run --rm -i git.b4mad.industries/agentic-forges/forgejo-mcp:v3.1.0 --help
-```
-
-| Tag             | Meaning                                                         |
-|-----------------|----------------------------------------------------------------|
-| `vMAJOR.MINOR.PATCH` | Immutable — the exact release (e.g. `v3.1.0`). Use in production. |
-| `latest`        | Moving — tracks the most recent release. Convenience only.     |
-
-The image is single-arch (`linux/amd64`), signed with cosign, and carries an
-attached CycloneDX SBOM. See [Verify the container image](#6-verify-the-container-image)
-to check the signature and provenance before running.
+This writes the `forgejo-mcp` binary to the repository root.
 
 ### 2. Get Your Access Token
 
@@ -657,7 +587,7 @@ End-to-end, copy-pasteable walkthroughs of the tools above — grouped by
 topic (labels, attachments, time tracking, notifications, orgs, bounded
 I/O code review, transport) — live in [demos/](demos/README.md). Each
 demo pairs real `./forgejo-mcp --cli` invocations with the output they
-produced against `codeberg.org`.
+produced against a live Forgejo instance.
 
 ## CLI Mode
 
@@ -668,27 +598,27 @@ You can invoke any tool directly from the command line without running an MCP se
 forgejo-mcp --cli list
 
 # Invoke a tool with JSON arguments
-forgejo-mcp --cli get_issue_by_index --args '{"owner":"goern","repo":"forgejo-mcp","index":1}'
+forgejo-mcp --cli get_issue_by_index --args '{"owner":"OWNER","repo":"REPO","index":1}'
 
 # Pipe JSON arguments via stdin
-echo '{"owner":"goern","repo":"forgejo-mcp"}' | forgejo-mcp --cli list_repo_issues
+echo '{"owner":"OWNER","repo":"REPO"}' | forgejo-mcp --cli list_repo_issues
 
 # List recent workflow runs (text output)
 forgejo-mcp --cli list_workflow_runs \
-  --args '{"owner":"goern","repo":"forgejo-mcp"}' \
+  --args '{"owner":"OWNER","repo":"REPO"}' \
   --output=text
 
 # List only failed runs
 forgejo-mcp --cli list_workflow_runs \
-  --args '{"owner":"goern","repo":"forgejo-mcp","status":"failure"}' \
+  --args '{"owner":"OWNER","repo":"REPO","status":"failure"}' \
   --output=text
 
 # List jobs and inspect the tail of a failed job (Forgejo v16+)
 forgejo-mcp --cli list_action_run_jobs \
-  --args '{"owner":"goern","repo":"forgejo-mcp","run_id":123}' \
+  --args '{"owner":"OWNER","repo":"REPO","run_id":123}' \
   --output=text
 forgejo-mcp --cli get_action_job_logs \
-  --args '{"owner":"goern","repo":"forgejo-mcp","job_id":456,"max_bytes":32768}' \
+  --args '{"owner":"OWNER","repo":"REPO","job_id":456,"max_bytes":32768}' \
   --output=text
 
 # Forgejo's run-wide ZIP log endpoint has no Range support. Enumerate jobs and
@@ -696,10 +626,10 @@ forgejo-mcp --cli get_action_job_logs \
 
 # List artifacts of a run, then read one artifact's metadata (no zip download)
 forgejo-mcp --cli list_action_run_artifacts \
-  --args '{"owner":"goern","repo":"forgejo-mcp","run_id":123,"limit":30}' \
+  --args '{"owner":"OWNER","repo":"REPO","run_id":123,"limit":30}' \
   --output=text
 forgejo-mcp --cli get_action_artifact \
-  --args '{"owner":"goern","repo":"forgejo-mcp","artifact_id":789}' \
+  --args '{"owner":"OWNER","repo":"REPO","artifact_id":789}' \
   --output=text
 
 # List package versions for an owner, then inspect one version's files
@@ -805,207 +735,6 @@ With `FORGEJO_MCP_UPLOAD_ROOT` set, a path that resolves outside that directory
 — by being absolute, by `..`, or through a symlink — is rejected before anything
 is read. Base64 `content` uploads are unaffected by either variable.
 
-## Verifying Releases
-
-Release archives are accompanied by a `checksums.txt` file and an optional
-`checksums.txt.sig` produced by [cosign](https://github.com/sigstore/cosign)
-with the project's release keypair. Verifying both files lets you confirm
-that the binary you downloaded was built by the project's release pipeline
-and has not been tampered with in transit.
-
-> **Heads up:** cosign signing was introduced mid-2026. Tags released
-> before signing was wired up ship without a `.sig` file — verification
-> applies from `v2.23.x` onward only, and only when the
-> `COSIGN_PRIVATE_KEY` secret was configured at release time.
-
-### 1. Install cosign
-
-Follow the upstream
-[cosign installation guide](https://docs.sigstore.dev/cosign/system_config/installation/)
-for your platform. Quick paths:
-
-```bash
-# Linux/macOS — pinned binary
-COSIGN_VERSION=v2.4.1
-curl -sSfL -o /usr/local/bin/cosign \
-  "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64"
-chmod +x /usr/local/bin/cosign
-
-# macOS via Homebrew
-brew install cosign
-
-# Arch Linux
-sudo pacman -S cosign
-```
-
-Confirm:
-
-```bash
-cosign version
-```
-
-### 2. Fetch the public key
-
-The normative source for the cosign public key is the
-[`op1st-emea-b4mad`](https://codeberg.org/operate-first/op1st-emea-b4mad)
-GitOps repo — same source of truth that provisions the
-`cosign-signing-key-artifacts` Secret in the `op1st-pipelines` namespace
-where the release pipeline runs. This is the **artifact-signing** key that
-signs release blobs (`checksums.txt.sig`); it is distinct from the
-**image-signing** key `cosign-signing-key-images.pub` used in §5–§6 below.
-Two ways to fetch it:
-
-**Branch-tip (live, follows future key rotations):**
-
-```bash
-curl -sSfL -o cosign.pub \
-  https://codeberg.org/operate-first/op1st-emea-b4mad/raw/branch/main/manifests/applications/op1st-pipelines-tokens/cosign-signing-key-artifacts.pub
-```
-
-**Commit-pinned (tamper-evident, recommended for CI/scripts):**
-
-```bash
-curl -sSfL -o cosign.pub \
-  https://codeberg.org/operate-first/op1st-emea-b4mad/raw/commit/cd3715fa8283a2069a2e3e299744a7b55b1b0260/manifests/applications/op1st-pipelines-tokens/cosign-signing-key-artifacts.pub
-```
-
-The commit-pinned permalink hashes its content into the URL — if anyone
-ever rewrites the file at that commit, your download fails or mismatches.
-Pin to the latest commit that you trust before adopting the key in
-automation.
-
-### 3. Download the release artifacts
-
-Pick the tag you installed (e.g. `v3.1.0`) and grab the checksum file,
-its signature, and the binary archive:
-
-```bash
-TAG=v3.1.0
-VERSION="${TAG#v}"
-BASE="https://git.b4mad.industries/agentic-forges/forgejo-mcp/releases/download/${TAG}"
-
-curl -sSfLO "${BASE}/forgejo-mcp_${VERSION}_checksums.txt"
-curl -sSfLO "${BASE}/forgejo-mcp_${VERSION}_checksums.txt.sig"
-curl -sSfLO "${BASE}/forgejo-mcp_${VERSION}_linux_amd64.tar.gz"   # adjust os/arch
-```
-
-### 4. Verify the signature, then the checksum
-
-Cosign verifies that `checksums.txt` was signed by the holder of the
-private key matching `cosign.pub`. Once the checksum file is trusted, a
-plain `sha256sum -c` check confirms the archive's integrity.
-
-```bash
-# Verify checksums.txt against the signature.
-cosign verify-blob \
-  --key cosign.pub \
-  --signature "forgejo-mcp_${VERSION}_checksums.txt.sig" \
-  "forgejo-mcp_${VERSION}_checksums.txt"
-# Expected: "Verified OK"
-
-# Verify the downloaded archive against the (now-trusted) checksums.
-sha256sum --ignore-missing -c "forgejo-mcp_${VERSION}_checksums.txt"
-# Expected: "<archive>: OK"
-```
-
-The checksum chain transitively covers the SBOMs and other per-archive
-assets — verifying `checksums.txt` once is sufficient for everything
-listed inside it.
-
-### 5. Verify SLSA provenance for the release-tools image
-
-The release-tools container image (used internally by the Tekton release
-pipeline) carries SLSA v1.0 provenance generated by [Tekton
-Chains](https://tekton.dev/docs/chains/). This attestation binds the image
-digest to the exact PipelineRun, git commit, and builder identity that
-produced it — providing supply-chain provenance beyond what the cosign
-signature alone can attest.
-
-Fetch the `cosign-signing-key-images` public key (a separate key from the
-artifact-signing key above):
-
-```bash
-curl -sSfL -o cosign-images.pub \
-  https://codeberg.org/operate-first/op1st-emea-b4mad/raw/branch/main/manifests/applications/op1st-pipelines-tokens/cosign-signing-key-images.pub
-```
-
-Verify the attestation against a specific image tag:
-
-```bash
-IMAGE_TAG=v1.0.0   # substitute the release-tools tag you want to verify
-cosign verify-attestation \
-  --type slsaprovenance \
-  --key cosign-images.pub \
-  "codeberg.org/operate-first/release-tools:${IMAGE_TAG}" \
-  | jq .
-```
-
-A successful run prints the decoded in-toto statement (JSON). Check that
-`predicate.buildDefinition.externalParameters.runSpec.params` references the
-expected git revision, and `predicate.runDetails.builder.id` shows the
-Tekton Chains builder.
-
-> **Note:** SLSA provenance attestations are available from releases built
-> after forgejo-mcp-46j (Tekton Chains support) landed. Earlier image tags
-> carry only the cosign signature; they have no `verify-attestation` payload.
-
-### 6. Verify the container image
-
-The `git.b4mad.industries/agentic-forges/forgejo-mcp` application image ([Option D](#1-install))
-is signed by the same `cosign-signing-key-images` key as the release-tools
-image, carries an attached CycloneDX SBOM, and gets SLSA v1.0 provenance from
-Tekton Chains. Reuse the `cosign-images.pub` key fetched above.
-
-Verify the signature:
-
-```bash
-IMAGE_TAG=v3.1.0   # substitute the release you are pulling
-cosign verify \
-  --key cosign-images.pub \
-  "git.b4mad.industries/agentic-forges/forgejo-mcp:${IMAGE_TAG}" \
-  | jq .
-```
-
-Verify the SLSA provenance attestation:
-
-```bash
-cosign verify-attestation \
-  --type slsaprovenance \
-  --key cosign-images.pub \
-  "git.b4mad.industries/agentic-forges/forgejo-mcp:${IMAGE_TAG}" \
-  | jq .
-```
-
-Verify and download the signed CycloneDX SBOM attestation:
-
-```bash
-cosign verify-attestation \
-  --type cyclonedx \
-  --key cosign-images.pub \
-  "git.b4mad.industries/agentic-forges/forgejo-mcp:${IMAGE_TAG}" \
-  | jq -r '.payload | @base64d | fromjson | .predicate' > forgejo-mcp.cdx.json
-```
-
-> The SBOM is now a **signed** in-toto attestation (`cosign attest`), not an
-> unsigned `attach sbom` artifact. `cosign download sbom` no longer applies.
-
-Because the publish pipeline pushes by digest and only promotes the
-`vX.Y.Z` / `latest` tags *after* signing and SBOM attachment succeed, any tag
-you can pull is guaranteed to be signed.
-
-### Troubleshooting verification
-
-- **`Error: no matching signatures`** — the `.sig` file is from a
-  different release, or `cosign.pub` is the wrong key. Re-download both
-  from the same tag.
-- **`Error: cannot read file: checksums.txt.sig`** — release predates
-  cosign signing, or signing was skipped that run because the secret was
-  unset. Fall back to the checksum-only check (`sha256sum -c`), which
-  still detects in-transit corruption but not tampering.
-- **Mismatch between `cosign.pub` and the signature** — confirm you
-  fetched the public key from a commit that includes the key in use at
-  the time of the release. If in doubt, fetch from `branch/main`.
-
 ## Troubleshooting
 
 **Enable debug mode** to see detailed logs:
@@ -1030,108 +759,15 @@ export FORGEJO_USER_AGENT="forgejo-mcp/1.0.0"
 forgejo-mcp --user-agent "forgejo-mcp/1.0.0" --transport sse --url <url> --token <token>
 ```
 
+
 ## Getting Help
 
-- [Report issues](https://git.b4mad.industries/agentic-forges/forgejo-mcp/issues) — bugs, questions, feature requests
+- Report bugs and feature requests through this project's issue tracker.
 - **Found a security problem?** Do not use the issue tracker. See [SECURITY.md](SECURITY.md) for how to report it privately.
-- [View source code](https://git.b4mad.industries/agentic-forges/forgejo-mcp)
-- [Chat on Matrix](https://matrix.to/#/%23forgejo-mcp:b4mad.net) — `#forgejo-mcp:b4mad.net`
-
-This repository is also mirrored on [Radicle](https://radicle.xyz/) — a peer-to-peer code collaboration network. Clone via:
-
-```bash
-rad clone rad:z4PdPpsH9iJQcWfqTbxpFcWaZ9zPL
-```
 
 ## For Developers
 
 See [DEVELOPER.md](DEVELOPER.md) for build instructions, architecture overview, and contribution guidelines.
-
-## Known Issues
-
-- **Installing from the old Codeberg module path** — `go install
-  codeberg.org/goern/forgejo-mcp/v2@latest` still resolves, against the
-  read-only mirror, but that mirror lags behind the current release. Use
-  `forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3@latest` instead.
-
-  This entry used to say that the new path was not installable until a
-  release carried the renamed `go.mod`. That release has happened —
-  `v3.0.0` onwards declare `module git.b4mad.industries/agentic-forges/forgejo-mcp/v3`
-  — so the new path installs normally. The earlier `replace`-directive
-  blocker ([#67](https://git.b4mad.industries/agentic-forges/forgejo-mcp/issues/67))
-  is also gone; `go.mod` no longer contains one.
-
-## Contributors
-
-forgejo-mcp is shaped by everyone who files issues, writes code, reviews PRs, and pushes the project forward. Thank you all. 🙏
-
-### Code contributors
-
-| Contributor | Highlights |
-|-------------|------------|
-| [goern](https://codeberg.org/goern) (Christoph Görn) | Project creator and maintainer |
-| Ronmi Ren | Co-creator; SSE/HTTP transport, issue blocking, CI/CD improvements, logo, Glama spec |
-| [twstagg](https://codeberg.org/twstagg) (Tristin Stagg) | User agent configuration support (PR #89) |
-| [mattdm](https://codeberg.org/mattdm) (Matthew Miller) | Logging improvements, FORGEJO_* migration, README, URL refactor |
-| [byteflavour](https://codeberg.org/byteflavour) | `check_notifications` + full notification management API (PR #84, #86); stateless per-request auth for HTTP/SSE transports (PR #138); NixOS installation docs (PR #146); network transport hardening — loopback-by-default bind, `Host`/`Origin` checks, per-request credential (PR #545, landed as #573; #586, #585, #589); **OAuth resource-server mode** — inbound JWT validation and outbound Forgejo 16 Authorized Integration signing, with operator and user guides and 40 anchored demo scenarios (PR #584, researched in #582); dev-env `FORGEJO_MCP_EXEC` (PR #580); feature requests #80, #85 |
-| [jesterret](https://codeberg.org/jesterret) | Pull request reviews and comments support (PR #51) |
-| [appleboy](https://codeberg.org/appleboy) | Custom SSE port support, bug fixes |
-| [ignasgil](https://codeberg.org/ignasgil) | `remove_issue_labels` tool (PR #96) |
-| [dmikushin](https://codeberg.org/dmikushin) (Dmitry Mikushin) | Fix string-encoded number parameter parsing from MCP clients (PR #93) |
-| [jiriks74](https://codeberg.org/jiriks74) | mcp-go v0.44.0 dependency update (PR #90) |
-| [th](https://codeberg.org/th) (Tomi Haapaniemi) | `update_pull_request` tool |
-| [hiifong](https://codeberg.org/hiifong) | Early bug fixes and updates |
-| [Lunny Xiao](https://codeberg.org/lunny) | Early contributions |
-| [techknowlogick](https://codeberg.org/techknowlogick) | Early contributions |
-| [yp05327](https://codeberg.org/yp05327) | Early contributions |
-| [mw75](https://codeberg.org/mw75) | Owner/org support for repo creation (PR #18) |
-| [Dax Kelson](https://codeberg.org/dkelson) | Issue comment management (PR #34) |
-| [Guruprasad Kulkarni](https://codeberg.org/comdotlinux) | Arch Linux AUR installation docs (PR #69) |
-| [Mario Wolff](https://codeberg.org/mariowolff) | Contributions |
-| [Massimo Fraschetti](https://codeberg.org/fraschetti) | Contributions |
-| [synath](https://codeberg.org/synath) (David Paul Turley) | Repository-scoped token support via `ServerVersion` probe (PR #112); merge status-code check (PR #113); Claude Desktop Extension (.mcpb) packaging (PR #118, #123); issue `due_date` + server-side sort (PR #483); bounded issue-list and comment-thread resources (PR #487); `total_count` on paginated envelopes from `X-Total-Count` (PR #507); `create_*_attachment` timeout hardening (PR #534, #536); cross-repo issue dependencies (PR #535) |
-| [BrilliantKahn](https://codeberg.org/BrilliantKahn) | `get_file_content` plain-text default (PR #116); `list_repo_contents` and `get_repo_tree` tools (PR #117). **First-ever open source contribution** — welcome aboard! 🎉 |
-| [nesvet](https://git.b4mad.industries/nesvet) (Eugene Nesvetaev) | `get_repo`/`edit_repo` (PR #527); repository topic tools (PR #528); Actions run cancel/delete and run artifacts (PR #533); `get_commit_statuses` (PR #542); package list/get/delete/files tools (PR #543); label names accepted on issue create, assignment and replace (PR #591) |
-| [pisco](https://git.b4mad.industries/pisco) (Marco Pisco) | `file_path` uploads for issue, comment, and release attachments, with streaming multipart so large release assets no longer round-trip through base64 (PR #481) |
-
-### Community contributors
-
-Issue reporters and discussion participants who shaped the direction of the project:
-
-| Contributor | Contributions |
-|-------------|--------------|
-| [byteflavour](https://codeberg.org/byteflavour) | Filed #80 (milestone/label discovery), #85 (notification API proposal); active reviewer in discussions |
-| [choucavalier](https://codeberg.org/choucavalier) | Filed #82 (fix skill), #70 (macOS arm64 releases), #62 (binary releases & mise support) |
-| [MalcolmMielle](https://codeberg.org/MalcolmMielle) | Filed #59 (PR review tools — since implemented) |
-| [redbeard](https://codeberg.org/redbeard) | Filed #60 (Actions support — since implemented) |
-| [c6sepl6p](https://codeberg.org/c6sepl6p) | Filed #72 (base64 encoding), #54 (merge pull request — since implemented) |
-| [malik](https://codeberg.org/malik) | Filed #73 (version flag), #47 (Nix build fix) |
-| [a2800276](https://codeberg.org/a2800276) | Filed #74 (OpenAI compatibility) |
-| [simenandre](https://codeberg.org/simenandre) | Filed #49 (go install support) |
-| [BasdP](https://codeberg.org/BasdP) | Filed #42 (Projects support) |
-| [BoBeR182](https://codeberg.org/BoBeR182) | Filed #32 (wiki support) |
-| [ignasgil](https://codeberg.org/ignasgil) | Filed #95 (`remove_issue_labels` feature request) |
-| [Vokuar](https://codeberg.org/Vokuar) | Filed #99 (streamable HTTP transport support) |
-| [janbaer](https://codeberg.org/janbaer) | Filed #98 (reply to review comment) |
-| [fraschm98](https://codeberg.org/fraschm98) | Early issue reports |
-| [heathen711](https://codeberg.org/heathen711) | Filed #106 (issue/comment attachments — since implemented); shaped the 1 MiB inline cap + `browser_download_url` fall-through design |
-| [decarvalhoaa](https://git.b4mad.industries/decarvalhoaa) (Antonio De Carvalho) | Filed #593 (server-side response size cap) from a real context-window overflow behind Open WebUI, with the measurement that prompted the `list_repo_pull_requests` payload work in #596 |
-| [chris420](https://git.b4mad.industries/chris420) (Chris Oloff) | Filed #452 (org-wide issue search — since implemented as `search_issues`); design review on PR #458 that replaced the next-page probe with instance-ceiling enforcement, and caught the response envelope misreporting its own `limit` |
-
-### Cyborg contributors
-
-This project also received contributions from AI coding agents — submitted as regular PRs, reviewed by humans:
-
-| Agent | Role | Contributions |
-|-------|------|---------------|
-| [brenner-axiom](https://codeberg.org/brenner-axiom) (b4-dev, B4arena) | AI dev agent | Organization management tools (PR #94); showboat demos (PR #97); `list_repo_milestones`, `list_repo_labels` tools (PR #83); race condition fix (PR #78); contributors docs (PR #87, #88); filed #76; code reviews |
-| opencode | AI dev agent | Pull request reviews and comments support (PR #51) |
-| claude-code | AI dev agent | `get_file_content` plain-text default and `list_repo_contents`/`get_repo_tree` tools, paired with [BrilliantKahn](https://codeberg.org/BrilliantKahn) (PR #116, #117) |
-| b4mad-release-agent | Release automation | Automated changelog and release tagging |
-| the #B4mad Renovate bot | Dependency updates | Automated dependency upgrades |
-
-Want to contribute? Open an issue or pull request — all are welcome.
-
 
 ## License
 
