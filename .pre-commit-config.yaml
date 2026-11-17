@@ -49,6 +49,16 @@ repos:
         pass_filenames: false
         files: ^(internal/operation/.*\.go|docs/reference/(tools|resources)\.md|scripts/ci/check-readme-tool-coverage\.sh)$
 
+      - id: check-readme-no-code-host
+        name: check README names no code host
+        description: >-
+          Reject a code-host name or URL in README.md, except the module path on
+          a go install line. Runs under make check via scripts/ci/*.sh.
+        entry: scripts/ci/check-readme-no-code-host.sh
+        language: script
+        pass_filenames: false
+        files: ^(README\.md|go\.mod|scripts/ci/check-readme-no-code-host\.sh)$
+
       - id: check-spdx-headers
         name: check SPDX headers on Go and shell sources
         description: >-
