@@ -15,7 +15,7 @@ import (
 )
 
 // The search bounds. They are constants in one place so they can change without
-// a contract change; the tool description and the README row state them.
+// a contract change; the tool description and its row in docs/reference/tools.md state them.
 const (
 	// SearchPageCap is the most pages a search reads.
 	SearchPageCap = 100

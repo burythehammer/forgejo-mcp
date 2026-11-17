@@ -168,7 +168,7 @@ list module.
 Every bound parameter MUST appear in:
 
 1. The tool's `mcp.NewTool()` description (per-parameter doc).
-2. The README tool table.
+2. The tool table in `docs/reference/tools.md`.
 
 An undocumented cap is the same trap as no cap.
 
