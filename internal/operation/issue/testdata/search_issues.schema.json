@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Search issues across every repository belonging to one owner (organization or user), without naming a repo. Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count, when present, is the total number of matching issues across all pages (from Forgejo's X-Total-Count header); it is omitted rather than 0 when the header is unavailable. Each issue identifies its source repository only via its html_url/url field; there is no separate repository field. Use list_repo_issues instead when the repo is already known.",
+  "description": "Search issues across one owner's repositories. No repo is named; the owner may be an organization or a user. Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count, when present, is the total number of matching issues across all pages (from Forgejo's X-Total-Count header); it is omitted rather than 0 when the header is unavailable. Each issue identifies its source repository only via its html_url/url field; there is no separate repository field. Use list_repo_issues instead when the repo is already known.",
   "inputSchema": {
     "properties": {
       "assigned_by": {
@@ -33,6 +33,10 @@
         "description": "Milestone names/IDs (comma-separated)",
         "type": "string"
       },
+      "outFile": {
+        "description": "Bare file name. Writes the whole listing (every page) as a JSON array into the forgejo-mcp temp dir and replies {path,count,keys}; an existing file is overwritten. A listing over 1,000 issues (the file-output ceiling) fails and writes nothing. Refused with page or limit, and on the sse and http transports.",
+        "type": "string"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
@@ -57,6 +61,10 @@
       },
       "verbose": {
         "description": "Return the full entity instead of the compact summary. Default false.",
+        "type": "boolean"
+      },
+      "with_blockers": {
+        "description": "Adds blocked_by to each file row: the issues that block it, [] when none. A blocker in the listed repository is its issue number (an integer); a blocker in another repository is an owner/repo#n string. Valid only with outFile. Makes one extra Forgejo dependency request per listed issue (more only when an issue has more blockers than one page), so a long listing is slower. A failed read fails the call and writes no file.",
         "type": "boolean"
       }
     },

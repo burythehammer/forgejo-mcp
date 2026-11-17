@@ -42,12 +42,22 @@ type Validator interface {
 // strict default is the switch that #314 flips.
 var defaultStrict bool
 
+// laxArgs is the startup relax option (--lax-args). When it is on, a tool that
+// opted into RejectUnknown serves an unknown argument as it did before, instead
+// of refusing it. It is set once by SetLaxArgs, before the server serves.
+var laxArgs bool
+
+// SetLaxArgs sets the startup relax option for every tool. Build calls it from
+// the configuration; it is not a per-tool setting.
+func SetLaxArgs(on bool) { laxArgs = on }
+
 // Option configures one tool's pipeline.
 type Option func(*options)
 
 type options struct {
-	strict *bool
-	raw    bool
+	strict        *bool
+	raw           bool
+	rejectUnknown bool
 }
 
 // Lax decodes forgivingly for this tool: a missing or wrongly typed argument
@@ -57,6 +67,12 @@ func Lax() Option { return func(o *options) { o.strict = boolPtr(false) } }
 // Strict decodes strictly for this tool: a missing required argument or a
 // wrongly typed one is a bad request, whatever the package default is.
 func Strict() Option { return func(o *options) { o.strict = boolPtr(true) } }
+
+// RejectUnknown refuses a call that names an argument the tool does not
+// declare, naming every such argument and listing the valid ones, before
+// anything is sent to Forgejo. It is off for every tool but those that ask for
+// it, and the startup relax option (SetLaxArgs) turns it off for all of them.
+func RejectUnknown() Option { return func(o *options) { o.rejectUnknown = true } }
 
 // WithRaw gives the tool the raw request, read with Raw, for the few tools
 // that must tell an absent argument from a present null. The Binder sees it
@@ -93,6 +109,11 @@ func Handle[S, A any](bind Binder[S], run func(context.Context, S, A) (*mcp.Call
 		log.Debugf("%s: start", name)
 
 		var a A
+		if o.rejectUnknown && !laxArgs {
+			if err := decode.Unknown(req, &a); err != nil {
+				return refuse(err)
+			}
+		}
 		if err := decodeInto(req, &a, strict); err != nil {
 			return refuse(err)
 		}

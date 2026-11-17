@@ -37,3 +37,8 @@ Amendment (2026-10-22, spec #141, issue #294): the "wire contract is frozen" rul
 - `get_commit_statuses`: `has_next` is added to the output, and a `limit` above 50 is no longer clamped to 50; it is held to the instance ceiling instead.
 
 Every other tool's bytes stay frozen by this ADR.
+
+Amendment (2026-11-17, spec #361): two more output-visible changes, each in the commit named.
+
+- Commit `6515127e` (tracker-core lean descriptions) reworded the description text of four tools: `create_issue`, `update_issue`, `replace_issue_body_line` and `search_issues`. Their schemas changed with them (the `testdata/*.schema.json` goldens). The argument names and types did not change.
+- `outFile` is a new input on `list_repo_issues` and `search_issues`. Their input schemas gain the `outFile` property (and its lean clause); a call with `outFile` replies `{path,count,keys}` in place of a page. A call without `outFile` gets the same reply as before. See ADR 0008.

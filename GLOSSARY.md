@@ -61,6 +61,14 @@ _Avoid_: profile, bundle, tier, terse mode
 The wiki a Forgejo repository carries, stored as a git repository beside the code and reached through the wiki tools. It is flat: a slash in a page name is a naming convention, not a parent-child link.
 _Avoid_: wiki (unqualified), repo wiki
 
+**Ceiling**:
+The most rows one file-output listing may hold, 1,000 issues (`list.FileCeiling`), shared by every tool that takes `outFile`. A listing of exactly the ceiling is written whole; one row more fails with an error naming the ceiling and writes no file. It is never a truncation. Not the instance ceiling (`max_response_items`), which lowers a page's limit.
+_Avoid_: cap, limit, max rows
+
+**File output**:
+A tool result written to a file instead of returned as a page, for a caller that processes a whole list by script rather than through the model. The `outFile` argument names it: a bare file name under the server's temp directory, with the reply `{path, count, keys}`. Only the stdio transport accepts it, since a network caller cannot read a file on the server host. `with_blockers` (valid only with `outFile`) adds each row's `blocked_by`, read per issue under the same ceiling.
+_Avoid_: export, dump, download
+
 **Outline wiki**:
 The personal knowledge base kept in Outline, including the per-repo structured wikis the `repo-wiki` skill maintains. It is separate from the Forgejo wiki and holds notes that are not tied to one repository.
 _Avoid_: wiki (unqualified), Outline docs

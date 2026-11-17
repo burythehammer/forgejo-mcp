@@ -12,7 +12,8 @@
 //
 // Struct fields are named by `json:"name"` tags; `required:"true"` marks a
 // field that must be present. Unknown arguments are ignored by Lax, as the
-// hand-written handlers did. A number given as a string ("7") is accepted, as
+// hand-written handlers did; Unknown is the check a tool opts into to refuse
+// them instead. A number given as a string ("7") is accepted, as
 // some MCP clients send them that way. Use mcptest.ArgsMatchSchema to keep a
 // struct and its tool's input schema in agreement.
 package decode
@@ -22,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -72,6 +74,57 @@ func Args(req mcp.CallToolRequest, dst any) error {
 func Lax(req mcp.CallToolRequest, dst any) error {
 	_, err := fill(req.GetArguments(), dst)
 	return err
+}
+
+// Unknown returns nil when every argument req carries names a field of dst,
+// and otherwise an invalid-arguments error naming every unknown argument and
+// listing the valid ones. It reads only the struct's json names, so the valid
+// list is the argument struct itself. It is called by the pipeline, for a tool
+// that opted into refusing unknown arguments, before Lax or Args runs.
+func Unknown(req mcp.CallToolRequest, dst any) error {
+	rv := reflect.ValueOf(dst)
+	if rv.Kind() != reflect.Pointer || rv.Elem().Kind() != reflect.Struct {
+		return errors.New("decode: dst must be a pointer to a struct")
+	}
+	valid := argNames(rv.Elem().Type())
+	known := make(map[string]bool, len(valid))
+	for _, name := range valid {
+		known[name] = true
+	}
+	var unknown []string
+	for name := range req.GetArguments() {
+		if !known[name] {
+			unknown = append(unknown, name)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	quoted := make([]string, len(unknown))
+	for i, name := range unknown {
+		quoted[i] = strconv.Quote(name)
+	}
+	noun := "argument"
+	if len(unknown) > 1 {
+		noun = "arguments"
+	}
+	return fmt.Errorf("invalid arguments: unknown %s %s; valid arguments are %s",
+		noun, strings.Join(quoted, ", "), strings.Join(valid, ", "))
+}
+
+// argNames returns the json names of the fields of struct type rt, sorted.
+func argNames(rt reflect.Type) []string {
+	var names []string
+	for i := 0; i < rt.NumField(); i++ {
+		name := strings.Split(rt.Field(i).Tag.Get("json"), ",")[0]
+		if name == "" || name == "-" {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func fill(args map[string]any, dst any) ([]string, error) {

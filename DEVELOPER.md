@@ -429,6 +429,16 @@ that need the raw request (an upload's source, where presence matters) read it w
 `pipeline.Raw(ctx)` after the credential lookup, and a value they must tell apart from
 an absent one is a `decode.Arg` field, not a map lookup.
 
+Unknown arguments (names the struct does not declare) are ignored by lax decoding,
+which is the default. A tool that must not guess passes `pipeline.RejectUnknown()`:
+`decode.Unknown` then refuses the call before decoding, naming every unknown argument
+and listing the struct's valid ones, and no credential is looked up. `search_issues` is
+the one tool that does this, because `query` for `q` was silently served as an unfiltered
+list (#341). The startup option `--lax-args` (`FORGEJO_MCP_LAX_ARGS`) turns the refusal off
+for every tool, which is `pipeline.SetLaxArgs`, set from the configuration in `Build`.
+The schema does not set `additionalProperties: false` on these tools, so a client
+reading the schema sees no refusal; the error text is the signal.
+
 ### Response Formatting
 
 Use helpers from `internal/to/`:

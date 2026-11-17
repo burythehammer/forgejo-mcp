@@ -38,7 +38,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("title", mcp.Required(), mcp.Description("Milestone title")),
 		mcp.WithString("description", mcp.Description("Milestone description")),
-		mcp.WithString("due_date", mcp.Description("Due date as an RFC3339 timestamp, e.g. 2026-12-01T00:00:00Z"), lean.Keep("RFC3339 time, e.g. 2026-12-01T00:00:00Z")),
+		mcp.WithString("due_date", mcp.Description("Due date as an RFC3339 timestamp, e.g. 2026-12-01T00:00:00Z"), lean.Keep("RFC3339, e.g. 2026-12-01T00:00:00Z")),
 	)
 
 	EditMilestoneTool = mcp.NewTool(

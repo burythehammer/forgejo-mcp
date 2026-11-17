@@ -3,7 +3,10 @@
 package issue
 
 import (
+	"errors"
+
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/outfile"
 )
 
 // The argument structs below have no numeric argument to check, so their only
@@ -13,9 +16,45 @@ import (
 
 func (a *createIssueArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 
-func (a *listIssuesArgs) Validate() error { return decode.Required("owner", a.Owner) }
+// checkOutFileName refuses an outFile name that is not a bare file name. Both
+// file-output tools call it before any credential lookup. Page and limit are
+// checked on the raw request by refuseOutFilePaging, since a zero value reads
+// as absent here.
+func checkOutFileName(outFile *string) error {
+	if outFile == nil {
+		return nil
+	}
+	return outfile.CheckName(*outFile)
+}
 
-func (a *searchArgs) Validate() error { return decode.Required("owner", a.Owner) }
+// checkWithBlockers refuses with_blockers without outFile: blocked_by is written
+// to the file, so the argument has nothing to add to a normal page.
+func checkWithBlockers(withBlockers bool, outFile *string) error {
+	if withBlockers && outFile == nil {
+		return errors.New("with_blockers needs outFile: blocked_by is written to the file, so it is refused without one")
+	}
+	return nil
+}
+
+func (a *listIssuesArgs) Validate() error {
+	if err := decode.Required("owner", a.Owner); err != nil {
+		return err
+	}
+	if err := checkWithBlockers(a.WithBlockers, a.OutFile); err != nil {
+		return err
+	}
+	return checkOutFileName(a.OutFile)
+}
+
+func (a *searchArgs) Validate() error {
+	if err := decode.Required("owner", a.Owner); err != nil {
+		return err
+	}
+	if err := checkWithBlockers(a.WithBlockers, a.OutFile); err != nil {
+		return err
+	}
+	return checkOutFileName(a.OutFile)
+}
 
 func (a *milestonesArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 
