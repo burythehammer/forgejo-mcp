@@ -16,25 +16,35 @@ import (
 
 func (a *createIssueArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 
-// Validate refuses outFile with page or limit (outFile reads every page) and an
-// outFile name that is not a bare file name, before any credential lookup.
+// checkOutFile refuses outFile with page or limit (outFile reads every page) and
+// an outFile name that is not a bare file name. Both file-output tools call it,
+// before any credential lookup.
+func checkOutFile(outFile *string, hasPage, hasLimit bool) error {
+	if outFile == nil {
+		return nil
+	}
+	if hasPage {
+		return errors.New("page cannot be used with outFile: outFile writes the whole listing")
+	}
+	if hasLimit {
+		return errors.New("limit cannot be used with outFile: outFile writes the whole listing")
+	}
+	return outfile.CheckName(*outFile)
+}
+
 func (a *listIssuesArgs) Validate() error {
 	if err := decode.Required("owner", a.Owner); err != nil {
 		return err
 	}
-	if a.OutFile == nil {
-		return nil
-	}
-	if a.Page != 0 {
-		return errors.New("page cannot be used with outFile: outFile writes the whole listing")
-	}
-	if a.Limit != 0 {
-		return errors.New("limit cannot be used with outFile: outFile writes the whole listing")
-	}
-	return outfile.CheckName(*a.OutFile)
+	return checkOutFile(a.OutFile, a.Page != 0, a.Limit != 0)
 }
 
-func (a *searchArgs) Validate() error { return decode.Required("owner", a.Owner) }
+func (a *searchArgs) Validate() error {
+	if err := decode.Required("owner", a.Owner); err != nil {
+		return err
+	}
+	return checkOutFile(a.OutFile, a.Page != 0, a.Limit != 0)
+}
 
 func (a *milestonesArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 

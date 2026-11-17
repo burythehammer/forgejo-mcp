@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
@@ -82,7 +83,7 @@ var (
 		mcp.WithString("sort", mcp.Description("Server-side sort order. One of: relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate. Default is the API's own default (latest)."), lean.Keep("one of relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
-		mcp.WithString("outFile", mcp.Description("Bare file name. Writes the whole listing (every page) as a JSON array into the forgejo-mcp temp dir and replies {path,count,keys}; an existing file is overwritten. A listing over 1,000 issues (the file-output ceiling) fails and writes nothing. Refused with page or limit, and on the sse and http transports."), lean.Keep("bare file name; whole listing to a file, ceiling 1,000 issues, refused with page or limit")),
+		mcp.WithString("outFile", outFileOpts...),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
@@ -269,6 +270,7 @@ var (
 		mcp.WithString("mentioned_by", mcp.Description("Filter by mentioned username")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
+		mcp.WithString("outFile", outFileOpts...),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 )
@@ -479,7 +481,9 @@ type searchArgs struct {
 	MentionedBy string  `json:"mentioned_by"`
 	Page        float64 `json:"page"`
 	Limit       float64 `json:"limit"`
-	Verbose     bool    `json:"verbose"`
+	// OutFile is a pointer so an explicit empty name is told from no name.
+	OutFile *string `json:"outFile"`
+	Verbose bool    `json:"verbose"`
 }
 
 // target is the issue a call names.
@@ -526,7 +530,9 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 			Milestones: a.Milestones, Labels: a.Labels,
 		}
 		if a.OutFile != nil {
-			return listToFile(ctx, s, in, a.Verbose, *a.OutFile)
+			return listToFile(ctx, *a.OutFile, a.Verbose, func(ctx context.Context) ([]*model.Issue, error) {
+				return s.ListAll(ctx, in)
+			})
 		}
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
@@ -541,15 +547,21 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 
 func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
+		in := apppissue.SearchInput{
+			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
+			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
+		}
+		if a.OutFile != nil {
+			return listToFile(ctx, *a.OutFile, a.Verbose, func(ctx context.Context) ([]*model.Issue, error) {
+				return s.SearchAll(ctx, in)
+			})
+		}
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return to.ErrorResult(perr)
 		}
-		page, err := s.Search(ctx, apppissue.SearchInput{
-			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
-			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
-			Paging: apppissue.Paging{Page: pg, Limit: lim},
-		})
+		in.Paging = apppissue.Paging{Page: pg, Limit: lim}
+		page, err := s.Search(ctx, in)
 		envelope, err := issueSearchPage(page, err)
 		return compact.RenderIssueSearchList(envelope, err, a.Verbose)
 	})(ctx, req)
