@@ -16,6 +16,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -214,24 +215,134 @@ func TestListRepoIssuesWithBlockers_FailedDependencyReadFailsTheCallAndWritesNot
 	noFileWritten(t, dir)
 }
 
+// blockedByTitle is blockedRows keyed by title, for a search whose rows can share
+// an issue number across repositories.
+func blockedByTitle(t *testing.T, path string) map[string][]any {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	var rows []struct {
+		Title     string `json:"title"`
+		BlockedBy []any  `json:"blocked_by"`
+	}
+	if err := json.Unmarshal(b, &rows); err != nil {
+		t.Fatalf("file is not a JSON array of rows: %v", err)
+	}
+	out := map[string][]any{}
+	for _, r := range rows {
+		if r.BlockedBy == nil {
+			t.Fatalf("row %q has no blocked_by array", r.Title)
+		}
+		out[r.Title] = r.BlockedBy
+	}
+	return out
+}
+
 func TestSearchIssuesWithBlockers_NamesEachIssuesOwnRepository(t *testing.T) {
 	dir := outFileTempDir(t)
 	h, f := newFixture(t)
 	f.AddRepo(testOwner, testLib)
-	idx := seedOpen(t, f, 1)
-	lib, err := f.CreateIssue(context.Background(), testOwner, testLib, forgejo_sdk.CreateIssueOption{Title: "lib issue"})
+	ctx := context.Background()
+	blocked, err := f.CreateIssue(ctx, testOwner, testRepo, forgejo_sdk.CreateIssueOption{Title: "search-blocked"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The searched issue in testRepo depends on the one in testLib: the
-	// blocker is in another repository than the issue it blocks.
-	addBlocker(t, f, idx[0], forge.IssueRef{Owner: testOwner, Repo: testLib, Index: lib.Index})
+	lib, err := f.CreateIssue(ctx, testOwner, testLib, forgejo_sdk.CreateIssueOption{Title: "lib issue"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The issue in testRepo depends on the one in testLib: its blocker is in
+	// another repository. The lib issue has no blockers of its own.
+	addBlocker(t, f, blocked.Index, forge.IssueRef{Owner: testOwner, Repo: testLib, Index: lib.Index})
 
 	searchOutCall(t, h, map[string]any{"outFile": "search.json", "with_blockers": true})
-	got := blockedRows(t, filepath.Join(dir, "search.json"))
-	want := []any{testOwner + "/" + testLib + "#" + itoa(lib.Index)}
-	if !reflect.DeepEqual(got[idx[0]], want) {
-		t.Fatalf("search row %d blocked_by = %v, want %v", idx[0], got[idx[0]], want)
+	got := blockedByTitle(t, filepath.Join(dir, "search.json"))
+	if want := []any{testOwner + "/" + testLib + "#" + itoa(lib.Index)}; !reflect.DeepEqual(got["search-blocked"], want) {
+		t.Fatalf("search-blocked blocked_by = %v, want %v", got["search-blocked"], want)
+	}
+	if len(got["lib issue"]) != 0 {
+		t.Fatalf("lib issue blocked_by = %v, want []", got["lib issue"])
+	}
+}
+
+// blockersStub is pagedStub with fixed blockers, so the file golden holds a
+// listing whose rows carry blocked_by with stable bytes. Only the first page of
+// a dependency list has rows.
+type blockersStub struct {
+	pagedStub
+	deps map[int64][]*forgejo_sdk.Issue
+}
+
+func (s *blockersStub) ListIssueDependencies(_ context.Context, _, _ string, index int64, pg, _ int) ([]*forgejo_sdk.Issue, error) {
+	if pg > 1 {
+		return nil, nil
+	}
+	return s.deps[index], nil
+}
+
+func TestListRepoIssuesWithBlockers_Golden(t *testing.T) {
+	dir := outFileTempDir(t)
+	same := goldenIssue("blocker in this repository")
+	same.Index = 1
+	lib := goldenIssue("blocker in another repository")
+	lib.Index = 9
+	lib.Repository = &forgejo_sdk.RepositoryMeta{ID: 10, Name: testLib, Owner: testOwner, FullName: testOwner + "/" + testLib}
+	h := withPort(&blockersStub{
+		pagedStub: pagedStub{n: 3},
+		deps:      map[int64][]*forgejo_sdk.Issue{2: {same}, 3: {same, lib}},
+	})
+	res, err := h.ListRepoIssuesFn(context.Background(), repoReq(map[string]any{"outFile": "blockers.json", "with_blockers": true}))
+	if err != nil || res == nil || res.IsError {
+		t.Fatalf("golden call failed: err=%v res=%+v", err, res)
+	}
+	file, err := os.ReadFile(filepath.Join(dir, "blockers.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcptest.Golden(t, "list_repo_issues_blockers_file", file)
+}
+
+// verbose rows keep the full issue and add blocked_by; the blocker is named the
+// same way as in the compact rows.
+func TestListRepoIssuesWithBlockers_VerboseRowsCarryBlockedBy(t *testing.T) {
+	dir := outFileTempDir(t)
+	h, f := newFixture(t)
+	idx := seedOpen(t, f, 2)
+	addBlocker(t, f, idx[1], forge.IssueRef{Owner: testOwner, Repo: testRepo, Index: idx[0]})
+
+	call(t, h.ListRepoIssuesFn, map[string]any{"outFile": "verbose.json", "with_blockers": true, "verbose": true})
+	b, err := os.ReadFile(filepath.Join(dir, "verbose.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []struct {
+		Number    int64  `json:"number"`
+		Title     string `json:"title"`
+		BlockedBy []any  `json:"blocked_by"`
+	}
+	if err := json.Unmarshal(b, &rows); err != nil {
+		t.Fatalf("verbose file is not a JSON array of rows: %v", err)
+	}
+	got := map[int64]struct {
+		title string
+		by    []any
+	}{}
+	for _, r := range rows {
+		if r.BlockedBy == nil {
+			t.Fatalf("verbose row %d has no blocked_by array", r.Number)
+		}
+		got[r.Number] = struct {
+			title string
+			by    []any
+		}{r.Title, r.BlockedBy}
+	}
+	if got[idx[1]].title != "issue" || !reflect.DeepEqual(got[idx[1]].by, []any{float64(idx[0])}) {
+		t.Fatalf("verbose row %d = %+v, want title %q and blocked_by [%d]", idx[1], got[idx[1]], "issue", idx[0])
+	}
+	if len(got[idx[0]].by) != 0 {
+		t.Fatalf("verbose row %d blocked_by = %v, want []", idx[0], got[idx[0]].by)
 	}
 }
 

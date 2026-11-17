@@ -1,0 +1,64 @@
+[
+  {
+    "number": 1,
+    "url": "https://f.example/octo/hello/issues/7",
+    "title": "row",
+    "state": "open",
+    "labels": [
+      "bug"
+    ],
+    "assignees": [
+      "octo"
+    ],
+    "updated_at": "2026-02-03T04:05:06Z",
+    "milestone": {
+      "id": 4,
+      "title": "v1"
+    },
+    "is_pull_request": true,
+    "blocked_by": []
+  },
+  {
+    "number": 2,
+    "url": "https://f.example/octo/hello/issues/7",
+    "title": "row",
+    "state": "open",
+    "labels": [
+      "bug"
+    ],
+    "assignees": [
+      "octo"
+    ],
+    "updated_at": "2026-02-03T04:05:06Z",
+    "milestone": {
+      "id": 4,
+      "title": "v1"
+    },
+    "is_pull_request": true,
+    "blocked_by": [
+      1
+    ]
+  },
+  {
+    "number": 3,
+    "url": "https://f.example/octo/hello/issues/7",
+    "title": "row",
+    "state": "open",
+    "labels": [
+      "bug"
+    ],
+    "assignees": [
+      "octo"
+    ],
+    "updated_at": "2026-02-03T04:05:06Z",
+    "milestone": {
+      "id": 4,
+      "title": "v1"
+    },
+    "is_pull_request": true,
+    "blocked_by": [
+      1,
+      "octo/lib#9"
+    ]
+  }
+]
