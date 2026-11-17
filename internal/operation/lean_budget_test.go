@@ -19,9 +19,14 @@ import (
 // decision: change it only in a PR that says why the extra tool text is needed.
 const trackerCoreLeanBudget = 11000
 
+// trackerCoreLeanHeadroom is the size the preset is held to in routine work,
+// about 400 bytes under the budget, so new tool text has room before the
+// budget itself is at risk.
+const trackerCoreLeanHeadroom = 10600
+
 // TestTrackerCoreLeanStaysWithinBudget fails when the lean tracker-core
 // selection grows past trackerCoreLeanBudget, so the standing cost cannot
-// regrow unnoticed.
+// regrow unnoticed. It also fails past trackerCoreLeanHeadroom.
 func TestTrackerCoreLeanStaysWithinBudget(t *testing.T) {
 	sel, err := toolset.ParseWithPreset("tracker-core", nil, nil)
 	if err != nil {
@@ -36,5 +41,8 @@ func TestTrackerCoreLeanStaysWithinBudget(t *testing.T) {
 	}
 	if len(raw) > trackerCoreLeanBudget {
 		t.Fatalf("lean tracker-core tools/list is %d bytes, over the %d-byte budget", len(raw), trackerCoreLeanBudget)
+	}
+	if len(raw) > trackerCoreLeanHeadroom {
+		t.Fatalf("lean tracker-core tools/list is %d bytes, over the %d-byte headroom", len(raw), trackerCoreLeanHeadroom)
 	}
 }
