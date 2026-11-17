@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Release: push a `vX.Y.Z` tag and this builds the binaries, checksums and SBOMs
+# with goreleaser, creates the Forgejo Release, then packs and attaches the
+# .mcpb bundles. How to cut one: docs/agents/releasing.md.
+#
+# Needs the repo Actions secret RELEASE_TOKEN: a PAT with write:repository.
+name: release
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+jobs:
+  release:
+    runs-on: self-hosted
+    container:
+      image: golang:1.26
+    env:
+      GORELEASER_VERSION: v2.12.0
+      SYFT_VERSION: v1.30.0
+    steps:
+      - name: Install tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq jq nodejs npm
+          go install github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}
+          go install github.com/anchore/syft/cmd/syft@${SYFT_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: goreleaser
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: goreleaser release --clean
+      - name: Pack and attach the .mcpb bundles
+        env:
+          TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME}"
+          api="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
+          id=$(curl -fsS -H "Authorization: token ${TOKEN}" "${api}/releases/tags/${tag}" | jq -r .id)
+          for platform in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            export GOOS="${platform%/*}" GOARCH="${platform#*/}"
+            make mcpb
+            f=$(ls dist/forgejo-mcp_*_"${GOOS}_${GOARCH}".mcpb)
+            curl -fsS -X POST -H "Authorization: token ${TOKEN}" \
+              -F "attachment=@${f}" \
+              "${api}/releases/${id}/assets?name=$(basename "$f")"
+          done
