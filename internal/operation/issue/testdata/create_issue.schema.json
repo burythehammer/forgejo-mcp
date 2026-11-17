@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Create issue, optionally with labels (by name or ID), assignees and a milestone in the same call",
+  "description": "Create issue. Labels (by name or ID), assignees and a milestone can be set in the same call.",
   "inputSchema": {
     "properties": {
       "assignees": {

@@ -88,7 +88,7 @@ var (
 	CreateIssueTool = mcp.NewTool(
 		CreateIssueToolName,
 		annotate.Write(),
-		mcp.WithDescription("Create issue, optionally with labels (by name or ID), assignees and a milestone in the same call"),
+		mcp.WithDescription("Create issue. Labels (by name or ID), assignees and a milestone can be set in the same call."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("title", mcp.Required(), mcp.Description(params.Title)),
@@ -114,7 +114,7 @@ var (
 	UpdateIssueTool = mcp.NewTool(
 		UpdateIssueToolName,
 		annotate.Write(),
-		mcp.WithDescription("Update issue. 'set_labels' replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally"),
+		mcp.WithDescription("Update issue. `set_labels` replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
@@ -133,7 +133,7 @@ var (
 	ReplaceIssueBodyLineTool = mcp.NewTool(
 		ReplaceIssueBodyLineToolName,
 		annotate.Write(),
-		mcp.WithDescription("Replace one exact piece of an issue's body on the server, without sending the whole body. 'old' is matched as a case-sensitive substring (it may span a whole line) and must occur exactly once: zero matches or several refuse with the body left unchanged, and several report the count. 'old' must not be empty. Pull request indexes are refused. Limitation: Forgejo has no compare-and-swap for issue edits, so an edit made between this call's read and write can be lost; compare updated_at in the result to detect that."),
+		mcp.WithDescription("Replace one exact piece of an issue's body, without sending the whole body. `old` is matched as a case-sensitive substring (it may span a whole line) and must occur exactly once: zero matches or several refuse with the body left unchanged, and several report the count. `old` must not be empty. Pull request indexes are refused. Limitation: Forgejo has no compare-and-swap for issue edits, so an edit made between this call's read and write can be lost; compare updated_at in the result to detect that."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
@@ -251,7 +251,7 @@ var (
 	SearchIssuesTool = mcp.NewTool(
 		SearchIssuesToolName,
 		annotate.Read(),
-		mcp.WithDescription("Search issues across every repository belonging to one owner (organization or user), without naming a repo. "+
+		mcp.WithDescription("Search issues across one owner's repositories. No repo is named; the owner may be an organization or a user. "+
 			"Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. "+
 			"has_next true means a further page may exist; re-issue the call with page incremented to fetch it. "+
 			"total_count, when present, is the total number of matching issues across all pages (from Forgejo's X-Total-Count header); it is omitted rather than 0 when the header is unavailable. "+

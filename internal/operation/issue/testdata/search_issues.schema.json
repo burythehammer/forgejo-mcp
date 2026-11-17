@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Search issues across every repository belonging to one owner (organization or user), without naming a repo. Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count, when present, is the total number of matching issues across all pages (from Forgejo's X-Total-Count header); it is omitted rather than 0 when the header is unavailable. Each issue identifies its source repository only via its html_url/url field; there is no separate repository field. Use list_repo_issues instead when the repo is already known.",
+  "description": "Search issues across one owner's repositories. No repo is named; the owner may be an organization or a user. Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. has_next true means a further page may exist; re-issue the call with page incremented to fetch it. total_count, when present, is the total number of matching issues across all pages (from Forgejo's X-Total-Count header); it is omitted rather than 0 when the header is unavailable. Each issue identifies its source repository only via its html_url/url field; there is no separate repository field. Use list_repo_issues instead when the repo is already known.",
   "inputSchema": {
     "properties": {
       "assigned_by": {
