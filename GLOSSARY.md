@@ -66,7 +66,7 @@ The most rows one file-output listing may hold, 1,000 issues (`list.FileCeiling`
 _Avoid_: cap, limit, max rows
 
 **File output**:
-A tool result written to a file instead of returned as a page, for a caller that processes a whole list by script rather than through the model. The `outFile` argument names it: a bare file name under the server's temp directory, with the reply `{path, count, keys}`. Only the stdio transport accepts it, since a network caller cannot read a file on the server host.
+A tool result written to a file instead of returned as a page, for a caller that processes a whole list by script rather than through the model. The `outFile` argument names it: a bare file name under the server's temp directory, with the reply `{path, count, keys}`. Only the stdio transport accepts it, since a network caller cannot read a file on the server host. `with_blockers` (valid only with `outFile`) adds each row's `blocked_by`, read per issue under the same ceiling.
 _Avoid_: export, dump, download
 
 **Outline wiki**:

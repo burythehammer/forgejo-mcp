@@ -34,3 +34,7 @@ This is not a fan-out (ADR 0007): it reads one paged Forgejo list endpoint, page
 ## Open question: hint annotation
 
 `annotate.Read()` declares `readOnlyHint: true` on both tools. The `outFile` path writes a file, so the hint is inaccurate for that path. Changing it to `annotate.Write()` alters the `readOnlyHint` in `internal/operation/issue/testdata/list_repo_issues.schema.json` and `search_issues.schema.json`, and the two rows of `expectedHints` in `internal/operation/annotations_test.go`. Not yet decided; the decision would be a schema change recorded in an amendment to ADR 0003.
+
+## Amendment: with_blockers (#363)
+
+The statement above that outFile "is not a fan-out (ADR 0007)" holds for `outFile` alone. The `with_blockers` argument, valid only with `outFile`, adds a bounded dependency read per listed row: one `ListIssueDependencies` request per row, paged only when a row has more blockers than one page. That read is a fan-out under ADR 0007, and it is the only part of this file output that makes more than one kind of read. It stays on this path: whole listing, the file ceiling (`list.FileCeiling`) on the listing and on each row's blockers, and a failed or over-ceiling read fails the call and writes no file. Each row's `blocked_by` is an array of integers for blockers in the listed repository and `owner/repo#n` strings otherwise.

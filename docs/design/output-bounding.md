@@ -154,7 +154,9 @@ are enforced in these places:
   the keys of up to 1,000 rows, so it is not a fixed-size reply. The caller's bound is
   the file, and the ceiling is what keeps the reply and the read bounded. `outFile` is
   refused with `page` or `limit`, judged from the raw request (`refuseOutFilePaging`),
-  because a zero page or limit reads as absent in the argument struct.
+  because a zero page or limit reads as absent in the argument struct. With `with_blockers`
+  (#363), each listed issue's blockers are also read, one dependency request per issue, under
+  ADR 0007's bounded fan-out and the same ceiling; any failed read writes no file.
 
 Some per-handler `paging` helpers in `internal/operation/{tracking,org,user,search}` and
 in `internal/app/{wiki,pull}` remain. Each still has callers and each differs in how it
