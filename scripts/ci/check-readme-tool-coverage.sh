@@ -2,25 +2,26 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # check-readme-tool-coverage.sh — every registered tool and resource template
-# must have a row in the README.
+# must have a row in the reference tables under docs/reference/.
 #
-# AGENTS.md asks for a README table row whenever a tool is added, and nothing
-# enforced it: 22 of 155 tools and 4 of 17 resource templates had drifted out
-# of the tables by #601, one of them (delete_org) destructive. Credit without
-# documentation is worse than neither — the contributors table had been
-# thanking someone for list_repo_contents and get_repo_tree since PR #116/#117
-# while the tools themselves were never listed.
+# The name is historical: the tables moved out of the README in #366. AGENTS.md
+# asks for a table row whenever a tool is added, and nothing enforced it: 22 of
+# 155 tools and 4 of 17 resource templates had drifted out of the tables by
+# #601, one of them (delete_org) destructive. Credit without documentation is
+# worse than neither — the contributors table had been thanking someone for
+# list_repo_contents and get_repo_tree since PR #116/#117 while the tools
+# themselves were never listed.
 #
 # What is compared:
 #
 #   tools      — every `<Name>ToolName = "<tool_name>"` constant under
 #                internal/operation/ (excluding _test.go) against every `| `<name>` `
-#                row in README.md.
+#                row in docs/reference/tools.md.
 #   resources  — every registered `forgejo://…{…}` URI template (those with a
 #                `{` placeholder, so concrete test URIs are ignored) against
-#                the README resource table.
+#                the resource table in docs/reference/resources.md.
 #
-# The check is one-directional on purpose: a README row with no matching
+# The check is one-directional on purpose: a table row with no matching
 # constant is NOT an error. Some tools are registered without a ToolName
 # constant, and flagging those would make the check lie. Missing documentation
 # is the failure mode worth catching.
@@ -51,9 +52,12 @@ grep -rhE '^[[:space:]]*[A-Za-z]+ToolName[[:space:]]*=[[:space:]]*"[a-z_]+"' \
   | sort -u >"$tmp/tools_code"
 
 # A documented tool is a table row whose first cell is a backticked name.
-sed -n 's/^| `\([a-z_][a-z_]*\)`.*/\1/p' README.md | sort -u >"$tmp/tools_readme"
+TOOLS_DOC=docs/reference/tools.md
+RES_DOC=docs/reference/resources.md
 
-comm -23 "$tmp/tools_code" "$tmp/tools_readme" >"$tmp/tools_missing"
+sed -n 's/^| `\([a-z_][a-z_]*\)`.*/\1/p' "$TOOLS_DOC" | sort -u >"$tmp/tools_doc"
+
+comm -23 "$tmp/tools_code" "$tmp/tools_doc" >"$tmp/tools_missing"
 
 # --- resource templates ----------------------------------------------------
 # Only templates: a URI carrying a `{` placeholder. Concrete forgejo:// URIs in
@@ -63,9 +67,9 @@ grep -rhoE '"forgejo://[^"]*\{[^"]*"' internal/operation/ --include='*.go' 2>/de
   | tr -d '"' \
   | sort -u >"$tmp/res_code"
 
-sed -n 's/^| `\(forgejo:\/\/[^`]*\)`.*/\1/p' README.md | sort -u >"$tmp/res_readme"
+sed -n 's/^| `\(forgejo:\/\/[^`]*\)`.*/\1/p' "$RES_DOC" | sort -u >"$tmp/res_doc"
 
-comm -23 "$tmp/res_code" "$tmp/res_readme" >"$tmp/res_missing"
+comm -23 "$tmp/res_code" "$tmp/res_doc" >"$tmp/res_missing"
 
 # --- report ----------------------------------------------------------------
 tools_total="$(wc -l <"$tmp/tools_code" | tr -d ' ')"
@@ -74,12 +78,12 @@ tools_bad="$(wc -l <"$tmp/tools_missing" | tr -d ' ')"
 res_bad="$(wc -l <"$tmp/res_missing" | tr -d ' ')"
 
 if [ "$tools_bad" -gt 0 ]; then
-  echo "Registered tools with no README table row:" >&2
+  echo "Registered tools with no row in $TOOLS_DOC:" >&2
   sed 's/^/  - /' "$tmp/tools_missing" >&2
 fi
 
 if [ "$res_bad" -gt 0 ]; then
-  echo "Registered resource templates with no README table row:" >&2
+  echo "Registered resource templates with no row in $RES_DOC:" >&2
   sed 's/^/  - /' "$tmp/res_missing" >&2
 fi
 
@@ -89,7 +93,7 @@ echo "check-readme-coverage: ${tools_total} tool(s), ${res_total} resource templ
 
 if [ "$errors" -gt 0 ]; then
   echo "" >&2
-  echo "Add a row to the matching table in README.md. See docs/agents/adding-a-tool.md." >&2
+  echo "Add a row to the matching table in $TOOLS_DOC or $RES_DOC. See docs/agents/adding-a-tool.md." >&2
   exit 1
 fi
 exit 0
