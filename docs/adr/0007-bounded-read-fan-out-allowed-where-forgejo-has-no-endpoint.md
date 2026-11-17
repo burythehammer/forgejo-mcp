@@ -30,7 +30,7 @@ A write workflow, or a sequence that encodes one user's convention, stays with A
 
 ## Amendment: create_wiki_page precondition (#357)
 
-`create_wiki_page` refuses an existing title, which takes one read before its one write. That read is a precondition of a single operation, not a workflow, so it stays within ADR 0005. The check and the create are two requests, so two simultaneous creates of one new title can both pass the check; the README row for `create_wiki_page` documents the race.
+`create_wiki_page` refuses an existing title, which takes one read before its one write. That read is a precondition of a single operation, not a workflow, so it stays within ADR 0005. The check and the create are two requests, so two simultaneous creates of one new title can both pass the check; the docs/reference/tools.md row for `create_wiki_page` documents the race.
 
 ## Amendment: with_blockers on file output (#363)
 

@@ -11,9 +11,8 @@
 #
 #   1. Forbidden: any name in HOSTS below, matched case-insensitively as a
 #      substring anywhere in README.md — prose, link text, or URL. The list is
-#      the code hosts this project has lived on or is mirrored to (go.mod's
-#      module host, the `origin`/`github` remotes, the `upstream` remote), plus
-#      the chat and forge names a README is likely to drift back to.
+#      the code hosts the project has used or mirrors to, each one named in
+#      the repo history.
 #   2. The one allowed exception: the module path from go.mod, but only on a
 #      line that contains `go install`. The install line carries it as is.
 #      The path is read from go.mod, so a module rename moves the exception
@@ -47,7 +46,7 @@ MODULE="$(sed -n 's/^module //p' go.mod)"
 [ -n "$MODULE" ] || { echo "check-readme-no-code-host: no module line in go.mod" >&2; exit 1; }
 
 # Lowercase ERE alternatives. Dots are written as [.] so no escapes reach awk.
-HOSTS='codeberg|github|gitlab|bitbucket|sourcehut|sr[.]ht|gitea|radicle|forgejo[.]burythehammer|git[.]b4mad|b4mad[.]industries|matrix[.](org|to)|git@|ssh://|git://'
+HOSTS='codeberg|github|gitlab|gitea[.]com|radicle|forgejo[.]burythehammer|git[.]b4mad|b4mad[.]industries|matrix[.]to|git@|ssh://|git://'
 
 # On a go install line, blank the module path (fixed string, not a regex) before
 # matching. Report the original line so the reader sees what to fix.

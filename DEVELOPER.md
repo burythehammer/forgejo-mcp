@@ -36,7 +36,7 @@ go mod tidy         # Tidy dependencies
 ./forgejo-mcp --transport sse --url <url> --token <token> --debug
 ```
 
-Environment variables: `FORGEJO_URL`, `FORGEJO_ACCESS_TOKEN`, `FORGEJO_DEBUG`, `FORGEJO_USER_AGENT`, `FORGEJO_TLS_CA`, `FORGEJO_TLS_SKIP_VERIFY`, `FORGEJO_MCP_AUTHORIZATION_SERVER_TLS_CA` (see the README's "Private or self-signed Forgejo certificates")
+Environment variables: `FORGEJO_URL`, `FORGEJO_ACCESS_TOKEN`, `FORGEJO_DEBUG`, `FORGEJO_USER_AGENT`, `FORGEJO_TLS_CA`, `FORGEJO_TLS_SKIP_VERIFY`, `FORGEJO_MCP_AUTHORIZATION_SERVER_TLS_CA` (see [Private or self-signed Forgejo certificates](docs/configuration.md#private-or-self-signed-forgejo-certificates))
 
 CLI options: `--url`, `--token`, `--transport`, `--sse-port`, `--http-port`, `--user-agent`, `--tls-ca`, `--tls-skip-verify`,
 `--host`, `--allowed-hosts`, `--allowed-origins`, `--allow-operator-token-fallback`
@@ -45,7 +45,7 @@ The last four govern the `sse` and `http` transports. `--host` defaults to `127.
 and binds both loopback families; a non-loopback value requires `--allowed-hosts` or the
 server refuses to start. On these transports every request must carry its own
 `Authorization` header unless `--allow-operator-token-fallback` is set. See the
-"Exposing the server to a network" section of README.md.
+"Exposing the server to a network" section of [docs/configuration.md](docs/configuration.md#exposing-the-server-to-a-network).
 
 ## Architecture
 

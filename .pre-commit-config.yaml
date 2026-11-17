@@ -52,8 +52,7 @@ repos:
       - id: check-readme-no-code-host
         name: check README names no code host
         description: >-
-          Reject a code-host name or URL in README.md, except the module path on
-          a go install line. Runs under make check via scripts/ci/*.sh.
+          Reject a code-host name or URL in README.md. The script lists the hosts.
         entry: scripts/ci/check-readme-no-code-host.sh
         language: script
         pass_filenames: false

@@ -13,8 +13,8 @@
 #
 # Two rules, because the docs cite tools in two ways:
 #
-#   prefixed — every `mcp__forgejo__<name>` in AGENTS.md, docs/ and README.md
-#              (the reference tables under docs/reference/ are in docs/)
+#   prefixed — every `mcp__forgejo__<name>` in AGENTS.md, README.md and docs/,
+#              including the reference tables under docs/reference/
 #              must name a registered tool. The `mcp__forgejo__*` wildcard is
 #              a server reference, not a tool, and is skipped.
 #   bare     — in docs/agents/*.md only, a backticked snake_case token whose

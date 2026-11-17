@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 # Upstream release process (inherited, unverified)
 
-> **Superseded:** this fork releases through `.forgejo/workflows/release.yaml`; see [docs/agents/releasing.md](../agents/releasing.md). Kept for reference only.
+> **Superseded:** this fork releases through `.forgejo/workflows/release.yaml`; see [docs/agents/releasing.md](../agents/releasing.md). Kept for reference only. Verifying release archives is covered in [verifying-releases.md](verifying-releases.md).
 
 
 > **Inherited from upstream (b4mad) and unverified for this fork.** The procedures below describe the OpenShift Job, Tekton pipeline and castra release lane that upstream uses. This fork has not confirmed that any of them works against its own Forgejo. Do not treat them as this fork's release process.
