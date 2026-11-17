@@ -283,3 +283,18 @@ func TestSearchIssuesOutFile_RowsCarryMilestoneAndHonourVerbose(t *testing.T) {
 		t.Fatal("verbose row lacks the full issue body")
 	}
 }
+
+// An explicit zero page or limit is still a page or limit sent: the struct reads
+// it as absent, so only the raw request tells it apart.
+func TestSearchIssuesOutFile_RefusesExplicitZeroPageAndLimit(t *testing.T) {
+	dir := outFileTempDir(t)
+	h, f := newFixture(t)
+	seedOpen(t, f, 2)
+	if msg := searchOutErr(t, h, map[string]any{"outFile": "z.json", "page": float64(0)}); !strings.Contains(msg, "page") {
+		t.Fatalf("page 0 with outFile: error %q", msg)
+	}
+	if msg := searchOutErr(t, h, map[string]any{"outFile": "z.json", "limit": float64(0)}); !strings.Contains(msg, "limit") {
+		t.Fatalf("limit 0 with outFile: error %q", msg)
+	}
+	noFileWritten(t, dir)
+}
