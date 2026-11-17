@@ -9,6 +9,7 @@ package outfile
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,10 @@ func CheckName(name string) error {
 // Write checks name, then writes rows as a JSON array into the output
 // directory, creating it on demand and overwriting a file of the same name. key
 // gives each row's issue number. A refused name writes nothing.
+//
+// The write goes to a temp file in the same directory that is renamed over the
+// target only once it is complete, so a failed write leaves an earlier file of
+// the same name intact.
 func Write[T any](name string, rows []T, key func(T) int64) (Result, error) {
 	if err := CheckName(name); err != nil {
 		return Result{}, err
@@ -50,11 +55,8 @@ func Write[T any](name string, rows []T, key func(T) int64) (Result, error) {
 	if rows == nil {
 		rows = []T{}
 	}
-	dir, err := filepath.Abs(filepath.Join(os.TempDir(), dirName))
+	dir, err := outputDir()
 	if err != nil {
-		return Result{}, err
-	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Result{}, err
 	}
 	body, err := json.MarshalIndent(rows, "", "  ")
@@ -62,7 +64,7 @@ func Write[T any](name string, rows []T, key func(T) int64) (Result, error) {
 		return Result{}, err
 	}
 	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, append(body, '\n'), 0o600); err != nil {
+	if err := replaceFile(dir, path, append(body, '\n')); err != nil {
 		return Result{}, err
 	}
 	keys := make([]int64, 0, len(rows))
@@ -70,4 +72,53 @@ func Write[T any](name string, rows []T, key func(T) int64) (Result, error) {
 		keys = append(keys, key(r))
 	}
 	return Result{Path: path, Count: len(rows), Keys: keys}, nil
+}
+
+// outputDir returns the output directory, creating it at 0700 on demand, and
+// refuses one that is not safe to write into: a symbolic link (the file would
+// land wherever it points), something other than a directory, a directory open
+// to group or other users, or one owned by another uid. A directory left from
+// an older run with looser permissions is refused too; remove it to recreate.
+func outputDir() (string, error) {
+	dir, err := filepath.Abs(filepath.Join(os.TempDir(), dirName))
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return "", err
+	}
+	if fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
+		return "", fmt.Errorf("output directory %s is a symbolic link or not a directory; remove it and retry", dir)
+	}
+	if err := checkOwnership(fi, os.Getuid()); err != nil {
+		return "", fmt.Errorf("output directory %s %w; remove it and retry", dir, err)
+	}
+	return dir, nil
+}
+
+// replaceFile writes body to a temp file in dir and renames it to path. The
+// temp file is removed if any step fails.
+func replaceFile(dir, path string, body []byte) (err error) {
+	f, err := os.CreateTemp(dir, ".write-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer func() {
+		if err != nil {
+			_ = os.Remove(tmp)
+		}
+	}()
+	if _, err = f.Write(body); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }

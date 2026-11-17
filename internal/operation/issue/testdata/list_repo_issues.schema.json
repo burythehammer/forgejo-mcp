@@ -22,7 +22,7 @@
         "type": "string"
       },
       "outFile": {
-        "description": "Bare file name. Writes the whole listing (every page) as a JSON array into the forgejo-mcp temp dir and replies {path,count,keys}; an existing file is overwritten. Refused with page or limit, and on the sse and http transports.",
+        "description": "Bare file name. Writes the whole listing (every page) as a JSON array into the forgejo-mcp temp dir and replies {path,count,keys}; an existing file is overwritten. A listing over 1,000 issues (the file-output ceiling) fails and writes nothing. Refused with page or limit, and on the sse and http transports.",
         "type": "string"
       },
       "owner": {

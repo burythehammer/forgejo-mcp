@@ -356,7 +356,7 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | `list_repo_commits` | List commits in a repository (page/limit); returns `{commits,page,limit,count,has_next}` |
 | `get_commit_statuses` | List per-context commit statuses for a full 40-character SHA. Bounded by `page` (default 1) + `limit` (default 30, lowered to the instance ceiling; a limit above a known ceiling is refused); returns `{sha, statuses, page, limit, count, has_next, total_count}` — `has_next` is true when a further page may exist, and `total_count` is present only when Forgejo reports `X-Total-Count`. Combined aggregate stays on the commit status resource. Not Actions runs (`list_workflow_runs`). |
 | **Issues** | |
-| `list_repo_issues` | List issues in a repository (page/limit); returns `{issues,page,limit,count,has_next}`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues. Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). Optional `outFile` (a bare file name, no path) writes the whole listing, every page, as a JSON array into `<temp dir>/forgejo-mcp/` and replies `{path,count,keys}` instead of a page; an existing file is overwritten. `outFile` is refused with `page` or `limit`, and on the `sse` and `http` transports. |
+| `list_repo_issues` | List issues in a repository (page/limit); returns `{issues,page,limit,count,has_next}`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues. Optional `sort` orders server-side: `relevance`, `latest`, `oldest`, `recentupdate`, `leastupdate`, `mostcomment`, `leastcomment`, `nearduedate`, `farduedate` (the last two are the due-date directions). Optional `outFile` (a bare file name, no path) writes the whole listing, every page, as a JSON array into `<temp dir>/forgejo-mcp/` and replies `{path,count,keys}` instead of a page; an existing file is overwritten. The listing is held to a ceiling of 1,000 issues (see [File output and its ceiling](#file-output-and-its-ceiling)): a listing over it fails with an error naming the ceiling and writes no file, and is never truncated. The file is written to a temp file and renamed into place, so a failed run keeps an earlier file of the same name. The directory is created `0700` and refused if it is a symlink, open to group or other users, or owned by another uid. `outFile` is refused with `page` or `limit`, and on the `sse` and `http` transports. |
 | `search_issues` | Search issues across every repository of one owner (page/limit); returns `{issues,page,limit,count,has_next,total_count}` — `total_count` is present only when Forgejo reports `X-Total-Count`. Each issue is a compact result by default (number, url, title, state, label names, assignee logins, updated_at); `verbose=true` returns the full issues |
 | `create_issue` | Create a new issue. Optional `labels` (comma-separated names or IDs; two exclusive labels from one scope are refused and no issue is created), `assignees` (comma-separated usernames) and `milestone` (numeric ID) are applied by the same request that creates the issue. Optional `ref` links the issue to a branch (Forgejo's issue `ref` field, passed through as given). Returns a compact result by default (number, url, title, state, label names, assignee logins, milestone, updated_at, and `body_sha256` when a body was sent: the hash of the body the server stored); `verbose=true` returns the full issue. |
 | `get_issue_by_index` | Get a specific issue. Returns a compact result by default (number, url, title, state, label names, assignee logins, updated_at, body, closed_at, ref, comments); `verbose=true` returns the full issue. Optional `type=issues` refuses a pull request's index and `type=pulls` refuses an issue's, each with an error naming the other tool; omit `type` to accept either |
@@ -494,6 +494,12 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | **Server** | |
 | `get_forgejo_mcp_server_version` | Get the MCP server version |
 
+### File output and its ceiling
+
+`outFile` on `list_repo_issues` writes a whole listing to a file, so a client can process every issue by script without the list passing through the model. The file goes in `<temp dir>/forgejo-mcp/`, which is created `0700` and refused if it is a symlink, open to other users, or owned by another uid. The reply is `{path,count,keys}`.
+
+The **ceiling** is the most rows one file-output listing may hold: 1,000 issues (`list.FileCeiling` in `internal/app/list`, shared by every tool that takes `outFile`). A listing of exactly 1,000 is written whole. One more fails with an error that names the ceiling and writes no file. A failed run leaves an earlier file of the same name untouched. The ceiling is separate from the instance ceiling (`max_response_items`) and does not change the per-page bound on normal list output.
+
 ### Lean mode: terse tool text
 
 Each tool definition sends a description and a property description for every argument, and mcp-go adds annotations to every tool. `--lean` (or `FORGEJO_MCP_LEAN=1`; the flag wins over the variable) serves the same tools with terse text:
@@ -561,12 +567,12 @@ The list was inferred from the tfuk-specflow ticket texts, not from its code, so
 |---|---:|---:|---:|---:|
 | Default (no selection) | 167 | 127,243 | 31,811 | 1,896 |
 | `issues,labels,milestones,dependencies,user` | 39 | 31,752 | 7,938 | 813 |
-| `--preset tracker-core` | 24 | 22,897 | 5,724 | 0 |
-| `--preset tracker-core --lean` | 24 | 10,353 | 2,588 | 0 |
+| `--preset tracker-core` | 24 | 23,233 | 5,808 | 0 |
+| `--preset tracker-core --lean` | 24 | 10,487 | 2,622 | 0 |
 
 The selection above costs about 25% of the default. It misses the ticket target of well under 5,000 tokens. Most of the cost is tool descriptions and input schemas, about 760 to 820 bytes per tool, so shortening them is the next lever. That is a follow-up, not part of toolset selection.
 
-The `tracker-core` rows are measured the same way, on this build with the fake forge. The lean row is the figure the budget test guards (`TestTrackerCoreLeanStaysWithinBudget`, budget 11,000 bytes, headroom 10,600). Against the design target of about 8 KB (about 2k tokens), the lean preset is about 2.4 KB over, roughly 29%. The largest remaining lean tools are `update_issue` (817 bytes), `list_repo_issues` (775), `search_issues` (742), `create_issue` (516) and `edit_repo_label` (507). Those are the next lever for shrinking the preset.
+The `tracker-core` rows are measured the same way, on this build with the fake forge. The lean row is the figure the budget test guards (`TestTrackerCoreLeanStaysWithinBudget`, budget 11,000 bytes, headroom 10,600). Against the design target of about 8 KB (about 2k tokens), the lean preset is about 2.5 KB over, roughly 31%. The largest remaining lean tools are `list_repo_issues` (909 bytes, the `outFile` text included), `update_issue` (817), `search_issues` (742), `create_issue` (516) and `edit_repo_label` (507). Those are the next lever for shrinking the preset.
 
 Per-toolset figures below are the same measure for a selection of that one toolset. They do not sum to the totals, because each response carries its own envelope.
 

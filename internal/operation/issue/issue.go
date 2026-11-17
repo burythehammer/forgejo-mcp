@@ -82,7 +82,7 @@ var (
 		mcp.WithString("sort", mcp.Description("Server-side sort order. One of: relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate. Default is the API's own default (latest)."), lean.Keep("one of relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
-		mcp.WithString("outFile", mcp.Description("Bare file name. Writes the whole listing (every page) as a JSON array into the forgejo-mcp temp dir and replies {path,count,keys}; an existing file is overwritten. Refused with page or limit, and on the sse and http transports."), lean.Keep("bare file name; writes the whole listing to a file, refused with page or limit")),
+		mcp.WithString("outFile", mcp.Description("Bare file name. Writes the whole listing (every page) as a JSON array into the forgejo-mcp temp dir and replies {path,count,keys}; an existing file is overwritten. A listing over 1,000 issues (the file-output ceiling) fails and writes nothing. Refused with page or limit, and on the sse and http transports."), lean.Keep("bare file name; whole listing to a file, ceiling 1,000 issues, refused with page or limit")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 

@@ -4,6 +4,7 @@ package issue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -100,29 +101,26 @@ func (s *Service) List(ctx context.Context, in ListInput) (list.Bounded[*model.I
 	return page, nil
 }
 
-// listAllMaxPages bounds how many pages ListAll reads. A read that reaches it
-// is an error, never a short list. A ceiling on the whole listing is a
-// separate, explicit limit, not this one.
-const listAllMaxPages = 1000
-
 // ListAll returns every issue of a repository's list, read page by page at the
 // default limit (lowered to a known instance ceiling). It is for a caller that
-// writes the whole list to a file. A read that stops at listAllMaxPages before
-// the last page is an error, so the caller never receives a truncated list.
+// writes the whole list to a file, so it holds the list to list.FileCeiling
+// issues: a listing over that fails with an error naming the ceiling, and the
+// caller never receives a truncated list.
 func (s *Service) ListAll(ctx context.Context, in ListInput) ([]*model.Issue, error) {
 	if err := checkList(in); err != nil {
 		return nil, err
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	limit := list.DefaultLimit(defaultLimit, list.Ceiling{Max: ceiling, Known: known})
-	every, err := list.All(ctx, limit, listAllMaxPages, s.fetchIssues(in))
+	issues, err := list.ReadWhole(ctx, limit, list.FileCeiling, s.fetchIssues(in))
+	var over *list.OverCeiling
+	if errors.As(err, &over) {
+		return nil, fmt.Errorf("issue listing is over the %d-issue file-output ceiling; nothing was written", list.FileCeiling)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if !every.Complete {
-		return nil, fmt.Errorf("issue listing stopped after %d pages before its last page; nothing was written", listAllMaxPages)
-	}
-	return every.Items, nil
+	return issues, nil
 }
 
 // checkList refuses a list request the port must not see: no owner, no repo
