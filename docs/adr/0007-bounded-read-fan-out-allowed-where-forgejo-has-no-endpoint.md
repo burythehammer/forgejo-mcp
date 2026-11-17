@@ -31,3 +31,7 @@ A write workflow, or a sequence that encodes one user's convention, stays with A
 ## Amendment: create_wiki_page precondition (#357)
 
 `create_wiki_page` refuses an existing title, which takes one read before its one write. That read is a precondition of a single operation, not a workflow, so it stays within ADR 0005. The check and the create are two requests, so two simultaneous creates of one new title can both pass the check; the README row for `create_wiki_page` documents the race.
+
+## Amendment: with_blockers on file output (#363)
+
+`list_repo_issues` and `search_issues`, called with `outFile` and `with_blockers`, read the dependencies of each listed issue: one `ListIssueDependencies` read per listed issue, more pages only when an issue has more blockers than one page. Forgejo has no endpoint that returns the blockers of many issues at once, so this is a fan-out under the three conditions above. It is read-only. It is bounded by the file-output ceiling (`list.FileCeiling`, 1,000) on the listing and on each issue's blockers, and it reports no truncation because it never truncates: a read over the ceiling, or any failed read, fails the call and writes no file. The reads run on the file-output path of ADR 0008, not a page.
