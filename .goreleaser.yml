@@ -43,6 +43,10 @@ sboms:
       - --output
       - 'cyclonedx-json=$document'
 
+# The Actions runner sets GITHUB_TOKEN, and goreleaser then picks the GitHub
+# client and posts to api.github.com. Force the Gitea client (Forgejo speaks it).
+force_token: gitea
+
 gitea_urls:
   api: https://forgejo.burythehammer.com/api/v1
   download: https://forgejo.burythehammer.com
