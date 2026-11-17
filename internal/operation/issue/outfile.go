@@ -12,6 +12,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/outfile"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -22,6 +23,34 @@ import (
 var outFileOpts = []mcp.PropertyOption{
 	mcp.Description("Bare file name. Writes the whole listing (every page) as a JSON array into the forgejo-mcp temp dir and replies {path,count,keys}; an existing file is overwritten. A listing over 1,000 issues (the file-output ceiling) fails and writes nothing. Refused with page or limit, and on the sse and http transports."),
 	lean.Keep("bare file name; whole listing to file, ceiling 1,000, no page/limit"),
+}
+
+// refuseOutFilePaging refuses page or limit sent with outFile, since outFile
+// reads every page. It reads the raw request: the argument struct reads a page
+// or limit of 0 as absent, so only the request says it was sent. An argument
+// sent as null counts as absent, as it does everywhere else.
+func refuseOutFilePaging(ctx context.Context) error {
+	req, ok := pipeline.Raw(ctx)
+	if !ok {
+		return nil
+	}
+	args := req.GetArguments()
+	if !sent(args, "outFile") {
+		return nil
+	}
+	if sent(args, "page") {
+		return errors.New("page cannot be used with outFile: outFile writes the whole listing")
+	}
+	if sent(args, "limit") {
+		return errors.New("limit cannot be used with outFile: outFile writes the whole listing")
+	}
+	return nil
+}
+
+// sent reports whether a raw argument is present and not null.
+func sent(args map[string]any, name string) bool {
+	v, ok := args[name]
+	return ok && v != nil
 }
 
 // listToFile writes the whole listing that all returns to the named output

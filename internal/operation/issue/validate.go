@@ -3,8 +3,6 @@
 package issue
 
 import (
-	"errors"
-
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/outfile"
 )
@@ -16,18 +14,13 @@ import (
 
 func (a *createIssueArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 
-// checkOutFile refuses outFile with page or limit (outFile reads every page) and
-// an outFile name that is not a bare file name. Both file-output tools call it,
-// before any credential lookup.
-func checkOutFile(outFile *string, hasPage, hasLimit bool) error {
+// checkOutFileName refuses an outFile name that is not a bare file name. Both
+// file-output tools call it before any credential lookup. Page and limit are
+// checked on the raw request by refuseOutFilePaging, since a zero value reads
+// as absent here.
+func checkOutFileName(outFile *string) error {
 	if outFile == nil {
 		return nil
-	}
-	if hasPage {
-		return errors.New("page cannot be used with outFile: outFile writes the whole listing")
-	}
-	if hasLimit {
-		return errors.New("limit cannot be used with outFile: outFile writes the whole listing")
 	}
 	return outfile.CheckName(*outFile)
 }
@@ -36,14 +29,14 @@ func (a *listIssuesArgs) Validate() error {
 	if err := decode.Required("owner", a.Owner); err != nil {
 		return err
 	}
-	return checkOutFile(a.OutFile, a.Page != 0, a.Limit != 0)
+	return checkOutFileName(a.OutFile)
 }
 
 func (a *searchArgs) Validate() error {
 	if err := decode.Required("owner", a.Owner); err != nil {
 		return err
 	}
-	return checkOutFile(a.OutFile, a.Page != 0, a.Limit != 0)
+	return checkOutFileName(a.OutFile)
 }
 
 func (a *milestonesArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }

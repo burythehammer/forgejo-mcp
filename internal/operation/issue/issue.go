@@ -519,7 +519,7 @@ func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest
 }
 
 func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a listIssuesArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.listService, func(ctx context.Context, s *apppissue.Service, a listIssuesArgs) (*mcp.CallToolResult, error) {
 		// A missing state is "open"; an explicit "" is passed on as given.
 		state := "open"
 		if a.State != nil {
@@ -542,11 +542,11 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 		page, err := s.List(ctx, in)
 		envelope, err := issueListPage(page, err)
 		return compact.RenderIssueList(envelope, err, a.Verbose)
-	})(ctx, req)
+	}, pipeline.WithRaw())(ctx, req)
 }
 
 func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.listService, func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
 		in := apppissue.SearchInput{
 			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
 			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
@@ -564,7 +564,7 @@ func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (
 		page, err := s.Search(ctx, in)
 		envelope, err := issueSearchPage(page, err)
 		return compact.RenderIssueSearchList(envelope, err, a.Verbose)
-	})(ctx, req)
+	}, pipeline.WithRaw())(ctx, req)
 }
 
 func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

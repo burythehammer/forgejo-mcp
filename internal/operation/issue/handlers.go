@@ -28,3 +28,13 @@ func (h handlers) service(ctx context.Context) (*apppissue.Service, error) {
 	}
 	return apppissue.New(issueadapter.New(port)), nil
 }
+
+// listService is the Binder of list_repo_issues and search_issues. It refuses
+// page or limit sent with outFile before the credential lookup, then binds as
+// service does.
+func (h handlers) listService(ctx context.Context) (*apppissue.Service, error) {
+	if err := refuseOutFilePaging(ctx); err != nil {
+		return nil, err
+	}
+	return h.service(ctx)
+}
