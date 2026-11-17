@@ -317,6 +317,20 @@ func search(t *testing.T, h handlers, args map[string]any) searchEnvelope {
 	return env
 }
 
+// searchErr runs search_issues expected to return an error result and returns
+// its text. It sends no repo, which search_issues does not take.
+func searchErr(t *testing.T, h handlers, args map[string]any) string {
+	t.Helper()
+	res, err := h.SearchIssuesFn(context.Background(), makeReq(args))
+	if err != nil {
+		return err.Error()
+	}
+	if res == nil || !res.IsError {
+		t.Fatalf("expected an error result, got %+v", res)
+	}
+	return textOf(res)
+}
+
 func TestSearchIssues_EnvelopeAndPaging(t *testing.T) {
 	t.Parallel()
 	h, f := newFixture(t)
@@ -345,7 +359,7 @@ func TestSearchIssues_KnownCeiling(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		openIssue(t, f, "x")
 	}
-	if msg := callErr(t, h.SearchIssuesFn, map[string]any{"owner": testOwner, "limit": float64(3)}); !strings.Contains(msg, "exceeds this instance's maximum of 2") {
+	if msg := searchErr(t, h, map[string]any{"owner": testOwner, "limit": float64(3)}); !strings.Contains(msg, "exceeds this instance's maximum of 2") {
 		t.Fatalf("error = %q", msg)
 	}
 	env := search(t, h, map[string]any{"owner": testOwner, "limit": float64(2)})

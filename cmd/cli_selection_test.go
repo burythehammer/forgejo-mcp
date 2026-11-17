@@ -33,7 +33,7 @@ func runExecute(t *testing.T, args ...string) (string, string, int) {
 		"FORGEJO_MCP_TEST_EXECUTE=1",
 		"FORGEJO_URL=http://127.0.0.1:1",
 		"FORGEJO_TOKEN=dummy",
-		"FORGEJO_MCP_TOOLSETS=", "FORGEJO_MCP_TOOLS=", "FORGEJO_MCP_PRESET=", "FORGEJO_MCP_LEAN=",
+		"FORGEJO_MCP_TOOLSETS=", "FORGEJO_MCP_TOOLS=", "FORGEJO_MCP_PRESET=", "FORGEJO_MCP_LEAN=", "FORGEJO_MCP_LAX_ARGS=",
 	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
