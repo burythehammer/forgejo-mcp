@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
@@ -82,13 +83,14 @@ var (
 		mcp.WithString("sort", mcp.Description("Server-side sort order. One of: relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate. Default is the API's own default (latest)."), lean.Keep("one of relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
+		mcp.WithString("outFile", outFileOpts...),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
 	CreateIssueTool = mcp.NewTool(
 		CreateIssueToolName,
 		annotate.Write(),
-		mcp.WithDescription("Create issue, optionally with labels (by name or ID), assignees and a milestone in the same call"),
+		mcp.WithDescription("Create issue. Labels (by name or ID), assignees and a milestone can be set in the same call."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("title", mcp.Required(), mcp.Description(params.Title)),
@@ -114,7 +116,7 @@ var (
 	UpdateIssueTool = mcp.NewTool(
 		UpdateIssueToolName,
 		annotate.Write(),
-		mcp.WithDescription("Update issue. 'set_labels' replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally"),
+		mcp.WithDescription("Update issue. `set_labels` replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
@@ -133,7 +135,7 @@ var (
 	ReplaceIssueBodyLineTool = mcp.NewTool(
 		ReplaceIssueBodyLineToolName,
 		annotate.Write(),
-		mcp.WithDescription("Replace one exact piece of an issue's body on the server, without sending the whole body. 'old' is matched as a case-sensitive substring (it may span a whole line) and must occur exactly once: zero matches or several refuse with the body left unchanged, and several report the count. 'old' must not be empty. Pull request indexes are refused. Limitation: Forgejo has no compare-and-swap for issue edits, so an edit made between this call's read and write can be lost; compare updated_at in the result to detect that."),
+		mcp.WithDescription("Replace one exact piece of an issue's body, without sending the whole body. `old` is matched as a case-sensitive substring (it may span a whole line) and must occur exactly once: zero matches or several refuse with the body left unchanged, and several report the count. `old` must not be empty. Pull request indexes are refused. Limitation: Forgejo has no compare-and-swap for issue edits, so an edit made between this call's read and write can be lost; compare updated_at in the result to detect that."),
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
@@ -251,7 +253,7 @@ var (
 	SearchIssuesTool = mcp.NewTool(
 		SearchIssuesToolName,
 		annotate.Read(),
-		mcp.WithDescription("Search issues across every repository belonging to one owner (organization or user), without naming a repo. "+
+		mcp.WithDescription("Search issues across one owner's repositories. No repo is named; the owner may be an organization or a user. "+
 			"Returns a response envelope {issues, page, limit, count, has_next, total_count} rather than a bare array. "+
 			"has_next true means a further page may exist; re-issue the call with page incremented to fetch it. "+
 			"total_count, when present, is the total number of matching issues across all pages (from Forgejo's X-Total-Count header); it is omitted rather than 0 when the header is unavailable. "+
@@ -268,6 +270,7 @@ var (
 		mcp.WithString("mentioned_by", mcp.Description("Filter by mentioned username")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
+		mcp.WithString("outFile", outFileOpts...),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 )
@@ -330,7 +333,9 @@ type listIssuesArgs struct {
 	Sort       string  `json:"sort"`
 	Page       float64 `json:"page"`
 	Limit      float64 `json:"limit"`
-	Verbose    bool    `json:"verbose"`
+	// OutFile is a pointer so an explicit empty name is told from no name.
+	OutFile *string `json:"outFile"`
+	Verbose bool    `json:"verbose"`
 }
 
 type createIssueArgs struct {
@@ -476,7 +481,9 @@ type searchArgs struct {
 	MentionedBy string  `json:"mentioned_by"`
 	Page        float64 `json:"page"`
 	Limit       float64 `json:"limit"`
-	Verbose     bool    `json:"verbose"`
+	// OutFile is a pointer so an explicit empty name is told from no name.
+	OutFile *string `json:"outFile"`
+	Verbose bool    `json:"verbose"`
 }
 
 // target is the issue a call names.
@@ -512,40 +519,52 @@ func (h handlers) GetIssueByIndexFn(ctx context.Context, req mcp.CallToolRequest
 }
 
 func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a listIssuesArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.listService, func(ctx context.Context, s *apppissue.Service, a listIssuesArgs) (*mcp.CallToolResult, error) {
 		// A missing state is "open"; an explicit "" is passed on as given.
 		state := "open"
 		if a.State != nil {
 			state = *a.State
 		}
+		in := apppissue.ListInput{
+			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
+			Milestones: a.Milestones, Labels: a.Labels,
+		}
+		if a.OutFile != nil {
+			return listToFile(ctx, *a.OutFile, a.Verbose, func(ctx context.Context) ([]*model.Issue, error) {
+				return s.ListAll(ctx, in)
+			})
+		}
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return to.ErrorResult(perr)
 		}
-		page, err := s.List(ctx, apppissue.ListInput{
-			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
-			Milestones: a.Milestones, Labels: a.Labels,
-			Paging: apppissue.Paging{Page: pg, Limit: lim},
-		})
+		in.Paging = apppissue.Paging{Page: pg, Limit: lim}
+		page, err := s.List(ctx, in)
 		envelope, err := issueListPage(page, err)
 		return compact.RenderIssueList(envelope, err, a.Verbose)
-	})(ctx, req)
+	}, pipeline.WithRaw())(ctx, req)
 }
 
 func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return pipeline.Handle(h.service, func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
+	return pipeline.Handle(h.listService, func(ctx context.Context, s *apppissue.Service, a searchArgs) (*mcp.CallToolResult, error) {
+		in := apppissue.SearchInput{
+			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
+			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
+		}
+		if a.OutFile != nil {
+			return listToFile(ctx, *a.OutFile, a.Verbose, func(ctx context.Context) ([]*model.Issue, error) {
+				return s.SearchAll(ctx, in)
+			})
+		}
 		pg, lim, perr := decode.PagingArgs(a.Page, a.Limit)
 		if perr != nil {
 			return to.ErrorResult(perr)
 		}
-		page, err := s.Search(ctx, apppissue.SearchInput{
-			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
-			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
-			Paging: apppissue.Paging{Page: pg, Limit: lim},
-		})
+		in.Paging = apppissue.Paging{Page: pg, Limit: lim}
+		page, err := s.Search(ctx, in)
 		envelope, err := issueSearchPage(page, err)
 		return compact.RenderIssueSearchList(envelope, err, a.Verbose)
-	}, pipeline.RejectUnknown())(ctx, req)
+	}, pipeline.WithRaw(), pipeline.RejectUnknown())(ctx, req)
 }
 
 func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

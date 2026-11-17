@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Update issue. 'set_labels' replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally",
+  "description": "Update issue. `set_labels` replaces the issue's whole label set; use add_issue_labels or remove_issue_labels to change it incrementally.",
   "inputSchema": {
     "properties": {
       "assignee": {

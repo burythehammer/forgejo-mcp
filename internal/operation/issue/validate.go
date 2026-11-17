@@ -4,6 +4,7 @@ package issue
 
 import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/outfile"
 )
 
 // The argument structs below have no numeric argument to check, so their only
@@ -13,9 +14,30 @@ import (
 
 func (a *createIssueArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 
-func (a *listIssuesArgs) Validate() error { return decode.Required("owner", a.Owner) }
+// checkOutFileName refuses an outFile name that is not a bare file name. Both
+// file-output tools call it before any credential lookup. Page and limit are
+// checked on the raw request by refuseOutFilePaging, since a zero value reads
+// as absent here.
+func checkOutFileName(outFile *string) error {
+	if outFile == nil {
+		return nil
+	}
+	return outfile.CheckName(*outFile)
+}
 
-func (a *searchArgs) Validate() error { return decode.Required("owner", a.Owner) }
+func (a *listIssuesArgs) Validate() error {
+	if err := decode.Required("owner", a.Owner); err != nil {
+		return err
+	}
+	return checkOutFileName(a.OutFile)
+}
+
+func (a *searchArgs) Validate() error {
+	if err := decode.Required("owner", a.Owner); err != nil {
+		return err
+	}
+	return checkOutFileName(a.OutFile)
+}
 
 func (a *milestonesArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }
 

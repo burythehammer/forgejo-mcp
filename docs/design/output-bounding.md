@@ -145,6 +145,16 @@ are enforced in these places:
   do not add a local `pageOr`.
 - **Embedded lists in resources** use `internal/operation/resource.Bounded`, which
   applies the `EmbeddedListCap` ceiling and writes the truncation sentinel.
+- **Whole-listing file output** (`outFile` on `list_repo_issues` and `search_issues`,
+  ADR 0008) reads every row with `list.ReadWhole` (`internal/app/list/ceiling.go`), not
+  `list.Run`. It is the one place a list is read whole, so it is exempt from the
+  per-page bound and held to a server ceiling instead: `list.FileCeiling` (1,000 rows),
+  shared by every file-output tool. A listing over the ceiling fails with `OverCeiling`
+  and writes nothing; it is never truncated. The reply (`{path,count,keys}`) carries
+  the keys of up to 1,000 rows, so it is not a fixed-size reply. The caller's bound is
+  the file, and the ceiling is what keeps the reply and the read bounded. `outFile` is
+  refused with `page` or `limit`, judged from the raw request (`refuseOutFilePaging`),
+  because a zero page or limit reads as absent in the argument struct.
 
 Some per-handler `paging` helpers in `internal/operation/{tracking,org,user,search}` and
 in `internal/app/{wiki,pull}` remain. Each still has callers and each differs in how it

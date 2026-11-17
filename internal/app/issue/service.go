@@ -4,6 +4,7 @@ package issue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -88,33 +89,85 @@ type RepoLabelsInput struct {
 // List returns a repository's issues. The owner and repository are required,
 // and sort, when given, must be one of Forgejo's sort orders.
 func (s *Service) List(ctx context.Context, in ListInput) (list.Bounded[*model.Issue], error) {
-	if in.Owner == "" {
-		return list.Bounded[*model.Issue]{}, fmt.Errorf("owner is required")
-	}
-	if in.Repo == "" {
-		return list.Bounded[*model.Issue]{}, fmt.Errorf("repo is required; for owner-wide listing across repositories use search_issues instead")
-	}
-	if in.Sort != "" && !isValidSort(in.Sort) {
-		return list.Bounded[*model.Issue]{}, fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
+	if err := checkList(in); err != nil {
+		return list.Bounded[*model.Issue]{}, err
 	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	c := list.Ceiling{Max: ceiling, Known: known}
-	page, err := list.Run(ctx, list.NewRequest(list.Paging(in.Paging), defaultLimit), c,
-		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
-			issues, err := s.port.ListIssues(ctx, in.Owner, in.Repo, IssueList{
-				State: in.State, Type: in.Type, Sort: in.Sort,
-				Milestones: splitRaw(in.Milestones), Labels: splitRaw(in.Labels),
-				Paging: Paging(p),
-			})
-			if err != nil {
-				return list.Batch[*model.Issue]{}, fmt.Errorf("get issues list err: %w", err)
-			}
-			return list.Batch[*model.Issue]{Items: issues}, nil
-		})
+	page, err := list.Run(ctx, list.NewRequest(list.Paging(in.Paging), defaultLimit), c, s.fetchIssues(in))
 	if err != nil {
 		return list.Bounded[*model.Issue]{}, err
 	}
 	return page, nil
+}
+
+// ListAll returns every issue of a repository's list, read page by page at the
+// default limit (lowered to a known instance ceiling). It is for a caller that
+// writes the whole list to a file, so it holds the list to list.FileCeiling
+// issues: a listing over that fails with an error naming the ceiling, and the
+// caller never receives a truncated list.
+func (s *Service) ListAll(ctx context.Context, in ListInput) ([]*model.Issue, error) {
+	if err := checkList(in); err != nil {
+		return nil, err
+	}
+	return s.readWhole(ctx, s.fetchIssues(in), "issue listing")
+}
+
+// SearchAll returns every issue a search matches, read page by page under the
+// same file-output ceiling as ListAll. It is for a caller that writes the whole
+// result to a file.
+func (s *Service) SearchAll(ctx context.Context, in SearchInput) ([]*model.Issue, error) {
+	if in.Owner == "" {
+		return nil, fmt.Errorf("owner is required")
+	}
+	return s.readWhole(ctx, s.fetchSearch(in), "issue search results")
+}
+
+// readWhole reads every row of a list through the list module, at the default
+// limit lowered to a known ceiling. An over-ceiling read fails naming noun and
+// the ceiling, so the caller never receives a truncated list.
+func (s *Service) readWhole(ctx context.Context, fetch list.Fetch[*model.Issue], noun string) ([]*model.Issue, error) {
+	ceiling, known := s.port.MaxResponseItems(ctx)
+	limit := list.DefaultLimit(defaultLimit, list.Ceiling{Max: ceiling, Known: known})
+	issues, err := list.ReadWhole(ctx, limit, list.FileCeiling, fetch)
+	var over *list.OverCeiling
+	if errors.As(err, &over) {
+		return nil, fmt.Errorf("%s is over the %d-issue file-output ceiling; nothing was written", noun, over.Max)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return issues, nil
+}
+
+// checkList refuses a list request the port must not see: no owner, no repo
+// (owner-wide listing is search_issues), or a sort order Forgejo does not know.
+func checkList(in ListInput) error {
+	if in.Owner == "" {
+		return fmt.Errorf("owner is required")
+	}
+	if in.Repo == "" {
+		return fmt.Errorf("repo is required; for owner-wide listing across repositories use search_issues instead")
+	}
+	if in.Sort != "" && !isValidSort(in.Sort) {
+		return fmt.Errorf("invalid sort %q: must be one of %s", in.Sort, strings.Join(sortOrders, ", "))
+	}
+	return nil
+}
+
+// fetchIssues returns the list.Fetch that reads one page of in from the port.
+func (s *Service) fetchIssues(in ListInput) list.Fetch[*model.Issue] {
+	return func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
+		issues, err := s.port.ListIssues(ctx, in.Owner, in.Repo, IssueList{
+			State: in.State, Type: in.Type, Sort: in.Sort,
+			Milestones: splitRaw(in.Milestones), Labels: splitRaw(in.Labels),
+			Paging: Paging(p),
+		})
+		if err != nil {
+			return list.Batch[*model.Issue]{}, fmt.Errorf("get issues list err: %w", err)
+		}
+		return list.Batch[*model.Issue]{Items: issues}, nil
+	}
 }
 
 // defaultLimit is the page size a list or search uses when the caller gives none.
@@ -168,29 +221,34 @@ func (s *Service) Search(ctx context.Context, in SearchInput) (list.Bounded[*mod
 	if in.Owner == "" {
 		return list.Bounded[*model.Issue]{}, fmt.Errorf("owner is required")
 	}
-	state := in.State
-	if state == "" {
-		state = "open"
-	}
 	ceiling, known := s.port.MaxResponseItems(ctx)
 	page, err := list.Run(ctx, list.NewRequest(list.Paging{Page: in.Page, Limit: in.Limit}, defaultLimit),
-		list.Ceiling{Max: ceiling, Known: known},
-		func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
-			issues, total, err := s.port.SearchIssues(ctx, SearchQuery{
-				Owner: in.Owner, State: state, Type: in.Type,
-				Labels: splitRaw(in.Labels), Milestones: splitRaw(in.Milestones),
-				Keyword: in.Keyword, CreatedBy: in.CreatedBy, AssignedBy: in.AssignedBy, MentionedBy: in.MentionedBy,
-				Paging: Paging(p),
-			})
-			if err != nil {
-				return list.Batch[*model.Issue]{}, fmt.Errorf("search issues err: %w", err)
-			}
-			return list.Batch[*model.Issue]{Items: issues, Total: total}, nil
-		})
+		list.Ceiling{Max: ceiling, Known: known}, s.fetchSearch(in))
 	if err != nil {
 		return list.Bounded[*model.Issue]{}, err
 	}
 	return page, nil
+}
+
+// fetchSearch returns the list.Fetch that reads one page of a search from the
+// port, with the grand total when Forgejo reports one. A missing state is open.
+func (s *Service) fetchSearch(in SearchInput) list.Fetch[*model.Issue] {
+	state := in.State
+	if state == "" {
+		state = "open"
+	}
+	return func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
+		issues, total, err := s.port.SearchIssues(ctx, SearchQuery{
+			Owner: in.Owner, State: state, Type: in.Type,
+			Labels: splitRaw(in.Labels), Milestones: splitRaw(in.Milestones),
+			Keyword: in.Keyword, CreatedBy: in.CreatedBy, AssignedBy: in.AssignedBy, MentionedBy: in.MentionedBy,
+			Paging: Paging(p),
+		})
+		if err != nil {
+			return list.Batch[*model.Issue]{}, fmt.Errorf("search issues err: %w", err)
+		}
+		return list.Batch[*model.Issue]{Items: issues, Total: total}, nil
+	}
 }
 
 // Create opens an issue. Labels resolve before the POST, not after it: a typo

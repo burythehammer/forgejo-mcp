@@ -26,7 +26,9 @@ const streamableHTTPEndpointPath = config.MCPEndpointPath
 // Authorization header and into the context the tool handlers see.
 func requestTokenContextFunc(cfg config.Config) func(context.Context, *http.Request) context.Context {
 	return func(ctx context.Context, r *http.Request) context.Context {
-		return withRequestToken(cfg, ctx, r)
+		// Only the HTTP transports reach this function, so every request it
+		// serves is remote: a file written for it lands where the caller cannot read.
+		return forge.MarkRemote(withRequestToken(cfg, ctx, r))
 	}
 }
 
