@@ -267,32 +267,61 @@ func TestSearchIssuesWithBlockers_NamesEachIssuesOwnRepository(t *testing.T) {
 	}
 }
 
-// blockersStub is pagedStub with fixed blockers, so the file golden holds a
-// listing whose rows carry blocked_by with stable bytes. Only the first page of
-// a dependency list has rows.
-type blockersStub struct {
-	pagedStub
+// fixedListingStub serves three issues with distinct URLs and no pull request
+// metadata, and fixed blockers, so the file goldens hold stable bytes for a
+// realistic listing. Each list and search returns the three in one page.
+type fixedListingStub struct {
+	forge.Forgejo
 	deps map[int64][]*forgejo_sdk.Issue
 }
 
-func (s *blockersStub) ListIssueDependencies(_ context.Context, _, _ string, index int64, pg, _ int) ([]*forgejo_sdk.Issue, error) {
+func (s *fixedListingStub) MaxResponseItems(context.Context) (int, bool) { return 0, false }
+
+func (s *fixedListingStub) rows() []*forgejo_sdk.Issue {
+	titles := []string{"first issue", "second issue", "third issue"}
+	out := make([]*forgejo_sdk.Issue, 0, len(titles))
+	for i, title := range titles {
+		iss := goldenIssue(title)
+		iss.ID = int64(i + 1)
+		iss.Index = int64(i + 1)
+		iss.URL = fmt.Sprintf("https://f.example/api/v1/repos/octo/hello/issues/%d", i+1)
+		iss.HTMLURL = fmt.Sprintf("https://f.example/octo/hello/issues/%d", i+1)
+		iss.PullRequest = nil
+		out = append(out, iss)
+	}
+	return out
+}
+
+func (s *fixedListingStub) ListRepoIssues(_ context.Context, _, _ string, _ forge.ListIssuesOptions) ([]*forgejo_sdk.Issue, forge.PageInfo, error) {
+	return s.rows(), forge.PageInfo{}, nil
+}
+
+func (s *fixedListingStub) SearchIssues(_ context.Context, _ forgejo_sdk.ListIssueOption) ([]*forgejo_sdk.Issue, forge.PageInfo, error) {
+	return s.rows(), forge.PageInfo{}, nil
+}
+
+// ListIssueDependencies serves the fixed blockers of index, on its first page only.
+func (s *fixedListingStub) ListIssueDependencies(_ context.Context, _, _ string, index int64, pg, _ int) ([]*forgejo_sdk.Issue, error) {
 	if pg > 1 {
 		return nil, nil
 	}
 	return s.deps[index], nil
 }
 
-func TestListRepoIssuesWithBlockers_Golden(t *testing.T) {
-	dir := outFileTempDir(t)
+// blockersFixture is the fixed listing: issue 2 is blocked by issue 1 of the
+// listed repository, and issue 3 by issue 1 and by issue 9 of testLib.
+func blockersFixture() *fixedListingStub {
 	same := goldenIssue("blocker in this repository")
 	same.Index = 1
 	lib := goldenIssue("blocker in another repository")
 	lib.Index = 9
 	lib.Repository = &forgejo_sdk.RepositoryMeta{ID: 10, Name: testLib, Owner: testOwner, FullName: testOwner + "/" + testLib}
-	h := withPort(&blockersStub{
-		pagedStub: pagedStub{n: 3},
-		deps:      map[int64][]*forgejo_sdk.Issue{2: {same}, 3: {same, lib}},
-	})
+	return &fixedListingStub{deps: map[int64][]*forgejo_sdk.Issue{2: {same}, 3: {same, lib}}}
+}
+
+func TestListRepoIssuesWithBlockers_Golden(t *testing.T) {
+	dir := outFileTempDir(t)
+	h := withPort(blockersFixture())
 	res, err := h.ListRepoIssuesFn(context.Background(), repoReq(map[string]any{"outFile": "blockers.json", "with_blockers": true}))
 	if err != nil || res == nil || res.IsError {
 		t.Fatalf("golden call failed: err=%v res=%+v", err, res)
@@ -302,6 +331,69 @@ func TestListRepoIssuesWithBlockers_Golden(t *testing.T) {
 		t.Fatal(err)
 	}
 	mcptest.Golden(t, "list_repo_issues_blockers_file", file)
+}
+
+func TestSearchIssuesWithBlockers_Golden(t *testing.T) {
+	dir := outFileTempDir(t)
+	h := withPort(blockersFixture())
+	searchOutCall(t, h, map[string]any{"outFile": "blockers-search.json", "with_blockers": true})
+	file, err := os.ReadFile(filepath.Join(dir, "blockers-search.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcptest.Golden(t, "search_issues_blockers_file", file)
+}
+
+func TestListRepoIssuesWithBlockers_VerboseGolden(t *testing.T) {
+	dir := outFileTempDir(t)
+	h := withPort(blockersFixture())
+	call(t, h.ListRepoIssuesFn, map[string]any{"outFile": "blockers-verbose.json", "with_blockers": true, "verbose": true})
+	file, err := os.ReadFile(filepath.Join(dir, "blockers-verbose.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcptest.Golden(t, "list_repo_issues_blockers_verbose_file", file)
+}
+
+// manyBlockersStub lists one issue whose dependency list holds n issues, served
+// page by page at the requested limit. It drives the per-issue blocker ceiling.
+type manyBlockersStub struct {
+	pagedStub
+	n int
+}
+
+func (s *manyBlockersStub) ListIssueDependencies(_ context.Context, _, _ string, _ int64, pg, limit int) ([]*forgejo_sdk.Issue, error) {
+	var out []*forgejo_sdk.Issue
+	for i := (pg - 1) * limit; i < pg*limit && i < s.n; i++ {
+		iss := goldenIssue("blocker")
+		iss.Index = int64(i + 2)
+		out = append(out, iss)
+	}
+	return out, nil
+}
+
+// An issue with exactly the file ceiling of blockers writes whole.
+func TestListRepoIssuesWithBlockers_BlockersAtTheCeilingWriteWhole(t *testing.T) {
+	dir := outFileTempDir(t)
+	h := withPort(&manyBlockersStub{pagedStub: pagedStub{n: 1}, n: list.FileCeiling})
+	call(t, h.ListRepoIssuesFn, map[string]any{"outFile": "at-ceiling.json", "with_blockers": true})
+	got := blockedRows(t, filepath.Join(dir, "at-ceiling.json"))
+	if len(got[1]) != list.FileCeiling {
+		t.Fatalf("issue 1 blocked_by has %d entries, want %d", len(got[1]), list.FileCeiling)
+	}
+}
+
+// An issue with one blocker more than the file ceiling fails the whole call and
+// writes nothing, naming the blockers and the ceiling. The listing itself is one
+// issue, so only the per-issue read can refuse it.
+func TestListRepoIssuesWithBlockers_BlockersOverTheCeilingFailAndWriteNothing(t *testing.T) {
+	dir := outFileTempDir(t)
+	h := withPort(&manyBlockersStub{pagedStub: pagedStub{n: 1}, n: list.FileCeiling + 1})
+	msg := callErr(t, h.ListRepoIssuesFn, map[string]any{"outFile": "over-blockers.json", "with_blockers": true})
+	if !strings.Contains(msg, "blockers of octo/hello#1") || !strings.Contains(msg, "1000") || !strings.Contains(msg, "ceiling") {
+		t.Fatalf("error %q does not name the blockers, the issue and the ceiling", msg)
+	}
+	noFileWritten(t, dir)
 }
 
 // verbose rows keep the full issue and add blocked_by; the blocker is named the

@@ -4,7 +4,6 @@ package issue
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
@@ -28,8 +27,8 @@ func (s *Service) ListAllBlocked(ctx context.Context, in ListInput) ([]Blocked, 
 	if err != nil {
 		return nil, err
 	}
-	return s.withBlockers(ctx, issues, func(*model.Issue) (string, string, error) {
-		return in.Owner, in.Repo, nil
+	return s.attachBlockers(ctx, issues, func(iss *model.Issue) (Target, error) {
+		return Target{Owner: in.Owner, Repo: in.Repo, Index: iss.Index}, nil
 	})
 }
 
@@ -40,49 +39,49 @@ func (s *Service) SearchAllBlocked(ctx context.Context, in SearchInput) ([]Block
 	if err != nil {
 		return nil, err
 	}
-	return s.withBlockers(ctx, issues, repositoryOf)
+	return s.attachBlockers(ctx, issues, targetOf)
 }
 
-// repositoryOf names the repository a searched issue belongs to. A search
+// targetOf names a searched issue by the repository it belongs to. A search
 // result that carries no repository cannot have its blockers read, so it fails.
-func repositoryOf(iss *model.Issue) (string, string, error) {
+func targetOf(iss *model.Issue) (Target, error) {
 	if iss.Repository == nil {
-		return "", "", fmt.Errorf("issue #%d has no repository in its record; nothing was written", iss.Index)
+		return Target{}, fmt.Errorf("issue #%d has no repository in its record; nothing was written", iss.Index)
 	}
-	return iss.Repository.Owner, iss.Repository.Name, nil
+	return Target{Owner: iss.Repository.Owner, Repo: iss.Repository.Name, Index: iss.Index}, nil
 }
 
-// withBlockers reads the blockers of each issue, in list order. Each issue's
-// dependency list is read page by page through the list module under the
-// file-output ceiling, so a long list of blockers is read whole or refused, never
-// truncated. Any failed read fails the whole call; no partial result is returned.
-func (s *Service) withBlockers(ctx context.Context, issues []*model.Issue,
-	repoOf func(*model.Issue) (string, string, error),
+// attachBlockers reads the blockers of each issue, in list order, through
+// readWhole, the same path a listing takes: the file-output ceiling applies to
+// each issue's blockers, and an over-ceiling or failed read fails the whole
+// call with no partial result.
+func (s *Service) attachBlockers(ctx context.Context, issues []*model.Issue,
+	at func(*model.Issue) (Target, error),
 ) ([]Blocked, error) {
-	ceiling, known := s.port.MaxResponseItems(ctx)
-	limit := list.DefaultLimit(defaultLimit, list.Ceiling{Max: ceiling, Known: known})
 	out := make([]Blocked, 0, len(issues))
 	for _, iss := range issues {
-		owner, repo, err := repoOf(iss)
+		t, err := at(iss)
 		if err != nil {
 			return nil, err
 		}
-		blockers, err := list.ReadWhole(ctx, limit, list.FileCeiling,
-			func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
-				got, err := s.port.ListIssueDependencies(ctx, owner, repo, iss.Index, Paging(p))
-				if err != nil {
-					return list.Batch[*model.Issue]{}, fmt.Errorf("read the blockers of %s/%s#%d err: %w", owner, repo, iss.Index, err)
-				}
-				return list.Batch[*model.Issue]{Items: got}, nil
-			})
-		var over *list.OverCeiling
-		if errors.As(err, &over) {
-			return nil, fmt.Errorf("issue %s/%s#%d has more than %d blockers; nothing was written", owner, repo, iss.Index, over.Max)
-		}
+		noun := fmt.Sprintf("blockers of %s/%s#%d", t.Owner, t.Repo, t.Index)
+		blockers, err := s.readWhole(ctx, s.fetchBlockers(t), noun)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, Blocked{Issue: iss, Repo: owner + "/" + repo, BlockedBy: blockers})
+		out = append(out, Blocked{Issue: iss, Repo: t.Owner + "/" + t.Repo, BlockedBy: blockers})
 	}
 	return out, nil
+}
+
+// fetchBlockers returns the list.Fetch that reads one page of the dependencies
+// of the issue t from the port.
+func (s *Service) fetchBlockers(t Target) list.Fetch[*model.Issue] {
+	return func(ctx context.Context, p list.Paging) (list.Batch[*model.Issue], error) {
+		got, err := s.port.ListIssueDependencies(ctx, t.Owner, t.Repo, t.Index, Paging(p))
+		if err != nil {
+			return list.Batch[*model.Issue]{}, fmt.Errorf("read the blockers of %s/%s#%d err: %w", t.Owner, t.Repo, t.Index, err)
+		}
+		return list.Batch[*model.Issue]{Items: got}, nil
+	}
 }

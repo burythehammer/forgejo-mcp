@@ -32,7 +32,7 @@ var outFileOpts = []mcp.PropertyOption{
 // The description names the added requests: one dependency read per listed
 // issue, more only when an issue has more blockers than one page.
 var withBlockersOpts = []mcp.PropertyOption{
-	mcp.Description("Adds blocked_by to each file row: the numbers of the issues that block it, [] when none. A blocker in another repository is owner/repo#n. Valid only with outFile. Makes one extra Forgejo dependency request per listed issue (more only when an issue has more blockers than one page), so a long listing is slower. A failed read fails the call and writes no file."),
+	mcp.Description("Adds blocked_by to each file row: the issues that block it, [] when none. A blocker in the listed repository is its issue number (an integer); a blocker in another repository is an owner/repo#n string. Valid only with outFile. Makes one extra Forgejo dependency request per listed issue (more only when an issue has more blockers than one page), so a long listing is slower. A failed read fails the call and writes no file."),
 	lean.Keep("with outFile; adds blocked_by"),
 }
 
