@@ -545,7 +545,7 @@ func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (
 		})
 		envelope, err := issueSearchPage(page, err)
 		return compact.RenderIssueSearchList(envelope, err, a.Verbose)
-	})(ctx, req)
+	}, pipeline.RejectUnknown())(ctx, req)
 }
 
 func (h handlers) CreateIssueFn(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

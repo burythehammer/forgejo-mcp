@@ -53,6 +53,11 @@ type Config struct {
 	// (--lean, FORGEJO_MCP_LEAN). Off by default, which serves the full text.
 	Lean bool
 
+	// LaxArgs turns off the refusal of arguments a tool does not declare, for
+	// the tools that refuse them (--lax-args, FORGEJO_MCP_LAX_ARGS). Off by
+	// default.
+	LaxArgs bool
+
 	// suppliedResourceServer names the resource-server-only settings given at
 	// all, as a flag or an environment variable. Only validation reads it.
 	suppliedResourceServer []string

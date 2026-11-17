@@ -17,6 +17,7 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/issue"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/org"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/packages"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pull"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/release"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/repo"
@@ -191,6 +192,7 @@ func Build(cfg config.Config, version string) (Built, error) {
 	}
 	mcpServer := newMCPServer(version)
 	factory := newFactory(cfg, version)
+	pipeline.SetLaxArgs(cfg.LaxArgs)
 	RegisterSelectedTool(mcpServer, version, factory, sel)
 	lean.Finish(mcpServer, cfg.Lean)
 	RegisterSelectedResources(mcpServer, factory, sel)
