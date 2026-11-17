@@ -44,5 +44,14 @@ sboms:
       - 'cyclonedx-json=$document'
 
 gitea_urls:
-  api: https://git.b4mad.industries/api/v1
-  download: https://git.b4mad.industries
+  api: https://forgejo.burythehammer.com/api/v1
+  download: https://forgejo.burythehammer.com
+
+# Release notes come from the commit log between tags. The workflow passes the
+# token as GITEA_TOKEN (see .forgejo/workflows/release.yaml).
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^(test|style|ci|chore)(\(.*\))?:'
+      - '^merge:'
