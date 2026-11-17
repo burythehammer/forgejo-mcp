@@ -38,6 +38,17 @@ func setLaxArgs(t *testing.T, on bool) {
 	t.Cleanup(func() { pipeline.SetLaxArgs(false) })
 }
 
+// mustResult calls a registered tool and fails the test on a Go error, for a
+// call expected to produce a tool result.
+func mustResult(t *testing.T, s *server.MCPServer, name string, args map[string]any) *mcp.CallToolResult {
+	t.Helper()
+	res, err := callRegistered(t, s, name, args)
+	if err != nil {
+		t.Fatalf("%s returned a Go error: %v", name, err)
+	}
+	return res
+}
+
 // registeredWithCount returns a server holding the full registry, with a fake
 // forge behind a factory that counts credential lookups.
 func registeredWithCount(t *testing.T) (*server.MCPServer, *int) {
@@ -48,20 +59,28 @@ func registeredWithCount(t *testing.T) (*server.MCPServer, *int) {
 	return s, calls
 }
 
-func callTool(t *testing.T, s *server.MCPServer, name string, args map[string]any) *mcp.CallToolResult {
+// callRegistered calls one registered tool through its handler. A Go error is
+// returned as it is: a refusal from the Binder can arrive that way.
+func callRegistered(t *testing.T, s *server.MCPServer, name string, args map[string]any) (*mcp.CallToolResult, error) {
 	t.Helper()
 	tool := s.GetTool(name)
 	if tool == nil {
 		t.Fatalf("%s is not registered", name)
 	}
-	res, err := tool.Handler(context.Background(), mcp.CallToolRequest{Params: mcp.CallToolParams{Name: name, Arguments: args}})
+	return tool.Handler(context.Background(), mcp.CallToolRequest{Params: mcp.CallToolParams{Name: name, Arguments: args}})
+}
+
+// outcome is what the caller sees of one call: the error text when the call
+// returned a Go error, otherwise the first content text of its result.
+func outcome(t *testing.T, res *mcp.CallToolResult, err error) string {
+	t.Helper()
 	if err != nil {
-		t.Fatalf("%s returned a Go error: %v", name, err)
+		return err.Error()
 	}
 	if res == nil || len(res.Content) == 0 {
-		t.Fatalf("%s returned no result", name)
+		t.Fatal("call returned no result")
 	}
-	return res
+	return resultText(t, res)
 }
 
 func resultText(t *testing.T, res *mcp.CallToolResult) string {
@@ -79,7 +98,7 @@ func TestSearchIssuesRefusesMisspelledKeyBeforeForge(t *testing.T) {
 	setLaxArgs(t, false)
 	s, calls := registeredWithCount(t)
 
-	res := callTool(t, s, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "query": "crash"})
+	res := mustResult(t, s, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "query": "crash"})
 	if !res.IsError {
 		t.Fatalf("search_issues with unknown key query was not refused: %q", resultText(t, res))
 	}
@@ -103,7 +122,7 @@ func TestSearchIssuesRefusalNamesEveryUnknownKey(t *testing.T) {
 	setLaxArgs(t, false)
 	s, calls := registeredWithCount(t)
 
-	res := callTool(t, s, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "query": "crash", "stat": "open"})
+	res := mustResult(t, s, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "query": "crash", "stat": "open"})
 	if !res.IsError {
 		t.Fatalf("search_issues with two unknown keys was not refused: %q", resultText(t, res))
 	}
@@ -124,7 +143,7 @@ func TestSearchIssuesValidCallStillRuns(t *testing.T) {
 	setLaxArgs(t, false)
 	s, calls := registeredWithCount(t)
 
-	res := callTool(t, s, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "q": "crash"})
+	res := mustResult(t, s, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "q": "crash"})
 	if res.IsError {
 		t.Fatalf("valid search_issues call was refused: %q", resultText(t, res))
 	}
@@ -139,7 +158,7 @@ func TestSearchIssuesLaxArgsRestoresOldBehaviour(t *testing.T) {
 	setLaxArgs(t, true)
 	s, calls := registeredWithCount(t)
 
-	res := callTool(t, s, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "query": "crash"})
+	res := mustResult(t, s, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "query": "crash"})
 	if res.IsError {
 		t.Fatalf("with lax args on, unknown key was refused: %q", resultText(t, res))
 	}
@@ -154,9 +173,9 @@ func TestUnknownKeyStillIgnoredOutsideSearchIssues(t *testing.T) {
 	setLaxArgs(t, false)
 	s, _ := registeredWithCount(t)
 
-	res := callTool(t, s, issue.ListRepoIssuesToolName, map[string]any{"owner": "octo", "repo": "hello", "query": "crash"})
-	if strings.Contains(resultText(t, res), "unknown argument") {
-		t.Fatalf("list_repo_issues refused an unknown key; only search_issues is strict: %q", resultText(t, res))
+	res, err := callRegistered(t, s, issue.ListRepoIssuesToolName, map[string]any{"owner": "octo", "repo": "hello", "query": "crash"})
+	if text := outcome(t, res, err); strings.Contains(text, "unknown argument") {
+		t.Fatalf("list_repo_issues refused an unknown key; only search_issues is strict: %q", text)
 	}
 }
 
@@ -169,8 +188,8 @@ func TestBuildLaxArgsReachesSearchIssues(t *testing.T) {
 			t.Fatalf("Build(LaxArgs=%v): %v", on, err)
 		}
 		t.Cleanup(func() { pipeline.SetLaxArgs(false) })
-		res := callTool(t, b.Server, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "query": "crash"})
-		refused := strings.Contains(resultText(t, res), "unknown argument")
+		res, err := callRegistered(t, b.Server, issue.SearchIssuesToolName, map[string]any{"owner": "octo", "query": "crash"})
+		refused := strings.Contains(outcome(t, res, err), "unknown argument")
 		if refused == on {
 			t.Errorf("Build(LaxArgs=%v): refused=%v, want %v", on, refused, !on)
 		}

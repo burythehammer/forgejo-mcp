@@ -89,6 +89,7 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 		toolsets, tools                      string
 		preset                               string
 		lean                                 bool
+		laxArgs                              bool
 	)
 	resource := make(map[string]*string, len(resourceSettings))
 
@@ -148,6 +149,9 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	fs.BoolVar(&lean, "lean", false,
 		"Serve terse tool text: each description cut to its first sentence, most property descriptions removed, "+
 			"annotations empty; the same tool and argument names (env: FORGEJO_MCP_LEAN)")
+	fs.BoolVar(&laxArgs, "lax-args", false,
+		"Ignore an argument a tool does not declare, as every tool did before, instead of refusing the call. "+
+			"Only search_issues refuses such an argument by default (env: FORGEJO_MCP_LAX_ARGS)")
 	for _, s := range resourceSettings {
 		p := new(string)
 		resource[s.flagName] = p
@@ -260,6 +264,12 @@ func Load(args []string, getenv func(string) string, build Build) (Config, []War
 	if !passed["lean"] {
 		if v := getenv("FORGEJO_MCP_LEAN"); v != "" {
 			cfg.Lean = isTruthy(v)
+		}
+	}
+	cfg.LaxArgs = laxArgs
+	if !passed["lax-args"] {
+		if v := getenv("FORGEJO_MCP_LAX_ARGS"); v != "" {
+			cfg.LaxArgs = isTruthy(v)
 		}
 	}
 	if _, err := toolset.ParseWithPreset(cfg.Preset, cfg.Toolsets, cfg.Tools); err != nil {

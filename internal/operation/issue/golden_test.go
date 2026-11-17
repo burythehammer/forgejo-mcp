@@ -332,6 +332,9 @@ func goldenInvoke(t *testing.T, stub *goldenStub, tool string, args map[string]a
 		t.Fatalf("tool %s not registered", tool)
 	}
 	base := map[string]any{"owner": "octo", "repo": "hello"}
+	if tool == SearchIssuesToolName {
+		delete(base, "repo") // search_issues takes no repo; a stray key is now refused
+	}
 	for k, v := range args {
 		if v == nil {
 			delete(base, k) // a nil value means "leave the argument out"
