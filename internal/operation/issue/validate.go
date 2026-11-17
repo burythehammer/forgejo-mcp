@@ -3,6 +3,8 @@
 package issue
 
 import (
+	"errors"
+
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/outfile"
 )
@@ -25,8 +27,20 @@ func checkOutFileName(outFile *string) error {
 	return outfile.CheckName(*outFile)
 }
 
+// checkWithBlockers refuses with_blockers without outFile: blocked_by is written
+// to the file, so the argument has nothing to add to a normal page.
+func checkWithBlockers(withBlockers bool, outFile *string) error {
+	if withBlockers && outFile == nil {
+		return errors.New("with_blockers needs outFile: blocked_by is written to the file, so it is refused without one")
+	}
+	return nil
+}
+
 func (a *listIssuesArgs) Validate() error {
 	if err := decode.Required("owner", a.Owner); err != nil {
+		return err
+	}
+	if err := checkWithBlockers(a.WithBlockers, a.OutFile); err != nil {
 		return err
 	}
 	return checkOutFileName(a.OutFile)
@@ -34,6 +48,9 @@ func (a *listIssuesArgs) Validate() error {
 
 func (a *searchArgs) Validate() error {
 	if err := decode.Required("owner", a.Owner); err != nil {
+		return err
+	}
+	if err := checkWithBlockers(a.WithBlockers, a.OutFile); err != nil {
 		return err
 	}
 	return checkOutFileName(a.OutFile)

@@ -66,7 +66,7 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
-		mcp.WithString("type", mcp.Description("Type (issues|pulls). 'issues' refuses a pull request's index and 'pulls' refuses an issue's index, with an error that names the tool for the other kind. Omit to accept either kind."), lean.Keep("issues or pulls; omit to accept either")),
+		mcp.WithString("type", mcp.Description("Type (issues|pulls). 'issues' refuses a pull request's index and 'pulls' refuses an issue's index, with an error that names the tool for the other kind. Omit to accept either kind."), lean.Keep("issues or pulls; omit for either")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
@@ -78,12 +78,13 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open"), lean.Keep("open, closed or all")),
 		mcp.WithString("type", mcp.Description("Type (issues|pulls)"), lean.Keep("issues or pulls")),
-		mcp.WithString("milestones", mcp.Description("Milestone names/IDs (comma-separated)"), lean.Keep("comma-separated milestone names or IDs")),
-		mcp.WithString("labels", mcp.Description("Labels (comma-separated)"), lean.Keep("comma-separated label names or IDs")),
-		mcp.WithString("sort", mcp.Description("Server-side sort order. One of: relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate. Default is the API's own default (latest)."), lean.Keep("one of relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate")),
+		mcp.WithString("milestones", mcp.Description("Milestone names/IDs (comma-separated)"), lean.Keep("comma-separated names or IDs")),
+		mcp.WithString("labels", mcp.Description("Labels (comma-separated)"), lean.Keep("comma-separated names or IDs")),
+		mcp.WithString("sort", mcp.Description("Server-side sort order. One of: relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate. Default is the API's own default (latest)."), lean.Keep("relevance, latest, oldest, recentupdate, leastupdate, mostcomment, leastcomment, nearduedate, farduedate")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 		mcp.WithString("outFile", outFileOpts...),
+		mcp.WithBoolean("with_blockers", withBlockersOpts...),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
@@ -95,7 +96,7 @@ var (
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithString("title", mcp.Required(), mcp.Description(params.Title)),
 		mcp.WithString("body", mcp.Description(params.Body)),
-		mcp.WithString("labels", mcp.Description(labelsArgDescription("Labels for the new issue")), lean.Keep("comma-separated label names or IDs")),
+		mcp.WithString("labels", mcp.Description(labelsArgDescription("Labels for the new issue")), lean.Keep("comma-separated names or IDs")),
 		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated)"), lean.Keep("comma-separated usernames")),
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
 		mcp.WithString("ref", mcp.Description(refArgDescription), lean.Keep("branch name")),
@@ -123,11 +124,11 @@ var (
 		mcp.WithString("title", mcp.Description(params.Title)),
 		mcp.WithString("body", mcp.Description(params.Body)),
 		mcp.WithString("assignee", mcp.Description("Assignee username (convenience for a single user; equivalent to a one-element 'assignees')")),
-		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated). Overrides 'assignee' if both are set. Pass an empty string to clear all assignees."), lean.Keep("comma-separated usernames, empty clears them")),
+		mcp.WithString("assignees", mcp.Description("Assignee usernames (comma-separated). Overrides 'assignee' if both are set. Pass an empty string to clear all assignees."), lean.Keep("comma-separated usernames, empty clears")),
 		mcp.WithString("milestone", mcp.Description(params.Milestone)),
-		mcp.WithString("due_date", mcp.Description("Set the issue's due date (RFC3339, e.g. 2026-08-20T00:00:00Z). Mutually exclusive with 'clear_due_date'; setting both is an error."), lean.Keep("RFC3339 time, e.g. 2026-08-20T00:00:00Z")),
-		mcp.WithBoolean("clear_due_date", mcp.Description("Clear the issue's due date. Mutually exclusive with 'due_date'."), lean.Keep("true clears the due date, exclusive with due_date")),
-		mcp.WithString("set_labels", mcp.Description(labelsArgDescription("Replace the issue's entire label set")+" Pass an empty string to remove every label. To add or drop individual labels without restating the set, use add_issue_labels or remove_issue_labels."), lean.Keep("comma-separated label names or IDs, empty removes all")),
+		mcp.WithString("due_date", mcp.Description("Set the issue's due date (RFC3339, e.g. 2026-08-20T00:00:00Z). Mutually exclusive with 'clear_due_date'; setting both is an error."), lean.Keep("RFC3339, e.g. 2026-08-20T00:00:00Z")),
+		mcp.WithBoolean("clear_due_date", mcp.Description("Clear the issue's due date. Mutually exclusive with 'due_date'."), lean.Keep("true clears it; exclusive with due_date")),
+		mcp.WithString("set_labels", mcp.Description(labelsArgDescription("Replace the issue's entire label set")+" Pass an empty string to remove every label. To add or drop individual labels without restating the set, use add_issue_labels or remove_issue_labels."), lean.Keep("comma-separated names, empty removes all")),
 		mcp.WithString("ref", mcp.Description(refArgDescription+" Omit to leave it unchanged; pass an empty string to clear it."), lean.Keep("branch name, empty clears it")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
@@ -150,7 +151,7 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
-		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to add")), lean.Keep("comma-separated label names or IDs")),
+		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to add")), lean.Keep("comma-separated names or IDs")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
@@ -161,7 +162,7 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.IssueIndex)),
-		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to remove")), lean.Keep("comma-separated label names or IDs")),
+		mcp.WithString("labels", mcp.Required(), mcp.Description(labelsArgDescription("Labels to remove")), lean.Keep("comma-separated names or IDs")),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 
@@ -183,8 +184,8 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("repo", mcp.Required(), mcp.Description(params.Repo)),
 		mcp.WithNumber("index", mcp.Required(), mcp.Description(params.Index)),
-		mcp.WithString("since", mcp.Description(params.Since), lean.Keep("RFC3339 time, e.g. 2026-08-20T00:00:00Z")),
-		mcp.WithString("before", mcp.Description(params.Before), lean.Keep("RFC3339 time, e.g. 2026-08-20T00:00:00Z")),
+		mcp.WithString("since", mcp.Description(params.Since), lean.Keep("RFC3339, e.g. 2026-08-20T00:00:00Z")),
+		mcp.WithString("before", mcp.Description(params.Before), lean.Keep("RFC3339, e.g. 2026-08-20T00:00:00Z")),
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 	)
@@ -262,8 +263,8 @@ var (
 		mcp.WithString("owner", mcp.Required(), mcp.Description(params.Owner)),
 		mcp.WithString("state", mcp.Description("State (open|closed|all)"), mcp.DefaultString("open"), lean.Keep("open, closed or all")),
 		mcp.WithString("type", mcp.Description("Type (issues|pulls)"), lean.Keep("issues or pulls")),
-		mcp.WithString("labels", mcp.Description("Labels (comma-separated); OR semantics — an issue matching any listed label is returned"), lean.Keep("comma-separated, an issue with any listed label matches")),
-		mcp.WithString("milestones", mcp.Description("Milestone names/IDs (comma-separated)"), lean.Keep("comma-separated milestone names or IDs")),
+		mcp.WithString("labels", mcp.Description("Labels (comma-separated); OR semantics — an issue matching any listed label is returned"), lean.Keep("comma-separated; any listed label matches")),
+		mcp.WithString("milestones", mcp.Description("Milestone names/IDs (comma-separated)"), lean.Keep("comma-separated names or IDs")),
 		mcp.WithString("q", mcp.Description(params.Keyword+" (matches issue title, body, and comments)")),
 		mcp.WithString("created_by", mcp.Description("Filter by creator username")),
 		mcp.WithString("assigned_by", mcp.Description("Filter by assignee username")),
@@ -271,6 +272,7 @@ var (
 		mcp.WithNumber("page", mcp.Description(params.Page), mcp.DefaultNumber(1)),
 		mcp.WithNumber("limit", mcp.Description(params.Limit), mcp.DefaultNumber(20)),
 		mcp.WithString("outFile", outFileOpts...),
+		mcp.WithBoolean("with_blockers", withBlockersOpts...),
 		mcp.WithBoolean("verbose", mcp.Description(compact.VerboseDescription)),
 	)
 )
@@ -335,7 +337,9 @@ type listIssuesArgs struct {
 	Limit      float64 `json:"limit"`
 	// OutFile is a pointer so an explicit empty name is told from no name.
 	OutFile *string `json:"outFile"`
-	Verbose bool    `json:"verbose"`
+	// WithBlockers adds blocked_by to the file rows; it is refused without outFile.
+	WithBlockers bool `json:"with_blockers"`
+	Verbose      bool `json:"verbose"`
 }
 
 type createIssueArgs struct {
@@ -483,7 +487,9 @@ type searchArgs struct {
 	Limit       float64 `json:"limit"`
 	// OutFile is a pointer so an explicit empty name is told from no name.
 	OutFile *string `json:"outFile"`
-	Verbose bool    `json:"verbose"`
+	// WithBlockers adds blocked_by to the file rows; it is refused without outFile.
+	WithBlockers bool `json:"with_blockers"`
+	Verbose      bool `json:"verbose"`
 }
 
 // target is the issue a call names.
@@ -529,6 +535,11 @@ func (h handlers) ListRepoIssuesFn(ctx context.Context, req mcp.CallToolRequest)
 			Owner: a.Owner, Repo: a.Repo, State: state, Type: a.Type, Sort: a.Sort,
 			Milestones: a.Milestones, Labels: a.Labels,
 		}
+		if a.OutFile != nil && a.WithBlockers {
+			return listBlockedToFile(ctx, *a.OutFile, a.Verbose, func(ctx context.Context) ([]apppissue.Blocked, error) {
+				return s.ListAllBlocked(ctx, in)
+			})
+		}
 		if a.OutFile != nil {
 			return listToFile(ctx, *a.OutFile, a.Verbose, func(ctx context.Context) ([]*model.Issue, error) {
 				return s.ListAll(ctx, in)
@@ -550,6 +561,11 @@ func (h handlers) SearchIssuesFn(ctx context.Context, req mcp.CallToolRequest) (
 		in := apppissue.SearchInput{
 			Owner: a.Owner, State: a.State, Type: a.Type, Labels: a.Labels, Milestones: a.Milestones,
 			Keyword: a.Q, CreatedBy: a.CreatedBy, AssignedBy: a.AssignedBy, MentionedBy: a.MentionedBy,
+		}
+		if a.OutFile != nil && a.WithBlockers {
+			return listBlockedToFile(ctx, *a.OutFile, a.Verbose, func(ctx context.Context) ([]apppissue.Blocked, error) {
+				return s.SearchAllBlocked(ctx, in)
+			})
 		}
 		if a.OutFile != nil {
 			return listToFile(ctx, *a.OutFile, a.Verbose, func(ctx context.Context) ([]*model.Issue, error) {

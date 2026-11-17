@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Features
+
+* **issue:** `list_repo_issues` and `search_issues` take `with_blockers` (valid only with `outFile`). Each file row gains `blocked_by`: the numbers of the issues that block it, `[]` when none, or `owner/repo#n` for a blocker in another repository. This adds one Forgejo dependency request per listed issue, named in the tool text; a failed read fails the call and writes no file.
+
 ### Behaviour changes
 
 * **issue:** `list_repo_issues` and `search_issues` now return a compact result per issue by default: number, url, title, state, label names, assignee logins and updated_at. The body and the user object are no longer echoed back. Pass `verbose: true` to get the full issues, which was the previous default. The paging envelope (`page`, `limit`, `count`, `has_next`, `total_count`) is unchanged. The tools' input schemas gain only the optional `verbose` boolean. Resources are unchanged.
