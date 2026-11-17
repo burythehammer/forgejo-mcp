@@ -132,7 +132,7 @@ func (s *Service) readWhole(ctx context.Context, fetch list.Fetch[*model.Issue],
 	issues, err := list.ReadWhole(ctx, limit, list.FileCeiling, fetch)
 	var over *list.OverCeiling
 	if errors.As(err, &over) {
-		return nil, fmt.Errorf("%s is over the %d-issue file-output ceiling; nothing was written", noun, list.FileCeiling)
+		return nil, fmt.Errorf("%s is over the %d-issue file-output ceiling; nothing was written", noun, over.Max)
 	}
 	if err != nil {
 		return nil, err

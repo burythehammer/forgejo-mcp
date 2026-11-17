@@ -28,23 +28,25 @@ func (e *OverCeiling) Error() string {
 }
 
 // ReadWhole reads every row of a list page by page at limit and returns them in
-// list order. It stops as soon as more than max rows are in hand, or as soon as
-// the server's reported total is over max, and returns *OverCeiling: a
+// list order. It stops as soon as more than ceiling rows are in hand, or as soon
+// as the server's reported total is over ceiling, and returns *OverCeiling: a
 // listing is never truncated to fit. Without a reported total, a page shorter
-// than limit is the last.
-func ReadWhole[T any](ctx context.Context, limit, max int, fetch Fetch[T]) ([]T, error) {
+// than limit is the last. Its shortfall rule (ErrShortRead) differs from All's
+// (Complete false), and its early stop on size is not All's page budget, so it
+// keeps its own loop.
+func ReadWhole[T any](ctx context.Context, limit, ceiling int, fetch Fetch[T]) ([]T, error) {
 	var out []T
 	for page := 1; ; page++ {
 		b, err := fetch(ctx, Paging{Page: page, Limit: limit})
 		if err != nil {
 			return nil, err
 		}
-		if b.Total != nil && *b.Total > max {
-			return nil, &OverCeiling{Max: max}
+		if b.Total != nil && *b.Total > ceiling {
+			return nil, &OverCeiling{Max: ceiling}
 		}
 		out = append(out, b.Items...)
-		if len(out) > max {
-			return nil, &OverCeiling{Max: max}
+		if len(out) > ceiling {
+			return nil, &OverCeiling{Max: ceiling}
 		}
 		if b.Total != nil {
 			if len(out) >= *b.Total {
