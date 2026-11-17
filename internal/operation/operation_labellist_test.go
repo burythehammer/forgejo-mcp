@@ -15,7 +15,7 @@ import (
 )
 
 // These tests exist because the label templates were registered as bare paths
-// while their descriptions, the README table and the AGENTS.md table all
+// while their descriptions, the reference table (docs/reference/resources.md) and the AGENTS.md table all
 // advertised the {?page,limit} form. mcp-go matches a read against an anchored
 // regexp built from the registered string, so every query-bearing read failed
 // with "resource not found" before any handler ran — page and limit were

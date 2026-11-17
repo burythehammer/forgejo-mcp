@@ -233,7 +233,7 @@ in `internal/app/issue`. Per domain:
    failure paths, and one `httptest` smoke test through the real SDK adapter
    (`forgetest.NewStub`). New tests call `t.Parallel()`. Retire old pre-split
    tests only where a use-case or golden test covers the behaviour.
-6. **Docs.** README tool tables stay complete
+6. **Docs.** The tool and resource tables in `docs/reference/` stay complete
    (`scripts/ci/check-readme-tool-coverage.sh`); update any spec that names a
    moved symbol.
 
