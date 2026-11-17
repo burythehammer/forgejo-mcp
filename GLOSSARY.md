@@ -61,6 +61,10 @@ _Avoid_: profile, bundle, tier, terse mode
 The wiki a Forgejo repository carries, stored as a git repository beside the code and reached through the wiki tools. It is flat: a slash in a page name is a naming convention, not a parent-child link.
 _Avoid_: wiki (unqualified), repo wiki
 
+**File output**:
+A tool result written to a file instead of returned as a page, for a caller that processes a whole list by script rather than through the model. The `outFile` argument names it: a bare file name under the server's temp directory, with the reply `{path, count, keys}`. Only the stdio transport accepts it, since a network caller cannot read a file on the server host.
+_Avoid_: export, dump, download
+
 **Outline wiki**:
 The personal knowledge base kept in Outline, including the per-repo structured wikis the `repo-wiki` skill maintains. It is separate from the Forgejo wiki and holds notes that are not tied to one repository.
 _Avoid_: wiki (unqualified), Outline docs

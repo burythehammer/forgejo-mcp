@@ -3,7 +3,6 @@
 package outfile
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -120,15 +119,5 @@ func TestWriteRefusesBadNameAndWritesNothing(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "escape.json")); err == nil {
 		t.Fatal("a refused name escaped the temp dir")
-	}
-}
-
-func TestMarkRemote(t *testing.T) {
-	t.Parallel()
-	if Remote(context.Background()) {
-		t.Fatal("an unmarked context reads as remote")
-	}
-	if !Remote(MarkRemote(context.Background())) {
-		t.Fatal("a marked context does not read as remote")
 	}
 }

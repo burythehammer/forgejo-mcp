@@ -14,7 +14,6 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/outfile"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )
@@ -133,13 +132,21 @@ func TestListRepoIssuesOutFile_RefusedOnNetworkTransport(t *testing.T) {
 	dir := outFileTempDir(t)
 	h, f := newFixture(t)
 	seedOpen(t, f, 2)
-	ctx := outfile.MarkRemote(context.Background())
+	ctx := forge.MarkRemote(context.Background())
+	// The use-case refusal is a Go error, as the other handler refusals are;
+	// a pipeline refusal is an error result. Either names the stdio transport.
 	res, err := h.ListRepoIssuesFn(ctx, repoReq(map[string]any{"outFile": "net.json"}))
-	if err != nil {
-		t.Fatal(err)
+	var msg string
+	switch {
+	case err != nil:
+		msg = err.Error()
+	case res != nil && res.IsError:
+		msg = textOf(res)
+	default:
+		t.Fatalf("network transport: no refusal, result %+v", res)
 	}
-	if res == nil || !res.IsError || !strings.Contains(textOf(res), "stdio") {
-		t.Fatalf("network transport: result %+v, want a refusal naming stdio", res)
+	if !strings.Contains(msg, "stdio") {
+		t.Fatalf("network transport refusal %q does not name stdio", msg)
 	}
 	noFileWritten(t, dir)
 }
@@ -191,7 +198,7 @@ func TestListRepoIssuesOutFile_Golden(t *testing.T) {
 	}
 
 	var rep outFileReply
-	if err := json.Unmarshal([]byte(textOf(res)), &rep); err != nil {
+	if err := unmarshalResult(textOf(res), &rep); err != nil {
 		t.Fatal(err)
 	}
 	if rep.Path != filepath.Join(dir, "golden.json") {

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/outfile"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
 // TestNetworkTransportMarksContextRemote pins that every HTTP transport's
@@ -18,7 +18,7 @@ func TestNetworkTransportMarksContextRemote(t *testing.T) {
 	t.Parallel()
 	req := httptest.NewRequest("POST", "/mcp", nil)
 	ctx := requestTokenContextFunc(config.Config{})(context.Background(), req)
-	if !outfile.Remote(ctx) {
+	if !forge.Remote(ctx) {
 		t.Fatal("a network transport's request context is not marked remote")
 	}
 }
