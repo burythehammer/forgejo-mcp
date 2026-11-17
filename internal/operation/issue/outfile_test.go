@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
@@ -217,4 +218,51 @@ func TestListRepoIssuesOutFile_Golden(t *testing.T) {
 		t.Fatal(err)
 	}
 	mcptest.Golden(t, "list_repo_issues_outfile_file", file)
+}
+
+func TestListRepoIssuesOutFile_AtTheCeilingWritesWhole(t *testing.T) {
+	dir := outFileTempDir(t)
+	h := withPort(&pagedStub{n: list.FileCeiling})
+	var rep outFileReply
+	if err := unmarshalResult(call(t, h.ListRepoIssuesFn, map[string]any{"outFile": "ceiling.json"}), &rep); err != nil {
+		t.Fatal(err)
+	}
+	if rep.Path != filepath.Join(dir, "ceiling.json") || rep.Count != list.FileCeiling {
+		t.Fatalf("reply %+v, want %d rows at %s", rep, list.FileCeiling, dir)
+	}
+	if got := fileNumbers(t, rep.Path); len(got) != list.FileCeiling {
+		t.Fatalf("file holds %d rows, want %d", len(got), list.FileCeiling)
+	}
+}
+
+func TestListRepoIssuesOutFile_OneOverTheCeilingFailsAndWritesNothing(t *testing.T) {
+	dir := outFileTempDir(t)
+	h := withPort(&pagedStub{n: list.FileCeiling + 1})
+	msg := callErr(t, h.ListRepoIssuesFn, map[string]any{"outFile": "over.json"})
+	if !strings.Contains(msg, "1000") || !strings.Contains(msg, "ceiling") {
+		t.Fatalf("error %q does not name the ceiling", msg)
+	}
+	noFileWritten(t, dir)
+	mcptest.Golden(t, "list_repo_issues_outfile_over_ceiling", []byte(msg+"\n"))
+}
+
+func TestListRepoIssuesOutFile_OverTheCeilingKeepsAnEarlierFile(t *testing.T) {
+	dir := outFileTempDir(t)
+	h, f := newFixture(t)
+	seedOpen(t, f, 2)
+	call(t, h.ListRepoIssuesFn, map[string]any{"outFile": "keep.json"})
+	before, err := os.ReadFile(filepath.Join(dir, "keep.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	over := withPort(&pagedStub{n: list.FileCeiling + 1})
+	callErr(t, over.ListRepoIssuesFn, map[string]any{"outFile": "keep.json"})
+	after, err := os.ReadFile(filepath.Join(dir, "keep.json"))
+	if err != nil {
+		t.Fatalf("the earlier file was removed by a failed run: %v", err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("a failed over-ceiling run clobbered the earlier file")
+	}
 }
