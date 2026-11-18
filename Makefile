@@ -62,12 +62,11 @@ check-demos:
 # Mirrors .tekton/tasks/go-ci.yaml. Steps run in a fixed order and stop at the
 # first failure, which is named. Guardrail scripts are discovered under
 # scripts/ci/, so a new script runs without editing this target.
-# Left out on purpose: check-castra-release-onboarding.sh asks the forge about
-# this repo's release setup (not a code check) and check-pr-ci-ran.sh needs a PR
-# number; openspec-validate.sh needs the openspec CLI and runs in its own CI
-# pipeline. Run them by hand when releasing or reviewing a PR.
+# Left out on purpose: check-pr-ci-ran.sh needs a PR number and openspec-validate.sh
+# needs the openspec CLI and runs in its own CI pipeline. Run them by hand when
+# reviewing a PR.
 # Not run locally: mod-tidy-check (make vendor), govulncheck, license-check.
-CI_SKIP := check-castra-release-onboarding.sh check-pr-ci-ran.sh openspec-validate.sh
+CI_SKIP := check-pr-ci-ran.sh openspec-validate.sh
 .PHONY: check
 check:
 	@step() { name=$$1; shift; echo "== $$name"; "$$@" || { echo "check FAILED at step: $$name" >&2; exit 1; }; }; \
