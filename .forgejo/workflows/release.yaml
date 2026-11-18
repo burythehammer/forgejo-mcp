@@ -18,7 +18,19 @@ jobs:
     env:
       GORELEASER_VERSION: v2.12.0
       SYFT_VERSION: v1.30.0
+      # The runner's internal forge address (the host its checkout uses), not
+      # the public hostname: from this container the public name resolves to a
+      # Tailscale address that times out (#383). Keep in step with gitea_urls.api
+      # in .goreleaser.yml. Do not "fix" it back to the public URL.
+      FORGEJO_API: http://forgejo:3000/api/v1
     steps:
+      # Fail in seconds, not after the ~2 minute goreleaser timeout, if the job
+      # container cannot reach the forge (#383).
+      - name: Check the forge is reachable
+        run: |
+          set -eu
+          apt-get update -qq && apt-get install -y -qq curl
+          curl -fsS --max-time 10 "${FORGEJO_API}/version"
       - name: Install tools
         run: |
           apt-get update -qq
@@ -39,7 +51,7 @@ jobs:
         run: |
           set -eu
           tag="${GITHUB_REF_NAME}"
-          api="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
+          api="${FORGEJO_API}/repos/${GITHUB_REPOSITORY}"
           id=$(curl -fsS -H "Authorization: token ${TOKEN}" "${api}/releases/tags/${tag}" | jq -r .id)
           for platform in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             export GOOS="${platform%/*}" GOARCH="${platform#*/}"
