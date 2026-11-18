@@ -39,7 +39,7 @@ Template table, expansion gotchas and how to add a template: [docs/agents/resour
 ## Pointers
 
 - **Blocked features** (wiki, projects): `docs/plans/`.
-- **Releasing:** do not cut a release unless asked; the process is inherited from upstream and unverified, see [docs/legacy/upstream-release.md](docs/legacy/upstream-release.md).
+- **Releasing:** do not cut a release unless asked. Process: [docs/agents/releasing.md](docs/agents/releasing.md) (a tag push runs `.forgejo/workflows/release.yaml`).
 - **Subagents** (implementing in a worktree, merging their branches, briefing either): [docs/agents/subagent-work.md](docs/agents/subagent-work.md).
 - **Issue tracker** (Forgejo, via this repo's own `forgejo` MCP server, `fj` as fallback): [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
 - **Triage labels** (pass names, never IDs, to `add_issue_labels`, `remove_issue_labels`, `create_issue` and `update_issue`): [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
