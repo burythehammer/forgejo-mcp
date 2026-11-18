@@ -508,9 +508,9 @@ if `openspec` is not installed.
 ## Reviewing a pull request: confirm CI actually ran
 
 Pipelines-as-Code will not start a PipelineRun for an author who is not an
-approver. The approver list used to be the `OWNERS` file, which #379 removed;
-where the list lives now is not recorded in this repo. When it declines, it leaves exactly one commit status on the head
-SHA:
+approver. The approvers are not listed in this repo; check the PaC setup on the
+cluster to see who they are. When it declines, it leaves exactly one commit
+status on the head SHA:
 
 ```
 op1st Pipelines as Code   pending   Pending approval, waiting for an /ok-to-test

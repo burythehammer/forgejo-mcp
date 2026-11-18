@@ -2,7 +2,7 @@
 
 # Releasing
 
-Releases are cut by `.forgejo/workflows/release.yaml` when a `vX.Y.Z` tag is pushed to `origin`. Upstream's flow (OpenShift Job, Tekton, `castra:release`) was removed in #379; see [ADR 0009](../adr/0009-releases-are-cut-by-a-hand-pushed-tag.md).
+Releases are cut by `.forgejo/workflows/release.yaml` when a `vX.Y.Z` tag is pushed to `origin`. Upstream's flow (OpenShift Job, Tekton, `castra:release`) is not used; see [ADR 0009](../adr/0009-releases-are-cut-by-a-hand-pushed-tag.md).
 
 Do not cut a release unless asked.
 
