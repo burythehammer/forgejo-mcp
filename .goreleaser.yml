@@ -47,8 +47,12 @@ sboms:
 # client and posts to api.github.com. Force the Gitea client (Forgejo speaks it).
 force_token: gitea
 
+# api is the runner's internal forge address, not the public hostname: from the
+# job container the public name resolves to a Tailscale address that times out
+# (#383). The same host the runner's checkout uses. Do not "fix" it back.
+# download is only written into release-note links, so it stays public.
 gitea_urls:
-  api: https://forgejo.burythehammer.com/api/v1
+  api: http://forgejo:3000/api/v1
   download: https://forgejo.burythehammer.com
 
 # Release notes come from the commit log between tags. The workflow passes the
