@@ -39,15 +39,24 @@ repos:
         files: ^(internal/operation/.*\.go|internal/(forge|config|log|ptr|to|diff|upload|jwtissuer|oauthrs)/.*\.go|scripts/ci/check-api-path-escaping\.sh)$
 
       - id: check-readme-tool-coverage
-        name: check README documents every tool and resource
+        name: check docs/reference documents every tool and resource
         description: >-
           Reject a registered tool or forgejo:// resource template with no row
-          in the README tables. Mirrors the readme-tool-coverage step in
-          .tekton/tasks/go-ci.yaml.
+          in docs/reference/tools.md or docs/reference/resources.md. Mirrors the
+          readme-tool-coverage step in .tekton/tasks/go-ci.yaml.
         entry: scripts/ci/check-readme-tool-coverage.sh
         language: script
         pass_filenames: false
-        files: ^(internal/operation/.*\.go|README\.md|scripts/ci/check-readme-tool-coverage\.sh)$
+        files: ^(internal/operation/.*\.go|docs/reference/(tools|resources)\.md|scripts/ci/check-readme-tool-coverage\.sh)$
+
+      - id: check-readme-no-code-host
+        name: check README names no code host
+        description: >-
+          Reject a code-host name or URL in README.md. The script lists the hosts.
+        entry: scripts/ci/check-readme-no-code-host.sh
+        language: script
+        pass_filenames: false
+        files: ^(README\.md|go\.mod|scripts/ci/check-readme-no-code-host\.sh)$
 
       - id: check-spdx-headers
         name: check SPDX headers on Go and shell sources

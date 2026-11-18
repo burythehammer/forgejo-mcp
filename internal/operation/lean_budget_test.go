@@ -14,9 +14,10 @@ import (
 // trackerCoreLeanBudget caps the minified tools/list JSON-RPC response, in
 // bytes, of the lean tracker-core preset. It was set from the measured size
 // (10,852 bytes, about 2,713 tokens at 4 bytes a token) plus a margin of about
-// 150 bytes. The design target is about 8 KB (about 2k tokens); the README
-// records how far the preset is above it. Raising this budget is a review
-// decision: change it only in a PR that says why the extra tool text is needed.
+// 150 bytes. The design target is about 8 KB (about 2k tokens); the toolsets
+// reference (docs/reference/toolsets.md) records how far the preset is above
+// it. Raising this budget is a review decision: change it only in a PR that
+// says why the extra tool text is needed.
 const trackerCoreLeanBudget = 11000
 
 // trackerCoreLeanHeadroom is the size the preset is held to in routine work,

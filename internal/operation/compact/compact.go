@@ -77,8 +77,9 @@ type PullRequest struct {
 }
 
 // IssueRead is the compact result of get_issue_by_index: the issue write shape
-// plus the body, the close time, the branch ref and the comment count. The
-// poster, the milestone and the nested repository are verbose-only.
+// (milestone and pull-request flag included) plus the body, the close time, the
+// branch ref and the comment count. The poster and the nested repository are
+// verbose-only.
 type IssueRead struct {
 	Issue
 	Body     string     `json:"body"`

@@ -54,7 +54,7 @@ forgejo-mcp --transport http --url https://forgejo.example.org \
   --forgejo-jwt-signing-key-file /run/credentials/forgejo-mcp.service/signing-key
 ```
 
-Every setting also has an environment variable; the [README](../../README.md#configuration-options) lists them.
+Every setting also has an environment variable; the [configuration reference](../configuration.md#options) lists them.
 
 - **`--authorization-server`** is the provider's issuer URL, spelled exactly as its discovery document states it. At startup forgejo-mcp fetches `/.well-known/openid-configuration` under it, then the RFC 8414 location. It refuses to start if the `issuer` there differs by a single character, a trailing slash included. It then fetches the key set from the `jwks_uri` that document names, at startup and again whenever it refreshes the keys. That URL may be on another host than the issuer, as Google's is, so forgejo-mcp needs outbound https access to both, and trusting `--authorization-server` means trusting the `jwks_uri` it names. If the provider uses a private CA, give those lookups its CA with `--authorization-server-tls-ca` (a PEM file, added to the system roots). This setting is separate from the Forgejo TLS settings, and there is no skip-verify for the provider.
 - **`--resource`** is the canonical URL of the MCP endpoint. forgejo-mcp publishes it in the protected resource metadata at `/.well-known/oauth-protected-resource/mcp` and at `/.well-known/oauth-protected-resource`. Its path must be `/mcp`, where the endpoint is served; forgejo-mcp refuses to start otherwise, so serving the endpoint under another path behind a proxy is not supported.

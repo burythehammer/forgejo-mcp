@@ -26,7 +26,7 @@ For the wiki cases, use `-run TestWikiContractLive` in place of `TestHooksContra
 
 `.forgejo/workflows/nightly-live.yaml` runs the same suite nightly (03:17 UTC) and on manual dispatch, against a Forgejo service container. It is separate from the PR gate (`ci.yaml`) and never runs on pull requests.
 
-- **Versions.** A matrix of `16.0.3` (the oldest supported: the 16.0 floor the README and `resource-server` mode enforce) and `16.0.6` (the newest 16.x release). v17.0.0 exists, but its release notes advise against upgrading, so it is not in the matrix yet; add it when that changes.
+- **Versions.** A matrix of `16.0.3` (the oldest supported: the 16.0 floor that docs/configuration.md states for `resource-server` mode) and `16.0.6` (the newest 16.x release). v17.0.0 exists, but its release notes advise against upgrading, so it is not in the matrix yet; add it when that changes.
 - **Token and repo.** `test/live/bootstrap.sh` finishes the install form inside the job (a generated admin password that is never written anywhere), mints an API token for that admin, creates the `e2e-attachments` repo and writes the coordinates to `$GITHUB_ENV`. No credentials are stored in the repo or in CI secrets. `bash test/live/bootstrap_test.sh` checks the script offline with a fake `curl`.
 - **Steps.** The job then runs `TestHooksContractLive` and `test/e2e/attachments.sh` (with `OWNER=ci-bot REPO=e2e-attachments`).
 - **Failure.** A failed run turns the workflow red, and also comments the run link on tracking issue #263 with the built-in `GITHUB_TOKEN`.

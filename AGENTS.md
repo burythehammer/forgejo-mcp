@@ -18,7 +18,7 @@ Every new file starts with `SPDX-License-Identifier: GPL-3.0-or-later` as its fi
 
 ## Adding or changing a tool
 
-Before adding or changing a tool, read [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md): use case, MCP adapter, port, tests, output bound, README row.
+Before adding or changing a tool, read [docs/agents/adding-a-tool.md](docs/agents/adding-a-tool.md): use case, MCP adapter, port, tests, output bound, reference-table row in `docs/reference/` (tools.md, resources.md).
 
 ## Numeric arguments
 
