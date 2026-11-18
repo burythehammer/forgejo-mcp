@@ -30,17 +30,7 @@
     "customManagers": [
         {
             "customType": "regex",
-            "description": "Version ARGs in image/release-tools/Containerfile annotated with a renovate comment. Only tools whose version is the single source of truth are annotated: SYFT_VERSION and GORELEASER_VERSION are deliberately left out because each is paired with a hand-recorded *_SHA256 ARG that Renovate cannot recompute, so a version-only bump would ship a Containerfile that fails its own checksum gate.",
-            "managerFilePatterns": [
-                "/(^|/)Containerfile$/"
-            ],
-            "matchStrings": [
-                "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+ARG \\w+_VERSION=(?<currentValue>\\S+)"
-            ]
-        },
-        {
-            "customType": "regex",
-            "description": "RELEASE_TOOLS_IMAGE defaults in .tekton/tasks/*.yaml. These pin the prebuilt release-tools image that six CI tasks run in. Tracked here because Renovate's tekton manager reads stepTemplate/step images, not a Task param default, so without this manager the pin would silently rot the way codeberg.org/operate-first/release-tools:latest did (#574).",
+            "description": "RELEASE_TOOLS_IMAGE defaults in .tekton/tasks/*.yaml. These pin the prebuilt release-tools image that the remaining CI tasks run in. Tracked here because Renovate's tekton manager reads stepTemplate/step images, not a Task param default, so without this manager the pin would silently rot the way codeberg.org/operate-first/release-tools:latest did (#574).",
             "managerFilePatterns": [
                 "/^\\.tekton/tasks/.*\\.yaml$/"
             ],
@@ -99,18 +89,6 @@
             "labels": [
                 "Kind/Enhancement",
                 "go-toolchain-bump"
-            ]
-        },
-        {
-            "description": "release-tools toolchain bumps (npm tools and the annotated version ARGs) — PR only, never automerged. These land in the image that cuts every release, so they get a human. Also migrated from the dead image/release-tools/renovate.json.",
-            "matchFileNames": [
-                "image/release-tools/npm/package.json",
-                "image/release-tools/Containerfile"
-            ],
-            "automerge": false,
-            "labels": [
-                "Kind/Enhancement",
-                "release-tools/tool-bump"
             ]
         }
     ]
