@@ -12,20 +12,46 @@ on:
       - 'v[0-9]*'
 jobs:
   release:
+    # No `container:` override: the runner's `self-hosted` job image already
+    # has Go, jq, node, npm and npx, and a persistent Go cache. goreleaser and
+    # syft are not in it, so they are fetched below (#385).
     runs-on: self-hosted
-    container:
-      image: golang:1.26
     env:
       GORELEASER_VERSION: v2.12.0
       SYFT_VERSION: v1.30.0
     steps:
       - name: Install tools
         run: |
-          apt-get update -qq
-          apt-get install -y -qq jq nodejs npm
-          go install github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}
-          go install github.com/anchore/syft/cmd/syft@${SYFT_VERSION}
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          set -eu
+          bin="${RUNNER_TEMP:-/tmp}/bin"
+          mkdir -p "${bin}" "${bin}/dl"
+          cd "${bin}/dl"
+          case "$(uname -m)" in
+            x86_64) gr_arch=x86_64; syft_arch=amd64 ;;
+            aarch64) gr_arch=arm64; syft_arch=arm64 ;;
+            *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;;
+          esac
+
+          # fetch <url> <checksums-url> <file>: download and verify against the
+          # release's published checksums file.
+          fetch() {
+            curl -fsSL -o "$3" "$1"
+            curl -fsSL -o "$3.sums" "$2"
+            grep " $3\$" "$3.sums" | sha256sum -c -
+          }
+
+          gr="goreleaser_Linux_${gr_arch}.tar.gz"
+          gr_base="https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}"
+          fetch "${gr_base}/${gr}" "${gr_base}/checksums.txt" "${gr}"
+          tar -xzf "${gr}" goreleaser
+
+          sy="syft_${SYFT_VERSION#v}_linux_${syft_arch}.tar.gz"
+          sy_base="https://github.com/anchore/syft/releases/download/${SYFT_VERSION}"
+          fetch "${sy_base}/${sy}" "${sy_base}/syft_${SYFT_VERSION#v}_checksums.txt" "${sy}"
+          tar -xzf "${sy}" syft
+
+          mv goreleaser syft "${bin}/"
+          echo "${bin}" >> "$GITHUB_PATH"
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
