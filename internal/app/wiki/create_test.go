@@ -110,6 +110,33 @@ func TestCreateRefusesNormalizedVariants(t *testing.T) {
 	}
 }
 
+// A percent-encoded title is refused before any request: on a real Forgejo a
+// literal "%2F" title is a different page from "a/b" (#389), so the existence
+// check cannot catch it.
+func TestCreateRefusesPercentEncodedTitleWithoutWriting(t *testing.T) {
+	t.Parallel()
+	for _, title := range []string{"Guides%2FSetup", "My%20Page", "zz-test%2F359.-"} {
+		creates := 0
+		s := appwiki.New(countingPort{Port: wikiadapter.New(newFake()), creates: &creates})
+		_, err := s.Create(context.Background(), appwiki.CreateRequest{Owner: owner, Repo: repo, Title: title, Content: "x"})
+		if err == nil || !strings.Contains(err.Error(), "percent-encoded") {
+			t.Fatalf("create %q: error %v, want a percent-encoded refusal", title, err)
+		}
+		if creates != 0 {
+			t.Fatalf("create %q wrote %d times", title, creates)
+		}
+	}
+}
+
+func TestCreateAllowsLiteralPercentThatIsNotAnEscape(t *testing.T) {
+	t.Parallel()
+	s := newService(t)
+	create(t, s, "50% off", "deal")
+	if got := readContent(t, s, "50% off"); got != "deal" {
+		t.Fatalf("content %q, want deal", got)
+	}
+}
+
 func TestCreateFailingCheckIsReportedNotReadAsExists(t *testing.T) {
 	t.Parallel()
 	creates := 0

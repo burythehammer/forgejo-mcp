@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
@@ -179,6 +180,9 @@ func (noCeiling) MaxResponseItems(context.Context) (int, bool) { return 0, false
 // caller uses update to change a page. Forgejo has no conditional create, so
 // two creates of one new title racing each other can still both succeed.
 func (s *Service) Create(ctx context.Context, r CreateRequest) (model.WikiWriteResult, error) {
+	if plain, encoded := percentDecoded(r.Title); encoded {
+		return model.WikiWriteResult{}, fmt.Errorf("create wiki page: title %q is percent-encoded; use the plain title %q (a page_name is not a title)", r.Title, plain)
+	}
 	exists, err := s.pageExists(ctx, r.Owner, r.Repo, r.Title)
 	if err != nil {
 		return model.WikiWriteResult{}, fmt.Errorf("check wiki page before create: %w", err)
@@ -245,6 +249,19 @@ func (s *Service) pageExists(ctx context.Context, owner, repo, title string) (bo
 		return false, nil
 	}
 	return false, err
+}
+
+// percentDecoded reports whether title holds a valid percent escape (such as
+// %2F) and returns the decoded text. Forgejo stores a literal "%2F" title as a
+// different page (its name is double-encoded), so the existence check cannot
+// see the page a copied page_name points at; the create is refused instead. A
+// "%" that is not a valid escape, as in "50% off", is an ordinary title.
+func percentDecoded(title string) (string, bool) {
+	plain, err := url.PathUnescape(title)
+	if err != nil || plain == title {
+		return "", false
+	}
+	return plain, true
 }
 
 func encode(content string) string { return base64.StdEncoding.EncodeToString([]byte(content)) }
