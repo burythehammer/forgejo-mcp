@@ -4,7 +4,7 @@
 # check-pr-ci-ran.sh — assert that CI actually RAN for a pull request.
 #
 # The trap this exists for: on an external contributor's PR, Pipelines-as-Code
-# refuses to start a PipelineRun unless the author is listed in OWNERS. It says
+# refuses to start a PipelineRun unless the author is an approver. It says
 # so in a PR comment and leaves exactly one commit status behind:
 #
 #     context: "op1st Pipelines as Code"
@@ -163,7 +163,7 @@ if [ "$runs" -eq 0 ]; then
 check-pr-ci-ran: CI is BLOCKED, not passing.
 
 The only status on ${SHA} is the Pipelines-as-Code placeholder: it refused to
-start a PipelineRun because the PR author is not in the repo's OWNERS file.
+start a PipelineRun because the PR author is not an approver.
 
 Fix: a maintainer must comment
 

@@ -1,3 +1,5 @@
+> Frozen history: this file is no longer updated. Release notes now come from goreleaser (see [docs/agents/releasing.md](docs/agents/releasing.md)).
+
 ## Unreleased
 
 ### Features

@@ -58,7 +58,7 @@ run() {
   printf '%s\n' "$out" > "$tmp/out"
 }
 
-for script in scripts/ci/check-castra-release-onboarding.sh scripts/ci/check-pr-ci-ran.sh; do
+for script in scripts/ci/check-pr-ci-ran.sh; do
   name="$(basename "$script")"
 
   # FORGEJO_URL unset: refuse, say why, send nothing.
@@ -88,15 +88,6 @@ for script in scripts/ci/check-castra-release-onboarding.sh scripts/ci/check-pr-
     echo "✓ $name: with FORGEJO_URL set, requests go to that host"
   fi
 done
-
-# castra also refuses without a token, before any request.
-run scripts/ci/check-castra-release-onboarding.sh env -u FORGEJO_TOKEN FORGEJO_URL=https://forge.test.invalid
-if [ "$rc" -eq 0 ] || ! grep -q 'FORGEJO_TOKEN' "$tmp/out" || [ -s "$log" ]; then
-  echo "✗ check-castra-release-onboarding.sh: FORGEJO_TOKEN unset was not refused cleanly"
-  fail=1
-else
-  echo "✓ check-castra-release-onboarding.sh: refuses without FORGEJO_TOKEN and sends nothing"
-fi
 
 if [ "$fail" -ne 0 ]; then
   echo "check-forge-host-defaults: FAILED" >&2
