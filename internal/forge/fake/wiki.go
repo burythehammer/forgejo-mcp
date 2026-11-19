@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -38,6 +39,17 @@ func wikiKey(name string) string {
 		name = decoded
 	}
 	return strings.ReplaceAll(name, " ", "-")
+}
+
+// wikiTitleKey is the page name a title is stored under. Forgejo 16.0.4 stores
+// a title that contains a hyphen as "<title>.-", so a read by the plain title
+// is not found and only the name the create answered works (#388).
+func wikiTitleKey(title string) string {
+	key := wikiKey(title)
+	if strings.Contains(title, "-") {
+		key += ".-"
+	}
+	return key
 }
 
 func (f *Forgejo) wikiCommit(message string) forge.WikiCommit {
@@ -147,13 +159,14 @@ func (f *Forgejo) CreateWikiPage(_ context.Context, owner, repo, title, contentB
 	if title == "" {
 		return nil, fmt.Errorf("title is required")
 	}
-	key := wikiKey(title)
-	rec, ok := pages[key]
-	if !ok {
-		rec = &wikiRecord{}
-		pages[key] = rec
+	key := wikiTitleKey(title)
+	if _, ok := pages[key]; ok {
+		// Forgejo refuses a create of an existing page with a 400, as the live
+		// contract run against 16.0.4 showed.
+		return nil, statusErr(http.StatusBadRequest, "wiki page already exists [title: "+key+".md]")
 	}
-	rec.title, rec.content = title, contentBase64
+	rec := &wikiRecord{title: title, content: contentBase64}
+	pages[key] = rec
 	rec.history = append([]forge.WikiCommit{f.wikiCommit(message)}, rec.history...)
 	return rec.page(key), nil
 }
@@ -168,16 +181,21 @@ func (f *Forgejo) EditWikiPage(_ context.Context, owner, repo, pageName, title, 
 	oldKey := wikiKey(pageName)
 	rec, ok := pages[oldKey]
 	if !ok {
-		return nil, notFound("wiki page")
+		// Forgejo's edit of a page that does not exist creates it (live run
+		// against 16.0.4), so the fake does the same.
+		rec = &wikiRecord{}
 	}
 	if title == "" {
 		title = rec.title
 	}
-	key := wikiKey(title)
+	if title == "" {
+		title = pageName
+	}
+	key := wikiTitleKey(title)
 	if key != oldKey {
 		delete(pages, oldKey)
-		pages[key] = rec
 	}
+	pages[key] = rec
 	rec.title, rec.content = title, contentBase64
 	rec.history = append([]forge.WikiCommit{f.wikiCommit(message)}, rec.history...)
 	return rec.page(key), nil

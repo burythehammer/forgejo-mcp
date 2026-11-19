@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
@@ -62,17 +63,47 @@ func (a *Adapter) GetWikiPage(ctx context.Context, owner, repo, pageName string)
 	return &page, nil
 }
 
+// GetWikiPageRevisions returns one page of a page's history. Forgejo 16.0.4
+// ignores the limit query and pages the history by a size of its own, so the
+// adapter reads whole Forgejo pages until the requested window is covered and
+// cuts the window itself. Commit messages arrive with a trailing newline, which
+// is trimmed.
 func (a *Adapter) GetWikiPageRevisions(ctx context.Context, owner, repo, pageName string, page, limit int) (*forge.WikiRevisions, error) {
-	var revisions forge.WikiRevisions
 	base, err := forge.APIPath("repos", owner, repo, "wiki", "revisions", wikiPageName(pageName))
 	if err != nil {
 		return nil, err
 	}
-	path := fmt.Sprintf("%s?page=%d&limit=%d", base, page, limit)
-	if _, err := a.rawJSON(ctx, http.MethodGet, path, nil, &revisions); err != nil {
-		return nil, err
+	if page < 1 {
+		page = 1
 	}
-	return &revisions, nil
+	if limit < 1 {
+		limit = 30
+	}
+	lo, hi := (page-1)*limit, page*limit
+	var all []forge.WikiCommit
+	total := 0
+	for upstream := 1; ; upstream++ {
+		var got forge.WikiRevisions
+		if _, err := a.rawJSON(ctx, http.MethodGet, fmt.Sprintf("%s?page=%d", base, upstream), nil, &got); err != nil {
+			return nil, err
+		}
+		total = got.Count
+		all = append(all, got.Commits...)
+		if len(got.Commits) == 0 || len(all) >= total || len(all) >= hi {
+			break
+		}
+	}
+	if lo > len(all) {
+		lo = len(all)
+	}
+	if hi > len(all) {
+		hi = len(all)
+	}
+	commits := append([]forge.WikiCommit{}, all[lo:hi]...)
+	for i := range commits {
+		commits[i].Message = strings.TrimRight(commits[i].Message, "\r\n")
+	}
+	return &forge.WikiRevisions{Commits: commits, Count: total}, nil
 }
 
 func (a *Adapter) CreateWikiPage(ctx context.Context, owner, repo, title, contentBase64, message string) (*forge.WikiPage, error) {

@@ -519,7 +519,16 @@ func seedWikiRevisions(t *testing.T, f *fake.Forgejo, n int) {
 	t.Helper()
 	seedRepo(t, f)
 	for i := 1; i <= n; i++ {
-		_, err := f.CreateWikiPage(context.Background(), pageOwner, pageRepo, "Home", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("body %d", i))), fmt.Sprintf("edit %d", i))
+		content := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("body %d", i)))
+		message := fmt.Sprintf("edit %d", i)
+		// A second create of one title is refused, as on Forgejo, so the
+		// history is built by editing the page the first call created.
+		var err error
+		if i == 1 {
+			_, err = f.CreateWikiPage(context.Background(), pageOwner, pageRepo, "Home", content, message)
+		} else {
+			_, err = f.EditWikiPage(context.Background(), pageOwner, pageRepo, "Home", "Home", content, message)
+		}
 		must(t, err)
 	}
 }

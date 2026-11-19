@@ -9,11 +9,11 @@ import (
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 )
 
-// newWikiPage creates a page in Owner/Repo, making the repository first.
+// newWikiPage creates a page in the harness repository, making the repository first.
 func newWikiPage(t *testing.T, h Harness, title, content string) *forge.WikiPage {
 	t.Helper()
-	h.Seed.AddRepo(Owner, Repo)
-	p, err := h.Port.CreateWikiPage(ctx, Owner, Repo, title, b64(content), "create "+title)
+	h.Seed.AddRepo(h.owner(), h.repo())
+	p, err := h.Port.CreateWikiPage(ctx, h.owner(), h.repo(), title, b64(content), "create "+title)
 	must(t, err)
 	return p
 }
@@ -39,8 +39,8 @@ func RunWiki(t *testing.T, newHarness func(t *testing.T) Harness) {
 			wantNotFound(t, err)
 		}},
 		{"a repository without pages lists none", func(t *testing.T, h Harness) {
-			h.Seed.AddRepo(Owner, Repo)
-			got, err := h.Port.ListWikiPages(ctx, Owner, Repo, 1, 30)
+			h.Seed.AddRepo(h.owner(), h.repo())
+			got, err := h.Port.ListWikiPages(ctx, h.owner(), h.repo(), 1, 30)
 			must(t, err)
 			if got.Pages == nil || len(got.Pages) != 0 {
 				t.Fatalf("want an empty non-nil list, got %#v", got.Pages)
@@ -51,7 +51,7 @@ func RunWiki(t *testing.T, newHarness func(t *testing.T) Harness) {
 			if made.Title != "My Page" || made.SubURL == "" || made.LastCommit.SHA == "" {
 				t.Fatalf("create answered %+v", made)
 			}
-			got, err := h.Port.GetWikiPage(ctx, Owner, Repo, made.SubURL)
+			got, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), made.SubURL)
 			must(t, err)
 			if got.Title != "My Page" || got.ContentBase64 != b64("# hello\n") || got.SubURL != made.SubURL {
 				t.Fatalf("read back %+v", got)
@@ -61,50 +61,71 @@ func RunWiki(t *testing.T, newHarness func(t *testing.T) Harness) {
 			}
 		}},
 		{"a get of an unknown page is not found", func(t *testing.T, h Harness) {
-			h.Seed.AddRepo(Owner, Repo)
-			_, err := h.Port.GetWikiPage(ctx, Owner, Repo, "Missing")
+			h.Seed.AddRepo(h.owner(), h.repo())
+			_, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), "Missing")
 			wantNotFound(t, err)
 		}},
 		{"a slash in a title is part of one page name", func(t *testing.T, h Harness) {
 			made := newWikiPage(t, h, "Guides/Setup", "setup")
 			for _, name := range []string{made.SubURL, "Guides/Setup", "Guides%2FSetup"} {
-				got, err := h.Port.GetWikiPage(ctx, Owner, Repo, name)
+				got, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), name)
 				must(t, err)
 				if got.Title != "Guides/Setup" {
 					t.Fatalf("reading %q gave %+v", name, got)
 				}
 			}
-			_, err := h.Port.GetWikiPage(ctx, Owner, Repo, "Guides")
+			_, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), "Guides")
 			wantNotFound(t, err)
 		}},
-		{"creating an existing title overwrites it", func(t *testing.T, h Harness) {
+		{"creating an existing title is refused and keeps the content", func(t *testing.T, h Harness) {
 			first := newWikiPage(t, h, "Home", "one")
-			_, err := h.Port.CreateWikiPage(ctx, Owner, Repo, "Home", b64("two"), "again")
-			must(t, err)
-			got, err := h.Port.GetWikiPage(ctx, Owner, Repo, first.SubURL)
-			must(t, err)
-			if got.ContentBase64 != b64("two") {
-				t.Fatalf("content %q, want the second write", got.ContentBase64)
+			_, err := h.Port.CreateWikiPage(ctx, h.owner(), h.repo(), "Home", b64("two"), "again")
+			if forge.StatusCode(err) != 400 {
+				t.Fatalf("got %v (status %d), want a 400 refusal", err, forge.StatusCode(err))
 			}
-			list, err := h.Port.ListWikiPages(ctx, Owner, Repo, 1, 30)
+			got, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), first.SubURL)
+			must(t, err)
+			if got.ContentBase64 != b64("one") {
+				t.Fatalf("content %q, want the first write", got.ContentBase64)
+			}
+			list, err := h.Port.ListWikiPages(ctx, h.owner(), h.repo(), 1, 30)
 			must(t, err)
 			if len(list.Pages) != 1 {
 				t.Fatalf("want one page, got %+v", list.Pages)
 			}
 		}},
+		{"a hyphenated title is stored under a suffixed name and refuses a second create", func(t *testing.T, h Harness) {
+			// Forgejo stores "delivery-workflow" as "delivery-workflow.-" (#388): only
+			// the name the create answered reads the page back.
+			made := newWikiPage(t, h, "delivery-workflow", "one")
+			got, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), made.SubURL)
+			must(t, err)
+			if got.Title != "delivery-workflow" || got.ContentBase64 != b64("one") {
+				t.Fatalf("read back %+v", got)
+			}
+			_, err = h.Port.CreateWikiPage(ctx, h.owner(), h.repo(), "delivery-workflow", b64("two"), "again")
+			if forge.StatusCode(err) != 400 {
+				t.Fatalf("got %v (status %d), want a 400 refusal", err, forge.StatusCode(err))
+			}
+			got, err = h.Port.GetWikiPage(ctx, h.owner(), h.repo(), made.SubURL)
+			must(t, err)
+			if got.ContentBase64 != b64("one") {
+				t.Fatalf("content %q, want the first write", got.ContentBase64)
+			}
+		}},
 		{"an edit changes content and records a revision", func(t *testing.T, h Harness) {
 			made := newWikiPage(t, h, "Home", "one")
-			edited, err := h.Port.EditWikiPage(ctx, Owner, Repo, made.SubURL, "Home", b64("two"), "edit")
+			edited, err := h.Port.EditWikiPage(ctx, h.owner(), h.repo(), made.SubURL, "Home", b64("two"), "edit")
 			must(t, err)
 			if edited.LastCommit.SHA == "" || edited.LastCommit.SHA == made.LastCommit.SHA {
 				t.Fatalf("edit commit %q, create commit %q", edited.LastCommit.SHA, made.LastCommit.SHA)
 			}
-			got, err := h.Port.GetWikiPage(ctx, Owner, Repo, made.SubURL)
+			got, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), made.SubURL)
 			must(t, err)
 			if got.ContentBase64 != b64("two") {
 				t.Fatalf("content %q", got.ContentBase64)
 			}
-			revs, err := h.Port.GetWikiPageRevisions(ctx, Owner, Repo, made.SubURL, 1, 30)
+			revs, err := h.Port.GetWikiPageRevisions(ctx, h.owner(), h.repo(), made.SubURL, 1, 30)
 			must(t, err)
 			if revs.Count != 2 || len(revs.Commits) != 2 || revs.Commits[0].SHA != edited.LastCommit.SHA || revs.Commits[0].Message != "edit" {
 				t.Fatalf("revisions %+v", revs)
@@ -112,34 +133,39 @@ func RunWiki(t *testing.T, newHarness func(t *testing.T) Harness) {
 		}},
 		{"an edit with a new title renames the page", func(t *testing.T, h Harness) {
 			made := newWikiPage(t, h, "Old", "body")
-			renamed, err := h.Port.EditWikiPage(ctx, Owner, Repo, made.SubURL, "New", b64("body"), "rename")
+			renamed, err := h.Port.EditWikiPage(ctx, h.owner(), h.repo(), made.SubURL, "New", b64("body"), "rename")
 			must(t, err)
 			if renamed.Title != "New" {
 				t.Fatalf("renamed %+v", renamed)
 			}
-			_, err = h.Port.GetWikiPage(ctx, Owner, Repo, made.SubURL)
+			_, err = h.Port.GetWikiPage(ctx, h.owner(), h.repo(), made.SubURL)
 			wantNotFound(t, err)
-			_, err = h.Port.GetWikiPage(ctx, Owner, Repo, renamed.SubURL)
+			_, err = h.Port.GetWikiPage(ctx, h.owner(), h.repo(), renamed.SubURL)
 			must(t, err)
 		}},
-		{"an edit of an unknown page is not found", func(t *testing.T, h Harness) {
-			h.Seed.AddRepo(Owner, Repo)
-			_, err := h.Port.EditWikiPage(ctx, Owner, Repo, "Missing", "Missing", b64("x"), "m")
-			wantNotFound(t, err)
+		{"an edit of an unknown page creates it", func(t *testing.T, h Harness) {
+			h.Seed.AddRepo(h.owner(), h.repo())
+			made, err := h.Port.EditWikiPage(ctx, h.owner(), h.repo(), "Missing", "Missing", b64("x"), "m")
+			must(t, err)
+			got, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), made.SubURL)
+			must(t, err)
+			if got.ContentBase64 != b64("x") {
+				t.Fatalf("content %q", got.ContentBase64)
+			}
 		}},
 		{"a deleted page is gone", func(t *testing.T, h Harness) {
 			made := newWikiPage(t, h, "Home", "one")
-			must(t, h.Port.DeleteWikiPage(ctx, Owner, Repo, made.SubURL))
-			_, err := h.Port.GetWikiPage(ctx, Owner, Repo, made.SubURL)
+			must(t, h.Port.DeleteWikiPage(ctx, h.owner(), h.repo(), made.SubURL))
+			_, err := h.Port.GetWikiPage(ctx, h.owner(), h.repo(), made.SubURL)
 			wantNotFound(t, err)
-			wantNotFound(t, h.Port.DeleteWikiPage(ctx, Owner, Repo, made.SubURL))
+			wantNotFound(t, h.Port.DeleteWikiPage(ctx, h.owner(), h.repo(), made.SubURL))
 		}},
 		{"list paginates and reports the total", func(t *testing.T, h Harness) {
 			for i := 0; i < 5; i++ {
 				newWikiPage(t, h, fmt.Sprint("Page", i), "x")
 			}
 			page := func(p int) forge.WikiPageList {
-				got, err := h.Port.ListWikiPages(ctx, Owner, Repo, p, 2)
+				got, err := h.Port.ListWikiPages(ctx, h.owner(), h.repo(), p, 2)
 				must(t, err)
 				return got
 			}
@@ -157,12 +183,12 @@ func RunWiki(t *testing.T, newHarness func(t *testing.T) Harness) {
 		{"revisions paginate newest first and an unknown page is not found", func(t *testing.T, h Harness) {
 			made := newWikiPage(t, h, "Home", "v1")
 			for i := 2; i <= 3; i++ {
-				_, err := h.Port.EditWikiPage(ctx, Owner, Repo, made.SubURL, "Home", b64(fmt.Sprint("v", i)), fmt.Sprint("edit ", i))
+				_, err := h.Port.EditWikiPage(ctx, h.owner(), h.repo(), made.SubURL, "Home", b64(fmt.Sprint("v", i)), fmt.Sprint("edit ", i))
 				must(t, err)
 			}
-			p1, err := h.Port.GetWikiPageRevisions(ctx, Owner, Repo, made.SubURL, 1, 2)
+			p1, err := h.Port.GetWikiPageRevisions(ctx, h.owner(), h.repo(), made.SubURL, 1, 2)
 			must(t, err)
-			p2, err := h.Port.GetWikiPageRevisions(ctx, Owner, Repo, made.SubURL, 2, 2)
+			p2, err := h.Port.GetWikiPageRevisions(ctx, h.owner(), h.repo(), made.SubURL, 2, 2)
 			must(t, err)
 			if p1.Count != 3 || p2.Count != 3 || len(p1.Commits) != 2 || len(p2.Commits) != 1 {
 				t.Fatalf("p1=%+v p2=%+v", p1, p2)
@@ -170,7 +196,7 @@ func RunWiki(t *testing.T, newHarness func(t *testing.T) Harness) {
 			if p1.Commits[0].Message != "edit 3" || p2.Commits[0].Message != "create Home" {
 				t.Fatalf("order: p1=%+v p2=%+v", p1.Commits, p2.Commits)
 			}
-			_, err = h.Port.GetWikiPageRevisions(ctx, Owner, Repo, "Missing", 1, 30)
+			_, err = h.Port.GetWikiPageRevisions(ctx, h.owner(), h.repo(), "Missing", 1, 30)
 			wantNotFound(t, err)
 		}},
 	}

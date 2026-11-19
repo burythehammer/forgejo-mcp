@@ -191,8 +191,8 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | `search_wiki` | Plain-text, case-insensitive search of a repo's wiki pages by title and body line. Returns `{hits, pages_scanned, pages_skipped, truncated}`; a hit is `{page_name, line, snippet}`, and a title match has no line. Bounded: at most 100 pages scanned and 20 hits returned, snippets capped at 120 bytes, and a page over 1 MiB is skipped and counted. `truncated: true` means a cap stopped the search. |
 | `get_wiki_page` | Read decoded Markdown; optional `start_line`/`end_line`, always returns `total_lines`. |
 | `get_wiki_revisions` | List revision history using `page`/`limit`; returns `has_next` and `total_count`, the page's total revision count as reported in the response body. |
-| `create_wiki_page` | Create a page and return its server-normalized `page_name`; slash-separated titles are a flat subpage naming convention (no hierarchy and no automatic parent page), and an existing title is refused (use `update_wiki_page`). The existence check and the create are two requests, so two simultaneous creates of one new title can both succeed. |
-| `update_wiki_page` | Update content/title by normalized `page_name`; last writer wins. |
+| `create_wiki_page` | Create a page and return its server-normalized `page_name`; slash-separated titles are a flat subpage naming convention (no hierarchy and no automatic parent page), and an existing title is refused (use `update_wiki_page`); Forgejo itself also answers 400 for an existing page. A title with a hyphen is stored as `<title>.-` and read back only by the `page_name` the create answered. The existence check and the create are two requests, so two simultaneous creates of one new title can both succeed. |
+| `update_wiki_page` | Update content/title by normalized `page_name`; last writer wins. A `page_name` that does not exist is refused (use `create_wiki_page`): Forgejo's own edit would create the page, so the tool reads it first. |
 | `delete_wiki_page` | Delete a page by normalized `page_name`. |
 | **Server** | |
 | `get_forgejo_mcp_server_version` | Get the MCP server version |

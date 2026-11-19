@@ -7,6 +7,9 @@ import (
 	"strconv"
 )
 
+// stubRevisionPageSize is the fixed history page size the live server used.
+const stubRevisionPageSize = 2
+
 const wikiBase = "/api/v1/repos/{owner}/{repo}/wiki"
 
 // wikiWrite is the body of a wiki create or edit.
@@ -40,10 +43,15 @@ func (s *Stub) mountWiki(mux *http.ServeMux) {
 		reply(w, p, err)
 	})
 	mux.HandleFunc("GET "+wikiBase+"/revisions/{name}", func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		page, _ := strconv.Atoi(q.Get("page"))
-		limit, _ := strconv.Atoi(q.Get("limit"))
-		out, err := f.GetWikiPageRevisions(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("name"), page, limit)
+		// Forgejo 16.0.4 ignores the limit query and pages the history by a
+		// fixed size, and ends each commit message with a newline.
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		out, err := f.GetWikiPageRevisions(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("name"), page, stubRevisionPageSize)
+		if out != nil {
+			for i := range out.Commits {
+				out.Commits[i].Message += "\n"
+			}
+		}
 		reply(w, out, err)
 	})
 	mux.HandleFunc("POST "+wikiBase+"/new", func(w http.ResponseWriter, r *http.Request) {

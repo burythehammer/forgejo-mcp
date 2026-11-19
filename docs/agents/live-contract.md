@@ -4,7 +4,7 @@
 
 The contract cases in `internal/forge/forgetest` run against the fake and against the SDK adapter pointed at a stub. A live run of the Forgejo adapter runs the same cases against a real Forgejo instance, so a disagreement between our assumptions and Forgejo shows up as a failing test.
 
-The first slice covers the hook cases (`forgetest.RunHooks`) and is `TestHooksContractLive` in `internal/forge/sdk/contract_live_test.go`. The wiki cases (`forgetest.RunWiki`) are `TestWikiContractLive` in the same file.
+The slices are the hook cases (`forgetest.RunHooks`, `TestHooksContractLive`) and the wiki cases (`forgetest.RunWiki`, `TestWikiContractLive`), both in `internal/forge/sdk/contract_live_test.go`. The wiki cases were first run against Forgejo 16.0.4; they corrected the fake in four places (create of an existing page is a 400, an edit of an unknown page creates it, revision `limit` is ignored, and hyphenated titles are stored as `<title>.-`). The wiki cases (`forgetest.RunWiki`) are `TestWikiContractLive` in the same file.
 
 ## Run it
 
