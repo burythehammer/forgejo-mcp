@@ -47,7 +47,7 @@ The list was inferred from the tfuk-specflow ticket texts, not from its code, so
 
 | Selection | Tools | Bytes | ~Tokens | Resource templates, ~tokens |
 |---|---:|---:|---:|---:|
-| Default (no selection) | 168 | 131,663 | 32,916 | 1,896 |
+| Default (no selection) | 169 | 131,663 | 32,916 | 1,896 |
 | `issues,labels,milestones,dependencies,user` | 39 | 34,452 | 8,613 | 813 |
 | `--preset tracker-core` | 24 | 25,580 | 6,395 | 0 |
 | `--preset tracker-core --lean` | 24 | 10,577 | 2,644 | 0 |

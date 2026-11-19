@@ -70,7 +70,7 @@ main.go → cmd/cmd.go (CLI parsing) → internal/operation/operation.go (tool r
 | `internal/operation/repo/` | Repository and branch tools |
 | `internal/operation/search/` | Search tools (users, repos, teams) |
 | `internal/operation/user/` | User info tools |
-| `internal/operation/version/` | Server version tool |
+| `internal/operation/version/` | MCP server version and Forgejo version tools |
 | `internal/forge/` | The Forgejo port: per-domain interfaces and the `Factory` (no SDK client import) |
 | `internal/forge/sdk/` | The Forgejo adapter (the real one): `Factory` (credential policy, startup checks) and `Adapter` over the SDK and one raw-HTTP client; the only package that constructs the SDK client or the raw transport. SDK types may appear in `internal/forge/*` and on the MCP adapter side (`internal/operation/*`, `internal/forge/*adapter/`), never under `internal/app/**` |
 | `internal/forge/fake/` | The fake Forgejo adapter: a stateful in-memory `forge.Forgejo` for tests |
@@ -131,6 +131,11 @@ domain has:
    `RegisterResource(s, f)`, a `handlers{forge: f}` struct (in each `internal/operation/<domain>/handlers.go`) whose methods call
    `h.forge.For(ctx)` per request (so each request gets its own credential), and
    thread `f` through `internal/operation/operation.go` and `cmd/cli.go`.
+   Exception: a tool whose Forgejo read sends no credential binds the factory
+   directly instead of calling `For(ctx)`, because `For` refuses a request that
+   carries no token of its own. `get_forgejo_version` does this
+   (`GetForgejoVersionFn` in `internal/operation/version/version.go`): its
+   Binder returns `f` as the `appversion.Prober`.
 6. **MCP adapter tests on the fake** (`internal/operation/<domain>/*_test.go`). Build a fresh
    `fake.New()` per test, call the MCP adapter, assert on the tool result, and
    `t.Parallel()`. No `flag.*`, no package-level Forgejo state, no `httptest`
@@ -321,7 +326,10 @@ func (h handlers) listThings() server.ToolHandlerFunc {
 `pipeline.Handle` (in `internal/operation/pipeline`, shared by every domain) is the one
 path a call takes: it decodes the arguments, runs `Validate`, and refuses a bad request
 as a tool error before the Binder runs. The Binder calls `h.forge.For(ctx)` for this
-request's credential and builds the use case over the bridge. Options: `pipeline.Strict()`
+request's credential and builds the use case over the bridge. The one exception is a
+tool whose Forgejo call sends no credential: its Binder returns the factory itself,
+because `For` refuses a request with no token (`get_forgejo_version`, see step 5 of
+"The Forgejo port and migrating a domain"). Options: `pipeline.Strict()`
 to refuse a missing or mistyped argument, `pipeline.Lax()` to decode forgivingly whatever
 the package default, and `pipeline.WithRaw()` with `pipeline.Raw(ctx)` for the few tools
 that must tell an absent argument from a present null. A domain does not call
@@ -450,6 +458,11 @@ return to.TextResult(data)
 // Error response
 return to.ErrorResult(fmt.Errorf("something went wrong: %v", err))
 ```
+
+The version tools are the exception to `to.TextResult`. `get_forgejo_mcp_server_version`
+and `get_forgejo_version` build their own `{"version": "..."}` JSON with
+`mcp.NewToolResultText` (`versionResult` in `internal/operation/version/version.go`), so
+their text has no `{"Result": ...}` envelope.
 
 ### Shared Parameter Descriptions
 

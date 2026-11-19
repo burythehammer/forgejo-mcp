@@ -18,7 +18,7 @@ type Prober interface {
 	ProbeServerVersion(ctx context.Context) (string, error)
 }
 
-// Run reports the server version, or "dev" when none was configured.
+// Run reports the MCP server version, or "dev" when none was configured.
 func Run(version string) Result {
 	if version == "" {
 		version = "dev"
