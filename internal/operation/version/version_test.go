@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+
 package version
 
 import (
@@ -15,28 +16,34 @@ import (
 )
 
 func TestMCPServerVersionOutputGolden(t *testing.T) {
+	t.Parallel()
 	mcptest.Golden(t, "version_1.2.3", []byte(callTool(t, GetForgejoMCPServerVersion, fake.Factory{}, "1.2.3")))
 	mcptest.Golden(t, "version_dev", []byte(callTool(t, GetForgejoMCPServerVersion, fake.Factory{}, "")))
 }
 
 func TestForgejoVersionOutputGolden(t *testing.T) {
+	t.Parallel()
 	mcptest.Golden(t, "get_forgejo_version_16.0.0", []byte(callTool(t, GetForgejoVersionToolName, fake.Factory{}, "")))
 	mcptest.Golden(t, "get_forgejo_version_17.0.0-rc1", []byte(callTool(t, GetForgejoVersionToolName, fake.Factory{Version: "17.0.0-rc1"}, "")))
 }
 
 func TestVersionSchemaSnapshot(t *testing.T) {
+	t.Parallel()
 	mcptest.SchemaSnapshot(t, GetForgejoMCPServerVersionTool)
 }
 
 func TestForgejoVersionSchemaSnapshot(t *testing.T) {
+	t.Parallel()
 	mcptest.SchemaSnapshot(t, GetForgejoVersionTool)
 }
 
 func TestVersionArgsMatchSchema(t *testing.T) {
+	t.Parallel()
 	mcptest.ArgsMatchSchema(t, GetForgejoMCPServerVersionTool, Args{})
 }
 
 func TestForgejoVersionArgsMatchSchema(t *testing.T) {
+	t.Parallel()
 	mcptest.ArgsMatchSchema(t, GetForgejoVersionTool, Args{})
 }
 
@@ -51,6 +58,7 @@ func (failingProbe) ProbeServerVersion(context.Context) (string, error) {
 }
 
 func TestForgejoVersionProbeErrorIsAToolError(t *testing.T) {
+	t.Parallel()
 	s := server.NewMCPServer("test", "0")
 	RegisterTool(s, "", failingProbe{})
 	tool := s.GetTool(GetForgejoVersionToolName)
