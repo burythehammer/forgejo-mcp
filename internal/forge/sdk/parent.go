@@ -6,7 +6,7 @@ import (
 	"errors"
 	"net/http"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
 )
 
 // notFoundOr decides what a 404 from a list or membership endpoint means. Forgejo

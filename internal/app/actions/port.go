@@ -11,7 +11,7 @@ package actions
 import (
 	"context"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // Port is the Forgejo Actions domain as the use cases need it, in repo-owned

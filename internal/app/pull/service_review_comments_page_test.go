@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/pull"
+	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/pull"
 )
 
 // pendingReviewWith creates a pending review carrying n inline comments, named

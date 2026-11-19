@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // MaxInlineBytes caps inline attachment payloads. Files at or above this size

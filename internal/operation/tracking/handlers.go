@@ -7,13 +7,13 @@ import (
 	"errors"
 	"math"
 
-	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/tracking"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/trackingadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/tracking"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/trackingadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/numarg"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

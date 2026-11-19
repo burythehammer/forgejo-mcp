@@ -7,10 +7,10 @@ import (
 	"errors"
 	"testing"
 
-	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
-	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/org"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/orgadapter"
+	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/issue"
+	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/org"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/orgadapter"
 )
 
 // An org's label list follows the same rule as every list under a parent: an

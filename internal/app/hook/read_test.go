@@ -6,14 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
 	"strings"
 	"testing"
 
-	apphook "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/hook"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/hookadapter"
+	apphook "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/hook"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/hookadapter"
 )
 
 // seedHooks creates n webhooks, each carrying the decoy secret.

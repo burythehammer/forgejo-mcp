@@ -5,12 +5,12 @@ package actions
 import (
 	"context"
 
-	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
+	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/actions"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/annotate"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

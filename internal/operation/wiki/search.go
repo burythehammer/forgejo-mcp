@@ -7,11 +7,11 @@ import (
 	"errors"
 	"strings"
 
-	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/wiki"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/wiki"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/lean"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/annotate"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

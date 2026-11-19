@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // fakeGit is a GitPort whose answers the tests set. Methods a test does not use

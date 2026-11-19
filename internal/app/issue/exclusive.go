@@ -6,7 +6,7 @@ import (
 	"context"
 	"strings"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // resolveApplied resolves the labels a write applies to an issue and refuses a

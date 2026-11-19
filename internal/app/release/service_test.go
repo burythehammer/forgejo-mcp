@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/download"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	apprelease "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/release"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/download"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	apprelease "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/release"
 )
 
 // stubPort is an in-memory apprelease.Port. The fields say what it returns.

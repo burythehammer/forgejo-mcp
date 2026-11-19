@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
 )
 
 // newWikiPage creates a page in the harness repository, making the repository first.

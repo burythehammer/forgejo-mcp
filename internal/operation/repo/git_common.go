@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/repogitadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/repogitadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

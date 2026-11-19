@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"strings"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/jwtissuer"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/jwtissuer"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/log"
 )
 
 const (

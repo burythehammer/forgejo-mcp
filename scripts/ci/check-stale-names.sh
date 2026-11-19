@@ -10,7 +10,7 @@
 # are not checked.
 #
 # It also guards the Go module path (#15): this fork's module is
-# forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3, and the upstream path
+# forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4, and the upstream path
 # must not creep back in through a hand-ported file (ADR 0001).
 #
 # Exit 0 when clean, 1 listing each stale reference.
@@ -42,7 +42,7 @@ if [ -n "$module_hits" ]; then
 	echo "" >&2
 	echo "$module_hits" >&2
 	echo "" >&2
-	echo "Use forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3 (ADR 0001)." >&2
+	echo "Use forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4 (ADR 0001)." >&2
 	exit 1
 fi
 

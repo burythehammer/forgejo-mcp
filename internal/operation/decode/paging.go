@@ -2,7 +2,7 @@
 
 package decode
 
-import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/numarg"
 
 // PagingArgs reads the page and limit arguments of a list call through the
 // numeric-argument module, so every list tool refuses the same bad value with

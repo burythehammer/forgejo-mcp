@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/toolset"
 )
 
 const defaultAudienceClaim = "forgejo_aud"
