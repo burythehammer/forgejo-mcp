@@ -16,10 +16,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported (the 16.0 floor, README) and newest stable 16.x.
-        # 17.0.0 is out but its release notes advise against upgrading; add it
-        # here when that changes.
-        forgejo: ['16.0.3', '16.0.6']
+        # Oldest supported (the 16.0 floor, README), newest stable 16.x, and
+        # latest stable 17.x. The matrix covers both sides of the 16/17 line.
+        forgejo: ['16.0.3', '16.0.6', '17.0.2']
     env:
       # Tracking issue that receives the failure comment.
       TRACKING_ISSUE: '263'
