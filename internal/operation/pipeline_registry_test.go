@@ -35,7 +35,7 @@ var domainRegistrars = map[string]func(*server.MCPServer, forge.Factory){
 	"search":   RegisterSearchTool,
 	"tracking": RegisterTrackingTool,
 	"user":     RegisterUserTool,
-	"version":  func(s *server.MCPServer, _ forge.Factory) { RegisterVersionTool(s, "test") },
+	"version":  func(s *server.MCPServer, f forge.Factory) { RegisterVersionTool(s, "test", f) },
 	"wiki":     RegisterWikiTool,
 }
 
