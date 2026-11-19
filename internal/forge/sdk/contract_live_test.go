@@ -4,6 +4,7 @@ package sdk
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"testing"
@@ -99,6 +100,22 @@ type liveSeed struct {
 	owner   string
 	name    string
 	created bool
+}
+
+// SetFile commits a file to the branch (the default branch when empty). It is
+// how a case gives the throwaway repository content, which Forgejo needs
+// before it accepts a hook test delivery.
+func (s *liveSeed) SetFile(owner, repo, branch, path, content string) error {
+	s.t.Helper()
+	if owner != s.owner || repo != s.name {
+		s.t.Fatalf("live case works in %s/%s, not %s/%s", s.owner, s.name, owner, repo)
+	}
+	opt := forgejo_sdk.CreateFileOptions{
+		FileOptions: forgejo_sdk.FileOptions{Message: "contract seed", BranchName: branch},
+		Content:     base64.StdEncoding.EncodeToString([]byte(content)),
+	}
+	_, _, err := s.client.CreateFile(owner, repo, path, opt)
+	return err
 }
 
 func (s *liveSeed) AddRepo(owner, repo string) {
