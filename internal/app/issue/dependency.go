@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // Dependencies lists the issues that an issue depends on, one page at a time.

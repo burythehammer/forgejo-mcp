@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"strings"
 
-	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/pull"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/pulladapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
+	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/pull"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/pulladapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/compact"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

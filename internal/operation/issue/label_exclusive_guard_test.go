@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
 )
 
 // A request that names two labels from one exclusive scope is refused before

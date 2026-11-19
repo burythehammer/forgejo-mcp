@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // Comments lists an issue's (or pull request's) comments, within the optional

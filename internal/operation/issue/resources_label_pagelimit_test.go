@@ -5,7 +5,7 @@ package issue
 import (
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/resource"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 

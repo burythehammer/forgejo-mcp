@@ -3,10 +3,10 @@
 package issue
 
 import (
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/decode"
 )
 
-import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/numarg"
 
 // Validate methods: each argument struct checks its required owner, repo or org,
 // then its numbers with the numeric-argument module, before the credential lookup

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // replacePort serves one issue and records the reads and writes the use case

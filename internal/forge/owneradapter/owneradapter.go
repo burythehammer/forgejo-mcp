@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	appowner "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/owner"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/bridge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	appowner "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/owner"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/bridge"
 )
 
 // New returns the owner use case's port over u and o.

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	appsearch "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/search"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	appsearch "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/search"
 )
 
 // The use cases run against a stub port that holds fixed, repo-owned data and

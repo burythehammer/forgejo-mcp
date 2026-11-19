@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // PageRead is one wiki page with the head of its history.

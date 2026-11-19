@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/repoadminadapter"
+	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/repoadminadapter"
 )
 
 // The admin use cases run against the in-memory fake through the bridge: no

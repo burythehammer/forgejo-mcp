@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/forgetest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/forgetest"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

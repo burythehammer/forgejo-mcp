@@ -12,9 +12,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/resource"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

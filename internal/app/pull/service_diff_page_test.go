@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/pull"
+	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/pull"
 )
 
 const threeFiles = "diff --git a/a.go b/a.go\n+a\ndiff --git a/b.go b/b.go\n+b\ndiff --git a/c.go b/c.go\n+c\n"

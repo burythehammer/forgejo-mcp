@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

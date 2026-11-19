@@ -5,9 +5,9 @@ package issue
 import (
 	"context"
 
-	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/issueadapter"
+	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/issueadapter"
 )
 
 // handlers serve the issue, label and dependency tools. They hold the factory

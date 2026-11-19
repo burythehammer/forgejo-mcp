@@ -6,7 +6,7 @@ import (
 	"crypto/tls"
 	"net/http"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
 )
 
 // tlsTransport is the one transport every Forgejo client shares when the

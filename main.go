@@ -5,7 +5,7 @@ package main
 import (
 	"runtime/debug"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/cmd"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/cmd"
 )
 
 var Version = "dev"

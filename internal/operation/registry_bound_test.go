@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/branchprotection"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/hook"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/issue"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pull"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/wiki"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/branchprotection"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/hook"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/pull"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/wiki"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

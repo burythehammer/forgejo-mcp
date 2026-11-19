@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/issue"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

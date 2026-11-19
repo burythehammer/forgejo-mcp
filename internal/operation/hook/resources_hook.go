@@ -8,13 +8,13 @@ import (
 	"errors"
 	"fmt"
 
-	apphook "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/hook"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/hookadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
+	apphook "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/hook"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/hookadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/resource"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

@@ -9,9 +9,9 @@ package packagesadapter
 import (
 	"context"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/packages"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/packages"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
 )
 
 // New returns the use cases' port over p.

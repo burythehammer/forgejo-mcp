@@ -11,9 +11,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation"
 )
 
 // Execute is the composition root: the one place that loads the configuration,

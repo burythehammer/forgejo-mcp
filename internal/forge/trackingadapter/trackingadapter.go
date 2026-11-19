@@ -12,10 +12,10 @@ package trackingadapter
 import (
 	"context"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/tracking"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/bridge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/tracking"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/bridge"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

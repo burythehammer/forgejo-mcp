@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/lean"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

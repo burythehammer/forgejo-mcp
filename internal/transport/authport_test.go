@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
 )
 
 // The authentication port is tested at its own seam: an inbound request and a

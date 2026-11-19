@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
 )
 
 // stalledServer accepts each connection and never answers it, until the test

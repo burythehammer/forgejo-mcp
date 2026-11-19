@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/actions"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // stubPort is an in-memory app.Port. Each field is what the matching method

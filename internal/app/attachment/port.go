@@ -11,7 +11,7 @@ import (
 	"context"
 	"io"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // Scope says which parent an attachment hangs off: an issue (by its index) or

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 func scoped(name string, exclusive bool) model.ScopedLabel {

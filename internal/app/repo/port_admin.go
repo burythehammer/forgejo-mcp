@@ -9,7 +9,7 @@ package repo
 import (
 	"context"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // AdminPort is the repository-administration part of Forgejo as the admin use

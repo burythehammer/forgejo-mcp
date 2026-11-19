@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/oauthrs"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/oauthrs"
 	"go.uber.org/zap"
 )
 

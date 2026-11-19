@@ -6,10 +6,10 @@ import (
 	"context"
 	"fmt"
 
-	appversion "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/version"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	appversion "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/version"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/annotate"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/pipeline"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

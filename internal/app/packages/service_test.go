@@ -7,8 +7,8 @@ import (
 	"errors"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/packages"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	apppkg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/packages"
 )
 
 // The use cases run against a hand-written port: the behaviour under test is

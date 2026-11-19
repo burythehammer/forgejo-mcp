@@ -6,10 +6,10 @@ import (
 	"sort"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/toolset"
 )
 
 func builtTools(t *testing.T, cfg config.Config) []string {

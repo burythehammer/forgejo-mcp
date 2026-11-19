@@ -3,7 +3,7 @@
 package pull
 
 import (
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/decode"
 )
 
 func (a *listArgs) Validate() error { return decode.RequiredRepo(a.Owner, a.Repo) }

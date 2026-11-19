@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/pipeline"
+	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/actions"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/pipeline"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

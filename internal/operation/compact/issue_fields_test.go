@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 func jsonKeys(t *testing.T, v any) map[string]json.RawMessage {

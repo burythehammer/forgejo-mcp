@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 

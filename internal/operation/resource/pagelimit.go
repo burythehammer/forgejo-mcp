@@ -5,7 +5,7 @@ package resource
 import (
 	"net/url"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/numarg"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

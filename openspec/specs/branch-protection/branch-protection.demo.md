@@ -94,7 +94,7 @@ go test -v -count=1 -run "BranchProtection|ParseBranchProtection|CreateRoundTrip
 --- PASS: TestEditEmptyListClearsIt (0.00s)
 --- PASS: TestEditChangesOnlyTheFieldsPassed (0.00s)
 PASS
-ok   forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/branchprotection 0.003s
+ok   forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/app/branchprotection 0.003s
 === RUN   TestGolden
 === RUN   TestBranchProtectionsResource_HappyPath
 === RUN   TestBranchProtectionsResource_Truncation
@@ -110,7 +110,7 @@ ok   forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/app/branchprotection
 --- PASS: TestGolden (0.00s)
     --- PASS: TestGolden/edit_whitelists (0.00s)
 PASS
-ok   forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/branchprotection 0.008s
+ok   forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation/branchprotection 0.008s
 === RUN   TestParseBranchProtections
 --- PASS: TestParseBranchProtections (0.00s)
 === RUN   TestParseBranchProtections_Invalid
@@ -124,7 +124,7 @@ ok   forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/branchprot
 === RUN   TestParseBranchProtection_Invalid
 --- PASS: TestParseBranchProtection_Invalid (0.00s)
 PASS
-ok   forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation/resource 0.006s
+ok   forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation/resource 0.006s
 ```
 
 ## What this demo does not show (by design)

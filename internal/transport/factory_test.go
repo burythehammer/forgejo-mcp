@@ -3,8 +3,8 @@
 package transport
 
 import (
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/sdk"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/sdk"
 )
 
 // newFactory mirrors operation.newFactory, which the composition root uses in

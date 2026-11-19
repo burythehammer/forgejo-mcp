@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	apphook "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/hook"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/hookadapter"
+	apphook "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/hook"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/hookadapter"
 )
 
 // The use cases run against the in-memory fake through the hook adapter: no

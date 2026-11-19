@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
 )
 
 // These tests pin how arguments and environment resolve into settings, and

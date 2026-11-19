@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/jwtissuer"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/oauthrs"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/jwtissuer"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/oauthrs"
 )
 
 const (
