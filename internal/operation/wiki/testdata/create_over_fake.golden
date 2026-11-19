@@ -2,4 +2,4 @@ create new title: {"Result":{"title":"Home","page_name":"Home","commit_sha":"3a0
 create existing title: ERROR create wiki page: "Home" already exists; use update_wiki_page to change it
 read after refused create: {"Result":{"title":"Home","page_name":"Home","content":"one","commit_sha":"3a0fa5fe449ff166b407774aa07aa5544b4d2739","total_lines":1}}
 create guides: {"Result":{"title":"Guides/Setup","page_name":"Guides%2FSetup","commit_sha":"61d07756a21ea5803558d600508b62765c3138e3"}}
-create percent-encoded variant: ERROR create wiki page: "Guides%2FSetup" already exists; use update_wiki_page to change it
+create percent-encoded variant: ERROR create wiki page: title "Guides%2FSetup" is percent-encoded; use the plain title "Guides/Setup" (a page_name is not a title)
