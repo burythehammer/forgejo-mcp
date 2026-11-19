@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // ReadOptions says what a read of one pull request carries beyond the pull

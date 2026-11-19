@@ -5,8 +5,8 @@ package issue
 import (
 	"errors"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/outfile"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/outfile"
 )
 
 // The argument structs below have no numeric argument to check, so their only

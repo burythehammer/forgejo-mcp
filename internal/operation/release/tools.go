@@ -6,8 +6,8 @@
 package release
 
 import (
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/annotate"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

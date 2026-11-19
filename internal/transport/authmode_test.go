@@ -20,8 +20,8 @@ import (
 	"sync"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/config"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/log"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/config"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/log"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"go.uber.org/zap"

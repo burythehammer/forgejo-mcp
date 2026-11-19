@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/resource"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/resource"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 	"github.com/mark3labs/mcp-go/mcp"

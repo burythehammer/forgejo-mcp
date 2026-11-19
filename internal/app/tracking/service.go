@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/ptr"
 )
 
 // Service runs the time-tracking use cases. It holds only its Source; the port

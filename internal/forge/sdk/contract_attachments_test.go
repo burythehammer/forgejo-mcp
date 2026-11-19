@@ -5,7 +5,7 @@ package sdk
 import (
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/forgetest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/forgetest"
 )
 
 // attachmentHarness builds the real adapter against a fresh stub, with its

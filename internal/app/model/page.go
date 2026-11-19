@@ -2,7 +2,7 @@
 
 package model
 
-import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
 
 // PageWindow is the window of a paged list response: the page asked for, the
 // limit it was read with and how many rows it holds.

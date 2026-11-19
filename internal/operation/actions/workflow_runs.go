@@ -5,15 +5,15 @@ package actions
 import (
 	"context"
 	"fmt"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/numarg"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/decode"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/numarg"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/decode"
 
-	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/actions"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcpresult"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	app "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/actions"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/annotate"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/mcpresult"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/to"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )

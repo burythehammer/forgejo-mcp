@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/toolset"
 )
 
 func presetToolsOf(t *testing.T, name string) []string {

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/ptr"
 )
 
 // corpus is a fixed list of n items 1..n, served the way Forgejo serves a

@@ -8,7 +8,7 @@ package mcpresult
 import (
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/to"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/to"
 )
 
 // Fail sends a use case's error to the client. It is returned as the handler's

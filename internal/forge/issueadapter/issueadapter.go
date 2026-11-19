@@ -15,12 +15,12 @@ import (
 	"fmt"
 	"net/http"
 
-	appissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/bridge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
+	appissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/issue"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/bridge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/ptr"
 
 	forgejo_sdk "codeberg.org/mvdkleijn/forgejo-sdk/forgejo/v3"
 )

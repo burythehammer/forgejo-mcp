@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/toolset"
 )
 
 // TestMain lets the tests below run the real entry point in a child process:

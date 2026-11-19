@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	appbp "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/branchprotection"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/branchprotectionadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
+	appbp "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/branchprotection"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/branchprotectionadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
 )
 
 // The use cases run against the in-memory fake through the branch protection

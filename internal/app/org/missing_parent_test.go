@@ -8,10 +8,10 @@ import (
 	"slices"
 	"testing"
 
-	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/org"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/orgadapter"
+	apporg "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/org"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/orgadapter"
 )
 
 // The member list of an org that does not exist is the shared not-found

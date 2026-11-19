@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"testing"
 
-	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/repo"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/repoadminadapter"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/repogitadapter"
+	apprepo "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/repo"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/fake"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/repoadminadapter"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/repogitadapter"
 )
 
 const (

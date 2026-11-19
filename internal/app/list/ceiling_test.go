@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/ptr"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/ptr"
 )
 
 func TestFileCeilingIs1000Rows(t *testing.T) {

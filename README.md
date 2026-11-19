@@ -23,7 +23,7 @@ Examples of what you can ask:
 **Option A: Go install (recommended)**
 
 ```bash
-go install forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3@latest
+go install forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4@latest
 ```
 
 Ensure `$GOPATH/bin` (typically `~/go/bin`) is in your PATH.

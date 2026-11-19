@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
 )
 
 var _ forge.Packages = (*Adapter)(nil)

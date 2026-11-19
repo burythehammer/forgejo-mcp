@@ -5,7 +5,7 @@ package sdk
 import (
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/forgetest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge/forgetest"
 )
 
 // The real adapter, reading a refusal's JSON body off the stub, must meet the

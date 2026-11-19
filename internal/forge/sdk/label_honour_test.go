@@ -5,7 +5,7 @@ package sdk
 import (
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
 )
 
 // A write that asks for exclusive must fail when the forge reports another

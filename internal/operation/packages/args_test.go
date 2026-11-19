@@ -5,7 +5,7 @@ package packages
 import (
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/mcptest"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/mcptest"
 )
 
 // TestArgsMatchSchema keeps each tool's argument struct in agreement with its

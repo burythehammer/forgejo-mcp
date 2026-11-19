@@ -3,11 +3,11 @@
 package pull
 
 import (
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/annotate"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/compact"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/operation/params"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/lean"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/annotate"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/compact"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/operation/params"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

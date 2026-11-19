@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/pull"
+	apppull "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/pull"
 )
 
 func TestCreateResolvesLabelNamesAndIDsBeforeOpening(t *testing.T) {

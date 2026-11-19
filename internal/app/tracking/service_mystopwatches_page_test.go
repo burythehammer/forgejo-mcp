@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
-	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/tracking"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
+	apptracking "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/tracking"
 )
 
 func myStopwatches(n int) []*model.StopWatch {

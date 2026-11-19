@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/forge"
 )
 
 // answered is the result of a call whose SDK method discards the response

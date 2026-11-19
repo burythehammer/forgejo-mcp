@@ -2,7 +2,7 @@
 
 package model
 
-import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/list"
+import "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/list"
 
 // ReleasePage is the response of list_releases: one page of releases with the
 // continuation signal of docs/design/output-bounding.md.

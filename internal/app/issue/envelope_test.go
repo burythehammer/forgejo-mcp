@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/issue"
+	apppissue "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/issue"
 )
 
 // envelope is the continuation signal every paged issue-domain list returns.

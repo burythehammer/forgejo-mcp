@@ -1,4 +1,4 @@
-module forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3
+module forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4
 
 go 1.26.0
 

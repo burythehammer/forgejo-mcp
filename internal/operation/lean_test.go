@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/lean"
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/toolset"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/lean"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/toolset"
 
 	"github.com/mark3labs/mcp-go/server"
 )

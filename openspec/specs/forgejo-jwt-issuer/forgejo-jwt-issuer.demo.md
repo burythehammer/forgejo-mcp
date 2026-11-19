@@ -75,7 +75,7 @@ proof ./operation/ -run '^TestAToolCallReachesForgejoWithTheMintedTokenOnly$'
 
 ```output
 --- PASS: TestAToolCallReachesForgejoWithTheMintedTokenOnly
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#two-mcp-requests -->
@@ -94,7 +94,7 @@ proof ./pkg/jwtissuer/ -run '^TestMintedTokensDifferInJTI$'
 
 ```output
 --- PASS: TestMintedTokensDifferInJTI
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/pkg/jwtissuer
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#claims-of-a-minted-jwt -->
@@ -117,7 +117,7 @@ proof ./pkg/jwtissuer/ -run '^TestMintedTokenShape$'
     issuer_test.go:252: header {"alg":"ES256","kid":"uCcu3ARkHb5Vvk82Blha-UHVfLceUXlAjpT4cgTVr6g","typ":"JWT"}
     issuer_test.go:253: claims {"aud":"u:1:08759546-30f8-48f4-bd7e-b57dd7ddcd42","exp":1789063766,"iat":1789063406,"iss":"https://mcp.example.org/issuer","jti":"NN4dRdqVL7LNwiyBJHV7CA","sub":"388443616722288641"}
 --- PASS: TestMintedTokenShape
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/pkg/jwtissuer
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#forgejo-s-clock-is-slightly-behind -->
@@ -138,7 +138,7 @@ proof ./pkg/jwtissuer/ -run '^TestMintedTokenShape$'
     issuer_test.go:252: header {"alg":"ES256","kid":"c8E4lh1XcXsWRf6ZkXl2OZ96ADDO09lxVbik_E2ZDf0","typ":"JWT"}
     issuer_test.go:253: claims {"aud":"u:1:08759546-30f8-48f4-bd7e-b57dd7ddcd42","exp":1789063766,"iat":1789063406,"iss":"https://mcp.example.org/issuer","jti":"WY1tN0S2eJjDvZoWlAArpQ","sub":"388443616722288641"}
 --- PASS: TestMintedTokenShape
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/pkg/jwtissuer
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#claim-missing -->
@@ -159,7 +159,7 @@ proof ./operation/ -run '^TestATokenWithoutAUsableForgejoAudienceIsForbidden$/^c
 ```output
 --- PASS: TestATokenWithoutAUsableForgejoAudienceIsForbidden
     --- PASS: TestATokenWithoutAUsableForgejoAudienceIsForbidden/claim_missing
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation
 ```
 
 <!-- evidence-kind: external-artifact -->
@@ -208,7 +208,7 @@ proof ./operation/ -run '^TestATokenWithoutAUsableForgejoAudienceIsForbidden$/^c
 ```output
 --- PASS: TestATokenWithoutAUsableForgejoAudienceIsForbidden
     --- PASS: TestATokenWithoutAUsableForgejoAudienceIsForbidden/claim_is_an_array
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#custom-claim-name -->
@@ -227,7 +227,7 @@ proof ./operation/ -run '^TestCustomAudienceClaimName$'
 
 ```output
 --- PASS: TestCustomAudienceClaimName
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#p-256-key -->
@@ -263,7 +263,7 @@ proof ./pkg/jwtissuer/ -run '^TestKeyTypeDeterminesAlgorithm$'
     --- PASS: TestKeyTypeDeterminesAlgorithm/EC_P-384
     --- PASS: TestKeyTypeDeterminesAlgorithm/Ed25519
     --- PASS: TestKeyTypeDeterminesAlgorithm/RSA_2048
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/pkg/jwtissuer
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#unsupported-key -->
@@ -286,9 +286,9 @@ proof ./pkg/jwtissuer/ ./operation/ -run '^(TestUnsupportedKeysAreRefusedNamingT
     --- PASS: TestUnsupportedKeysAreRefusedNamingTheFile/RSA_1024
     --- PASS: TestUnsupportedKeysAreRefusedNamingTheFile/EC_P-521
     --- PASS: TestUnsupportedKeysAreRefusedNamingTheFile/X25519
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/pkg/jwtissuer
 --- PASS: TestPrepareResourceServerRefusesAnUnsupportedSigningKey
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#forgejo-fetches-discovery -->
@@ -323,9 +323,9 @@ proof ./pkg/jwtissuer/ ./operation/ -run '^(TestDiscoveryDocumentHasExactlyThree
 
 ```output
 --- PASS: TestDiscoveryDocumentHasExactlyThreeMembers
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/pkg/jwtissuer
 --- PASS: TestIssuerDocumentsAreServedUnderTheIssuerPath
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#private-key-material-never-published -->
@@ -355,7 +355,7 @@ proof ./pkg/jwtissuer/ -run '^TestKeySetPublishesPublicParametersOfEveryKey$'
 
 ```output
 --- PASS: TestKeySetPublishesPublicParametersOfEveryKey
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/pkg/jwtissuer
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#key-published-ahead-of-use -->
@@ -375,7 +375,7 @@ proof ./pkg/jwtissuer/ -run '^TestKeySetPublishesPublicParametersOfEveryKey$'
 
 ```output
 --- PASS: TestKeySetPublishesPublicParametersOfEveryKey
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/pkg/jwtissuer
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/pkg/jwtissuer
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#startup-warning -->
@@ -406,7 +406,7 @@ proof ./operation/ -run '^TestPrepareResourceServerSucceedsAndWarnsAboutTheSigni
 
 ```output
 --- PASS: TestPrepareResourceServerSucceedsAndWarnsAboutTheSigningKey
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation
 ```
 
 <!-- spec-scenario: forgejo-jwt-issuer#minted-jwts-are-not-logged -->
@@ -425,7 +425,7 @@ proof ./operation/ -run '^TestNeitherTokenIsLoggedAtAnyLevel$'
 
 ```output
 --- PASS: TestNeitherTokenIsLoggedAtAnyLevel
-ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/operation
+ok  	forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/operation
 ```
 
 <!-- evidence-kind: external-artifact -->

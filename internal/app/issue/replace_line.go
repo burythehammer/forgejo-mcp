@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/model"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v4/internal/app/model"
 )
 
 // ReplaceBodyLineInput replaces one piece of an issue's body. Old is matched as
