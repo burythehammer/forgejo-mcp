@@ -94,7 +94,7 @@ func (f *Forgejo) CreateRepoHook(_ context.Context, owner, repo string, opt forg
 		ID:      f.hooks.next,
 		Type:    string(opt.Type),
 		Config:  map[string]string{},
-		Events:  opt.Events,
+		Events:  expandEvents(opt.Events),
 		Active:  opt.Active,
 		Created: now,
 		Updated: now,
@@ -140,7 +140,7 @@ func (f *Forgejo) EditRepoHook(_ context.Context, owner, repo string, id int64, 
 		}
 	}
 	if opt.Events != nil {
-		h.Events = opt.Events
+		h.Events = expandEvents(opt.Events)
 	}
 	if opt.BranchFilter != nil {
 		if *opt.BranchFilter == "" {
@@ -177,6 +177,8 @@ func (f *Forgejo) DeleteRepoHook(_ context.Context, owner, repo string, id int64
 	return nil
 }
 
+// TestRepoHook queues a test delivery. Forgejo refuses one in a repository with
+// no content (404 "repository is empty"), so the fake does too.
 func (f *Forgejo) TestRepoHook(_ context.Context, owner, repo string, id int64) error {
 	f.hooks.mu.Lock()
 	defer f.hooks.mu.Unlock()
@@ -187,7 +189,53 @@ func (f *Forgejo) TestRepoHook(_ context.Context, owner, repo string, id int64) 
 	if _, err := findHook(hooks, id); err != nil {
 		return err
 	}
+	if !f.repoHasContent(owner, repo) {
+		return notFound("repository is empty")
+	}
 	return nil
+}
+
+// repoHasContent reports whether owner/repo has a file on its default branch.
+// A repository made by AddRepo starts with none, as an empty Forgejo one does.
+func (f *Forgejo) repoHasContent(owner, repo string) bool {
+	f.files.mu.Lock()
+	defer f.files.mu.Unlock()
+	r, err := f.files.repo(owner, repo)
+	return err == nil && len(r.branches[DefaultBranch]) > 0
+}
+
+// pullRequestGroup is every event a "pull_request" subscription expands to.
+var pullRequestGroup = []string{
+	"pull_request", "pull_request_assign", "pull_request_label", "pull_request_milestone",
+	"pull_request_comment", "pull_request_review_approved", "pull_request_review_rejected",
+	"pull_request_review_comment", "pull_request_sync", "pull_request_review_request",
+}
+
+// expandEvents applies Forgejo's event-group expansion, on create and on edit:
+// "pull_request" becomes the whole pull_request group in place, and a repeated
+// event is kept once. A nil list stays nil, which the edit rule relies on.
+func expandEvents(events []string) []string {
+	if events == nil {
+		return nil
+	}
+	out := make([]string, 0, len(events))
+	seen := map[string]bool{}
+	add := func(e string) {
+		if !seen[e] {
+			seen[e] = true
+			out = append(out, e)
+		}
+	}
+	for _, e := range events {
+		if e == "pull_request" {
+			for _, g := range pullRequestGroup {
+				add(g)
+			}
+			continue
+		}
+		add(e)
+	}
+	return out
 }
 
 // HookAuthorizationHeader reports the authorization header last set on a hook

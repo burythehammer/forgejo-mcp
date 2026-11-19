@@ -92,7 +92,7 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 				Events: []string{"pull_request"},
 			}))
 			got := readHook(t, h, created.ID)
-			if !sameEvents(got.Events, "pull_request") || got.Config["url"] != "https://example.test/a" ||
+			if !sameEvents(got.Events, pullRequestEvents...) || got.Config["url"] != "https://example.test/a" ||
 				got.Config["branch_filter"] != "main" || !got.Active {
 				t.Fatalf("after events-only edit: %+v", got)
 			}
@@ -172,11 +172,16 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 				t.Fatalf("total count = %v, want 3", p1.TotalCount)
 			}
 		}},
-		{"a test delivery of a known hook succeeds, of an unknown one is not found", func(t *testing.T, h Harness) {
+		{"a test delivery of a known hook succeeds once the repository has content, of an unknown one is not found", func(t *testing.T, h Harness) {
 			created := newHook(t, h, "https://example.test/a")
-			tctx := ctx
-			must(t, h.Port.TestRepoHook(tctx, h.owner(), h.repo(), created.ID))
-			wantNotFound(t, h.Port.TestRepoHook(tctx, h.owner(), h.repo(), 99))
+			must(t, h.Seed.SetFile(h.owner(), h.repo(), "", "README.md", "# contract\n"))
+			must(t, h.Port.TestRepoHook(ctx, h.owner(), h.repo(), created.ID))
+			wantNotFound(t, h.Port.TestRepoHook(ctx, h.owner(), h.repo(), 99))
+		}},
+		{"a test delivery in an empty repository is not found", func(t *testing.T, h Harness) {
+			// Forgejo answers 404 "repository is empty" for a repository with no commits.
+			created := newHook(t, h, "https://example.test/a")
+			wantNotFound(t, h.Port.TestRepoHook(ctx, h.owner(), h.repo(), created.ID))
 		}},
 	}
 	for _, tc := range cases {
@@ -185,6 +190,15 @@ func RunHooks(t *testing.T, newHarness func(t *testing.T) Harness) {
 			tc.run(t, newHarness(t))
 		})
 	}
+}
+
+// pullRequestEvents is what Forgejo stores and serves for a subscription to
+// "pull_request": the group expands to every pull_request sub-event, on create
+// and on edit. Observed on Forgejo 16.0.6 and 17.0.2 (the live contract run).
+var pullRequestEvents = []string{
+	"pull_request", "pull_request_assign", "pull_request_label", "pull_request_milestone",
+	"pull_request_comment", "pull_request_review_approved", "pull_request_review_rejected",
+	"pull_request_review_comment", "pull_request_sync", "pull_request_review_request",
 }
 
 // sameEvents reports whether got is exactly the events in want, in order.
