@@ -5,7 +5,7 @@
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "description": "Get MCP server version",
+  "description": "Get the MCP server version, as {\"version\": \"...\"}. This is the MCP server's own version, not the Forgejo version (see get_forgejo_version).",
   "inputSchema": {
     "properties": {},
     "required": [],

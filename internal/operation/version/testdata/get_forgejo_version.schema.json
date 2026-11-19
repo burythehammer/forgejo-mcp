@@ -1,0 +1,15 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "description": "Get the Forgejo version of the configured instance, as {\"version\": \"...\"}, unparsed (for example 17.0.0-rc1). One request to the instance, which needs no credential.",
+  "inputSchema": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "name": "get_forgejo_version"
+}

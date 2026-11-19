@@ -107,6 +107,7 @@ var expectedHints = map[string]string{
 	"get_commit_statuses":                 hintRead,
 	"get_file_content":                    hintRead,
 	"get_forgejo_mcp_server_version":      hintRead,
+	"get_forgejo_version":                 hintRead,
 	"get_issue_attachment":                hintRead,
 	"get_issue_by_index":                  hintRead,
 	"get_issue_comment":                   hintRead,

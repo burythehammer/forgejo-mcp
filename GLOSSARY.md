@@ -37,6 +37,14 @@ _Avoid_: profile, bundle, tier
 A named selection of individual tools that may cross domains, such as `tracker-core`. A preset holds no toolsets and registers no resource templates; it combines with toolsets and individual tools as a union.
 _Avoid_: profile, bundle, tier
 
+**Forgejo version**:
+The version string the configured Forgejo instance reports at `/api/v1/version`, returned unparsed by `get_forgejo_version`.
+_Avoid_: server version, Forgejo server version
+
+**MCP server version**:
+The version of this MCP server build (the configured value, `dev` when none), returned by `get_forgejo_mcp_server_version`. It is not the Forgejo version.
+_Avoid_: server version, build version
+
 **Use case**:
 The MCP-free unit of application logic behind one tool: takes plain inputs, reaches Forgejo only through the Forgejo port, and returns a repo-owned result type. It lives under `internal/app/<domain>/`, where `service.go` holds the domain's use cases as methods on a `Service` type. "Service" is that Go type name only; the concept is the use case.
 _Avoid_: handler, service, operation

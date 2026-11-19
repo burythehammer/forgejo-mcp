@@ -6,15 +6,32 @@
 // repo-owned result types for an MCP adapter in internal/operation/ to render.
 package version
 
+import "context"
+
 // Result is what the version use case reports.
 type Result struct {
 	Version string
 }
 
-// Run reports the server version, or "dev" when none was configured.
+// Prober is the part of the Forgejo port the version probe needs.
+type Prober interface {
+	ProbeServerVersion(ctx context.Context) (string, error)
+}
+
+// Run reports the MCP server version, or "dev" when none was configured.
 func Run(version string) Result {
 	if version == "" {
 		version = "dev"
 	}
 	return Result{Version: version}
+}
+
+// ProbeForgejo reports the Forgejo version the instance announces. The version
+// is returned as the instance sent it, unparsed (17.0.0-rc1 stays 17.0.0-rc1).
+func ProbeForgejo(ctx context.Context, p Prober) (Result, error) {
+	v, err := p.ProbeServerVersion(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Version: v}, nil
 }

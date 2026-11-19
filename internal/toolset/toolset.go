@@ -282,6 +282,7 @@ var catalogue = []Toolset{
 		Name: "version",
 		Tools: []string{
 			"get_forgejo_mcp_server_version",
+			"get_forgejo_version",
 		},
 	},
 }
