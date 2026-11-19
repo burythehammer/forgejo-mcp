@@ -79,6 +79,6 @@ Per-toolset figures below are the same measure for a selection of that one tools
 | `branch-protection` | 5 | 1383 | `create_branch_protection`, `delete_branch_protection`, `edit_branch_protection`, `get_branch_protection`, `list_branch_protections` |
 | `webhooks` | 6 | 1218 | `create_repo_hook`, `delete_repo_hook`, `edit_repo_hook`, `get_repo_hook`, `list_repo_hooks`, `test_repo_hook` |
 | `wiki` | 7 | 1058 | `create_wiki_page`, `delete_wiki_page`, `get_wiki_page`, `get_wiki_revisions`, `list_wiki_pages`, `search_wiki`, `update_wiki_page` |
-| `version` | 1 | 73 | `get_forgejo_mcp_server_version` |
+| `version` | 2 | 199 | `get_forgejo_mcp_server_version`, `get_forgejo_version` |
 
 

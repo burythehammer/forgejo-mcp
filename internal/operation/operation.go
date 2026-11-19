@@ -57,7 +57,7 @@ func RegisterSelectedTool(s *server.MCPServer, version string, f forge.Factory, 
 	RegisterPullTool(s, f)
 	RegisterPullReviewTool(s, f)
 	RegisterSearchTool(s, f)
-	RegisterVersionTool(s, version)
+	RegisterVersionTool(s, version, f)
 	RegisterActionsTool(s, f)
 	RegisterOrgTool(s, f)
 	RegisterPackagesTool(s, f)
@@ -123,8 +123,8 @@ func RegisterSearchTool(s *server.MCPServer, f forge.Factory) {
 	log.Debug("Registered search tools")
 }
 
-func RegisterVersionTool(s *server.MCPServer, ver string) {
-	version.RegisterTool(s, ver)
+func RegisterVersionTool(s *server.MCPServer, ver string, f forge.Factory) {
+	version.RegisterTool(s, ver, f)
 	log.Debug("Registered version tools")
 }
 

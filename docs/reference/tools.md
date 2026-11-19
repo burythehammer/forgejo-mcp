@@ -195,7 +195,8 @@ Paged list tools return an envelope with `page`, `limit`, `count`, `has_next` an
 | `update_wiki_page` | Update content/title by normalized `page_name`; last writer wins. A `page_name` that does not exist is refused (use `create_wiki_page`): Forgejo's own edit would create the page, so the tool reads it first. |
 | `delete_wiki_page` | Delete a page by normalized `page_name`. |
 | **Server** | |
-| `get_forgejo_mcp_server_version` | Get the MCP server version |
+| `get_forgejo_mcp_server_version` | Get the MCP server version, as `{"version": "..."}` (the `dev` default when unset). This is the MCP server version, not the Forgejo version. |
+| `get_forgejo_version` | Get the Forgejo version of the configured instance, as `{"version": "..."}`, unparsed (for example `17.0.0-rc1`). One request to the instance, sent without a credential; a failed probe is a tool error. |
 
 ### File output and its ceiling
 
@@ -215,12 +216,12 @@ Each tool definition sends a description and a property description for every ar
 
 Tool names, argument names and required lists are unchanged, so a prompt or script written for the full text still works. Lean mode is a rewrite at registration (`internal/lean/`), not a second set of descriptions.
 
-Measured by running the server over stdio on this build, for the whole catalogue of 167 tools:
+Measured by running the server over stdio on this build, for the whole catalogue of 169 tools:
 
 | Text | Bytes of the `tools/list` response | ~Tokens |
 |---|---:|---:|
-| Full (default) | 127,243 | 31,811 |
-| `--lean` | 59,033 | 14,758 |
+| Full (default) | 130,984 | 32,746 |
+| `--lean` | 59,644 | 14,911 |
 
 The estimate is bytes divided by 4, as in the standing-cost table below.
 

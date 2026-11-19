@@ -335,7 +335,11 @@
     },
     {
       "name": "get_forgejo_mcp_server_version",
-      "description": "Get MCP server version"
+      "description": "Get the MCP server version, as {\"version\": \"...\"}. This is the MCP server's own version, not the Forgejo version (see get_forgejo_version)."
+    },
+    {
+      "name": "get_forgejo_version",
+      "description": "Get the Forgejo version of the configured instance, as {\"version\": \"...\"}, unparsed (for example 17.0.0-rc1). One request to the instance, which needs no credential."
     },
     {
       "name": "get_issue_attachment",
