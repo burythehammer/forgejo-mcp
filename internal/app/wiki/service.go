@@ -197,15 +197,20 @@ func (s *Service) Create(ctx context.Context, r CreateRequest) (model.WikiWriteR
 	return writeResult(page), nil
 }
 
-// Update edits a page and returns its title, name and commit. An empty title
-// is read from the page first, so the title is preserved.
+// Update edits a page and returns its title, name and commit. The page is read
+// first: Forgejo's edit of a page that does not exist creates it, so a mistyped
+// name would silently add a page, and a missing page is refused here instead.
+// An empty title keeps the page's own title.
 func (s *Service) Update(ctx context.Context, r UpdateRequest) (model.WikiWriteResult, error) {
+	current, err := s.port.GetWikiPage(ctx, r.Owner, r.Repo, r.PageName)
+	if forge.IsNotFound(err) {
+		return model.WikiWriteResult{}, fmt.Errorf("update wiki page: %q does not exist; use create_wiki_page to add it: %w", r.PageName, err)
+	}
+	if err != nil {
+		return model.WikiWriteResult{}, fmt.Errorf("read wiki page before update: %w", err)
+	}
 	title := r.Title
 	if title == "" {
-		current, err := s.port.GetWikiPage(ctx, r.Owner, r.Repo, r.PageName)
-		if err != nil {
-			return model.WikiWriteResult{}, fmt.Errorf("read wiki page before update: %w", err)
-		}
 		title = current.Title
 	}
 	message := r.Message

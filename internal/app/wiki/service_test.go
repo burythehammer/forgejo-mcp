@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	appwiki "forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/app/wiki"
+	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/fake"
 	"forgejo.burythehammer.com/burythehammer/forgejo-mcp/v3/internal/forge/wikiadapter"
 )
@@ -129,11 +130,19 @@ func TestUpdateKeepsTheTitleWhenNoneIsGiven(t *testing.T) {
 	}
 }
 
-func TestUpdateUnknownPageIsWrapped(t *testing.T) {
+func TestUpdateUnknownPageIsRefusedWithOrWithoutATitle(t *testing.T) {
 	t.Parallel()
-	_, err := newService(t).Update(context.Background(), appwiki.UpdateRequest{Owner: owner, Repo: repo, PageName: "Nope", Content: "x"})
-	if err == nil || !strings.HasPrefix(err.Error(), "read wiki page before update: ") {
-		t.Fatalf("got %v", err)
+	for _, title := range []string{"", "Nope"} {
+		s := newService(t)
+		_, err := s.Update(context.Background(), appwiki.UpdateRequest{Owner: owner, Repo: repo, PageName: "Nope", Title: title, Content: "x"})
+		if err == nil || !strings.Contains(err.Error(), "use create_wiki_page") || !forge.IsNotFound(err) {
+			t.Fatalf("title %q: got %v", title, err)
+		}
+		// The refusal must leave nothing behind: Forgejo's own edit would have
+		// created the page.
+		if _, err := s.Get(context.Background(), appwiki.GetRequest{Owner: owner, Repo: repo, PageName: "Nope"}); !forge.IsNotFound(err) {
+			t.Fatalf("title %q: page was created: %v", title, err)
+		}
 	}
 }
 
@@ -177,5 +186,22 @@ func TestListEnvelopeOnAnExactMultiple(t *testing.T) {
 	}
 	if got.Page != 1 || got.Limit != 2 || got.Count != 2 || got.HasNext {
 		t.Fatalf("exact multiple, last page: got %+v", got)
+	}
+}
+
+func TestCreateRefusesAnExistingHyphenatedTitle(t *testing.T) {
+	t.Parallel()
+	s := newService(t)
+	create(t, s, "delivery-workflow", "one")
+	_, err := s.Create(context.Background(), appwiki.CreateRequest{Owner: owner, Repo: repo, Title: "delivery-workflow", Content: "two"})
+	if err == nil {
+		t.Fatal("a second create of a hyphenated title must be refused")
+	}
+	// Forgejo stores the page as "delivery-workflow.-", so the guard's read of
+	// the plain title may not see it; the refusal then comes from Forgejo. Either
+	// way the first content must survive.
+	got, gerr := s.Get(context.Background(), appwiki.GetRequest{Owner: owner, Repo: repo, PageName: "delivery-workflow.-"})
+	if gerr != nil || got.Content != "one" {
+		t.Fatalf("content %+v, err %v", got, gerr)
 	}
 }

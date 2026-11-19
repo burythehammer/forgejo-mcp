@@ -44,3 +44,4 @@ Template table, expansion gotchas and how to add a template: [docs/agents/resour
 - **Issue tracker** (Forgejo, via this repo's own `forgejo` MCP server, `fj` as fallback): [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
 - **Triage labels** (pass names, never IDs, to `add_issue_labels`, `remove_issue_labels`, `create_issue` and `update_issue`): [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
 - **Domain docs** (`GLOSSARY.md` + `docs/adr/`, created lazily): [docs/agents/domain.md](docs/agents/domain.md).
+- **Repo wiki** (architecture, delivery workflow, `log`): the Forgejo wiki of this repo, read with `get_wiki_page` / `list_wiki_pages` / `search_wiki` and logged there. Outline is retired for this repo (#359): do not run `/repo-wiki` against it. A hyphenated page is stored as `<title>.-`; use the `page_name` the tools return.

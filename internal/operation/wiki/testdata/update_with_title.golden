@@ -1,3 +1,4 @@
 {"Result":{"title":"Start","page_name":"Home","commit_sha":"abc123"}}
 -- port calls --
+GetWikiPage ["octo","hello","Home"]
 EditWikiPage ["octo","hello","Home","Start","Ym9keQ==","reword"]

@@ -35,3 +35,11 @@ A write workflow, or a sequence that encodes one user's convention, stays with A
 ## Amendment: with_blockers on file output (#363)
 
 `list_repo_issues` and `search_issues`, called with `outFile` and `with_blockers`, read the dependencies of each listed issue: one `ListIssueDependencies` read per listed issue, more pages only when an issue has more blockers than one page. Forgejo has no endpoint that returns the blockers of many issues at once, so this is a fan-out under the three conditions above. It is read-only. It is bounded by the file-output ceiling (`list.FileCeiling`, 1,000) on the listing and on each issue's blockers. The third condition, that the tool bounds the fan-out and reports truncation, is met here by failing loudly past the ceiling instead: nothing is truncated, so there is no truncation to report. A read over the ceiling, or any failed read, fails the call and writes no file. The reads run on the file-output path of ADR 0008, not a page.
+
+## Amendment: what the live run showed (#359, Forgejo 16.0.4)
+
+The live wiki contract run against Forgejo 16.0.4 corrected three assumptions above:
+
+- Forgejo refuses a create of an existing page itself (400 "wiki page already exists"). The port is not an upsert, and the guard in the use case is a clearer error and a first line of defence, not the only one. The guard's read of a title Forgejo stored as `<title>.-` (a hyphenated title) can miss it, and Forgejo's own refusal then applies (#388).
+- Forgejo's edit of a page that does not exist creates it. `update_wiki_page` therefore reads the page first and refuses a missing one.
+- Forgejo ignores the revision `limit` and ends commit messages with a newline. The adapter pages the history itself and trims the message.
